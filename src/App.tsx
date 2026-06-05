@@ -1,0 +1,175 @@
+import { useEffect, useState, useCallback } from 'react';
+import { useStore } from './store';
+import { useAuth } from './store/auth';
+import { CategoryTabs } from './components/CategoryTabs';
+import { SkuOrderSection } from './components/SkuOrderSection';
+import { MonthlySalesSection } from './components/MonthlySalesSection';
+import { ChannelSimSection } from './components/ChannelSimSection';
+import { RevenueChartSection } from './components/RevenueChartSection';
+import { BrandFilter } from './components/BrandFilter';
+import { LoginScreen } from './components/LoginScreen';
+import { PinManager } from './components/PinManager';
+import { parseImportJson, type RawSkuInput } from './utils/importParser';
+
+interface PendingImport {
+  _id: string;
+  skus: RawSkuInput[];
+}
+
+const ROLE_META = {
+  master: { label: 'MASTER', color: 'bg-indigo-100 text-indigo-700' },
+  pm:     { label: 'PM',     color: 'bg-violet-100 text-violet-700' },
+  md:     { label: 'MD',     color: 'bg-emerald-100 text-emerald-700' },
+} as const;
+
+function App() {
+  const loadSkus = useStore((s) => s.loadSkus);
+  const importSkus = useStore((s) => s.importSkus);
+  const { role, logout } = useAuth();
+
+  const [pending, setPending] = useState<PendingImport | null>(null);
+  const [importState, setImportState] = useState<'idle' | 'done' | 'error'>('idle');
+  const [showPinManager, setShowPinManager] = useState(false);
+
+  useEffect(() => {
+    loadSkus();
+  }, [loadSkus]);
+
+  // pending-import.json 감지
+  useEffect(() => {
+    fetch('/pending-import.json', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .catch(() => null)
+      .then((data: PendingImport | null) => {
+        if (!data?.skus?.length) return;
+        const lastId = localStorage.getItem('lastImportId');
+        if (lastId === data._id) return;
+        setPending(data);
+      });
+  }, []);
+
+  const handleImport = useCallback(async () => {
+    if (!pending) return;
+    try {
+      const parsed = parseImportJson(pending.skus);
+      await importSkus(parsed);
+      localStorage.setItem('lastImportId', pending._id);
+      setPending(null);
+      setImportState('done');
+      setTimeout(() => setImportState('idle'), 3000);
+    } catch (e) {
+      console.error('가져오기 실패:', e);
+      setImportState('error');
+      setTimeout(() => setImportState('idle'), 4000);
+    }
+  }, [pending, importSkus]);
+
+  if (!role) return <LoginScreen />;
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {showPinManager && <PinManager onClose={() => setShowPinManager(false)} />}
+      {/* 헤더 */}
+      <header className="bg-white border-b border-gray-200 px-6 py-3 flex items-center gap-3">
+        <div>
+          <h1 className="text-base font-bold text-gray-900 leading-tight">MD Dashboard</h1>
+          <p className="text-xs text-gray-400">발주량 시뮬레이션 &amp; 월별 판매 계획</p>
+        </div>
+
+        {/* 역할 배지 + 관리 버튼 */}
+        <div className="ml-auto flex items-center gap-2">
+          <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${ROLE_META[role].color}`}>
+            {ROLE_META[role].label}
+          </span>
+          {role === 'master' && (
+            <button
+              onClick={() => setShowPinManager(true)}
+              className="text-xs px-2.5 py-1 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-100 transition-colors"
+            >
+              ⚙ PIN 관리
+            </button>
+          )}
+          <button
+            onClick={logout}
+            className="text-xs px-2.5 py-1 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-100 transition-colors"
+          >
+            로그아웃
+          </button>
+        </div>
+
+        {/* 가져오기 버튼 영역 */}
+        <div className="flex items-center gap-2">
+          {pending && importState === 'idle' && (
+            <button
+              onClick={handleImport}
+              className="flex items-center gap-1.5 px-4 py-1.5 bg-indigo-600 text-white text-xs font-semibold rounded-lg hover:bg-indigo-700 transition-colors shadow-sm"
+            >
+              <span>↓</span>
+              <span>SKU {pending.skus.length}개 가져오기</span>
+            </button>
+          )}
+          {importState === 'done' && (
+            <span className="text-xs font-medium text-green-600 flex items-center gap-1">
+              <span>✓</span> 가져오기 완료
+            </span>
+          )}
+          {importState === 'error' && (
+            <span className="text-xs font-medium text-red-500">
+              가져오기 실패 — 콘솔을 확인하세요
+            </span>
+          )}
+        </div>
+      </header>
+
+      {/* 카테고리 탭 + 브랜드 필터 (sticky) */}
+      <div className="sticky top-0 z-10 bg-white shadow-sm">
+        <CategoryTabs />
+        <BrandFilter />
+      </div>
+
+      {/* 메인 콘텐츠 */}
+      <main className="max-w-screen-xl mx-auto">
+        {/* Section A */}
+        <SkuOrderSection />
+
+        {/* Section A/B 구분 */}
+        <div className="mx-4 my-2 flex items-center gap-3">
+          <div className="flex-1 border-t border-gray-200" />
+          <span className="text-xs text-gray-400 bg-gray-50 px-3 py-1 rounded-full border border-gray-200">
+            월별 시뮬레이션
+          </span>
+          <div className="flex-1 border-t border-gray-200" />
+        </div>
+
+        {/* Section B */}
+        <MonthlySalesSection />
+
+        {/* Section B/C 구분 */}
+        <div className="mx-4 my-2 flex items-center gap-3">
+          <div className="flex-1 border-t border-gray-200" />
+          <span className="text-xs text-gray-400 bg-gray-50 px-3 py-1 rounded-full border border-gray-200">
+            채널 시뮬레이션
+          </span>
+          <div className="flex-1 border-t border-gray-200" />
+        </div>
+
+        {/* Section C */}
+        <ChannelSimSection />
+
+        {/* Section C/D 구분 */}
+        <div className="mx-4 my-2 flex items-center gap-3">
+          <div className="flex-1 border-t border-gray-200" />
+          <span className="text-xs text-gray-400 bg-gray-50 px-3 py-1 rounded-full border border-gray-200">
+            매출 차트
+          </span>
+          <div className="flex-1 border-t border-gray-200" />
+        </div>
+
+        {/* Section D */}
+        <RevenueChartSection />
+      </main>
+    </div>
+  );
+}
+
+export default App;

@@ -1,0 +1,44 @@
+[
+  {
+    "category": "의류",
+    "name": "테스트 패딩 2025FW",
+    "skuType": "시즈널",
+    "releaseDate": "2025-10-01",
+    "price": 89000,
+    "cost": 14000,
+    "contributionMarginRate": 35,
+    "totalOrderQty": 3000,
+    "sizeCount": 5,
+    "sizeRatios": [10, 25, 35, 20, 10],
+    "moq": 150,
+    "targetSellThroughMonths": 3,
+    "hasColors": true,
+    "colors": [
+      { "name": "블랙", "quantity": 1500 },
+      { "name": "네이비", "quantity": 1000 },
+      { "name": "베이지", "quantity": 500 }
+    ],
+    "monthlySplit": { "10": 30, "11": 40, "12": 30 },
+    "comparisonSku": {
+      "name": "패딩 점퍼 2024FW",
+      "price": 79000,
+      "cost": 12000,
+      "monthlyShipment": 400,
+      "annualShipment": 1200
+    }
+  },
+  {
+    "category": "의류",
+    "name": "테스트 티셔츠 2025SS",
+    "skuType": "스테디",
+    "price": 35000,
+    "cost": 8500,
+    "contributionMarginRate": 30,
+    "totalOrderQty": 1200,
+    "sizeCount": 4,
+    "sizeRatios": [15, 35, 35, 15],
+    "moq": 50,
+    "targetSellThroughMonths": 6,
+    "monthlySplit": { "7": 20, "8": 30, "9": 25, "10": 25 }
+  }
+]
