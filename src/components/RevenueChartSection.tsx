@@ -44,6 +44,28 @@ function fmtTooltip(v: number): string {
   return `₩${Math.round(v / 10_000).toLocaleString()}만`;
 }
 
+// 바 맨 위 총합 표시
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function TotalLabel(props: any) {
+  const x = props.x as number;
+  const y = props.y as number;
+  const width = props.width as number;
+  const value = props.value as number;
+  if (!value || value <= 0) return null;
+  return (
+    <text
+      x={x + width / 2}
+      y={y - 5}
+      textAnchor="middle"
+      fontSize={10}
+      fill="#374151"
+      fontWeight={700}
+    >
+      {`${(value / 100_000_000).toFixed(1)}억`}
+    </text>
+  );
+}
+
 // 바 세그먼트 안에 "채널명 X만" 표시
 function makeLabel(channel: Channel) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -90,6 +112,7 @@ export function RevenueChartSection() {
     const data = MONTHS.flatMap((month) => {
       const point: Record<string, unknown> = { monthLabel: MONTH_LABELS[month] };
       let hasData = false;
+      let total = 0;
 
       for (const ch of CHANNELS) {
         let rev = 0;
@@ -102,9 +125,11 @@ export function RevenueChartSection() {
           rev += Math.round(qty * sku.price * getChannelRate(ch));
         }
         point[ch] = rev;
+        total += rev;
         if (rev > 0) hasData = true;
       }
 
+      point['__total__'] = total;
       return hasData ? [point] : [];
     });
 
@@ -129,7 +154,7 @@ export function RevenueChartSection() {
       <h2 className="text-sm font-semibold text-gray-700 mb-3">
         채널별 월별 매출 현황
         <span className="ml-2 text-xs text-gray-400 font-normal">
-          월별 비중 입력된 SKU · 브랜드 필터 적용 · 실시간 반영
+          전체 SKU 합산 · 월별 비중 입력된 SKU · 브랜드 필터 적용
         </span>
       </h2>
 
@@ -176,7 +201,10 @@ export function RevenueChartSection() {
                   i === activeChannels.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]
                 }
               >
-                <LabelList content={makeLabel(ch)} />
+                <LabelList dataKey={ch} content={makeLabel(ch)} />
+                {i === activeChannels.length - 1 && (
+                  <LabelList dataKey="__total__" content={TotalLabel} />
+                )}
               </Bar>
             ))}
           </BarChart>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useStore } from '../store';
 import { useAuth } from '../store/auth';
 import { MONTHS, CHANNELS, B2C_CHANNELS, type Month, type Channel } from '../types';
@@ -40,15 +40,65 @@ export function ChannelSimSection() {
       (activeBrand === '전체' || sku.brand === activeBrand),
   );
 
+  const ALL_MODE = '__all__';
   const [selectedSkuId, setSelectedSkuId] = useState('');
+  const isAllMode = selectedSkuId === ALL_MODE;
 
   useEffect(() => {
-    if (eligibleSkus.length > 0 && !eligibleSkus.find((s) => s.id === selectedSkuId)) {
+    if (eligibleSkus.length > 0 && selectedSkuId !== ALL_MODE && !eligibleSkus.find((s) => s.id === selectedSkuId)) {
       setSelectedSkuId(eligibleSkus[0].id);
     }
   }, [eligibleSkus, selectedSkuId]);
 
-  const sku = skus.find((s) => s.id === selectedSkuId) ?? null;
+  const sku = isAllMode ? null : (skus.find((s) => s.id === selectedSkuId) ?? null);
+
+  // 전체 합산 모드 데이터 (차트와 동일한 계산)
+  const aggData = useMemo(() => {
+    if (!isAllMode) return null;
+    const result: Record<string, Record<number, { qty: number; rev: number }>> = {};
+    for (const ch of CHANNELS) {
+      result[ch] = {};
+      for (const month of MONTHS) {
+        let qty = 0, rev = 0;
+        for (const s of eligibleSkus) {
+          const ms = s.monthlySplit.find((m) => m.month === month);
+          if (!ms || ms.quantity === 0) continue;
+          const ratio = s.channelRatios.find((r) => r.channel === ch)?.ratio ?? 0;
+          if (ratio === 0) continue;
+          const q = Math.round((ms.quantity * ratio) / 100);
+          qty += q;
+          rev += Math.round(q * s.price * getChannelRate(ch));
+        }
+        result[ch][month] = { qty, rev };
+      }
+    }
+    return result;
+  }, [isAllMode, eligibleSkus]);
+
+  const aggMonthTotals = useMemo(() => {
+    if (!aggData) return null;
+    return Object.fromEntries(MONTHS.map((month) => {
+      const qty = CHANNELS.reduce((s, ch) => s + (aggData[ch][month]?.qty ?? 0), 0);
+      const rev = CHANNELS.reduce((s, ch) => s + (aggData[ch][month]?.rev ?? 0), 0);
+      return [month, { qty, rev }];
+    }));
+  }, [aggData]);
+
+  const aggChannelTotals = useMemo(() => {
+    if (!aggData) return null;
+    return Object.fromEntries(CHANNELS.map((ch) => {
+      const qty = MONTHS.reduce((s, m) => s + (aggData[ch][m]?.qty ?? 0), 0);
+      const rev = MONTHS.reduce((s, m) => s + (aggData[ch][m]?.rev ?? 0), 0);
+      return [ch, { qty, rev }];
+    }));
+  }, [aggData]);
+
+  const aggGrandTotal = useMemo(() => {
+    if (!aggChannelTotals) return null;
+    const qty = CHANNELS.reduce((s, ch) => s + aggChannelTotals[ch].qty, 0);
+    const rev = CHANNELS.reduce((s, ch) => s + aggChannelTotals[ch].rev, 0);
+    return { qty, rev };
+  }, [aggChannelTotals]);
 
   const totalChannelRatio = sku
     ? sku.channelRatios.reduce((sum, cr) => sum + cr.ratio, 0)
@@ -104,6 +154,9 @@ export function ChannelSimSection() {
                 onChange={(e) => setSelectedSkuId(e.target.value)}
                 className="text-xs pl-3 pr-8 py-1.5 border border-indigo-300 rounded-lg bg-white text-indigo-700 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-400 appearance-none cursor-pointer"
               >
+                {eligibleSkus.length > 1 && (
+                  <option value={ALL_MODE}>전체 SKU 합산 ({eligibleSkus.length}개)</option>
+                )}
                 {eligibleSkus.map((s) => (
                   <option key={s.id} value={s.id}>
                     [{s.category}] {s.name || '(SKU명 미입력)'}
@@ -130,9 +183,118 @@ export function ChannelSimSection() {
                 </button>
               </>
             )}
+            {isAllMode && (
+              <span className="text-xs text-indigo-500 bg-indigo-50 px-2.5 py-1 rounded-lg border border-indigo-200">
+                채널별 월별 매출 현황 그래프와 동일한 수치
+              </span>
+            )}
           </div>
         )}
       </div>
+
+      {/* 전체 합산 모드 */}
+      {isAllMode && aggData && aggMonthTotals && aggChannelTotals && aggGrandTotal && (
+        <>
+          <div className="flex items-center gap-4 mb-2 px-1">
+            <span className="flex items-center gap-1.5 text-xs text-gray-500">
+              <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-700">B2C</span>
+              자사몰·스스·위탁 — 판매가 × 80%
+            </span>
+            <span className="flex items-center gap-1.5 text-xs text-gray-500">
+              <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-violet-100 text-violet-700">B2B</span>
+              쿠팡·B2B·사입및페어·글로벌·일본 — 판매가 × 60%
+            </span>
+          </div>
+
+          <div className="rounded-xl border border-gray-200 overflow-hidden overflow-x-auto">
+            <table className="w-full text-xs border-collapse" style={{ minWidth: '860px' }}>
+              <thead>
+                <tr className="bg-gray-50">
+                  <th className="text-left px-3 py-2.5 font-semibold text-gray-600 border-b border-r border-gray-200 w-24">채널</th>
+                  {MONTHS.map((m) => (
+                    <th
+                      key={m}
+                      className={`text-center px-2 py-2.5 font-semibold border-b border-r border-gray-200 ${
+                        IS_NEXT_YEAR[m] ? 'text-blue-600 bg-blue-50/60' : 'text-gray-600'
+                      }`}
+                    >
+                      {MONTH_LABELS[m]}
+                      {IS_NEXT_YEAR[m] && <div className="text-blue-400 font-normal text-[10px] leading-tight">익년</div>}
+                    </th>
+                  ))}
+                  <th className="text-center px-2 py-2.5 font-semibold text-gray-500 border-b border-gray-200 w-20">합계</th>
+                </tr>
+                <tr className="bg-indigo-50 border-b-2 border-indigo-200">
+                  <td className="px-3 py-2 font-semibold text-indigo-800 border-r border-indigo-200 text-xs whitespace-nowrap">
+                    월별 총매출
+                  </td>
+                  {MONTHS.map((month) => {
+                    const rev = aggMonthTotals[month]?.rev ?? 0;
+                    return (
+                      <td key={month} className={`px-2 py-2 text-center font-semibold tabular-nums border-r border-indigo-100 ${IS_NEXT_YEAR[month] ? 'text-blue-700 bg-blue-100/40' : 'text-indigo-700'}`}>
+                        {rev > 0 ? <span className="text-[10px]">{formatWon(rev)}</span> : <span className="text-indigo-300">–</span>}
+                      </td>
+                    );
+                  })}
+                  <td className="px-2 py-2 text-center font-bold text-indigo-700 tabular-nums text-[10px]">
+                    {aggGrandTotal.rev > 0 ? formatWon(aggGrandTotal.rev) : <span className="text-indigo-300">–</span>}
+                  </td>
+                </tr>
+              </thead>
+              <tbody>
+                {CHANNELS.filter((ch) => (aggChannelTotals[ch]?.qty ?? 0) > 0).map((channel, rowIdx) => {
+                  const isB2C = B2C_CHANNELS.includes(channel);
+                  const chTotal = aggChannelTotals[channel];
+                  return (
+                    <tr key={channel} className={`border-b border-gray-100 ${rowIdx % 2 === 0 ? 'bg-white' : 'bg-gray-50/40'}`}>
+                      <td className="px-3 py-2 border-r border-gray-200 whitespace-nowrap font-medium text-gray-700">{channel}</td>
+                      {MONTHS.map((month) => {
+                        const d = aggData[channel][month];
+                        return (
+                          <td key={month} className={`px-2 py-1.5 text-center tabular-nums border-r border-gray-100 ${IS_NEXT_YEAR[month] ? 'bg-blue-50/30' : ''}`}>
+                            <div className="text-gray-600">{d.qty > 0 ? d.qty.toLocaleString() : <span className="text-gray-300">–</span>}</div>
+                            <div className={`text-[10px] mt-0.5 ${d.rev > 0 ? (isB2C ? 'text-emerald-600' : 'text-violet-600') : 'text-gray-300'}`}>
+                              {formatWon(d.rev)}
+                            </div>
+                          </td>
+                        );
+                      })}
+                      <td className="px-2 py-1.5 text-center tabular-nums">
+                        <div className="font-semibold text-gray-700">{chTotal.qty > 0 ? chTotal.qty.toLocaleString() : <span className="text-gray-300">–</span>}</div>
+                        <div className={`text-[10px] mt-0.5 font-medium ${chTotal.rev > 0 ? (isB2C ? 'text-emerald-600' : 'text-violet-600') : 'text-gray-300'}`}>
+                          {formatWon(chTotal.rev)}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+              <tfoot>
+                <tr className="bg-indigo-50 border-t-2 border-indigo-200">
+                  <td className="px-3 py-2.5 font-semibold text-indigo-800 text-xs border-r border-indigo-200">합계</td>
+                  {MONTHS.map((month) => {
+                    const t = aggMonthTotals[month];
+                    return (
+                      <td key={month} className={`px-2 py-2.5 text-center tabular-nums border-r border-indigo-100 ${IS_NEXT_YEAR[month] ? 'bg-blue-100/40' : ''}`}>
+                        <div className="font-semibold text-indigo-700">{t.qty > 0 ? t.qty.toLocaleString() : <span className="text-indigo-300">–</span>}</div>
+                        <div className="text-[10px] mt-0.5 font-medium text-indigo-500">{formatWon(t.rev)}</div>
+                      </td>
+                    );
+                  })}
+                  <td className="px-2 py-2.5 text-center tabular-nums">
+                    <div className="font-bold text-indigo-700">{aggGrandTotal.qty > 0 ? aggGrandTotal.qty.toLocaleString() : <span className="text-indigo-300">–</span>}</div>
+                    <div className="text-[10px] mt-0.5 font-medium text-indigo-500">{formatWon(aggGrandTotal.rev)}</div>
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+
+          <div className="flex items-center gap-4 mt-2 px-1 flex-wrap">
+            <span className="text-xs text-gray-400">매출 = 수량 × 판매가 × (B2C 80% / B2B 60%)</span>
+          </div>
+        </>
+      )}
 
       {sku && (
         <>
