@@ -69,7 +69,7 @@ function App() {
   }
 
   useEffect(() => {
-    loadSkus();
+    return loadSkus(); // Firestore onSnapshot unsubscribe on unmount
   }, [loadSkus]);
 
   // pending-import.json 감지
