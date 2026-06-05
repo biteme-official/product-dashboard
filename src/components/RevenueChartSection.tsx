@@ -46,7 +46,8 @@ function fmtTooltip(v: number): string {
 
 // 바 세그먼트 안에 "채널명 X만" 표시
 function makeLabel(channel: Channel) {
-  return function BarLabel(props: Record<string, unknown>) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return function BarLabel(props: any) {
     const x = props.x as number;
     const y = props.y as number;
     const width = props.width as number;
@@ -156,7 +157,7 @@ export function RevenueChartSection() {
             />
             <Tooltip
               cursor={{ fill: '#f9fafb' }}
-              formatter={(value: number, name: string) => [fmtTooltip(value), name]}
+              formatter={(value, name) => [fmtTooltip(value as number), name as string]}
               contentStyle={{
                 fontSize: 11,
                 border: '1px solid #e5e7eb',

@@ -1,4 +1,4 @@
-import { CATEGORIES, type Category } from '../types';
+import { CATEGORIES } from '../types';
 import { useStore } from '../store';
 
 export function CategoryTabs() {

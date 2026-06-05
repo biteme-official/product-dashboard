@@ -1,6 +1,10 @@
-import type { SkuData, SizeRatio, MonthlySplit } from '../types';
+import type { SkuData, SizeRatio, MonthlySplit, ChannelRatio } from '../types';
 // ColorEntry is intentionally not used here — both dummies have no colors
-import { MAX_SIZES, SIZE_LABELS, MONTHS, BRANDS } from '../types';
+import { MAX_SIZES, SIZE_LABELS, MONTHS, BRANDS, CHANNELS, DEFAULT_CHANNEL_RATIOS } from '../types';
+
+function buildChannelRatios(): ChannelRatio[] {
+  return CHANNELS.map((channel) => ({ channel, ratio: DEFAULT_CHANNEL_RATIOS[channel] }));
+}
 
 function buildSizes(count: number, ratios: number[], totalQty: number): SizeRatio[] {
   const labels = SIZE_LABELS[count];
@@ -54,7 +58,9 @@ const paddingBase = {
     monthlyShipment: 400,
     annualShipment: 1200,
   },
+  channelRatios: buildChannelRatios(),
   monthlySplit: buildMonthlySplit(),
+  memo: '',
 };
 
 const tshirtBase = {
@@ -81,7 +87,9 @@ const tshirtBase = {
     monthlyShipment: 100,
     annualShipment: 600,
   },
+  channelRatios: buildChannelRatios(),
   monthlySplit: buildMonthlySplit(),
+  memo: '',
 };
 
 export const DUMMY_SKUS: SkuData[] = [
