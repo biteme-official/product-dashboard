@@ -4,7 +4,6 @@ import type { AppState, Category, Month, SkuData, MonthlySplit, ColorEntry } fro
 import { MAX_SIZES, SIZE_LABELS, MONTHS, CHANNELS, BRANDS, DEFAULT_CHANNEL_RATIOS, getReleaseMonth, simPosition, type Brand } from '../types';
 import { recalcQuantities, revenueMultiplier, calcDynamicMultiplier } from '../utils/calc';
 import { db } from '../db';
-import { DUMMY_SKUS } from '../data/dummy';
 
 function buildEmptySku(category: Category): SkuData {
   const base: Omit<SkuData, '_initialSnapshot' | 'isExpanded'> = {
@@ -162,6 +161,7 @@ interface StoreActions {
   resetChannelRatios: (id: string) => void;
   applyChannelRatiosToFiltered: (sourceSkuId: string) => Promise<void>;
   importSkus: (skus: SkuData[]) => Promise<void>;
+  replaceAllSkus: (skus: Omit<SkuData, '_initialSnapshot' | 'isExpanded'>[]) => Promise<void>;
   persistSku: (id: string) => Promise<void>;
 }
 
@@ -178,10 +178,8 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
     const initialized = localStorage.getItem('md-dashboard-initialized');
 
     if (stored.length === 0 && !initialized) {
-      // 최초 실행 시에만 더미 데이터 주입
-      await db.skus.bulkPut(DUMMY_SKUS);
       localStorage.setItem('md-dashboard-initialized', '1');
-      set({ skus: DUMMY_SKUS.map((s) => ({ ...s, isExpanded: false })) });
+      set({ skus: [] });
     } else {
       if (!initialized) localStorage.setItem('md-dashboard-initialized', '1');
       // 마이그레이션 + 매출 재계산, 로드 시 항상 카드 닫힌 상태로 시작
@@ -341,6 +339,18 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
   importSkus: async (newSkus) => {
     await db.skus.bulkPut(newSkus);
     set({ skus: [...get().skus, ...newSkus] });
+  },
+
+  replaceAllSkus: async (rawSkus) => {
+    const full: SkuData[] = rawSkus.map((s) => ({
+      ...s,
+      isExpanded: false,
+      _initialSnapshot: JSON.parse(JSON.stringify(s)),
+      memo: s.memo ?? '',
+    }));
+    await db.skus.clear();
+    await db.skus.bulkPut(full);
+    set({ skus: full });
   },
 
   persistSku: async (id) => {

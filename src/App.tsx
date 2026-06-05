@@ -1,6 +1,7 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useStore } from './store';
 import { useAuth } from './store/auth';
+import type { SkuData } from './types';
 import { CategoryTabs } from './components/CategoryTabs';
 import { SkuOrderSection } from './components/SkuOrderSection';
 import { MonthlySalesSection } from './components/MonthlySalesSection';
@@ -25,11 +26,47 @@ const ROLE_META = {
 function App() {
   const loadSkus = useStore((s) => s.loadSkus);
   const importSkus = useStore((s) => s.importSkus);
+  const replaceAllSkus = useStore((s) => s.replaceAllSkus);
+  const skus = useStore((s) => s.skus);
   const { role, logout } = useAuth();
 
   const [pending, setPending] = useState<PendingImport | null>(null);
   const [importState, setImportState] = useState<'idle' | 'done' | 'error'>('idle');
   const [showPinManager, setShowPinManager] = useState(false);
+  const [backupState, setBackupState] = useState<'idle' | 'done' | 'error'>('idle');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  function handleExport() {
+    const data = skus.map(({ _initialSnapshot: _, isExpanded: __, ...rest }) => rest);
+    const json = JSON.stringify({ version: 1, skus: data }, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const date = new Date().toISOString().slice(2, 10).replace(/-/g, '');
+    a.download = `${date}_md-dashboard-backup.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async function handleImportFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      const rawSkus: Omit<SkuData, '_initialSnapshot' | 'isExpanded'>[] =
+        parsed.version === 1 ? parsed.skus : parsed;
+      if (!Array.isArray(rawSkus) || rawSkus.length === 0) throw new Error('invalid');
+      await replaceAllSkus(rawSkus);
+      setBackupState('done');
+      setTimeout(() => setBackupState('idle'), 3000);
+    } catch {
+      setBackupState('error');
+      setTimeout(() => setBackupState('idle'), 4000);
+    }
+  }
 
   useEffect(() => {
     loadSkus();
@@ -81,6 +118,42 @@ function App() {
           <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${ROLE_META[role].color}`}>
             {ROLE_META[role].label}
           </span>
+
+          {/* 내보내기 */}
+          <button
+            onClick={handleExport}
+            title="전체 SKU 데이터를 JSON 파일로 저장"
+            className="text-xs px-2.5 py-1 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-100 transition-colors"
+          >
+            ↓ 백업
+          </button>
+
+          {/* 가져오기 (Master만) */}
+          {role === 'master' && (
+            <>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".json"
+                onChange={handleImportFile}
+                className="hidden"
+              />
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                title="백업 JSON 파일로 데이터 복원 (기존 데이터 전체 교체)"
+                className="text-xs px-2.5 py-1 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-100 transition-colors"
+              >
+                ↑ 복원
+              </button>
+              {backupState === 'done' && (
+                <span className="text-xs text-green-600 font-medium">✓ 복원 완료</span>
+              )}
+              {backupState === 'error' && (
+                <span className="text-xs text-red-500">복원 실패</span>
+              )}
+            </>
+          )}
+
           {role === 'master' && (
             <button
               onClick={() => setShowPinManager(true)}
