@@ -140,7 +140,12 @@ export function MdViewSection() {
     <section className="p-4 pb-10 space-y-6">
       {/* KPI 카드 */}
       <div>
-        <h2 className="text-sm font-semibold text-gray-700 mb-3">발주 요약</h2>
+        <div className="flex items-baseline gap-2 mb-3">
+          <h2 className="text-sm font-semibold text-gray-700">MD 요약</h2>
+          <span className="text-[11px] text-indigo-400">
+            위 시뮬레이션 수량 기반 실시간 집계 · 필터 내 전체 SKU 합산
+          </span>
+        </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <KpiCard
             label="총 발주량"
