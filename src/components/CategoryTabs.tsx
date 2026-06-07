@@ -7,7 +7,7 @@ export function CategoryTabs() {
   const skus = useStore((s) => s.skus);
 
   return (
-    <div className="flex gap-1 p-4 bg-white border-b border-gray-200">
+    <div className="flex gap-1 p-3 bg-white border-b border-gray-200 overflow-x-auto scrollbar-none">
       {CATEGORIES.map((cat) => {
         const count = skus.filter((s) => s.category === cat).length;
         const isActive = cat === activeCategory;
@@ -15,7 +15,7 @@ export function CategoryTabs() {
           <button
             key={cat}
             onClick={() => setActiveCategory(cat)}
-            className={`px-5 py-2 rounded-full text-sm font-medium transition-all ${
+            className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all flex-shrink-0 ${
               isActive
                 ? 'bg-indigo-600 text-white shadow-sm'
                 : 'bg-gray-100 text-gray-600 hover:bg-gray-200'

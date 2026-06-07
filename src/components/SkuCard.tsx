@@ -30,59 +30,30 @@ export function SkuCard({ sku }: Props) {
   return (
     <div className="border border-gray-200 rounded-xl bg-white shadow-sm overflow-hidden">
       {/* 요약 헤더 */}
-      <div className="flex items-center gap-3 px-4 py-3 bg-gray-50 border-b border-gray-200">
-        <button
-          onClick={() => toggleExpanded(sku.id)}
-          className="text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0"
-        >
-          <svg
-            className={`w-4 h-4 transition-transform ${sku.isExpanded ? 'rotate-90' : ''}`}
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
+      <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
+        {/* 1행: 토글 + SKU명 + 액션 버튼 */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => toggleExpanded(sku.id)}
+            className="text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0"
           >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-          </svg>
-        </button>
+            <svg
+              className={`w-4 h-4 transition-transform ${sku.isExpanded ? 'rotate-90' : ''}`}
+              fill="none" viewBox="0 0 24 24" stroke="currentColor"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
 
-        <div className="flex items-center gap-2 flex-1 min-w-0">
-          <span className="font-semibold text-gray-900 truncate">
+          <span className="font-semibold text-gray-900 truncate flex-1 min-w-0 text-sm">
             {sku.name || '(SKU명 미입력)'}
           </span>
-          <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 flex-shrink-0">
-            {sku.category}
-          </span>
-          <span className="text-xs px-2 py-0.5 rounded-full bg-gray-200 text-gray-600 flex-shrink-0">
-            {sku.skuType}
-          </span>
-          <span className="text-xs px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 flex-shrink-0">
-            {sku.brand}
-          </span>
-        </div>
 
-        <div className="flex items-center gap-4 text-sm text-gray-600 flex-shrink-0">
-          <div className="text-right">
-            <div className="text-xs text-gray-400">판매가</div>
-            <div className="font-medium">₩{sku.price.toLocaleString()}</div>
-          </div>
-          <div className="text-right">
-            <div className="text-xs text-gray-400">총 발주량</div>
-            <div className="font-medium">{sku.totalOrderQty.toLocaleString()}장</div>
-          </div>
-          <div className="text-right">
-            <div className="text-xs text-gray-400">예상 매출</div>
-            <div className="font-medium text-indigo-600">
-              ₩{expectedRevenue.toLocaleString()}
-            </div>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2 flex-shrink-0">
           {canEdit && (
-            <>
+            <div className="flex items-center gap-1 flex-shrink-0">
               <button
                 onClick={() => resetSku(sku.id)}
-                className="text-xs px-3 py-1.5 rounded-lg border border-amber-300 text-amber-700 bg-amber-50 hover:bg-amber-100 transition-colors"
+                className="text-xs px-2 py-1 rounded-lg border border-amber-300 text-amber-700 bg-amber-50 hover:bg-amber-100 transition-colors"
               >
                 초기화
               </button>
@@ -90,7 +61,7 @@ export function SkuCard({ sku }: Props) {
                 onClick={() => duplicateSku(sku.id)}
                 disabled={isAtMax}
                 title={isAtMax ? '최대 15개 도달' : '이 SKU를 복사합니다'}
-                className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${
+                className={`text-xs px-2 py-1 rounded-lg border transition-colors ${
                   isAtMax
                     ? 'border-gray-200 text-gray-300 bg-gray-50 cursor-not-allowed'
                     : 'border-sky-300 text-sky-700 bg-sky-50 hover:bg-sky-100'
@@ -100,37 +71,42 @@ export function SkuCard({ sku }: Props) {
               </button>
               {showDeleteConfirm ? (
                 <div className="flex items-center gap-1">
-                  <span className="text-xs text-red-600">정말 삭제?</span>
-                  <button
-                    onClick={() => deleteSku(sku.id)}
-                    className="text-xs px-2 py-1 rounded bg-red-500 text-white hover:bg-red-600"
-                  >
-                    삭제
-                  </button>
-                  <button
-                    onClick={() => setShowDeleteConfirm(false)}
-                    className="text-xs px-2 py-1 rounded bg-gray-200 text-gray-700 hover:bg-gray-300"
-                  >
-                    취소
-                  </button>
+                  <button onClick={() => deleteSku(sku.id)} className="text-xs px-2 py-1 rounded bg-red-500 text-white hover:bg-red-600">삭제</button>
+                  <button onClick={() => setShowDeleteConfirm(false)} className="text-xs px-2 py-1 rounded bg-gray-200 text-gray-700 hover:bg-gray-300">취소</button>
                 </div>
               ) : (
                 <button
                   onClick={() => setShowDeleteConfirm(true)}
-                  className="text-xs px-3 py-1.5 rounded-lg border border-red-200 text-red-500 bg-red-50 hover:bg-red-100 transition-colors"
+                  className="text-xs px-2 py-1 rounded-lg border border-red-200 text-red-500 bg-red-50 hover:bg-red-100 transition-colors"
                 >
                   삭제
                 </button>
               )}
-            </>
+            </div>
           )}
+        </div>
+
+        {/* 2행: 배지 + 수치 요약 */}
+        <div className="mt-1.5 ml-6 flex flex-wrap items-center gap-x-3 gap-y-1">
+          <div className="flex items-center gap-1">
+            <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700">{sku.category}</span>
+            <span className="text-xs px-2 py-0.5 rounded-full bg-gray-200 text-gray-600">{sku.skuType}</span>
+            <span className="text-xs px-2 py-0.5 rounded-full bg-violet-100 text-violet-700">{sku.brand}</span>
+          </div>
+          <div className="flex items-center gap-2 text-xs text-gray-500">
+            <span>₩{sku.price.toLocaleString()}</span>
+            <span className="text-gray-300">·</span>
+            <span>{sku.totalOrderQty.toLocaleString()}장</span>
+            <span className="text-gray-300">·</span>
+            <span className="text-indigo-600 font-medium">₩{expectedRevenue.toLocaleString()}</span>
+          </div>
         </div>
       </div>
 
       {/* 상세 입력 영역 (펼침) */}
       {sku.isExpanded && (
         <div className="p-4 bg-white">
-          <div className="grid gap-4" style={{ gridTemplateColumns: '1fr 2fr 1.2fr' }}>
+          <div className="grid gap-4 grid-cols-1 md:grid-cols-[1fr_2fr_1.2fr]">
             {/* 열 1: 기본정보 */}
             <BasicInfoColumn sku={sku} readOnly={!canEdit} />
             {/* 열 2: 사이즈 분배 */}

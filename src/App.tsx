@@ -107,14 +107,14 @@ function App() {
     <div className="min-h-screen bg-gray-50">
       {showPinManager && <PinManager onClose={() => setShowPinManager(false)} />}
       {/* 헤더 */}
-      <header className="bg-white border-b border-gray-200 px-6 py-3 flex items-center gap-3">
+      <header className="bg-white border-b border-gray-200 px-3 sm:px-6 py-3 flex items-center gap-2 flex-wrap">
         <div>
           <h1 className="text-base font-bold text-gray-900 leading-tight">MD Dashboard</h1>
-          <p className="text-xs text-gray-400">발주량 시뮬레이션 &amp; 월별 판매 계획</p>
+          <p className="text-xs text-gray-400 hidden sm:block">발주량 시뮬레이션 &amp; 월별 판매 계획</p>
         </div>
 
         {/* 역할 배지 + 관리 버튼 */}
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex items-center gap-1.5 flex-wrap justify-end">
           <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${ROLE_META[role].color}`}>
             {ROLE_META[role].label}
           </span>
