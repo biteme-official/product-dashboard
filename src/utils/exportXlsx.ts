@@ -49,8 +49,14 @@ export function buildSkuOrderRows(sku: SkuData): (string | number)[][] {
  * Google Sheets / Excel에 붙여넣기 하면 표 형태로 들어감.
  */
 export async function copySkuOrderToClipboard(sku: SkuData): Promise<void> {
-  const rows = buildSkuOrderRows(sku);
-  const tsv  = rows
+  let rows = buildSkuOrderRows(sku);
+  // 합계 열(마지막 컬럼) 제거
+  rows = rows.map((row) => row.slice(0, -1));
+  // 컬러 모드: 합계 행(마지막 행) 제거
+  if (rows.length > 0 && rows[rows.length - 1][0] === '합계') {
+    rows = rows.slice(0, -1);
+  }
+  const tsv = rows
     .map((row) =>
       row.map((cell) => String(cell).replace(/\t/g, ' ').replace(/\n/g, ' ')).join('\t'),
     )
