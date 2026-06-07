@@ -174,15 +174,13 @@ export function MdViewSection() {
           </p>
         ) : (
           <div className="rounded-xl border border-gray-200 overflow-x-auto">
-            <table className="w-full text-xs border-collapse" style={{ minWidth: '520px' }}>
+            <table className="w-full text-xs border-collapse" style={{ minWidth: '380px' }}>
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-200">
                   <th className="text-left px-3 py-2.5 font-semibold text-gray-600 border-r border-gray-200">채널</th>
                   <th className="text-right px-3 py-2.5 font-semibold text-gray-600 border-r border-gray-200">수량</th>
                   <th className="text-right px-3 py-2.5 font-semibold text-gray-600 border-r border-gray-200">비중</th>
-                  <th className="text-right px-3 py-2.5 font-semibold text-gray-600 border-r border-gray-200">예상매출</th>
-                  <th className="text-right px-3 py-2.5 font-semibold text-gray-600 border-r border-gray-200">공헌이익</th>
-                  <th className="text-right px-3 py-2.5 font-semibold text-gray-600">CM률</th>
+                  <th className="text-right px-3 py-2.5 font-semibold text-gray-600">예상매출</th>
                 </tr>
               </thead>
               <tbody>
@@ -192,8 +190,6 @@ export function MdViewSection() {
                     grand.totalQty > 0
                       ? Math.round((d.qty / grand.totalQty) * 100)
                       : 0;
-                  const cmRate =
-                    d.revenue > 0 ? Math.round((d.profit / d.revenue) * 100) : 0;
                   const isB2C = B2C_CHANNELS.includes(ch);
                   return (
                     <tr
@@ -221,17 +217,11 @@ export function MdViewSection() {
                         {pct}%
                       </td>
                       <td
-                        className={`px-3 py-2 text-right tabular-nums font-medium border-r border-gray-200 ${
+                        className={`px-3 py-2 text-right tabular-nums font-medium ${
                           isB2C ? 'text-emerald-700' : 'text-violet-700'
                         }`}
                       >
                         {formatWon(d.revenue)}
-                      </td>
-                      <td className="px-3 py-2 text-right tabular-nums text-indigo-600 font-medium border-r border-gray-200">
-                        {formatWon(d.profit)}
-                      </td>
-                      <td className="px-3 py-2 text-right tabular-nums text-gray-500">
-                        {cmRate}%
                       </td>
                     </tr>
                   );
@@ -248,19 +238,18 @@ export function MdViewSection() {
                   <td className="px-3 py-2.5 text-right text-indigo-500 border-r border-indigo-200">
                     100%
                   </td>
-                  <td className="px-3 py-2.5 text-right font-bold text-indigo-700 tabular-nums border-r border-indigo-200">
+                  <td className="px-3 py-2.5 text-right font-bold text-indigo-700 tabular-nums">
                     {formatWon(grand.totalRevenue)}
-                  </td>
-                  <td className="px-3 py-2.5 text-right font-bold text-indigo-600 tabular-nums border-r border-indigo-200">
-                    {formatWon(grand.totalProfit)}
-                  </td>
-                  <td className="px-3 py-2.5 text-right font-semibold text-indigo-600">
-                    {grand.avgCmRate}%
                   </td>
                 </tr>
               </tfoot>
             </table>
           </div>
+        )}
+        {activeChannels.length > 0 && (
+          <p className="text-[11px] text-gray-500 mt-2 px-1">
+            예상 공헌이익 합계: <span className="font-semibold text-emerald-700">{formatWon(grand.totalProfit)}</span>
+          </p>
         )}
       </div>
 
