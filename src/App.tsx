@@ -7,10 +7,13 @@ import { SkuOrderSection } from './components/SkuOrderSection';
 import { MonthlySalesSection } from './components/MonthlySalesSection';
 import { ChannelSimSection } from './components/ChannelSimSection';
 import { RevenueChartSection } from './components/RevenueChartSection';
+import { MdViewSection } from './components/MdViewSection';
 import { BrandFilter } from './components/BrandFilter';
 import { LoginScreen } from './components/LoginScreen';
 import { PinManager } from './components/PinManager';
 import { parseImportJson, type RawSkuInput } from './utils/importParser';
+
+type MainTab = 'pm' | 'md';
 
 interface PendingImport {
   _id: string;
@@ -34,6 +37,7 @@ function App() {
   const [importState, setImportState] = useState<'idle' | 'done' | 'error'>('idle');
   const [showPinManager, setShowPinManager] = useState(false);
   const [backupState, setBackupState] = useState<'idle' | 'done' | 'error'>('idle');
+  const [activeMainTab, setActiveMainTab] = useState<MainTab>('pm');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   function handleExport() {
@@ -194,52 +198,100 @@ function App() {
         </div>
       </header>
 
-      {/* 카테고리 탭 + 브랜드 필터 (sticky) */}
+      {/* PM / MD 탭 + 카테고리 탭 + 브랜드 필터 (sticky) */}
       <div className="sticky top-0 z-10 bg-white shadow-sm">
+        {/* 최상단: PM / MD 탭 */}
+        <div className="flex items-center gap-1 px-3 pt-2 pb-0 border-b border-gray-100">
+          {(['pm', 'md'] as MainTab[]).map((tab) => {
+            const label = tab === 'pm' ? 'PM 뷰' : 'MD 뷰';
+            const isActive = activeMainTab === tab;
+            return (
+              <button
+                key={tab}
+                onClick={() => setActiveMainTab(tab)}
+                className={`px-4 py-1.5 text-sm font-semibold rounded-t-lg border-b-2 transition-all ${
+                  isActive
+                    ? 'border-indigo-600 text-indigo-700 bg-indigo-50/60'
+                    : 'border-transparent text-gray-400 hover:text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
         <CategoryTabs />
         <BrandFilter />
       </div>
 
       {/* 메인 콘텐츠 */}
       <main className="max-w-screen-xl mx-auto">
-        {/* Section A */}
-        <SkuOrderSection />
+        {activeMainTab === 'pm' ? (
+          <>
+            {/* Section A */}
+            <SkuOrderSection />
 
-        {/* Section A/B 구분 */}
-        <div className="mx-4 my-2 flex items-center gap-3">
-          <div className="flex-1 border-t border-gray-200" />
-          <span className="text-xs text-gray-400 bg-gray-50 px-3 py-1 rounded-full border border-gray-200">
-            월별 시뮬레이션
-          </span>
-          <div className="flex-1 border-t border-gray-200" />
-        </div>
+            <div className="mx-4 my-2 flex items-center gap-3">
+              <div className="flex-1 border-t border-gray-200" />
+              <span className="text-xs text-gray-400 bg-gray-50 px-3 py-1 rounded-full border border-gray-200">
+                월별 시뮬레이션
+              </span>
+              <div className="flex-1 border-t border-gray-200" />
+            </div>
 
-        {/* Section B */}
-        <MonthlySalesSection />
+            {/* Section B */}
+            <MonthlySalesSection />
 
-        {/* Section B/C 구분 */}
-        <div className="mx-4 my-2 flex items-center gap-3">
-          <div className="flex-1 border-t border-gray-200" />
-          <span className="text-xs text-gray-400 bg-gray-50 px-3 py-1 rounded-full border border-gray-200">
-            채널 시뮬레이션
-          </span>
-          <div className="flex-1 border-t border-gray-200" />
-        </div>
+            <div className="mx-4 my-2 flex items-center gap-3">
+              <div className="flex-1 border-t border-gray-200" />
+              <span className="text-xs text-gray-400 bg-gray-50 px-3 py-1 rounded-full border border-gray-200">
+                채널 시뮬레이션
+              </span>
+              <div className="flex-1 border-t border-gray-200" />
+            </div>
 
-        {/* Section C */}
-        <ChannelSimSection />
+            {/* Section C */}
+            <ChannelSimSection />
 
-        {/* Section C/D 구분 */}
-        <div className="mx-4 my-2 flex items-center gap-3">
-          <div className="flex-1 border-t border-gray-200" />
-          <span className="text-xs text-gray-400 bg-gray-50 px-3 py-1 rounded-full border border-gray-200">
-            매출 차트
-          </span>
-          <div className="flex-1 border-t border-gray-200" />
-        </div>
+            <div className="mx-4 my-2 flex items-center gap-3">
+              <div className="flex-1 border-t border-gray-200" />
+              <span className="text-xs text-gray-400 bg-gray-50 px-3 py-1 rounded-full border border-gray-200">
+                매출 차트
+              </span>
+              <div className="flex-1 border-t border-gray-200" />
+            </div>
 
-        {/* Section D */}
-        <RevenueChartSection />
+            {/* Section D */}
+            <RevenueChartSection />
+          </>
+        ) : (
+          <>
+            {/* MD 탭: 채널 비중 설정 */}
+            <ChannelSimSection />
+
+            <div className="mx-4 my-2 flex items-center gap-3">
+              <div className="flex-1 border-t border-gray-200" />
+              <span className="text-xs text-gray-400 bg-gray-50 px-3 py-1 rounded-full border border-gray-200">
+                월별 시뮬레이션
+              </span>
+              <div className="flex-1 border-t border-gray-200" />
+            </div>
+
+            {/* MD 탭: 월별 판매량 설정 */}
+            <MonthlySalesSection />
+
+            <div className="mx-4 my-2 flex items-center gap-3">
+              <div className="flex-1 border-t border-gray-200" />
+              <span className="text-xs text-gray-400 bg-gray-50 px-3 py-1 rounded-full border border-gray-200">
+                MD 요약
+              </span>
+              <div className="flex-1 border-t border-gray-200" />
+            </div>
+
+            {/* MD 탭: 요약 뷰 */}
+            <MdViewSection />
+          </>
+        )}
       </main>
     </div>
   );
