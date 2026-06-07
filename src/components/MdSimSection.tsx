@@ -150,8 +150,11 @@ export function MdSimSection() {
         )}
       </div>
 
-      <p className="text-[11px] text-gray-400 mb-3 leading-relaxed">
+      <p className="text-[11px] text-gray-400 mb-1 leading-relaxed">
         각 셀에 채널×월 출고 비중(%)을 직접 입력하세요. 전체 합계가 100%가 되도록 맞춰주세요.
+      </p>
+      <p className="text-[11px] text-gray-400 mb-3">
+        ※ 현재 페이지에서 비중 수정 시 PM 뷰에 반영되지 않습니다. (MD 뷰 only 업데이트)
       </p>
 
       {sku && (
@@ -410,9 +413,6 @@ export function MdSimSection() {
               공헌이익 = 매출 × {sku.contributionMarginRate}%
             </span>
           </div>
-          <p className="text-[11px] text-gray-400 mt-2 px-1">
-            ※ 현재 페이지에서 비중 수정 시 PM 뷰에 반영되지 않습니다. (MD 뷰 only 업데이트)
-          </p>
         </>
       )}
     </section>
