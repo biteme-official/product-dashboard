@@ -368,7 +368,7 @@ export function MdViewSection() {
           </table>
         </div>
         <p className="text-[11px] text-gray-400 mt-2 px-1">
-          시뮬출고량 = 위 시뮬레이션 채널×월 입력 수량 합산 · 예상매출 = 수량 × 판매가 × (B2C 80% / B2B 60%)
+          시뮬출고량 = 위 시뮬레이션 채널×월 입력 수량 합산 · 예상매출 = 수량 × 판매가 × (B2C 75% / B2B 55%)
         </p>
       </div>
     </section>

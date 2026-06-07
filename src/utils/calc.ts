@@ -9,10 +9,10 @@ const CHANNEL_B2C_RATIO: Record<Category, number> = {
   '식품': 0.65,
 };
 
-export const B2C_RATE = 0.80; // B2C 실질 판매가 = 판매가 × 80%
-export const B2B_RATE = 0.60; // B2B 실질 판매가 = 판매가 × 60%
+export const B2C_RATE = 0.75; // B2C 실질 판매가 = 판매가 × 75%
+export const B2B_RATE = 0.55; // B2B 실질 판매가 = 판매가 × 55%
 
-/** 채널이 B2C이면 0.80, B2B이면 0.60 반환 */
+/** 채널이 B2C이면 0.75, B2B이면 0.55 반환 */
 export function getChannelRate(channel: Channel): number {
   return B2C_CHANNELS.includes(channel) ? B2C_RATE : B2B_RATE;
 }

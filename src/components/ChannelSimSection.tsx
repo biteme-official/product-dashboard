@@ -205,11 +205,11 @@ export function ChannelSimSection() {
           <div className="flex items-center gap-4 mb-2 px-1">
             <span className="flex items-center gap-1.5 text-xs text-gray-500">
               <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-700">B2C</span>
-              자사몰·스스·위탁 — 판매가 × 80%
+              자사몰·스스·위탁 — 판매가 × 75%
             </span>
             <span className="flex items-center gap-1.5 text-xs text-gray-500">
               <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-violet-100 text-violet-700">B2B</span>
-              쿠팡·B2B·사입및페어·글로벌·일본 — 판매가 × 60%
+              쿠팡·B2B·사입및페어·글로벌·일본 — 판매가 × 55%
             </span>
           </div>
 
@@ -298,7 +298,7 @@ export function ChannelSimSection() {
           </div>
 
           <div className="flex items-center gap-4 mt-2 px-1 flex-wrap">
-            <span className="text-xs text-gray-400">매출 = 수량 × 판매가 × (B2C 80% / B2B 60%)</span>
+            <span className="text-xs text-gray-400">매출 = 수량 × 판매가 × (B2C 75% / B2B 55%)</span>
           </div>
         </>
       )}
@@ -309,11 +309,11 @@ export function ChannelSimSection() {
           <div className="flex items-center gap-4 mb-2 px-1">
             <span className="flex items-center gap-1.5 text-xs text-gray-500">
               <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-700">B2C</span>
-              자사몰·스스·위탁 — 판매가 × 80%
+              자사몰·스스·위탁 — 판매가 × 75%
             </span>
             <span className="flex items-center gap-1.5 text-xs text-gray-500">
               <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-violet-100 text-violet-700">B2B</span>
-              쿠팡·B2B·사입및페어·글로벌·일본 — 판매가 × 60%
+              쿠팡·B2B·사입및페어·글로벌·일본 — 판매가 × 55%
             </span>
           </div>
 
@@ -537,7 +537,7 @@ export function ChannelSimSection() {
               채널 비중 합계: {totalChannelRatio}%
               {ratioOk ? ' ✓' : totalChannelRatio > 0 ? ' — 100%로 맞춰주세요' : ''}
             </span>
-            <span className="text-xs text-gray-400">매출 = 수량 × 판매가 × (B2C 80% / B2B 60%)</span>
+            <span className="text-xs text-gray-400">매출 = 수량 × 판매가 × (B2C 75% / B2B 55%)</span>
             <span className="text-xs text-gray-400">공헌이익 = 매출 × 이익률%</span>
           </div>
         </>
