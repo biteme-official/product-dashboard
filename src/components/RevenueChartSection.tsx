@@ -13,28 +13,29 @@ const MONTH_LABELS: Record<Month, string> = {
 };
 
 const CHANNEL_COLORS: Record<Channel, string> = {
-  '자사몰':   '#6366f1',
-  '스스':     '#8b5cf6',
-  '위탁':     '#10b981',
-  '쿠팡':     '#f97316',
-  'B2B':      '#ef4444',
+  '자사몰':    '#6366f1',
+  '스스':      '#8b5cf6',
+  '위탁':      '#10b981',
+  '쿠팡':      '#f97316',
+  'B2B':       '#ef4444',
   '사입및페어': '#f59e0b',
-  '글로벌':   '#0ea5e9',
-  '일본':     '#ec4899',
+  '글로벌':    '#0ea5e9',
+  '일본':      '#ec4899',
 };
 
 function fmtBar(v: number): string {
   if (v <= 0) return '';
   if (v >= 100_000_000) return `${(v / 100_000_000).toFixed(1)}억`;
-  if (v >= 10_000) return `${Math.round(v / 10_000)}만`;
+  if (v >= 10_000_000)  return `${(v / 10_000_000).toFixed(1)}천만`;
+  if (v >= 10_000)      return `${Math.round(v / 10_000)}만`;
   return `${Math.round(v / 1_000)}천`;
 }
 
 function fmtAxis(v: number): string {
   if (v === 0) return '0';
   if (v >= 100_000_000) return `${(v / 100_000_000).toFixed(0)}억`;
-  if (v >= 10_000_000) return `${(v / 10_000_000).toFixed(0)}천만`;
-  if (v >= 10_000) return `${(v / 10_000).toFixed(0)}만`;
+  if (v >= 10_000_000)  return `${(v / 10_000_000).toFixed(0)}천만`;
+  if (v >= 10_000)      return `${(v / 10_000).toFixed(0)}만`;
   return `${v}`;
 }
 
@@ -44,14 +45,14 @@ function fmtTooltip(v: number): string {
   return `₩${Math.round(v / 10_000).toLocaleString()}만`;
 }
 
-// 바 맨 위 총합 표시
+// 바 맨 위 총합(또는 선택 채널값) 표시
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function TotalLabel(props: any) {
-  const x = props.x as number;
-  const y = props.y as number;
-  const width = props.width as number;
-  const value = props.value as number;
-  if (!value || value <= 0) return null;
+function TopLabel(props: any) {
+  const x      = props.x      as number;
+  const y      = props.y      as number;
+  const width  = props.width  as number;
+  const value  = props.value  as number;
+  if (!value || value <= 0 || !width || width < 20) return null;
   return (
     <text
       x={x + width / 2}
@@ -61,21 +62,24 @@ function TotalLabel(props: any) {
       fill="#374151"
       fontWeight={700}
     >
-      {`${(value / 100_000_000).toFixed(1)}억`}
+      {fmtBar(value)}
     </text>
   );
 }
 
-// 바 세그먼트 안에 "채널명 X만" 표시
+// 바 세그먼트 안 "채널명 X만" 라벨
 function makeLabel(channel: Channel) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return function BarLabel(props: any) {
-    const x = props.x as number;
-    const y = props.y as number;
-    const width = props.width as number;
+    const x      = props.x      as number;
+    const y      = props.y      as number;
+    const width  = props.width  as number;
     const height = props.height as number;
-    const value = props.value as number;
-    if (!value || value < 1_000_000 || height < 18 || width < 32) return null;
+    const value  = props.value  as number;
+    // 값 없음, 너무 작음, 영역 부족 → 스킵
+    if (!value || value < 500_000 || !height || height < 14 || !width || width < 20) return null;
+    // 너비 부족 시 값만, 아니면 "채널 값" 형태
+    const label = width < 40 ? fmtBar(value) : `${channel} ${fmtBar(value)}`;
     return (
       <text
         x={x + width / 2}
@@ -86,7 +90,7 @@ function makeLabel(channel: Channel) {
         fill="white"
         fontWeight={600}
       >
-        {`${channel} ${fmtBar(value)}`}
+        {label}
       </text>
     );
   };
@@ -95,16 +99,17 @@ function makeLabel(channel: Channel) {
 export function RevenueChartSection() {
   const skus = useStore((s) => s.skus);
   const activeCategory = useStore((s) => s.activeCategory);
-  const activeBrand = useStore((s) => s.activeBrand);
+  const activeBrand    = useStore((s) => s.activeBrand);
   const [selectedChannel, setSelectedChannel] = useState<Channel | null>(null);
 
+  // MD 시뮬레이션 데이터가 있는 SKU만 대상
   const eligibleSkus = useMemo(
     () =>
       skus.filter(
         (sku) =>
           sku.category === activeCategory &&
-          sku.monthlySplit.some((ms) => ms.ratio > 0) &&
-          (activeBrand === '전체' || sku.brand === activeBrand),
+          (activeBrand === '전체' || sku.brand === activeBrand) &&
+          sku.channelMonthlySplit.some((e) => e.ratio > 0),
       ),
     [skus, activeCategory, activeBrand],
   );
@@ -113,20 +118,21 @@ export function RevenueChartSection() {
     const data = MONTHS.flatMap((month) => {
       const point: Record<string, unknown> = { monthLabel: MONTH_LABELS[month] };
       let hasData = false;
-      let total = 0;
+      let total   = 0;
 
       for (const ch of CHANNELS) {
         let rev = 0;
         for (const sku of eligibleSkus) {
-          const ms = sku.monthlySplit.find((m) => m.month === month);
-          if (!ms || ms.quantity === 0) continue;
-          const cr = sku.channelRatios.find((r) => r.channel === ch);
-          if (!cr || cr.ratio === 0) continue;
-          const qty = Math.round((ms.quantity * cr.ratio) / 100);
+          // channelMonthlySplit 기반 (MD 시뮬레이션 수량)
+          const entry = sku.channelMonthlySplit.find(
+            (e) => e.channel === ch && e.month === month,
+          );
+          if (!entry || entry.ratio === 0) continue;
+          const qty = Math.round((sku.totalOrderQty * entry.ratio) / 100);
           rev += Math.round(qty * sku.price * getChannelRate(ch));
         }
         point[ch] = rev;
-        total += rev;
+        total     += rev;
         if (rev > 0) hasData = true;
       }
 
@@ -170,7 +176,7 @@ export function RevenueChartSection() {
       <h2 className="text-sm font-semibold text-gray-700 mb-3">
         채널별 월별 매출 현황
         <span className="ml-2 text-xs text-gray-400 font-normal">
-          전체 SKU 합산 · 월별 비중 입력된 SKU · 브랜드 필터 적용
+          시뮬레이션 수량 기반 · 필터 내 전체 SKU 합산
         </span>
       </h2>
 
@@ -178,7 +184,7 @@ export function RevenueChartSection() {
         <ResponsiveContainer width="100%" height={340}>
           <BarChart
             data={chartData}
-            margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
+            margin={{ top: 20, right: 8, left: 0, bottom: 0 }}
             barCategoryGap="28%"
           >
             <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
@@ -194,7 +200,7 @@ export function RevenueChartSection() {
               axisLine={false}
               tickLine={false}
               width={52}
-              domain={[0, Math.ceil(displayMax * 1.12)]}
+              domain={[0, Math.ceil(displayMax * 1.15)]}
             />
             <Tooltip
               cursor={{ fill: '#f9fafb' }}
@@ -207,22 +213,27 @@ export function RevenueChartSection() {
                 padding: '8px 12px',
               }}
             />
-            {displayedChannels.map((ch, i) => (
-              <Bar
-                key={ch}
-                dataKey={ch}
-                stackId="stack"
-                fill={CHANNEL_COLORS[ch]}
-                radius={
-                  i === displayedChannels.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]
-                }
-              >
-                <LabelList dataKey={ch} content={makeLabel(ch)} />
-                {i === displayedChannels.length - 1 && !selectedChannel && (
-                  <LabelList dataKey="__total__" content={TotalLabel} />
-                )}
-              </Bar>
-            ))}
+            {displayedChannels.map((ch, i) => {
+              const isTopBar = i === displayedChannels.length - 1;
+              // 단일 채널 선택 시: 해당 채널 값 위에 표시 / 전체 표시 시: 총합 위에 표시
+              const topDataKey = selectedChannel ? ch : '__total__';
+              return (
+                <Bar
+                  key={ch}
+                  dataKey={ch}
+                  stackId="stack"
+                  fill={CHANNEL_COLORS[ch]}
+                  radius={isTopBar ? [4, 4, 0, 0] : [0, 0, 0, 0]}
+                >
+                  {/* 세그먼트 안 라벨 */}
+                  <LabelList dataKey={ch} content={makeLabel(ch)} />
+                  {/* 바 최상단 라벨 (항상 표시, 전체/단일 채널 모두) */}
+                  {isTopBar && (
+                    <LabelList dataKey={topDataKey} content={TopLabel} />
+                  )}
+                </Bar>
+              );
+            })}
           </BarChart>
         </ResponsiveContainer>
 
@@ -230,7 +241,7 @@ export function RevenueChartSection() {
         <div className="flex flex-wrap gap-x-4 gap-y-1.5 mt-2 px-1 border-t border-gray-100 pt-3">
           {activeChannels.map((ch) => {
             const isSelected = selectedChannel === ch;
-            const isDimmed = selectedChannel !== null && !isSelected;
+            const isDimmed   = selectedChannel !== null && !isSelected;
             return (
               <button
                 key={ch}
