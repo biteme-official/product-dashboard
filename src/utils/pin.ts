@@ -1,30 +1,35 @@
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { fsdb } from '../lib/firebase';
+
 export type Role = 'master' | 'pm' | 'md';
 
-const PIN_KEYS: Record<Role, string> = {
-  master: 'md-pin-master',
-  pm:     'md-pin-pm',
-  md:     'md-pin-md',
-};
+const PINS_DOC = doc(fsdb, 'config', 'pins');
 
 async function sha256hex(text: string): Promise<string> {
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
   return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
+// Firestore에서 PIN 해시 맵 가져오기
+async function fetchPins(): Promise<Record<string, string>> {
+  const snap = await getDoc(PINS_DOC);
+  return (snap.exists() ? snap.data() : {}) as Record<string, string>;
+}
+
 export async function setPin(role: Role, pin: string): Promise<void> {
-  localStorage.setItem(PIN_KEYS[role], await sha256hex(pin));
+  const hash = await sha256hex(pin);
+  await setDoc(PINS_DOC, { [role]: hash }, { merge: true });
 }
 
 export async function verifyPin(role: Role, pin: string): Promise<boolean> {
-  const stored = localStorage.getItem(PIN_KEYS[role]);
+  const pins = await fetchPins();
+  const stored = pins[role];
   if (!stored) return false;
   return (await sha256hex(pin)) === stored;
 }
 
-export function hasPinSet(role: Role): boolean {
-  return !!localStorage.getItem(PIN_KEYS[role]);
-}
-
-export function allPinsSet(): boolean {
-  return hasPinSet('master') && hasPinSet('pm') && hasPinSet('md');
+// 모든 역할의 PIN이 Firestore에 설정되어 있는지 확인
+export async function allPinsSet(): Promise<boolean> {
+  const pins = await fetchPins();
+  return !!(pins.master && pins.pm && pins.md);
 }

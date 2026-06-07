@@ -158,10 +158,26 @@ function SetupScreen({ onDone }: { onDone: () => void }) {
 // ── 로그인 화면 ────────────────────────────────────────────────────────────
 export function LoginScreen() {
   const { setRole } = useAuth();
-  const [isSetup, setIsSetup] = useState(!allPinsSet());
+  const [loading, setLoading] = useState(true);
+  const [isSetup, setIsSetup] = useState(false);
   const [selectedRole, setSelectedRole] = useState<Role | null>(null);
   const [pin, setPin_] = useState('');
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    allPinsSet().then((set) => {
+      setIsSetup(!set);
+      setLoading(false);
+    });
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <span className="text-sm text-gray-400">로딩 중...</span>
+      </div>
+    );
+  }
 
   if (isSetup) {
     return <SetupScreen onDone={() => setIsSetup(false)} />;
