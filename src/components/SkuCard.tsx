@@ -3,7 +3,7 @@ import { BRANDS } from '../types';
 import { useStore } from '../store';
 import { useAuth } from '../store/auth';
 import { revenueMultiplier, calcDynamicMultiplier } from '../utils/calc';
-import { useState, useEffect, useRef, type ChangeEvent } from 'react';
+import { useState, useRef, type ChangeEvent } from 'react';
 import { SizeDistColumn } from './SizeDistColumn';
 import { ComparisonColumn } from './ComparisonColumn';
 import { NumericInput } from './NumericInput';
