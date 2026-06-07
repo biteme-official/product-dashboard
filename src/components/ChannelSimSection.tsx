@@ -192,8 +192,11 @@ export function ChannelSimSection() {
         )}
       </div>
 
-      <p className="text-[11px] text-gray-400 mb-3 leading-relaxed">
+      <p className="text-[11px] text-gray-400 mb-1 leading-relaxed">
         브랜드 필터 확인 후 '전체 SKU 반영' 클릭해주세요.
+      </p>
+      <p className="text-[11px] text-red-500 mb-3 leading-relaxed">
+        *기획 단순 검토용으로 MD뷰에서 시뮬레이션 수정 시 해당 사항이 반영되지 않습니다.
       </p>
 
       {/* 전체 합산 모드 */}

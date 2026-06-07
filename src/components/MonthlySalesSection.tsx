@@ -56,10 +56,13 @@ export function MonthlySalesSection() {
 
   return (
     <section className="p-4 pb-8">
-      <h2 className="text-sm font-semibold text-gray-700 mb-3">
+      <h2 className="text-sm font-semibold text-gray-700 mb-1">
         월별 판매 비중 시뮬레이션
         <span className="ml-2 text-xs text-gray-400 font-normal">7월 – 익년 2월</span>
       </h2>
+      <p className="text-[11px] text-red-500 mb-3 leading-relaxed">
+        *기획 단순 검토용으로 MD뷰에서 시뮬레이션 수정 시 해당 사항이 반영되지 않습니다.
+      </p>
 
       <div className="rounded-xl border border-gray-200 overflow-hidden">
         <table className="w-full text-xs border-collapse">
