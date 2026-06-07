@@ -59,7 +59,7 @@ export function MdViewSection() {
     [skus, activeCategory, activeBrand],
   );
 
-  // SKU × 채널 계산 (channelMonthlySplit 우선, 없으면 channelRatios fallback)
+  // SKU × 채널 계산 (channelMonthlySplit 기반 — 시뮬레이션 수량 직접 사용)
   const skuChannelData = useMemo(
     () =>
       filteredSkus.map((sku) => {
@@ -68,7 +68,7 @@ export function MdViewSection() {
           let qty = 0;
           let revenue = 0;
           if (hasCMS) {
-            // channelMonthlySplit 기반: 월별 합산
+            // 시뮬레이션 입력 수량 = round(totalOrderQty × ratio / 100), 월별 합산
             for (const e of sku.channelMonthlySplit.filter((e) => e.channel === ch)) {
               const q = Math.round((sku.totalOrderQty * e.ratio) / 100);
               qty += q;
@@ -83,9 +83,10 @@ export function MdViewSection() {
           const profit = Math.round(revenue * (sku.contributionMarginRate / 100));
           return { channel: ch, qty, revenue, profit };
         });
+        const totalSimQty = channels.reduce((s, c) => s + c.qty, 0);
         const totalRevenue = channels.reduce((s, c) => s + c.revenue, 0);
         const totalProfit = channels.reduce((s, c) => s + c.profit, 0);
-        return { sku, channels, totalRevenue, totalProfit };
+        return { sku, channels, totalSimQty, totalRevenue, totalProfit };
       }),
     [filteredSkus],
   );
@@ -111,14 +112,15 @@ export function MdViewSection() {
     [skuChannelData],
   );
 
-  // 전체 합계
+  // 전체 합계 — 시뮬레이션 수량 기반
   const grand = useMemo(() => {
-    const totalQty = filteredSkus.reduce((s, sku) => s + sku.totalOrderQty, 0);
+    const totalOrderQty = filteredSkus.reduce((s, sku) => s + sku.totalOrderQty, 0);
+    const totalSimQty = channelTotals.reduce((s, c) => s + c.qty, 0);
     const totalRevenue = channelTotals.reduce((s, c) => s + c.revenue, 0);
     const totalProfit = channelTotals.reduce((s, c) => s + c.profit, 0);
     const avgCmRate =
       totalRevenue > 0 ? Math.round((totalProfit / totalRevenue) * 100) : 0;
-    return { totalQty, totalRevenue, totalProfit, avgCmRate };
+    return { totalOrderQty, totalSimQty, totalRevenue, totalProfit, avgCmRate };
   }, [filteredSkus, channelTotals]);
 
   // 수량 있는 채널만
@@ -148,9 +150,9 @@ export function MdViewSection() {
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <KpiCard
-            label="총 발주량"
-            value={`${grand.totalQty.toLocaleString()}장`}
-            sub={`SKU ${filteredSkus.length}개`}
+            label="시뮬레이션 출고량"
+            value={`${grand.totalSimQty.toLocaleString()}장`}
+            sub={`발주량 ${grand.totalOrderQty.toLocaleString()}장 · SKU ${filteredSkus.length}개`}
           />
           <KpiCard
             label="예상 총매출"
@@ -192,8 +194,8 @@ export function MdViewSection() {
                 {activeChannels.map((ch, i) => {
                   const d = channelTotals.find((t) => t.channel === ch)!;
                   const pct =
-                    grand.totalQty > 0
-                      ? Math.round((d.qty / grand.totalQty) * 100)
+                    grand.totalSimQty > 0
+                      ? Math.round((d.qty / grand.totalSimQty) * 100)
                       : 0;
                   const isB2C = B2C_CHANNELS.includes(ch);
                   return (
@@ -238,7 +240,7 @@ export function MdViewSection() {
                     합계
                   </td>
                   <td className="px-3 py-2.5 text-right font-bold text-indigo-700 tabular-nums border-r border-indigo-200">
-                    {grand.totalQty.toLocaleString()}
+                    {grand.totalSimQty.toLocaleString()}
                   </td>
                   <td className="px-3 py-2.5 text-right text-indigo-500 border-r border-indigo-200">
                     100%
@@ -274,7 +276,7 @@ export function MdViewSection() {
                   SKU명
                 </th>
                 <th className="text-right px-3 py-2.5 font-semibold text-gray-600 border-r border-gray-200 whitespace-nowrap">
-                  발주량
+                  시뮬출고량
                 </th>
                 {activeChannels.map((ch) => (
                   <th
@@ -294,7 +296,7 @@ export function MdViewSection() {
               </tr>
             </thead>
             <tbody>
-              {skuChannelData.map(({ sku, channels, totalRevenue, totalProfit }, i) => (
+              {skuChannelData.map(({ sku, channels, totalSimQty, totalRevenue, totalProfit }, i) => (
                 <tr
                   key={sku.id}
                   className={`border-b border-gray-100 ${i % 2 === 0 ? 'bg-white' : 'bg-gray-50/40'}`}
@@ -304,8 +306,9 @@ export function MdViewSection() {
                       {sku.name || '(SKU명 미입력)'}
                     </span>
                   </td>
-                  <td className="px-3 py-2 text-right tabular-nums text-gray-600 border-r border-gray-200">
-                    {sku.totalOrderQty.toLocaleString()}
+                  <td className="px-3 py-2 text-right tabular-nums border-r border-gray-200">
+                    <div className="font-medium text-gray-700">{totalSimQty.toLocaleString()}</div>
+                    <div className="text-[10px] text-gray-400 mt-0.5">발주 {sku.totalOrderQty.toLocaleString()}</div>
                   </td>
                   {activeChannels.map((ch) => {
                     const d = channels.find((c) => c.channel === ch)!;
@@ -337,7 +340,7 @@ export function MdViewSection() {
                   합계
                 </td>
                 <td className="px-3 py-2.5 text-right font-bold text-indigo-700 tabular-nums border-r border-indigo-200">
-                  {grand.totalQty.toLocaleString()}
+                  {grand.totalSimQty.toLocaleString()}
                 </td>
                 {activeChannels.map((ch) => {
                   const d = channelTotals.find((t) => t.channel === ch)!;
@@ -365,7 +368,7 @@ export function MdViewSection() {
           </table>
         </div>
         <p className="text-[11px] text-gray-400 mt-2 px-1">
-          수량 = 총 발주량 × 채널 비중% · 예상매출 = 수량 × 판매가 × (B2C 80% / B2B 60%)
+          시뮬출고량 = 위 시뮬레이션 채널×월 입력 수량 합산 · 예상매출 = 수량 × 판매가 × (B2C 80% / B2B 60%)
         </p>
       </div>
     </section>
