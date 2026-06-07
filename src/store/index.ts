@@ -200,6 +200,7 @@ interface StoreActions {
   updateChannelRatio: (id: string, channel: string, ratio: number) => void;
   resetChannelRatios: (id: string) => void;
   updateChannelMonthRatio: (id: string, channel: Channel, month: Month, ratio: number) => void;
+  resetChannelMonthlySplit: (id: string) => Promise<void>;
   applyChannelRatiosToFiltered: (sourceSkuId: string) => Promise<void>;
   importSkus: (skus: SkuData[]) => Promise<void>;
   replaceAllSkus: (skus: Omit<SkuData, '_initialSnapshot' | 'isExpanded'>[]) => Promise<void>;
@@ -364,6 +365,15 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
         return withMonthly;
       }),
     });
+  },
+
+  resetChannelMonthlySplit: async (id) => {
+    const sku = get().skus.find((s) => s.id === id);
+    if (!sku) return;
+    const derived = deriveChannelMonthlySplit(sku);
+    const updated = { ...sku, channelMonthlySplit: derived };
+    set({ skus: get().skus.map((s) => (s.id === id ? updated : s)) });
+    await setDoc(doc(fsdb, SKUS_COL, id), toFirestore(updated));
   },
 
   updateChannelMonthRatio: (id, channel, month, ratio) => {

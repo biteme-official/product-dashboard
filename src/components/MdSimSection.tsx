@@ -27,6 +27,7 @@ export function MdSimSection() {
   const activeCategory = useStore((s) => s.activeCategory);
   const activeBrand = useStore((s) => s.activeBrand);
   const updateChannelMonthRatio = useStore((s) => s.updateChannelMonthRatio);
+  const resetChannelMonthlySplit = useStore((s) => s.resetChannelMonthlySplit);
   const persistSku = useStore((s) => s.persistSku);
   const { role } = useAuth();
   const canEdit = role === 'master' || role === 'md';
@@ -42,6 +43,7 @@ export function MdSimSection() {
   );
 
   const [selectedSkuId, setSelectedSkuId] = useState('');
+  const [resetting, setResetting] = useState(false);
 
   useEffect(() => {
     if (eligibleSkus.length > 0 && !eligibleSkus.find((s) => s.id === selectedSkuId)) {
@@ -132,12 +134,27 @@ export function MdSimSection() {
               </div>
             </div>
             {sku && (
-              <span className="text-xs text-gray-400">
-                총 발주량:{' '}
-                <span className="font-semibold text-gray-600">
-                  {sku.totalOrderQty.toLocaleString()}장
+              <>
+                <span className="text-xs text-gray-400">
+                  총 발주량:{' '}
+                  <span className="font-semibold text-gray-600">
+                    {sku.totalOrderQty.toLocaleString()}장
+                  </span>
                 </span>
-              </span>
+                {canEdit && (
+                  <button
+                    onClick={async () => {
+                      setResetting(true);
+                      await resetChannelMonthlySplit(sku.id);
+                      setResetting(false);
+                    }}
+                    disabled={resetting}
+                    className="text-xs px-3 py-1.5 rounded-lg border border-amber-300 text-amber-700 bg-amber-50 hover:bg-amber-100 transition-colors whitespace-nowrap disabled:opacity-50"
+                  >
+                    {resetting ? '복원 중...' : '↺ 초기값 복원'}
+                  </button>
+                )}
+              </>
             )}
           </div>
         )}
