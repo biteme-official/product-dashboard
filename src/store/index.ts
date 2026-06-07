@@ -102,6 +102,23 @@ function migrateChannelRatios(raw: any[]): import('../types').ChannelRatio[] {
   return result as import('../types').ChannelRatio[];
 }
 
+/** channelMonthlySplit이 모두 0인지 확인 (MD뷰 편집 전 상태) */
+function isCMSEmpty(cms: ChannelMonthEntry[]): boolean {
+  return !cms || cms.every((e) => e.ratio === 0);
+}
+
+/** PM 탭의 monthlySplit × channelRatios로부터 channelMonthlySplit 파생 */
+function deriveChannelMonthlySplit(sku: { channelRatios: any[]; monthlySplit: any[] }): ChannelMonthEntry[] {
+  return CHANNELS.flatMap((channel) =>
+    MONTHS.map((month) => {
+      const chRatio = sku.channelRatios.find((r: any) => r.channel === channel)?.ratio ?? 0;
+      const mRatio = sku.monthlySplit.find((m: any) => m.month === month)?.ratio ?? 0;
+      const ratio = Math.round(chRatio * mRatio) / 100;
+      return { channel, month, ratio };
+    }),
+  );
+}
+
 function applyMigration(raw: any): SkuData {
   const defaultChannelRatios = CHANNELS.map((channel) => ({ channel, ratio: DEFAULT_CHANNEL_RATIOS[channel] }));
   const base: SkuData = {
@@ -146,12 +163,12 @@ function applyMigration(raw: any): SkuData {
       ...newEntries,
     ].sort((a, b) => MONTHS.indexOf(a.month) - MONTHS.indexOf(b.month));
   }
-  // channelMonthlySplit 누락 항목 보정
+  // channelMonthlySplit 보정 및 PM 데이터 파생
   if (!Array.isArray(base.channelMonthlySplit) || base.channelMonthlySplit.length === 0) {
-    base.channelMonthlySplit = CHANNELS.flatMap((channel) =>
-      MONTHS.map((month) => ({ channel, month, ratio: 0 })),
-    );
+    // Firestore에 없거나 비어있음 → PM 데이터(monthlySplit × channelRatios)로 초기화
+    base.channelMonthlySplit = deriveChannelMonthlySplit(base);
   } else {
+    // 부분 누락 항목 채움
     const existing = new Set(
       base.channelMonthlySplit.map((e: ChannelMonthEntry) => `${e.channel}|${e.month}`),
     );
@@ -161,6 +178,10 @@ function applyMigration(raw: any): SkuData {
       })),
     );
     if (toAdd.length > 0) base.channelMonthlySplit = [...base.channelMonthlySplit, ...toAdd];
+    // MD뷰에서 아직 편집하지 않은 경우(모두 0) → PM 데이터로 재파생
+    if (isCMSEmpty(base.channelMonthlySplit)) {
+      base.channelMonthlySplit = deriveChannelMonthlySplit(base);
+    }
   }
   return base;
 }
@@ -302,7 +323,12 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
       ms.month === month ? { ...ms, ratio } : ms,
     );
     const recalculated = recalcMonthlySplit(sku, patchedSplit);
-    set({ skus: skus.map((s) => (s.id === id ? { ...s, monthlySplit: recalculated } : s)) });
+    const updated = { ...sku, monthlySplit: recalculated };
+    // MD뷰 미편집 상태면 PM 데이터로 자동 동기화
+    if (isCMSEmpty(sku.channelMonthlySplit)) {
+      updated.channelMonthlySplit = deriveChannelMonthlySplit(updated);
+    }
+    set({ skus: skus.map((s) => (s.id === id ? updated : s)) });
   },
 
   resetChannelRatios: (id) => {
@@ -314,7 +340,11 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
           ratio: DEFAULT_CHANNEL_RATIOS[channel],
         }));
         const updated = { ...s, channelRatios: updatedChannelRatios };
-        return { ...updated, monthlySplit: recalcMonthlySplit(updated) };
+        const withMonthly = { ...updated, monthlySplit: recalcMonthlySplit(updated) };
+        if (isCMSEmpty(s.channelMonthlySplit)) {
+          return { ...withMonthly, channelMonthlySplit: deriveChannelMonthlySplit(withMonthly) };
+        }
+        return withMonthly;
       }),
     });
   },
@@ -327,7 +357,11 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
           cr.channel === channel ? { ...cr, ratio } : cr,
         );
         const updated = { ...s, channelRatios: updatedChannelRatios };
-        return { ...updated, monthlySplit: recalcMonthlySplit(updated) };
+        const withMonthly = { ...updated, monthlySplit: recalcMonthlySplit(updated) };
+        if (isCMSEmpty(s.channelMonthlySplit)) {
+          return { ...withMonthly, channelMonthlySplit: deriveChannelMonthlySplit(withMonthly) };
+        }
+        return withMonthly;
       }),
     });
   },
