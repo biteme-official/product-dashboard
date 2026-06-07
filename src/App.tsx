@@ -8,6 +8,7 @@ import { MonthlySalesSection } from './components/MonthlySalesSection';
 import { ChannelSimSection } from './components/ChannelSimSection';
 import { RevenueChartSection } from './components/RevenueChartSection';
 import { MdViewSection } from './components/MdViewSection';
+import { MdSimSection } from './components/MdSimSection';
 import { BrandFilter } from './components/BrandFilter';
 import { LoginScreen } from './components/LoginScreen';
 import { PinManager } from './components/PinManager';
@@ -255,19 +256,8 @@ function App() {
           </>
         ) : (
           <>
-            {/* MD 탭: 채널 비중 설정 */}
-            <ChannelSimSection />
-
-            <div className="mx-4 my-2 flex items-center gap-3">
-              <div className="flex-1 border-t border-gray-200" />
-              <span className="text-xs text-gray-400 bg-gray-50 px-3 py-1 rounded-full border border-gray-200">
-                월별 시뮬레이션
-              </span>
-              <div className="flex-1 border-t border-gray-200" />
-            </div>
-
-            {/* MD 탭: 월별 판매량 설정 */}
-            <MonthlySalesSection />
+            {/* MD 탭: 채널×월 통합 시뮬레이션 */}
+            <MdSimSection />
 
             <div className="mx-4 my-2 flex items-center gap-3">
               <div className="flex-1 border-t border-gray-200" />

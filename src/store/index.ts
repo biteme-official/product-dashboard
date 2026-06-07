@@ -4,8 +4,8 @@ import {
   collection, doc, setDoc, deleteDoc, onSnapshot, writeBatch, getDocs,
 } from 'firebase/firestore';
 import { fsdb } from '../lib/firebase';
-import type { AppState, Category, Month, SkuData, MonthlySplit, ColorEntry } from '../types';
-import { MAX_SIZES, SIZE_LABELS, MONTHS, CHANNELS, BRANDS, DEFAULT_CHANNEL_RATIOS, getReleaseMonth, simPosition, type Brand } from '../types';
+import type { AppState, Category, Month, SkuData, MonthlySplit, ColorEntry, ChannelMonthEntry } from '../types';
+import { MAX_SIZES, SIZE_LABELS, MONTHS, CHANNELS, BRANDS, DEFAULT_CHANNEL_RATIOS, getReleaseMonth, simPosition, type Brand, type Channel } from '../types';
 import { recalcQuantities, revenueMultiplier, calcDynamicMultiplier } from '../utils/calc';
 
 const SKUS_COL = 'skus';
@@ -47,6 +47,9 @@ function buildEmptySku(category: Category): SkuData {
     colors: [],
     brand: BRANDS[0],
     channelRatios: CHANNELS.map((channel) => ({ channel, ratio: DEFAULT_CHANNEL_RATIOS[channel] })),
+    channelMonthlySplit: CHANNELS.flatMap((channel) =>
+      MONTHS.map((month) => ({ channel, month, ratio: 0 })),
+    ),
     memo: '',
     comparisonSku: { name: '', price: 0, cost: 0, monthlyShipment: 0, annualShipment: 0 },
     monthlySplit: MONTHS.map((month) => ({
@@ -143,6 +146,22 @@ function applyMigration(raw: any): SkuData {
       ...newEntries,
     ].sort((a, b) => MONTHS.indexOf(a.month) - MONTHS.indexOf(b.month));
   }
+  // channelMonthlySplit 누락 항목 보정
+  if (!Array.isArray(base.channelMonthlySplit) || base.channelMonthlySplit.length === 0) {
+    base.channelMonthlySplit = CHANNELS.flatMap((channel) =>
+      MONTHS.map((month) => ({ channel, month, ratio: 0 })),
+    );
+  } else {
+    const existing = new Set(
+      base.channelMonthlySplit.map((e: ChannelMonthEntry) => `${e.channel}|${e.month}`),
+    );
+    const toAdd = CHANNELS.flatMap((channel) =>
+      MONTHS.filter((month) => !existing.has(`${channel}|${month}`)).map((month) => ({
+        channel, month, ratio: 0,
+      })),
+    );
+    if (toAdd.length > 0) base.channelMonthlySplit = [...base.channelMonthlySplit, ...toAdd];
+  }
   return base;
 }
 
@@ -159,6 +178,7 @@ interface StoreActions {
   updateMonthlySplit: (id: string, month: Month, ratio: number) => void;
   updateChannelRatio: (id: string, channel: string, ratio: number) => void;
   resetChannelRatios: (id: string) => void;
+  updateChannelMonthRatio: (id: string, channel: Channel, month: Month, ratio: number) => void;
   applyChannelRatiosToFiltered: (sourceSkuId: string) => Promise<void>;
   importSkus: (skus: SkuData[]) => Promise<void>;
   replaceAllSkus: (skus: Omit<SkuData, '_initialSnapshot' | 'isExpanded'>[]) => Promise<void>;
@@ -308,6 +328,23 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
         );
         const updated = { ...s, channelRatios: updatedChannelRatios };
         return { ...updated, monthlySplit: recalcMonthlySplit(updated) };
+      }),
+    });
+  },
+
+  updateChannelMonthRatio: (id, channel, month, ratio) => {
+    set({
+      skus: get().skus.map((s) => {
+        if (s.id !== id) return s;
+        const exists = s.channelMonthlySplit.find(
+          (e) => e.channel === channel && e.month === month,
+        );
+        const updated = exists
+          ? s.channelMonthlySplit.map((e) =>
+              e.channel === channel && e.month === month ? { ...e, ratio } : e,
+            )
+          : [...s.channelMonthlySplit, { channel, month, ratio }];
+        return { ...s, channelMonthlySplit: updated };
       }),
     });
   },

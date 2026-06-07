@@ -59,14 +59,27 @@ export function MdViewSection() {
     [skus, activeCategory, activeBrand],
   );
 
-  // SKU × 채널 계산
+  // SKU × 채널 계산 (channelMonthlySplit 우선, 없으면 channelRatios fallback)
   const skuChannelData = useMemo(
     () =>
       filteredSkus.map((sku) => {
+        const hasCMS = sku.channelMonthlySplit.some((e) => e.ratio > 0);
         const channels = CHANNELS.map((ch: Channel) => {
-          const ratio = sku.channelRatios.find((r) => r.channel === ch)?.ratio ?? 0;
-          const qty = Math.round((sku.totalOrderQty * ratio) / 100);
-          const revenue = Math.round(qty * sku.price * getChannelRate(ch));
+          let qty = 0;
+          let revenue = 0;
+          if (hasCMS) {
+            // channelMonthlySplit 기반: 월별 합산
+            for (const e of sku.channelMonthlySplit.filter((e) => e.channel === ch)) {
+              const q = Math.round((sku.totalOrderQty * e.ratio) / 100);
+              qty += q;
+              revenue += Math.round(q * sku.price * getChannelRate(ch));
+            }
+          } else {
+            // PM 탭 채널비중 fallback
+            const ratio = sku.channelRatios.find((r) => r.channel === ch)?.ratio ?? 0;
+            qty = Math.round((sku.totalOrderQty * ratio) / 100);
+            revenue = Math.round(qty * sku.price * getChannelRate(ch));
+          }
           const profit = Math.round(revenue * (sku.contributionMarginRate / 100));
           return { channel: ch, qty, revenue, profit };
         });

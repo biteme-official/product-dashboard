@@ -70,6 +70,12 @@ export interface ComparisonSku {
   annualShipment: number;
 }
 
+export interface ChannelMonthEntry {
+  channel: Channel;
+  month: Month;
+  ratio: number; // 해당 채널×월에 총 발주량 대비 출고 비중(%)
+}
+
 export interface MonthlySplit {
   month: Month;
   ratio: number;
@@ -95,7 +101,8 @@ export interface SkuData {
   brand: Brand;                     // 브랜드
   hasColors: boolean;               // 컬러 옵션 사용 여부
   colors: ColorEntry[];             // 컬러별 수량 목록
-  channelRatios: ChannelRatio[];    // 채널별 판매 비중
+  channelRatios: ChannelRatio[];    // 채널별 판매 비중 (PM 탭용)
+  channelMonthlySplit: ChannelMonthEntry[]; // 채널×월 직접 비중 (MD 탭용)
   memo: string;                     // 자유 메모 (HTML)
   imageUrl?: string;                // Firebase Storage 이미지 URL
   comparisonSku: ComparisonSku;

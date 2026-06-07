@@ -6,6 +6,10 @@ function buildChannelRatios(): ChannelRatio[] {
   return CHANNELS.map((channel) => ({ channel, ratio: DEFAULT_CHANNEL_RATIOS[channel] }));
 }
 
+function buildChannelMonthlySplit() {
+  return CHANNELS.flatMap((channel) => MONTHS.map((month) => ({ channel, month, ratio: 0 })));
+}
+
 function buildSizes(count: number, ratios: number[], totalQty: number): SizeRatio[] {
   const labels = SIZE_LABELS[count];
   const sumRatios = ratios.reduce((a, b) => a + b, 0);
@@ -59,6 +63,7 @@ const paddingBase = {
     annualShipment: 1200,
   },
   channelRatios: buildChannelRatios(),
+  channelMonthlySplit: buildChannelMonthlySplit(),
   monthlySplit: buildMonthlySplit(),
   memo: '',
 };
@@ -88,6 +93,7 @@ const tshirtBase = {
     annualShipment: 600,
   },
   channelRatios: buildChannelRatios(),
+  channelMonthlySplit: buildChannelMonthlySplit(),
   monthlySplit: buildMonthlySplit(),
   memo: '',
 };
