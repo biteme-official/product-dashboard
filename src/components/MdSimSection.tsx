@@ -410,6 +410,9 @@ export function MdSimSection() {
               공헌이익 = 매출 × {sku.contributionMarginRate}%
             </span>
           </div>
+          <p className="text-[11px] text-gray-400 mt-2 px-1">
+            ※ 현재 페이지에서 비중 수정 시 PM 뷰에 반영되지 않습니다. (MD 뷰 only 업데이트)
+          </p>
         </>
       )}
     </section>

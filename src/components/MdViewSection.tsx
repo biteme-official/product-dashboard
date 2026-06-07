@@ -286,6 +286,7 @@ export function MdViewSection() {
                   <th
                     key={ch}
                     className="text-right px-2 py-2.5 font-semibold text-gray-600 border-r border-gray-200 whitespace-nowrap"
+                    style={{ width: '72px', minWidth: '72px' }}
                   >
                     {ch}
                   </th>
