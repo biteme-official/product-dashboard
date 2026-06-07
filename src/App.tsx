@@ -252,17 +252,6 @@ function App() {
 
             {/* Section C */}
             <ChannelSimSection />
-
-            <div className="mx-4 my-2 flex items-center gap-3">
-              <div className="flex-1 border-t border-gray-200" />
-              <span className="text-xs text-gray-400 bg-gray-50 px-3 py-1 rounded-full border border-gray-200">
-                매출 차트
-              </span>
-              <div className="flex-1 border-t border-gray-200" />
-            </div>
-
-            {/* Section D */}
-            <RevenueChartSection />
           </>
         ) : (
           <>
@@ -290,6 +279,17 @@ function App() {
 
             {/* MD 탭: 요약 뷰 */}
             <MdViewSection />
+
+            <div className="mx-4 my-2 flex items-center gap-3">
+              <div className="flex-1 border-t border-gray-200" />
+              <span className="text-xs text-gray-400 bg-gray-50 px-3 py-1 rounded-full border border-gray-200">
+                매출 차트
+              </span>
+              <div className="flex-1 border-t border-gray-200" />
+            </div>
+
+            {/* MD 탭: 채널별 월별 매출 현황 */}
+            <RevenueChartSection />
           </>
         )}
       </main>
