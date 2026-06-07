@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   LabelList, ResponsiveContainer,
@@ -96,6 +96,7 @@ export function RevenueChartSection() {
   const skus = useStore((s) => s.skus);
   const activeCategory = useStore((s) => s.activeCategory);
   const activeBrand = useStore((s) => s.activeBrand);
+  const [selectedChannel, setSelectedChannel] = useState<Channel | null>(null);
 
   const eligibleSkus = useMemo(
     () =>
@@ -147,6 +148,21 @@ export function RevenueChartSection() {
     return { chartData: data, activeChannels: activeChs, maxTotal: max };
   }, [eligibleSkus]);
 
+  // 선택 채널이 필터 변경으로 사라지면 초기화
+  useEffect(() => {
+    if (selectedChannel && !activeChannels.includes(selectedChannel)) {
+      setSelectedChannel(null);
+    }
+  }, [activeChannels, selectedChannel]);
+
+  const displayedChannels = selectedChannel
+    ? activeChannels.filter((ch) => ch === selectedChannel)
+    : activeChannels;
+
+  const displayMax = selectedChannel
+    ? Math.max(...chartData.map((d) => (d[selectedChannel] as number) ?? 0), 0)
+    : maxTotal;
+
   if (chartData.length === 0) return null;
 
   return (
@@ -178,7 +194,7 @@ export function RevenueChartSection() {
               axisLine={false}
               tickLine={false}
               width={52}
-              domain={[0, Math.ceil(maxTotal * 1.12)]}
+              domain={[0, Math.ceil(displayMax * 1.12)]}
             />
             <Tooltip
               cursor={{ fill: '#f9fafb' }}
@@ -191,18 +207,18 @@ export function RevenueChartSection() {
                 padding: '8px 12px',
               }}
             />
-            {activeChannels.map((ch, i) => (
+            {displayedChannels.map((ch, i) => (
               <Bar
                 key={ch}
                 dataKey={ch}
                 stackId="stack"
                 fill={CHANNEL_COLORS[ch]}
                 radius={
-                  i === activeChannels.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]
+                  i === displayedChannels.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]
                 }
               >
                 <LabelList dataKey={ch} content={makeLabel(ch)} />
-                {i === activeChannels.length - 1 && (
+                {i === displayedChannels.length - 1 && !selectedChannel && (
                   <LabelList dataKey="__total__" content={TotalLabel} />
                 )}
               </Bar>
@@ -210,17 +226,39 @@ export function RevenueChartSection() {
           </BarChart>
         </ResponsiveContainer>
 
-        {/* 범례 */}
+        {/* 범례 — 클릭 시 해당 채널만 필터 */}
         <div className="flex flex-wrap gap-x-4 gap-y-1.5 mt-2 px-1 border-t border-gray-100 pt-3">
-          {activeChannels.map((ch) => (
-            <span key={ch} className="flex items-center gap-1.5 text-xs text-gray-600">
-              <span
-                className="w-2.5 h-2.5 rounded-sm flex-shrink-0"
-                style={{ backgroundColor: CHANNEL_COLORS[ch] }}
-              />
-              {ch}
-            </span>
-          ))}
+          {activeChannels.map((ch) => {
+            const isSelected = selectedChannel === ch;
+            const isDimmed = selectedChannel !== null && !isSelected;
+            return (
+              <button
+                key={ch}
+                onClick={() => setSelectedChannel(isSelected ? null : ch)}
+                className={`flex items-center gap-1.5 text-xs transition-all ${
+                  isSelected
+                    ? 'font-semibold text-gray-900'
+                    : isDimmed
+                    ? 'text-gray-300'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                <span
+                  className={`w-2.5 h-2.5 rounded-sm flex-shrink-0 transition-opacity ${isDimmed ? 'opacity-25' : ''}`}
+                  style={{ backgroundColor: CHANNEL_COLORS[ch] }}
+                />
+                {ch}
+              </button>
+            );
+          })}
+          {selectedChannel && (
+            <button
+              onClick={() => setSelectedChannel(null)}
+              className="text-xs text-indigo-500 hover:text-indigo-700 underline underline-offset-2 transition-colors"
+            >
+              전체 보기
+            </button>
+          )}
         </div>
       </div>
     </section>

@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { Role } from '../utils/pin';
 
 const SESSION_KEY = 'md-auth-role';
+const STORAGE = localStorage;
 
 interface AuthStore {
   role: Role | null;
@@ -10,13 +11,13 @@ interface AuthStore {
 }
 
 export const useAuth = create<AuthStore>((set) => ({
-  role: sessionStorage.getItem(SESSION_KEY) as Role | null,
+  role: STORAGE.getItem(SESSION_KEY) as Role | null,
   setRole: (role) => {
-    sessionStorage.setItem(SESSION_KEY, role);
+    STORAGE.setItem(SESSION_KEY, role);
     set({ role });
   },
   logout: () => {
-    sessionStorage.removeItem(SESSION_KEY);
+    STORAGE.removeItem(SESSION_KEY);
     set({ role: null });
   },
 }));

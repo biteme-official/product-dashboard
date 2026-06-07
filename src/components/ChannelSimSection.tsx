@@ -137,7 +137,7 @@ export function ChannelSimSection() {
 
   return (
     <section className="p-4 pb-10">
-      <div className="flex items-center gap-3 mb-3">
+      <div className="flex items-center gap-3 mb-1">
         <h2 className="text-sm font-semibold text-gray-700 flex-shrink-0">
           채널별 / 월별 판매 비중 시뮬레이션
         </h2>
@@ -191,6 +191,10 @@ export function ChannelSimSection() {
           </div>
         )}
       </div>
+
+      <p className="text-[11px] text-gray-400 mb-3 leading-relaxed">
+        브랜드 필터 확인 후 '전체 SKU 반영' 클릭해주세요.
+      </p>
 
       {/* 전체 합산 모드 */}
       {isAllMode && aggData && aggMonthTotals && aggChannelTotals && aggGrandTotal && (

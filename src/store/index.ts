@@ -16,7 +16,11 @@ type FirestoreSkuData = Omit<SkuData, 'isExpanded'>;
 function toFirestore(sku: SkuData): FirestoreSkuData {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { isExpanded: _, ...data } = sku;
-  return data;
+  // _initialSnapshot에서 imageUrl을 제거해 문서 크기 절감 +
+  // 로드 시 applyMigration에서 본 데이터의 imageUrl을 동기화하므로 여기선 불필요
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { imageUrl: _img, ...snapshotWithoutImage } = (data._initialSnapshot ?? {}) as SkuData;
+  return { ...data, _initialSnapshot: snapshotWithoutImage as SkuData['_initialSnapshot'] };
 }
 
 function buildEmptySku(category: Category): SkuData {
@@ -110,6 +114,9 @@ function applyMigration(raw: any): SkuData {
       colors: [],
       channelRatios: defaultChannelRatios,
       ...raw._initialSnapshot,
+      // Firestore에는 imageUrl이 _initialSnapshot에 없으므로 본 데이터 기준으로 동기화
+      // → resetSku 시에도 이미지가 유지됨
+      imageUrl: raw.imageUrl ?? '',
     },
   };
   if (base.colors.length > 0) {
@@ -357,6 +364,13 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
 
   persistSku: async (id) => {
     const sku = get().skus.find((s) => s.id === id);
-    if (sku) await setDoc(doc(fsdb, SKUS_COL, id), toFirestore(sku));
+    if (sku) {
+      try {
+        await setDoc(doc(fsdb, SKUS_COL, id), toFirestore(sku));
+      } catch (err) {
+        console.error('[persistSku] Firestore 저장 실패:', id, err);
+        throw err; // 호출부에서 catch할 수 있도록 re-throw
+      }
+    }
   },
 }));

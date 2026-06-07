@@ -7,7 +7,6 @@ import { useState, useEffect, useRef, type ChangeEvent } from 'react';
 import { SizeDistColumn } from './SizeDistColumn';
 import { ComparisonColumn } from './ComparisonColumn';
 import { NumericInput } from './NumericInput';
-import { db } from '../db';
 
 interface Props {
   sku: SkuData;
@@ -146,78 +145,98 @@ export function SkuCard({ sku }: Props) {
 }
 
 // ── 썸네일 업로드/표시 컴포넌트 ──────────────────────────────────────────
-function ThumbnailSection({ skuId }: { skuId: string }) {
-  const [dataUrl, setDataUrl] = useState<string | null>(null);
+function ThumbnailSection({ skuId, imageUrl, readOnly }: { skuId: string; imageUrl?: string; readOnly?: boolean }) {
+  const updateSku = useStore((s) => s.updateSku);
+  const persistSku = useStore((s) => s.persistSku);
+  const [uploading, setUploading] = useState(false);
+  const [saveError, setSaveError] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  // 카드가 펼쳐질 때 DB에서 이미지 로드
-  useEffect(() => {
-    db.images.get(skuId).then((rec) => setDataUrl(rec?.dataUrl ?? null));
-  }, [skuId]);
-
-  function handleFile(e: ChangeEvent<HTMLInputElement>) {
+  async function handleFile(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
     e.target.value = '';
-
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const img = new Image();
-      img.onload = () => {
-        // 최대 800×800으로 리사이즈
-        const MAX = 800;
-        let { width, height } = img;
-        if (width > MAX || height > MAX) {
-          if (width >= height) {
-            height = Math.round((height * MAX) / width);
-            width = MAX;
-          } else {
-            width = Math.round((width * MAX) / height);
-            height = MAX;
-          }
-        }
-        const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-        canvas.getContext('2d')!.drawImage(img, 0, 0, width, height);
-        const url = canvas.toDataURL('image/jpeg', 0.85);
-        db.images.put({ skuId, dataUrl: url });
-        setDataUrl(url);
-      };
-      img.src = ev.target!.result as string;
-    };
-    reader.readAsDataURL(file);
+    setUploading(true);
+    setSaveError(false);
+    try {
+      const dataUrl = await new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          const img = new Image();
+          img.onload = () => {
+            const MAX = 800;
+            let { width, height } = img;
+            if (width > MAX || height > MAX) {
+              if (width >= height) { height = Math.round((height * MAX) / width); width = MAX; }
+              else { width = Math.round((width * MAX) / height); height = MAX; }
+            }
+            const canvas = document.createElement('canvas');
+            canvas.width = width; canvas.height = height;
+            canvas.getContext('2d')!.drawImage(img, 0, 0, width, height);
+            resolve(canvas.toDataURL('image/jpeg', 0.85));
+          };
+          img.src = ev.target!.result as string;
+        };
+        reader.readAsDataURL(file);
+      });
+      updateSku(skuId, { imageUrl: dataUrl });
+      await persistSku(skuId);
+    } catch {
+      // Firestore 저장 실패 → 로컬 상태 되돌리고 에러 표시
+      updateSku(skuId, { imageUrl: imageUrl ?? '' });
+      setSaveError(true);
+    } finally {
+      setUploading(false);
+    }
   }
 
-  function handleRemove() {
-    db.images.delete(skuId);
-    setDataUrl(null);
+  async function handleRemove() {
+    updateSku(skuId, { imageUrl: '' });
+    await persistSku(skuId);
   }
 
-  if (dataUrl) {
+  if (uploading) {
+    return (
+      <div className="mb-3 w-full aspect-square rounded-xl border border-gray-200 bg-gray-50 flex items-center justify-center">
+        <span className="text-xs text-gray-400">업로드 중...</span>
+      </div>
+    );
+  }
+
+  if (saveError) {
+    return (
+      <div className="mb-3 w-full aspect-square rounded-xl border border-red-200 bg-red-50 flex flex-col items-center justify-center gap-2 px-3 text-center">
+        <span className="text-xs text-red-500 font-medium">저장 실패</span>
+        <span className="text-[10px] text-red-400">이미지가 너무 크거나 네트워크 오류입니다.</span>
+        <button
+          onClick={() => setSaveError(false)}
+          className="text-[10px] text-red-500 underline"
+        >
+          다시 시도
+        </button>
+      </div>
+    );
+  }
+
+  if (imageUrl) {
     return (
       <div className="relative group rounded-xl overflow-hidden border border-gray-200 mb-3 bg-gray-50">
-        <img
-          src={dataUrl}
-          alt="SKU 썸네일"
-          className="w-full aspect-square object-cover"
-        />
-        {/* 호버 시 교체/삭제 버튼 */}
-        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/45 transition-all flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100">
-          <button
-            onClick={() => fileRef.current?.click()}
-            className="px-3 py-1.5 bg-white/90 text-gray-800 text-xs rounded-lg font-medium hover:bg-white shadow-sm"
-          >
-            교체
-          </button>
-          <button
-            onClick={handleRemove}
-            className="px-3 py-1.5 bg-red-500/90 text-white text-xs rounded-lg font-medium hover:bg-red-500 shadow-sm"
-          >
-            삭제
-          </button>
-        </div>
+        <img src={imageUrl} alt="SKU 썸네일" className="w-full aspect-square object-cover" />
+        {!readOnly && (
+          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/45 transition-all flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100">
+            <button onClick={() => fileRef.current?.click()} className="px-3 py-1.5 bg-white/90 text-gray-800 text-xs rounded-lg font-medium hover:bg-white shadow-sm">교체</button>
+            <button onClick={handleRemove} className="px-3 py-1.5 bg-red-500/90 text-white text-xs rounded-lg font-medium hover:bg-red-500 shadow-sm">삭제</button>
+          </div>
+        )}
         <input ref={fileRef} type="file" accept="image/*" onChange={handleFile} className="hidden" />
+      </div>
+    );
+  }
+
+  if (readOnly) {
+    return (
+      <div className="mb-3 w-full aspect-square rounded-xl border border-gray-100 bg-gray-50 flex items-center justify-center">
+        <span className="text-xs text-gray-300">이미지 없음</span>
       </div>
     );
   }
@@ -229,9 +248,7 @@ function ThumbnailSection({ skuId }: { skuId: string }) {
         className="w-full aspect-square border-2 border-dashed border-gray-200 rounded-xl flex flex-col items-center justify-center gap-2 text-gray-400 hover:border-indigo-300 hover:text-indigo-400 transition-colors bg-gray-50/50"
       >
         <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.3}>
-          <path strokeLinecap="round" strokeLinejoin="round"
-            d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
-          />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
         </svg>
         <span className="text-xs font-medium">썸네일 업로드</span>
       </button>
@@ -263,7 +280,7 @@ function BasicInfoColumn({ sku, readOnly }: { sku: SkuData; readOnly?: boolean }
       <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">기본 정보</h3>
 
       {/* 썸네일 — SKU명 위에 배치 */}
-      <ThumbnailSection skuId={sku.id} />
+      <ThumbnailSection skuId={sku.id} imageUrl={sku.imageUrl} readOnly={readOnly} />
 
       <div>
         <label className="block text-xs text-gray-500 mb-1">SKU명</label>

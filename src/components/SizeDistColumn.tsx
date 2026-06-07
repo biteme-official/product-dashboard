@@ -113,14 +113,20 @@ export function SizeDistColumn({ sku, readOnly }: Props) {
         </div>
         <div>
           <label className="block text-xs text-gray-500 mb-1">MOQ</label>
-          <NumericInput
-            value={sku.moq}
-            onChange={(v) => updateSku(sku.id, { moq: v })}
-            onBlur={handleBlur}
-            disabled={readOnly}
-            placeholder="0"
-            className="w-full px-2 py-2 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-400 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed"
-          />
+          {sku.hasColors ? (
+            <div className="w-full px-2 py-2 text-xs border border-gray-200 rounded-lg bg-gray-50 text-gray-500 tabular-nums">
+              {sku.totalOrderQty > 0 ? sku.totalOrderQty.toLocaleString() : <span className="text-gray-300">자동</span>}
+            </div>
+          ) : (
+            <NumericInput
+              value={sku.moq}
+              onChange={(v) => updateSku(sku.id, { moq: v })}
+              onBlur={handleBlur}
+              disabled={readOnly}
+              placeholder="0"
+              className="w-full px-2 py-2 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-400 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed"
+            />
+          )}
         </div>
         <div>
           <label className="block text-xs text-gray-500 mb-1">소진월수</label>
@@ -163,35 +169,43 @@ export function SizeDistColumn({ sku, readOnly }: Props) {
             </span>
           </div>
           <div className="space-y-1">
-            {sku.colors.map((color) => (
-              <div key={color.id} className="flex items-center gap-1.5">
-                <input
-                  type="text"
-                  value={color.name}
-                  onChange={(e) => handleColorChange(color.id, { name: e.target.value })}
-                  onBlur={handleBlur}
-                  disabled={readOnly}
-                  placeholder="컬러명"
-                  className="flex-1 min-w-0 px-2 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-400 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed"
-                />
-                <NumericInput
-                  value={color.quantity}
-                  onChange={(v) => handleColorChange(color.id, { quantity: v })}
-                  onBlur={handleBlur}
-                  disabled={readOnly}
-                  placeholder="수량"
-                  className="w-20 px-2 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-400 text-right disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed"
-                />
-                {!readOnly && (
-                  <button
-                    onClick={() => removeColor(color.id)}
-                    className="text-lg leading-none text-gray-300 hover:text-red-400 transition-colors flex-shrink-0"
-                  >
-                    ×
-                  </button>
-                )}
-              </div>
-            ))}
+            {sku.colors.map((color) => {
+              const pct = sku.totalOrderQty > 0 && color.quantity > 0
+                ? Math.round((color.quantity / sku.totalOrderQty) * 100)
+                : null;
+              return (
+                <div key={color.id} className="flex items-center gap-1.5">
+                  <input
+                    type="text"
+                    value={color.name}
+                    onChange={(e) => handleColorChange(color.id, { name: e.target.value })}
+                    onBlur={handleBlur}
+                    disabled={readOnly}
+                    placeholder="컬러명"
+                    className="flex-1 min-w-0 px-2 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-400 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed"
+                  />
+                  <NumericInput
+                    value={color.quantity}
+                    onChange={(v) => handleColorChange(color.id, { quantity: v })}
+                    onBlur={handleBlur}
+                    disabled={readOnly}
+                    placeholder="수량"
+                    className="w-20 px-2 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-400 text-right disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed"
+                  />
+                  <span className="w-9 text-right text-[11px] tabular-nums flex-shrink-0 text-indigo-400 font-medium">
+                    {pct !== null ? `${pct}%` : ''}
+                  </span>
+                  {!readOnly && (
+                    <button
+                      onClick={() => removeColor(color.id)}
+                      className="text-lg leading-none text-gray-300 hover:text-red-400 transition-colors flex-shrink-0"
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
+              );
+            })}
           </div>
           {!readOnly && (
             <button

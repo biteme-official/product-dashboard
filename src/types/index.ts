@@ -97,6 +97,7 @@ export interface SkuData {
   colors: ColorEntry[];             // 컬러별 수량 목록
   channelRatios: ChannelRatio[];    // 채널별 판매 비중
   memo: string;                     // 자유 메모 (HTML)
+  imageUrl?: string;                // Firebase Storage 이미지 URL
   comparisonSku: ComparisonSku;
   monthlySplit: MonthlySplit[];     // 길이 8 (7~12월 + 익년 1~2월)
   isExpanded: boolean;
