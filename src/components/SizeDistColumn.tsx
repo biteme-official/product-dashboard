@@ -1,9 +1,49 @@
-import { v4 as uuidv4 } from 'uuid';
+import { v4 as uuidv4, } from 'uuid';
+import { useState, useRef } from 'react';
 import { useStore } from '../store';
 import type { SkuData } from '../types';
 import { buildSizesFromCount, recalcQuantities } from '../utils/calc';
-import { exportSkuOrderXlsx } from '../utils/exportXlsx';
+import { exportSkuOrderXlsx, copySkuOrderToClipboard } from '../utils/exportXlsx';
 import { NumericInput } from './NumericInput';
+
+/** 복사 버튼: 누르면 TSV를 클립보드에 올리고 1.5초간 "복사됨!" 표시 */
+function CopyButton({ sku }: { sku: SkuData }) {
+  const [state, setState] = useState<'idle' | 'ok' | 'err'>('idle');
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  async function handleCopy() {
+    if (state !== 'idle') return;
+    try {
+      await copySkuOrderToClipboard(sku);
+      setState('ok');
+    } catch {
+      setState('err');
+    }
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => setState('idle'), 1800);
+  }
+
+  const label  = state === 'ok' ? '복사됨 ✓' : state === 'err' ? '실패' : '복사';
+  const colors =
+    state === 'ok'  ? 'text-indigo-600 border-indigo-200 bg-indigo-50' :
+    state === 'err' ? 'text-red-500 border-red-200 bg-red-50' :
+    'text-gray-500 border-gray-200 bg-gray-50 hover:bg-gray-100';
+
+  return (
+    <button
+      onClick={handleCopy}
+      className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border transition-colors ${colors}`}
+    >
+      {state === 'idle' && (
+        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round"
+            d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2M16 8h2a2 2 0 012 2v8a2 2 0 01-2 2h-8a2 2 0 01-2-2v-2" />
+        </svg>
+      )}
+      {label}
+    </button>
+  );
+}
 
 interface Props {
   sku: SkuData;
@@ -233,15 +273,18 @@ export function SizeDistColumn({ sku, readOnly }: Props) {
               합계 {sumRatios}%
             </span>
             {!sku.hasColors && sku.totalOrderQty > 0 && (
-              <button
-                onClick={() => exportSkuOrderXlsx(sku)}
-                className="flex items-center gap-1 text-xs text-emerald-600 hover:text-emerald-700 px-2 py-0.5 rounded-full border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 transition-colors"
-              >
-                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3" />
-                </svg>
-                발주표
-              </button>
+              <>
+                <button
+                  onClick={() => exportSkuOrderXlsx(sku)}
+                  className="flex items-center gap-1 text-xs text-emerald-600 hover:text-emerald-700 px-2 py-0.5 rounded-full border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 transition-colors"
+                >
+                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3" />
+                  </svg>
+                  발주표
+                </button>
+                <CopyButton sku={sku} />
+              </>
             )}
           </div>
         </div>
@@ -350,6 +393,7 @@ function ColorSizeResultTable({ sku, sumRatios }: { sku: SkuData; sumRatios: num
             </svg>
             발주표
           </button>
+          <CopyButton sku={sku} />
         </div>
       </div>
       <div className="overflow-x-auto rounded-lg border border-gray-200">
