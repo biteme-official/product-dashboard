@@ -1,3 +1,9 @@
 {
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+  "rewrites": [
+    {
+      "source": "/api/tableau/:path*",
+      "destination": "https://prod-apnortheast-a.online.tableau.com/:path*"
+    },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
 }

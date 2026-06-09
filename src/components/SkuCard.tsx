@@ -1,12 +1,43 @@
 import type { SkuData } from '../types';
-import { BRANDS } from '../types';
+import { BRANDS, MONTHS, CHANNELS, B2C_CHANNELS, B2B_CHANNELS, DEFAULT_CHANNEL_COMMISSION, getReleaseMonth, simPosition, type Month, type Channel } from '../types';
+import type { ChannelMonthQtyEntry, ChannelPricing } from '../types';
 import { useStore } from '../store';
 import { useAuth } from '../store/auth';
 import { revenueMultiplier, calcDynamicMultiplier } from '../utils/calc';
-import { useState, useRef, type ChangeEvent } from 'react';
+import { useState, useRef, useEffect, useMemo, type Dispatch, type SetStateAction, type ChangeEvent } from 'react';
+import { fetchTeamCateData, calcVariableCostRatio, type TeamCateMap } from '../services/tableau';
 import { SizeDistColumn } from './SizeDistColumn';
 import { ComparisonColumn } from './ComparisonColumn';
 import { NumericInput } from './NumericInput';
+
+const MONTH_LABELS: Record<Month, string> = {
+  7: '7월', 8: '8월', 9: '9월', 10: '10월', 11: '11월', 12: '12월',
+  1: '1월', 2: '2월',
+};
+const IS_NEXT_YEAR: Record<Month, boolean> = {
+  7: false, 8: false, 9: false, 10: false, 11: false, 12: false,
+  1: true, 2: true,
+};
+
+const DEFAULT_CHANNEL_RATIO_PCT: Record<Channel, number> = {
+  '자사몰': 20, '스스': 30, '위탁': 5,
+  '쿠팡': 10, 'B2B': 15, '사입및페어': 5, '글로벌': 5, '일본': 10,
+};
+
+const CHANNEL_COLORS: Record<Channel, string> = {
+  '자사몰': '#6366f1', '스스': '#8b5cf6', '위탁': '#06b6d4',
+  '쿠팡': '#f97316', 'B2B': '#10b981', '사입및페어': '#6b7280',
+  '글로벌': '#ec4899', '일본': '#ef4444',
+};
+
+function formatWon(value: number): string {
+  if (value <= 0) return '–';
+  if (value >= 100_000_000) {
+    const uk = value / 100_000_000;
+    return `${Number.isInteger(uk) ? uk : uk.toFixed(1)}억`;
+  }
+  return `${Math.round(value / 10_000).toLocaleString()}만`;
+}
 
 interface Props {
   sku: SkuData;
@@ -17,6 +48,8 @@ export function SkuCard({ sku }: Props) {
   const deleteSku = useStore((s) => s.deleteSku);
   const resetSku = useStore((s) => s.resetSku);
   const duplicateSku = useStore((s) => s.duplicateSku);
+  const updateSku = useStore((s) => s.updateSku);
+  const persistSku = useStore((s) => s.persistSku);
   const skus = useStore((s) => s.skus);
   const activeCategory = useStore((s) => s.activeCategory);
   const { role } = useAuth();
@@ -24,8 +57,39 @@ export function SkuCard({ sku }: Props) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const isAtMax = skus.filter((s) => s.category === activeCategory).length >= 15;
 
+  // 대응SKU 월별 실적 (ComparisonColumn → MonthlyTable 브릿지)
+  const [compMonthlyData, setCompMonthlyData] = useState<Partial<Record<number, number>>>({});
+  const [compMode, setCompMode] = useState<'rolling12' | 'samePeriod'>('rolling12');
+  const [compModeLabel, setCompModeLabel] = useState('직전 12개월');
+  // 대응SKU 채널 분포 (Tableau 채널별 실적 → STEP2 기본값 산출에 사용)
+  const [compChannelDist, setCompChannelDist] = useState<Record<string, number> | null>(null);
+
+  function handleComparisonDataChange(
+    data: Partial<Record<number, number>>,
+    mode: 'rolling12' | 'samePeriod',
+    label: string,
+  ) {
+    setCompMonthlyData(data);
+    setCompMode(mode);
+    setCompModeLabel(label);
+  }
+
+
+  // STEP3 pricingOpts — sku 데이터로 초기화해 새로고침 후에도 유지됨
+  const [pricingOpts, _setPricingOpts] = useState<Record<string, string>>(sku.pricingOpts ?? {});
+  const [step3Totals, setStep3Totals] = useState<{ revenue: number; profit: number } | null>(null);
+
+  const setPricingOpts: Dispatch<SetStateAction<Record<string, string>>> = (updater) => {
+    _setPricingOpts((prev) => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      updateSku(sku.id, { pricingOpts: next });
+      persistSku(sku.id);
+      return next;
+    });
+  };
+
   const multiplier = calcDynamicMultiplier(sku.channelRatios) ?? revenueMultiplier(sku.category);
-  const expectedRevenue = Math.round(sku.totalOrderQty * sku.price * multiplier);
+  const expectedRevenue = Math.round(sku.totalOrderQty * sku.price / 1.1 * multiplier);
 
   return (
     <div className="border border-gray-200 rounded-xl bg-white shadow-sm overflow-hidden">
@@ -48,6 +112,12 @@ export function SkuCard({ sku }: Props) {
           <span className="font-semibold text-gray-900 truncate flex-1 min-w-0 text-sm">
             {sku.name || '(SKU명 미입력)'}
           </span>
+
+          {sku.isConfirmed && (
+            <span className="flex-shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200">
+              ✓ 확정
+            </span>
+          )}
 
           {canEdit && (
             <div className="flex items-center gap-1 flex-shrink-0">
@@ -96,7 +166,7 @@ export function SkuCard({ sku }: Props) {
           <div className="flex items-center gap-2 text-xs text-gray-500">
             <span>₩{sku.price.toLocaleString()}</span>
             <span className="text-gray-300">·</span>
-            <span>{sku.totalOrderQty.toLocaleString()}장</span>
+            <span>{sku.totalOrderQty.toLocaleString()}</span>
             <span className="text-gray-300">·</span>
             <span className="text-indigo-600 font-medium">₩{expectedRevenue.toLocaleString()}</span>
           </div>
@@ -106,14 +176,40 @@ export function SkuCard({ sku }: Props) {
       {/* 상세 입력 영역 (펼침) */}
       {sku.isExpanded && (
         <div className="p-4 bg-white">
+          {sku.isConfirmed && (
+            <div className="flex items-center gap-2 mb-4 px-3 py-2 rounded-lg bg-red-50 border border-red-200">
+              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-red-100 text-red-600 border border-red-200 whitespace-nowrap">
+                🔒 수량 확정
+              </span>
+              <span className="text-xs text-red-500">수량 수정 MD 협의 필요</span>
+            </div>
+          )}
           <div className="grid gap-4 grid-cols-1 md:grid-cols-[1fr_2fr_1.2fr]">
             {/* 열 1: 기본정보 */}
             <BasicInfoColumn sku={sku} readOnly={!canEdit} />
             {/* 열 2: 사이즈 분배 */}
             <SizeDistColumn sku={sku} readOnly={!canEdit} />
             {/* 열 3: 기존 SKU 비교 */}
-            <ComparisonColumn sku={sku} readOnly={!canEdit} />
+            <ComparisonColumn
+              sku={sku}
+              readOnly={!canEdit}
+              onComparisonDataChange={handleComparisonDataChange}
+              onChannelDistChange={setCompChannelDist}
+              step3Revenue={step3Totals?.revenue}
+              step3Profit={step3Totals?.profit}
+            />
           </div>
+          <MonthlyTable
+            sku={sku}
+            readOnly={!canEdit}
+            compMonthlyData={compMonthlyData}
+            compModeLabel={compModeLabel}
+            compMode={compMode}
+            compChannelDist={compChannelDist}
+            pricingOpts={pricingOpts}
+            setPricingOpts={setPricingOpts}
+            onStep3TotalsChange={setStep3Totals}
+          />
         </div>
       )}
     </div>
@@ -354,19 +450,1181 @@ function BasicInfoColumn({ sku, readOnly }: { sku: SkuData; readOnly?: boolean }
         </div>
       </div>
 
-      <div>
-        <label className="block text-xs text-gray-500 mb-1">공헌이익률 (%)</label>
-        <NumericInput
-          value={sku.contributionMarginRate}
-          onChange={(v) => handleChange({ contributionMarginRate: v })}
-          onBlur={handleBlur}
-          disabled={readOnly}
-          allowDecimal
-          placeholder="예: 35"
-          className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed"
-        />
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <label className="block text-xs text-gray-500 mb-1">정가 (₩)</label>
+          <NumericInput
+            value={sku.regularPrice}
+            onChange={(v) => handleChange({ regularPrice: v })}
+            onBlur={handleBlur}
+            disabled={readOnly}
+            placeholder="0"
+            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed"
+          />
+        </div>
+        <div>
+          <label className="block text-xs text-gray-500 mb-1">상시할인율</label>
+          <div className="w-full px-3 py-2 text-sm border border-gray-100 rounded-lg bg-gray-50 text-gray-700 tabular-nums">
+            {sku.regularPrice > 0 && sku.price > 0
+              ? `${Math.round((1 - sku.price / sku.regularPrice) * 100)}%`
+              : <span className="text-gray-300">—</span>}
+          </div>
+        </div>
       </div>
 
+    </div>
+  );
+}
+
+// 대응SKU 채널 분포를 기반으로 channelMonthQty 초기화 (STEP2 자동 세팅용)
+// 채널 합계 = totalOrderQty × 채널비중, 월별 배분은 STEP1 비율 (없으면 균등)
+function buildChannelMonthEntries(
+  compChannelDist: Record<string, number> | null | undefined,
+  sku: SkuData,
+): ChannelMonthQtyEntry[] {
+  const totalOrderQty = sku.totalOrderQty;
+  if (totalOrderQty === 0) {
+    return CHANNELS.flatMap((channel) => MONTHS.map((month) => ({ channel, month, qty: 0 })));
+  }
+
+  const distTotal = compChannelDist
+    ? Object.values(compChannelDist).reduce((s, q) => s + q, 0)
+    : 0;
+
+  // STEP1 월별 수량 기반 배분 비율
+  const monthQtys = MONTHS.map((m) => sku.monthlySplit.find((ms) => ms.month === m)?.quantity ?? 0);
+  const totalMonthly = monthQtys.reduce((s, q) => s + q, 0);
+
+  return CHANNELS.flatMap((channel) => {
+    const channelRatio = compChannelDist && distTotal > 0
+      ? (compChannelDist[channel] ?? 0) / distTotal
+      : DEFAULT_CHANNEL_RATIO_PCT[channel] / 100;
+    const channelTotal = Math.round(totalOrderQty * channelRatio);
+
+    return MONTHS.map((month, mi) => {
+      // STEP1 미입력이면 균등 배분
+      const fraction = totalMonthly > 0 ? monthQtys[mi] / totalMonthly : 1 / MONTHS.length;
+      return { channel, month, qty: Math.round(channelTotal * fraction) };
+    });
+  });
+}
+
+// ── 월별 판매 수량 테이블 ─────────────────────────────────────────────────
+function MonthlyTable({
+  sku,
+  readOnly,
+  compMonthlyData,
+  compModeLabel,
+  compMode,
+  compChannelDist,
+  pricingOpts,
+  setPricingOpts,
+  onStep3TotalsChange,
+}: {
+  sku: SkuData;
+  readOnly: boolean;
+  compMonthlyData: Partial<Record<number, number>>;
+  compModeLabel: string;
+  compMode: 'rolling12' | 'samePeriod';
+  compChannelDist: Record<string, number> | null;
+  pricingOpts: Record<string, string>;
+  setPricingOpts: Dispatch<SetStateAction<Record<string, string>>>;
+  onStep3TotalsChange: (totals: { revenue: number; profit: number } | null) => void;
+}) {
+  const [activeTab, setActiveTab] = useState<'monthly' | 'channel' | 'pricing'>('monthly');
+  type Step2Snapshot = { channelMonthQty: SkuData['channelMonthQty']; pricingOpts: Record<string, string> };
+  const [step2UndoStack, setStep2UndoStack] = useState<Step2Snapshot[]>([]);
+
+  // 팀카테 변동비 데이터 로드
+  const [teamCateMap, setTeamCateMap] = useState<TeamCateMap | null>(null);
+  useEffect(() => { fetchTeamCateData().then(setTeamCateMap).catch(() => {}); }, []);
+
+  const releaseYear = sku.releaseDate ? parseInt(sku.releaseDate.split('-')[0], 10) : null;
+  const varCostByChannel = useMemo<Record<string, number>>(() => {
+    if (!teamCateMap) return {};
+    const result: Record<string, number> = {};
+    for (const ch of [...B2C_CHANNELS, ...B2B_CHANNELS]) {
+      const r = calcVariableCostRatio(teamCateMap, sku.category, ch, compMode, getReleaseMonth(sku.releaseDate), releaseYear);
+      if (r !== null) result[ch] = r;
+    }
+    return result;
+  }, [teamCateMap, sku.category, sku.releaseDate, compMode, releaseYear]);
+
+  function captureStep2Backup() {
+    // useStore.getState()로 React 렌더 지연 없이 최신 Zustand 값을 읽음
+    const latestSku = useStore.getState().skus.find((s) => s.id === sku.id);
+    const snapshot: Step2Snapshot = {
+      channelMonthQty: [...(latestSku?.channelMonthQty ?? sku.channelMonthQty)],
+      pricingOpts: { ...(latestSku?.pricingOpts ?? pricingOpts) },
+    };
+    setStep2UndoStack((prev) => {
+      const last = prev[prev.length - 1];
+      if (last &&
+        JSON.stringify(last.channelMonthQty) === JSON.stringify(snapshot.channelMonthQty) &&
+        JSON.stringify(last.pricingOpts) === JSON.stringify(snapshot.pricingOpts)) {
+        return prev;
+      }
+      return [...prev, snapshot];
+    });
+  }
+  const updateMonthlyQty = useStore((s) => s.updateMonthlyQty);
+  const batchInitChannelMonthQty = useStore((s) => s.batchInitChannelMonthQty);
+  const persistSku = useStore((s) => s.persistSku);
+  const { role } = useAuth();
+  // STEP 1은 PM/master만 편집 가능
+  const step1ReadOnly = readOnly || role === 'md';
+
+  // STEP2 탭 진입 시, channelMonthQty가 미초기화 상태면 대응SKU 채널 비중으로 자동 세팅
+  useEffect(() => {
+    if (activeTab !== 'pricing') return;
+    const isUninitialized = sku.channelMonthQty.every((e) => e.qty === 0);
+    if (!isUninitialized) return;
+    if (sku.totalOrderQty === 0) return;
+    const entries = buildChannelMonthEntries(compChannelDist, sku);
+    if (entries.every((e) => e.qty === 0)) return;
+    batchInitChannelMonthQty(sku.id, entries);
+    persistSku(sku.id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, compChannelDist]);
+
+  const releaseMonth = getReleaseMonth(sku.releaseDate);
+  const isDisabled = (m: Month) =>
+    releaseMonth !== null && simPosition(m) < simPosition(releaseMonth);
+
+  const totalQty = sku.monthlySplit.reduce((sum, ms) => sum + ms.quantity, 0);
+  const totalRevenue = sku.monthlySplit.reduce((sum, ms) => sum + ms.revenue, 0);
+  const totalProfit = sku.monthlySplit.reduce((sum, ms) => sum + ms.contributionProfit, 0);
+
+  const fy26Split = sku.monthlySplit.filter((ms) => !IS_NEXT_YEAR[ms.month]);
+  const fy26Qty = fy26Split.reduce((sum, ms) => sum + ms.quantity, 0);
+  const fy26Revenue = fy26Split.reduce((sum, ms) => sum + ms.revenue, 0);
+  const fy26Profit = fy26Split.reduce((sum, ms) => sum + ms.contributionProfit, 0);
+
+  return (
+    <div className="mt-4 pt-4 border-t border-gray-100">
+      {/* 탭 버튼 */}
+      <div className="flex gap-2 mb-3 items-end">
+        {([
+          { key: 'monthly', step: 'STEP 1', label: '월별 계획', sub: 'PM · MOQ 기반 월별 수량 확인' },
+          { key: 'pricing', step: 'STEP 2', label: '채널별 목표량 설정', sub: 'MD · 채널별 수량 · 프라이싱 검토' },
+          { key: 'channel', step: 'STEP 3', label: '채널별 수량 확정', sub: 'MD · 채널/월별 수량 최종' },
+        ] as { key: 'monthly' | 'channel' | 'pricing'; step: string; label: string; sub: string }[]).map(({ key, step, label, sub }) => {
+          const isActive = activeTab === key;
+          return (
+            <button
+              key={key}
+              onClick={() => setActiveTab(key)}
+              className={`flex flex-col items-start px-3 py-2 rounded-lg border transition-all text-left ${
+                isActive
+                  ? 'bg-indigo-600 text-white border-indigo-600'
+                  : 'bg-white text-gray-500 border-gray-200 hover:border-indigo-300 hover:text-indigo-600'
+              }`}
+            >
+              <span className={`text-[10px] font-bold tracking-wide ${isActive ? 'text-indigo-200' : 'text-gray-400'}`}>{step}</span>
+              <span className="text-xs font-semibold leading-tight">{label}</span>
+              <span className={`text-[10px] leading-tight mt-0.5 ${isActive ? 'text-indigo-200' : 'text-gray-400'}`}>{sub}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* 탭별 안내 문구 */}
+      {activeTab === 'monthly' && (
+        <p className="text-[11px] text-gray-400 mb-2">* 월별 목표량 수기 입력</p>
+      )}
+      {activeTab === 'pricing' && (
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-[11px] text-gray-400">대응 SKU의 채널 비중으로 초기 세팅됩니다. 전략에 맞추어 월별 목표량을 수정해주세요.</p>
+          <div className="flex items-center gap-1.5 flex-shrink-0 ml-3">
+            {step2UndoStack.length > 0 && (
+              <>
+                <span className="text-[11px] text-red-500 font-medium">* 카드 닫으면 되돌리기 불가!</span>
+                <button
+                  onClick={() => {
+                    const target = step2UndoStack[step2UndoStack.length - 1];
+                    batchInitChannelMonthQty(sku.id, target.channelMonthQty);
+                    setPricingOpts(target.pricingOpts);
+                    setStep2UndoStack((prev) => prev.slice(0, -1));
+                  }}
+                  className="text-[11px] px-2.5 py-1 rounded-lg border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 transition-colors"
+                >
+                  ↩ 되돌리기 ({step2UndoStack.length})
+                </button>
+              </>
+            )}
+            <button
+              onClick={() => {
+                captureStep2Backup();
+                const entries = buildChannelMonthEntries(compChannelDist, sku);
+                batchInitChannelMonthQty(sku.id, entries);
+                persistSku(sku.id);
+              }}
+              className="text-[11px] px-2.5 py-1 rounded-lg border border-gray-200 bg-gray-50 hover:bg-gray-100 text-gray-500 transition-colors"
+            >
+              초기화
+            </button>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'pricing' ? (
+        <PricingChannelTable
+          sku={sku}
+          readOnly={readOnly}
+          pricingOpts={pricingOpts}
+          setPricingOpts={setPricingOpts}
+          onTotalsChange={onStep3TotalsChange}
+          onBeforeEdit={captureStep2Backup}
+          varCostByChannel={varCostByChannel}
+        />
+      ) : activeTab === 'channel' ? (
+        <>
+          <ChannelMonthTable sku={sku} readOnly={readOnly} monthlySplit={sku.monthlySplit} compChannelDist={compChannelDist} />
+          <p className="text-[11px] text-gray-400 mt-2">채널별 토글을 열어 옵션별 수량을 확인하세요. (옵션별 수량 및 비중 임의 수정 불가)</p>
+        </>
+      ) : (
+      <div className="rounded-lg border border-gray-200 overflow-x-auto">
+        <table className="w-full text-xs min-w-[640px]" style={{ tableLayout: 'fixed' }}>
+          <colgroup>
+            <col style={{ width: '80px' }} />
+            {MONTHS.map((m) => <col key={m} style={{ width: '60px' }} />)}
+            <col style={{ width: '72px' }} />
+            <col style={{ width: '72px' }} />
+          </colgroup>
+          <thead>
+            <tr className="bg-gray-50 border-b border-gray-200">
+              <th className="px-3 py-2 text-left text-gray-500 font-semibold">구분</th>
+              {MONTHS.map((m) => (
+                <th
+                  key={m}
+                  className={`px-2 py-2 text-center font-semibold ${
+                    IS_NEXT_YEAR[m] ? 'text-blue-600 bg-blue-50/60' : 'text-gray-600'
+                  }`}
+                >
+                  {MONTH_LABELS[m]}
+                  {IS_NEXT_YEAR[m] && (
+                    <div className="text-[10px] text-blue-400 font-normal leading-tight">27년</div>
+                  )}
+                </th>
+              ))}
+              <th className="px-2 py-2 text-center text-indigo-700 font-semibold bg-indigo-100/70 whitespace-nowrap">26년 연간</th>
+              <th className="px-2 py-2 text-center text-gray-600 font-semibold bg-gray-100 whitespace-nowrap">합계</th>
+            </tr>
+          </thead>
+          <tbody>
+            {/* 대응SKU 실적 행 */}
+            {(() => {
+              const hasData = Object.keys(compMonthlyData).length > 0;
+              const fy26Sum = MONTHS.filter((m) => !IS_NEXT_YEAR[m])
+                .reduce((s, m) => s + (compMonthlyData[m] ?? 0), 0);
+              const totalSum = MONTHS.reduce((s, m) => s + (compMonthlyData[m] ?? 0), 0);
+              return (
+                <tr className="border-b border-gray-100 bg-gray-50/50">
+                  <td className="px-3 py-2 whitespace-nowrap">
+                    <div className="text-gray-500 font-medium text-[11px]">대응SKU 실적</div>
+                    <div className="text-[10px] leading-tight mt-0.5">
+                      {hasData ? (
+                        <span className="text-indigo-400">{compModeLabel}</span>
+                      ) : (
+                        <span className="text-gray-300">SKU 미설정</span>
+                      )}
+                    </div>
+                  </td>
+                  {MONTHS.map((m) => {
+                    const qty = compMonthlyData[m];
+                    return (
+                      <td
+                        key={m}
+                        className={`px-2 py-2 text-center tabular-nums ${IS_NEXT_YEAR[m] ? 'bg-blue-50/20' : ''}`}
+                      >
+                        {qty !== undefined ? (
+                          <span className="text-gray-600">{qty.toLocaleString()}</span>
+                        ) : (
+                          <span className="text-gray-300">–</span>
+                        )}
+                      </td>
+                    );
+                  })}
+                  <td className="px-2 py-2 text-center bg-indigo-50/50 tabular-nums">
+                    {fy26Sum > 0
+                      ? <span className="font-semibold text-indigo-600">{fy26Sum.toLocaleString()}</span>
+                      : <span className="text-gray-300">–</span>}
+                  </td>
+                  <td className="px-2 py-2 text-center bg-gray-100/60 tabular-nums">
+                    {totalSum > 0
+                      ? <span className="font-semibold text-gray-600">{totalSum.toLocaleString()}</span>
+                      : <span className="text-gray-300">–</span>}
+                  </td>
+                </tr>
+              );
+            })()}
+
+            {/* 수량 행 */}
+            <tr className="border-b border-gray-100">
+              <td className="px-3 py-2 text-gray-500 font-medium whitespace-nowrap">수량</td>
+              {MONTHS.map((m) => {
+                const ms = sku.monthlySplit.find((x) => x.month === m)!;
+                const disabled = isDisabled(m);
+                return (
+                  <td key={m} className={`px-1 py-1.5 ${IS_NEXT_YEAR[m] ? 'bg-blue-50/30' : ''}`}>
+                    {disabled ? (
+                      <div className="text-center text-gray-300">–</div>
+                    ) : (
+                      <NumericInput
+                        value={ms.quantity}
+                        onChange={(val) => updateMonthlyQty(sku.id, m, val)}
+                        onBlur={() => persistSku(sku.id)}
+                        disabled={step1ReadOnly}
+                        placeholder="0"
+                        className={`w-full text-center rounded px-1 py-1 border border-gray-200 focus:outline-none focus:ring-1 focus:ring-indigo-400 ${
+                          step1ReadOnly ? 'bg-gray-50 text-gray-400 cursor-not-allowed' : 'bg-white'
+                        }`}
+                      />
+                    )}
+                  </td>
+                );
+              })}
+              <td className="px-2 py-2 text-center font-semibold text-indigo-700 bg-indigo-50/50 tabular-nums whitespace-nowrap">
+                {fy26Qty > 0 ? fy26Qty.toLocaleString() : <span className="text-gray-300">–</span>}
+              </td>
+              <td className="px-2 py-2 text-center font-semibold text-gray-700 bg-gray-50 tabular-nums whitespace-nowrap">
+                {totalQty > 0 ? totalQty.toLocaleString() : <span className="text-gray-300">–</span>}
+              </td>
+            </tr>
+
+            {/* 비중 행 — 월별 수량 / 총 수량 */}
+            <tr className="border-b border-gray-100">
+              <td className="px-3 py-2 text-gray-400 font-medium whitespace-nowrap text-[11px]">비중</td>
+              {MONTHS.map((m) => {
+                const ms = sku.monthlySplit.find((x) => x.month === m)!;
+                const disabled = isDisabled(m);
+                const pct = !disabled && totalQty > 0
+                  ? Math.round((ms.quantity / totalQty) * 100)
+                  : null;
+                return (
+                  <td key={m} className={`px-2 py-2 text-center tabular-nums ${IS_NEXT_YEAR[m] ? 'bg-blue-50/20' : ''}`}>
+                    {pct === null || ms.quantity === 0 ? (
+                      <span className="text-gray-300">–</span>
+                    ) : (
+                      <span className="text-gray-500 text-[11px]">{pct}%</span>
+                    )}
+                  </td>
+                );
+              })}
+              <td className="px-2 py-2 text-center text-indigo-600 text-[11px] bg-indigo-50/50 tabular-nums whitespace-nowrap">
+                {totalQty > 0 && fy26Qty > 0
+                  ? `${Math.round((fy26Qty / totalQty) * 100)}%`
+                  : <span className="text-gray-300">–</span>}
+              </td>
+              <td className="px-2 py-2 text-center text-gray-400 text-[11px] bg-gray-50">
+                {totalQty > 0 ? '100%' : <span className="text-gray-300">–</span>}
+              </td>
+            </tr>
+
+            {/* 증감율 vs 대응SKU 행 */}
+            {(() => {
+              const hasComp = Object.keys(compMonthlyData).length > 0;
+              const calcRate = (planned: number, ref: number | undefined) =>
+                ref !== undefined && ref > 0
+                  ? Math.round(((planned - ref) / ref) * 100)
+                  : null;
+
+              const fy26Comp = MONTHS.filter((m) => !IS_NEXT_YEAR[m])
+                .reduce((s, m) => s + (compMonthlyData[m] ?? 0), 0);
+              const totalComp = MONTHS.reduce((s, m) => s + (compMonthlyData[m] ?? 0), 0);
+              const fy26Rate = calcRate(fy26Qty, fy26Comp > 0 ? fy26Comp : undefined);
+              const totalRate = calcRate(totalQty, totalComp > 0 ? totalComp : undefined);
+
+              const RateBadge = ({ rate }: { rate: number | null }) => {
+                if (rate === null) return <span className="text-gray-300">–</span>;
+                const pos = rate > 0;
+                const neg = rate < 0;
+                return (
+                  <span className={`inline-flex items-center gap-0.5 font-semibold text-[11px] ${
+                    pos ? 'text-blue-500' : neg ? 'text-red-500' : 'text-gray-400'
+                  }`}>
+                    {pos ? '▲' : neg ? '▼' : '–'}
+                    {pos ? '+' : ''}{rate}%
+                  </span>
+                );
+              };
+
+              return (
+                <tr className="border-b border-gray-100 bg-white">
+                  <td className="px-3 py-2 whitespace-nowrap">
+                    <div className="text-gray-500 font-medium text-[11px]">증감율</div>
+                    <div className="text-[10px] text-gray-300 leading-tight mt-0.5">vs 대응SKU</div>
+                  </td>
+                  {MONTHS.map((m) => {
+                    const ms = sku.monthlySplit.find((x) => x.month === m)!;
+                    const disabled = isDisabled(m);
+                    const rate = !disabled && hasComp
+                      ? calcRate(ms.quantity, compMonthlyData[m])
+                      : null;
+                    return (
+                      <td
+                        key={m}
+                        className={`px-2 py-2 text-center ${IS_NEXT_YEAR[m] ? 'bg-blue-50/20' : ''}`}
+                      >
+                        <RateBadge rate={rate} />
+                      </td>
+                    );
+                  })}
+                  <td className="px-2 py-2 text-center bg-indigo-50/50">
+                    <RateBadge rate={fy26Rate} />
+                  </td>
+                  <td className="px-2 py-2 text-center bg-gray-50">
+                    <RateBadge rate={totalRate} />
+                  </td>
+                </tr>
+              );
+            })()}
+
+            {/* 예상매출 행 */}
+            <tr className="border-b border-gray-100">
+              <td className="px-3 py-2 text-gray-500 font-medium whitespace-nowrap">예상매출</td>
+              {MONTHS.map((m) => {
+                const ms = sku.monthlySplit.find((x) => x.month === m)!;
+                const disabled = isDisabled(m);
+                return (
+                  <td
+                    key={m}
+                    className={`px-2 py-2 text-center tabular-nums ${IS_NEXT_YEAR[m] ? 'bg-blue-50/30' : ''}`}
+                  >
+                    {disabled || ms.revenue === 0 ? (
+                      <span className="text-gray-300">–</span>
+                    ) : (
+                      <span className="text-gray-600">{formatWon(ms.revenue)}</span>
+                    )}
+                  </td>
+                );
+              })}
+              <td className="px-2 py-2 text-center font-semibold text-indigo-700 bg-indigo-50/50 whitespace-nowrap">
+                {fy26Revenue > 0 ? formatWon(fy26Revenue) : <span className="text-gray-300">–</span>}
+              </td>
+              <td className="px-2 py-2 text-center font-semibold text-indigo-600 bg-gray-50 whitespace-nowrap">
+                {totalRevenue > 0 ? formatWon(totalRevenue) : <span className="text-gray-300">–</span>}
+              </td>
+            </tr>
+
+            {/* 예상공헌이익 행 */}
+            <tr>
+              <td className="px-3 py-2 text-gray-500 font-medium whitespace-nowrap">예상공헌이익</td>
+              {MONTHS.map((m) => {
+                const ms = sku.monthlySplit.find((x) => x.month === m)!;
+                const disabled = isDisabled(m);
+                return (
+                  <td
+                    key={m}
+                    className={`px-2 py-2 text-center tabular-nums ${IS_NEXT_YEAR[m] ? 'bg-blue-50/30' : ''}`}
+                  >
+                    {disabled || ms.contributionProfit === 0 ? (
+                      <span className="text-gray-300">–</span>
+                    ) : (
+                      <span className="text-emerald-600">{formatWon(ms.contributionProfit)}</span>
+                    )}
+                  </td>
+                );
+              })}
+              <td className="px-2 py-2 text-center font-semibold text-emerald-700 bg-emerald-50/50 whitespace-nowrap">
+                {fy26Profit > 0 ? formatWon(fy26Profit) : <span className="text-gray-300">–</span>}
+              </td>
+              <td className="px-2 py-2 text-center font-semibold text-emerald-600 bg-gray-50 whitespace-nowrap">
+                {totalProfit > 0 ? formatWon(totalProfit) : <span className="text-gray-300">–</span>}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      )}
+    </div>
+  );
+}
+
+// ── 채널×월 상세수량 테이블 (STEP2 값 읽기 전용 표시) ──────────────────────
+function ChannelMonthTable({ sku, monthlySplit: _monthlySplit }: {
+  sku: SkuData;
+  readOnly: boolean;
+  monthlySplit: SkuData['monthlySplit'];
+  compChannelDist?: Record<string, number> | null;
+}) {
+  const [expandedChannels, setExpandedChannels] = useState<Set<Channel>>(new Set());
+
+  const toggleChannel = (ch: Channel) =>
+    setExpandedChannels((prev) => {
+      const next = new Set(prev);
+      next.has(ch) ? next.delete(ch) : next.add(ch);
+      return next;
+    });
+
+  const getQty = (channel: Channel, month: Month) =>
+    sku.channelMonthQty.find((e) => e.channel === channel && e.month === month)?.qty ?? 0;
+
+  const channelTotal = (channel: Channel) =>
+    MONTHS.reduce((sum, m) => sum + getQty(channel, m), 0);
+
+  const monthTotal = (month: Month) =>
+    CHANNELS.reduce((sum, ch) => sum + getQty(ch, month), 0);
+
+  const channel26Total = (channel: Channel) =>
+    MONTHS.filter((m) => !IS_NEXT_YEAR[m]).reduce((sum, m) => sum + getQty(channel, m), 0);
+
+  const grandTotal = MONTHS.reduce((sum, m) => sum + monthTotal(m), 0);
+  const grand26Total = MONTHS.filter((m) => !IS_NEXT_YEAR[m]).reduce((sum, m) => sum + monthTotal(m), 0);
+
+  // 옵션 목록 계산
+  // 컬러+사이즈 모두 있으면 "컬러 사이즈" 조합, 컬러만 있으면 컬러별, 없으면 사이즈별
+  const activeSizes = sku.sizes.filter((s) => s.isActive && s.ratio > 0);
+  const activeColors = sku.hasColors ? sku.colors.filter((c) => c.quantity > 0) : [];
+  const colorTotal = activeColors.reduce((s, c) => s + c.quantity, 0);
+  const multiSize = activeSizes.length > 1;
+  const multiColor = activeColors.length > 1 && colorTotal > 0;
+
+  const optionRows: { label: string; ratio: number }[] = (() => {
+    if (multiColor && multiSize) {
+      // 컬러 × 사이즈 조합
+      return activeColors.flatMap((c) =>
+        activeSizes.map((s) => ({
+          label: `${c.name} ${s.label}`,
+          ratio: (c.quantity / colorTotal) * (s.ratio / 100),
+        })),
+      );
+    }
+    if (multiColor) {
+      return activeColors.map((c) => ({ label: c.name, ratio: c.quantity / colorTotal }));
+    }
+    if (multiSize) {
+      return activeSizes.map((s) => ({ label: s.label, ratio: s.ratio / 100 }));
+    }
+    return [];
+  })();
+
+  const renderChannelRow = (channel: Channel, groupBg: string) => {
+    const isExpanded = expandedChannels.has(channel);
+    const total = channelTotal(channel);
+    const total26 = channel26Total(channel);
+    const ratio = grandTotal > 0 ? Math.round((total / grandTotal) * 100) : null;
+    const canExpand = optionRows.length > 1 && total > 0;
+
+    return (
+      <>
+        <tr key={channel} className={`border-b border-gray-100 ${groupBg}`}>
+          {/* 토글 + 채널명 */}
+          <td className="px-2 py-1.5 font-medium text-gray-700 whitespace-nowrap text-[11px]">
+            <div className="flex items-center gap-1.5">
+              {canExpand ? (
+                <button
+                  onClick={() => toggleChannel(channel)}
+                  className={`text-[10px] text-gray-400 transition-transform duration-150 flex-shrink-0 ${isExpanded ? 'rotate-90' : ''}`}
+                >▶</button>
+              ) : (
+                <span className="w-2.5 flex-shrink-0" />
+              )}
+              <span className="inline-block w-2 h-2 rounded-full flex-shrink-0" style={{ background: CHANNEL_COLORS[channel] }} />
+              <span>{channel}</span>
+            </div>
+          </td>
+          <td className="px-2 py-1.5 text-center tabular-nums text-[11px]">
+            {ratio !== null && ratio > 0
+              ? <span className="text-gray-500 font-medium">{ratio}%</span>
+              : <span className="text-gray-300">–</span>}
+          </td>
+          {MONTHS.map((m) => {
+            const qty = getQty(channel, m);
+            return (
+              <td key={m} className={`px-2 py-1.5 text-center tabular-nums text-[11px] ${IS_NEXT_YEAR[m] ? 'bg-blue-50/40' : ''}`}>
+                {qty > 0
+                  ? <span className="text-gray-700 font-medium">{qty.toLocaleString()}</span>
+                  : <span className="text-gray-300">–</span>}
+              </td>
+            );
+          })}
+          <td className="px-2 py-1.5 text-center font-semibold tabular-nums text-indigo-700 bg-indigo-50/50 whitespace-nowrap text-[11px]">
+            {total26 > 0 ? total26.toLocaleString() : <span className="text-gray-300">–</span>}
+          </td>
+          <td className="px-2 py-1.5 text-center font-semibold tabular-nums text-gray-700 bg-gray-50 whitespace-nowrap text-[11px]">
+            {total > 0 ? total.toLocaleString() : <span className="text-gray-300">–</span>}
+          </td>
+        </tr>
+
+        {/* 옵션 상세 (펼침) */}
+        {isExpanded && canExpand && (
+          <>
+            <tr key={`${channel}-opt-header`} className="border-t border-gray-300 bg-gray-100">
+              <td colSpan={2} className="pl-6 pr-2 py-1 text-[10px] font-semibold text-gray-500 tracking-wide">
+                {multiColor && multiSize ? '컬러·사이즈별' : multiColor ? '컬러별' : '사이즈별'}
+              </td>
+              {MONTHS.map((m) => (
+                <td key={m} className={`px-2 py-1 text-center text-[10px] font-medium text-gray-400 ${IS_NEXT_YEAR[m] ? 'bg-blue-50/30' : ''}`}>
+                  {MONTH_LABELS[m]}
+                </td>
+              ))}
+              <td className="px-2 py-1 text-center text-[10px] font-medium text-gray-400 bg-indigo-50/40">연간</td>
+              <td className="px-2 py-1 text-center text-[10px] font-medium text-gray-400 bg-gray-200/50">합계</td>
+            </tr>
+            {optionRows.map((opt, i) => {
+              const isLast = i === optionRows.length - 1;
+              const opt26 = MONTHS.filter((m) => !IS_NEXT_YEAR[m])
+                .reduce((s, m) => s + Math.round(getQty(channel, m) * opt.ratio), 0);
+              const optTotal = MONTHS.reduce((s, m) => s + Math.round(getQty(channel, m) * opt.ratio), 0);
+              return (
+                <tr
+                  key={`${channel}-${opt.label}`}
+                  className={`bg-gray-50 ${isLast ? 'border-b border-gray-300' : 'border-b border-gray-100'}`}
+                >
+                  <td className="pl-6 pr-2 py-1 text-[10px] text-gray-600 whitespace-nowrap">
+                    <span className="font-medium">{opt.label}</span>
+                    <span className="ml-1.5 text-gray-400">{Math.round(opt.ratio * 100)}%</span>
+                  </td>
+                  <td className="px-2 py-1" />
+                  {MONTHS.map((m) => {
+                    const qty = Math.round(getQty(channel, m) * opt.ratio);
+                    return (
+                      <td key={m} className={`px-2 py-1 text-center tabular-nums text-[10px] ${IS_NEXT_YEAR[m] ? 'bg-blue-50/20' : ''}`}>
+                        {qty > 0
+                          ? <span className="text-gray-600">{qty.toLocaleString()}</span>
+                          : <span className="text-gray-300">–</span>}
+                      </td>
+                    );
+                  })}
+                  <td className="px-2 py-1 text-center tabular-nums text-[10px] text-gray-600 bg-indigo-50/30">
+                    {opt26 > 0 ? opt26.toLocaleString() : <span className="text-gray-300">–</span>}
+                  </td>
+                  <td className="px-2 py-1 text-center tabular-nums text-[10px] text-gray-600 bg-gray-100/80">
+                    {optTotal > 0 ? optTotal.toLocaleString() : <span className="text-gray-300">–</span>}
+                  </td>
+                </tr>
+              );
+            })}
+          </>
+        )}
+      </>
+    );
+  };
+
+  return (
+    <div className="space-y-1.5">
+    <div className="rounded-lg border border-gray-200 overflow-x-auto">
+      <table className="w-full text-xs">
+        <thead>
+          <tr className="bg-gray-50 border-b border-gray-200">
+            <th className="px-2 py-2 text-left text-gray-500 font-semibold whitespace-nowrap">채널</th>
+            <th className="px-2 py-2 text-center text-gray-500 font-semibold whitespace-nowrap w-10">비중</th>
+            {MONTHS.map((m) => (
+              <th
+                key={m}
+                className={`px-1 py-2 text-center font-semibold whitespace-nowrap text-[11px] ${IS_NEXT_YEAR[m] ? 'text-blue-600 bg-blue-50/60' : 'text-gray-600'}`}
+              >
+                {MONTH_LABELS[m]}
+                {IS_NEXT_YEAR[m] && (
+                  <div className="text-[10px] text-blue-400 font-normal leading-tight">27년</div>
+                )}
+              </th>
+            ))}
+            <th className="px-2 py-2 text-center text-indigo-700 font-semibold bg-indigo-100/70 whitespace-nowrap text-[11px]">26년 연간</th>
+            <th className="px-2 py-2 text-center text-gray-600 font-semibold bg-gray-100 whitespace-nowrap text-[11px]">합계</th>
+          </tr>
+        </thead>
+        <tbody>
+          {/* B2C 그룹 */}
+          <tr className="bg-sky-50/60 border-b border-sky-200">
+            <td colSpan={2 + MONTHS.length + 2} className="px-3 py-0.5">
+              <span className="text-[10px] font-bold text-sky-600 tracking-wide uppercase">B2C</span>
+            </td>
+          </tr>
+          {B2C_CHANNELS.map((ch) => renderChannelRow(ch, 'hover:bg-sky-50/30'))}
+          {/* B2B 그룹 */}
+          <tr className="bg-violet-50/60 border-b border-violet-200">
+            <td colSpan={2 + MONTHS.length + 2} className="px-3 py-0.5">
+              <span className="text-[10px] font-bold text-violet-600 tracking-wide uppercase">B2B</span>
+            </td>
+          </tr>
+          {B2B_CHANNELS.map((ch) => renderChannelRow(ch, 'hover:bg-violet-50/30'))}
+        </tbody>
+        <tfoot>
+          <tr className="bg-indigo-50 border-t-2 border-indigo-200">
+            <td colSpan={2} className="px-3 py-2 font-semibold text-indigo-800 whitespace-nowrap text-[11px]">합계</td>
+            {MONTHS.map((m) => {
+              const total = monthTotal(m);
+              return (
+                <td
+                  key={m}
+                  className={`px-1 py-2 text-center font-semibold tabular-nums text-indigo-700 whitespace-nowrap text-[11px] ${IS_NEXT_YEAR[m] ? 'bg-blue-100/40' : ''}`}
+                >
+                  {total > 0 ? total.toLocaleString() : <span className="text-indigo-300">–</span>}
+                </td>
+              );
+            })}
+            <td className="px-2 py-2 text-center font-semibold tabular-nums text-indigo-700 bg-indigo-100/70 whitespace-nowrap text-[11px]">
+              {grand26Total > 0 ? grand26Total.toLocaleString() : <span className="text-indigo-300">–</span>}
+            </td>
+            <td className="px-2 py-2 text-center font-semibold tabular-nums text-indigo-800 bg-indigo-100 whitespace-nowrap text-[11px]">
+              {grandTotal > 0 ? grandTotal.toLocaleString() : <span className="text-indigo-300">–</span>}
+            </td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+    </div>
+  );
+}
+
+// ── STEP 3 판매가 시나리오 정의 ──────────────────────────────────────────
+interface PricingScenario {
+  id: string;
+  label: string;
+  /** 채널 판매가(base)를 받아 KRW 시나리오 가격 반환 */
+  calcKrwPrice: (base: number) => number;
+  /** true이면 실판매가 열에 USD 금액도 표시 */
+  isUsd?: boolean;
+}
+
+/** 비율 계산 결과를 10원 단위 버림 */
+const floor10 = (x: number) => Math.floor(x / 10) * 10;
+
+/**
+ * 오픈특가: 판매가 기준 상시 운영(20% 할인)보다 저렴하며 900원 단위로 끝나는 가격
+ * 예) 20% 할인가 9,520 → 8,900
+ */
+const calcOpenSpecialPrice = (base: number): number => {
+  const twentyOff = floor10(base * 0.80);
+  return Math.floor((twentyOff - 901) / 1000) * 1000 + 900;
+};
+
+const PRICING_SCENARIOS: PricingScenario[] = [
+  { id: '오픈특가',       label: '오픈특가',       calcKrwPrice: (b) => calcOpenSpecialPrice(b) },
+  { id: '신상위크',       label: '신상위크',       calcKrwPrice: (b) => Math.max(0, calcOpenSpecialPrice(b) - 1000) },
+  { id: '신상위크 라이브', label: '신상위크 라이브', calcKrwPrice: (b) => Math.max(0, calcOpenSpecialPrice(b) - 2000) },
+  { id: '선단독',         label: '선단독',         calcKrwPrice: (b) => Math.max(0, calcOpenSpecialPrice(b) - 1000) },
+  { id: '상시 최대할인율', label: '상시 최대할인율', calcKrwPrice: (b) => floor10(b * 0.85) },
+  { id: '특가 최대할인율', label: '특가 최대할인율', calcKrwPrice: (b) => floor10(b * 0.80) },
+  { id: '시즌오프(의류전용)',       label: '시즌오프(의류전용)',       calcKrwPrice: (b) => floor10(b * 0.75) },
+  { id: 'B2B 오픈 할인',  label: 'B2B 오픈 할인',  calcKrwPrice: (b) => floor10(b * 0.65 * 0.90) },
+  { id: 'B2B 상시 운영',  label: 'B2B 상시 운영',  calcKrwPrice: (b) => floor10(b * 0.65) },
+  { id: '사입 공급가',    label: '사입 공급가',    calcKrwPrice: (b) => floor10(b * 0.50) },
+  { id: '해외 공급가',    label: '해외 공급가',    calcKrwPrice: (b) => floor10(b * 0.50), isUsd: true },
+];
+
+// ── STEP 3 예상매출 검토 테이블 ──────────────────────────────────────────
+function PricingChannelTable({
+  sku, readOnly,
+  pricingOpts, setPricingOpts,
+  onTotalsChange,
+  onBeforeEdit,
+  varCostByChannel = {},
+}: {
+  sku: SkuData;
+  readOnly: boolean;
+  pricingOpts: Record<string, string>;
+  setPricingOpts: Dispatch<SetStateAction<Record<string, string>>>;
+  onTotalsChange?: (totals: { revenue: number; profit: number }) => void;
+  onBeforeEdit?: () => void;
+  varCostByChannel?: Record<string, number>;
+}) {
+  const updateChannelMonthQty = useStore((s) => s.updateChannelMonthQty);
+  const persistSku = useStore((s) => s.persistSku);
+  const [expandedChannels, setExpandedChannels] = useState<Set<Channel>>(new Set());
+  // 채널별 일괄반영 선택값 (UI-only, 로컬)
+  const [channelBulkOpt, setChannelBulkOpt] = useState<Partial<Record<Channel, string>>>({});
+
+  const toggleChannel = (channel: Channel) => {
+    setExpandedChannels((prev) => {
+      const next = new Set(prev);
+      next.has(channel) ? next.delete(channel) : next.add(channel);
+      return next;
+    });
+  };
+
+  // 글로벌·일본 제외 B2B 채널은 'B2B 상시 운영' 기본 전략
+  const DEFAULT_OPT: Partial<Record<Channel, string>> = {
+    '쿠팡': 'B2B 상시 운영',
+    'B2B': 'B2B 상시 운영',
+    '사입및페어': 'B2B 상시 운영',
+  };
+
+  const getPricingOpt = (channel: Channel, month: Month) =>
+    pricingOpts[`${channel}-${month}`] ?? DEFAULT_OPT[channel] ?? '';
+
+  const setPricingOpt = (channel: Channel, month: Month, optId: string) =>
+    setPricingOpts((prev) => ({ ...prev, [`${channel}-${month}`]: optId }));
+
+  /** basePrice 기준으로 시나리오 KRW 가격을 반환 (시나리오 없으면 base 그대로) */
+  const calcScenarioPrice = (optId: string, base: number): number => {
+    if (!optId) return base;
+    const s = PRICING_SCENARIOS.find((x) => x.id === optId);
+    return s ? s.calcKrwPrice(base) : base;
+  };
+
+  const getPricing = (channel: Channel): ChannelPricing => {
+    const found = sku.channelPricing?.find((cp) => cp.channel === channel);
+    return found ?? { channel, price: 0, commissionRate: DEFAULT_CHANNEL_COMMISSION[channel] };
+  };
+
+  const getMonthQty = (channel: Channel, month: Month) =>
+    sku.channelMonthQty.find((e) => e.channel === channel && e.month === month)?.qty ?? 0;
+
+  const getChannelQty = (channel: Channel) =>
+    MONTHS.reduce((sum, m) => sum + getMonthQty(channel, m), 0);
+
+  const calcRow = (channel: Channel) => {
+    const cp = getPricing(channel);
+    const effectivePrice = cp.price > 0 ? cp.price : sku.price;
+    const qty = getChannelQty(channel);
+    // 실매출단가 = 월별 (수량 × 시나리오가격) 합계 / 총수량 (수수료 미반영)
+    const netPrice = qty > 0
+      ? Math.round(
+          MONTHS.reduce((s, m) => {
+            const mQty = getMonthQty(channel, m);
+            const opt = getPricingOpt(channel, m);
+            return s + calcScenarioPrice(opt, effectivePrice) * mQty;
+          }, 0) / qty,
+        )
+      : effectivePrice;
+    const revenue = Math.round(netPrice / 1.1 * qty);
+    // 공헌이익 = 순매출 − 원가 − 변동비(Tableau 역산, fallback 25%)
+    const varRatio = varCostByChannel[channel] ?? 0.25;
+    const profit = Math.round(revenue * (1 - varRatio) - sku.cost * qty);
+    const cm = revenue > 0 ? Math.round((profit / revenue) * 1000) / 10 : null;
+    return { effectivePrice, netPrice, qty, revenue, profit, cm };
+  };
+
+  const cmBadgeCls = (cm: number | null) => {
+    if (cm === null) return 'bg-gray-100 text-gray-400';
+    if (cm >= 80) return 'bg-emerald-100 text-emerald-800';
+    if (cm >= 70) return 'bg-yellow-100 text-yellow-800';
+    return 'bg-red-100 text-red-700';
+  };
+
+  const allChannelRows = [...B2C_CHANNELS, ...B2B_CHANNELS] as Channel[];
+
+  const totals = allChannelRows.reduce(
+    (acc, ch) => {
+      const r = calcRow(ch);
+      return { qty: acc.qty + r.qty, revenue: acc.revenue + r.revenue, profit: acc.profit + r.profit };
+    },
+    { qty: 0, revenue: 0, profit: 0 },
+  );
+  const totalCm = totals.revenue > 0 ? Math.round((totals.profit / totals.revenue) * 1000) / 10 : null;
+
+  useEffect(() => {
+    onTotalsChange?.({ revenue: totals.revenue, profit: totals.profit });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [totals.revenue, totals.profit]);
+
+  const weightedAvgPrice = totals.qty > 0
+    ? Math.round(allChannelRows.reduce((acc, ch) => {
+        const r = calcRow(ch);
+        return acc + r.netPrice * r.qty;
+      }, 0) / totals.qty)
+    : null;
+
+  const renderGroup = (channels: readonly Channel[], groupLabel: string, groupColor: string) => (
+    <>
+      <tr className={`border-b ${groupColor}`}>
+        <td colSpan={7} className="px-3 py-0.5">
+          <span className="text-[10px] font-bold tracking-wide uppercase" style={{ color: 'inherit' }}>{groupLabel}</span>
+        </td>
+      </tr>
+      {channels.map((channel) => {
+        const cp = getPricing(channel);
+        const { netPrice, qty, revenue, profit, cm } = calcRow(channel);
+        const isExpanded = expandedChannels.has(channel);
+        const channelMonthTotal = MONTHS.reduce((s, m) => s + getMonthQty(channel, m), 0);
+        const displayQty = channelMonthTotal > 0 ? channelMonthTotal : qty;
+        return (
+          <>
+            <tr key={channel} className={`border-b border-gray-100 ${isExpanded ? 'bg-gray-50' : 'hover:bg-gray-50/40'}`}>
+              {/* 채널명 + 토글 */}
+              <td className="px-2 py-1.5">
+                <button
+                  onClick={() => toggleChannel(channel)}
+                  className="flex items-center gap-1.5 w-full text-left group"
+                >
+                  <span className={`text-[10px] text-gray-400 transition-transform duration-150 ${isExpanded ? 'rotate-90' : ''}`}>▶</span>
+                  <span className="inline-block w-2 h-2 rounded-full flex-shrink-0" style={{ background: CHANNEL_COLORS[channel] }} />
+                  <span className="font-medium text-gray-700 text-[11px] group-hover:text-indigo-600 truncate">{channel}</span>
+                </button>
+              </td>
+              {/* 채널 비중 */}
+              <td className="px-2 py-1.5 text-center tabular-nums text-[11px] text-gray-500 truncate">
+                {totals.qty > 0 && displayQty > 0
+                  ? `${Math.round((displayQty / totals.qty) * 100)}%`
+                  : <span className="text-gray-300">–</span>}
+              </td>
+              {/* 총수량 — 토글 입력값 합산 */}
+              <td className="px-2 py-1.5 text-right tabular-nums text-[11px] font-medium text-gray-700 truncate">
+                {displayQty > 0 ? displayQty.toLocaleString() : <span className="text-gray-300">–</span>}
+              </td>
+              {/* 실매출단가 — 월별 시나리오 가중평균 */}
+              <td className="px-2 py-1.5 text-right tabular-nums text-[11px] text-gray-600 truncate">
+                {qty > 0 ? netPrice.toLocaleString() : <span className="text-gray-300">–</span>}
+              </td>
+              {/* 총매출 */}
+              <td className="px-2 py-1.5 text-right tabular-nums text-[11px] font-medium text-gray-700 truncate">
+                {revenue > 0 ? formatWon(revenue) : <span className="text-gray-300">–</span>}
+              </td>
+              {/* 공헌이익 */}
+              <td className="px-2 py-1.5 text-right tabular-nums text-[11px] font-medium text-emerald-700 truncate">
+                {profit > 0 ? formatWon(profit) : profit < 0 ? <span className="text-red-500">{formatWon(Math.abs(profit))}</span> : <span className="text-gray-300">–</span>}
+              </td>
+              {/* CM% */}
+              <td className="px-2 py-1.5 text-right truncate">
+                {cm !== null ? (
+                  <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold ${cmBadgeCls(cm)}`}>{cm}%</span>
+                ) : <span className="text-gray-300">–</span>}
+              </td>
+            </tr>
+
+            {/* 월별 상세 (펼침) */}
+            {isExpanded && (
+              <tr key={`${channel}-monthly`} className="border-b border-indigo-100">
+                <td colSpan={7} className="px-0 py-0">
+                  {/* 일괄반영 툴바 */}
+                  <div className="flex items-center gap-2 px-3 py-2 bg-indigo-50/50 border-b border-indigo-100">
+                    <span className="text-[10px] font-semibold text-indigo-500 flex-shrink-0">일괄 적용</span>
+                    <select
+                      value={channelBulkOpt[channel] ?? ''}
+                      onChange={(e) => setChannelBulkOpt((prev) => ({ ...prev, [channel]: e.target.value }))}
+                      className="flex-1 min-w-0 text-[11px] rounded border border-indigo-200 px-1.5 py-0.5 bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                    >
+                      <option value="">-- 전략 선택 --</option>
+                      {PRICING_SCENARIOS.map((s) => {
+                        const bPrice = (getPricing(channel).price > 0 ? getPricing(channel).price : sku.price);
+                        return (
+                          <option key={s.id} value={s.id}>
+                            {s.label} ({s.calcKrwPrice(bPrice).toLocaleString()}원)
+                          </option>
+                        );
+                      })}
+                    </select>
+                    <button
+                      onClick={() => {
+                        onBeforeEdit?.();
+                        const opt = channelBulkOpt[channel] ?? '';
+                        setPricingOpts((prev) => {
+                          const next = { ...prev };
+                          MONTHS.forEach((m) => { next[`${channel}-${m}`] = opt; });
+                          return next;
+                        });
+                      }}
+                      disabled={!channelBulkOpt[channel]}
+                      className="flex-shrink-0 text-[11px] px-2.5 py-0.5 rounded bg-indigo-600 text-white font-semibold hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    >
+                      일괄반영
+                    </button>
+                  </div>
+                  <table className="w-full text-xs" style={{ tableLayout: 'fixed' }}>
+                    <colgroup>
+                      <col style={{ width: '8%' }} />
+                      <col style={{ width: '12%' }} />
+                      <col style={{ width: '13%' }} />
+                      <col style={{ width: '34%' }} />
+                      <col style={{ width: '17%' }} />
+                      <col style={{ width: '16%' }} />
+                    </colgroup>
+                    <thead>
+                      <tr className="bg-indigo-50/60 border-b border-indigo-100">
+                        <th className="px-2 py-1.5 text-center text-[10px] font-semibold text-indigo-400">월</th>
+                        <th className="px-2 py-1.5 text-center text-[10px] font-semibold text-indigo-400">수량</th>
+                        <th className="px-2 py-1.5 text-center text-[10px] font-semibold text-indigo-400">실판매가</th>
+                        <th className="px-2 py-1.5 text-center text-[10px] font-semibold text-indigo-400">판매가 설정</th>
+                        <th className="px-2 py-1.5 text-center text-[10px] font-semibold text-indigo-400">예상 순매출</th>
+                        <th className="px-2 py-1.5 text-center text-[10px] font-semibold text-indigo-400">예상 공헌이익</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {MONTHS.map((m) => {
+                        const optId = getPricingOpt(channel, m);
+                        const basePrice = cp.price > 0 ? cp.price : sku.price;
+                        const scenarioKrwPrice = calcScenarioPrice(optId, basePrice);
+                        const monthQty = getMonthQty(channel, m);
+                        const netRevenue = Math.round(scenarioKrwPrice / 1.1 * monthQty);
+                        // 예상 공헌이익 = 순매출 − 변동비(Tableau 역산) − 원가×수량
+                        const varRatio = varCostByChannel[channel] ?? 0.25;
+                        const monthContrib = Math.round(netRevenue * (1 - varRatio) - sku.cost * monthQty);
+                        return (
+                          <tr key={m} className={`border-b border-indigo-50 ${IS_NEXT_YEAR[m] ? 'bg-blue-50/20' : 'bg-white'}`}>
+                            {/* 월 */}
+                            <td className="px-3 py-1.5">
+                              <span className={`text-[11px] font-semibold ${IS_NEXT_YEAR[m] ? 'text-blue-500' : 'text-gray-600'}`}>
+                                {MONTH_LABELS[m]}
+                              </span>
+                              {IS_NEXT_YEAR[m] && (
+                                <span className="ml-1 text-[9px] text-blue-400">27년</span>
+                              )}
+                            </td>
+                            {/* 수량 입력 */}
+                            <td className="px-1 py-1">
+                              <NumericInput
+                                value={monthQty}
+                                onChange={(val) => updateChannelMonthQty(sku.id, channel, m, val)}
+                                onBlur={() => persistSku(sku.id)}
+                                onFocus={() => onBeforeEdit?.()}
+                                disabled={readOnly}
+                                placeholder="0"
+                                className={`w-full text-right rounded px-1.5 py-1 text-[11px] border border-gray-200 focus:outline-none focus:ring-1 focus:ring-indigo-400 ${
+                                  readOnly ? 'bg-gray-50 text-gray-400 cursor-not-allowed' : 'bg-white text-gray-700'
+                                }`}
+                              />
+                            </td>
+                            {/* 실판매가 — 시나리오 가격(수수료 미반영) */}
+                            <td className="px-3 py-1.5 text-right tabular-nums">
+                              {scenarioKrwPrice > 0 ? (
+                                <span className="text-[11px] text-gray-700 font-medium">
+                                  {scenarioKrwPrice.toLocaleString()}
+                                </span>
+                              ) : <span className="text-gray-300 text-[11px]">–</span>}
+                            </td>
+                            {/* 판매가 설정 드롭다운 */}
+                            <td className="px-2 py-1">
+                              <select
+                                value={optId}
+                                onChange={(e) => { onBeforeEdit?.(); setPricingOpt(channel, m, e.target.value); }}
+                                className="w-full text-[11px] rounded border border-gray-200 px-1.5 py-1 bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                              >
+                                <option value="">채널 판매가 ({basePrice.toLocaleString()}원)</option>
+                                <option value="오픈특가">오픈특가 (특가최대할인율 미만 900단위, {calcOpenSpecialPrice(basePrice).toLocaleString()}원)</option>
+                                <option value="신상위크">신상위크 (오픈특가 -1,000원, {Math.max(0, calcOpenSpecialPrice(basePrice) - 1000).toLocaleString()}원)</option>
+                                <option value="신상위크 라이브">신상위크 라이브 (신상위크 -1,000원, {Math.max(0, calcOpenSpecialPrice(basePrice) - 2000).toLocaleString()}원)</option>
+                                <option value="선단독">선단독 (오픈특가 -1,000원, {Math.max(0, calcOpenSpecialPrice(basePrice) - 1000).toLocaleString()}원)</option>
+                                <option value="상시 최대할인율">상시 최대할인율 (판매가 15% 할인, {floor10(basePrice * 0.85).toLocaleString()}원)</option>
+                                <option value="특가 최대할인율">특가 최대할인율 (판매가 20% 할인, {floor10(basePrice * 0.80).toLocaleString()}원)</option>
+                                <option value="시즌오프(의류전용)">시즌오프(의류전용) (판매가 25% 할인, {floor10(basePrice * 0.75).toLocaleString()}원)</option>
+                                <option value="B2B 오픈 할인">B2B 오픈 할인 (B2B상시 -10%, {floor10(basePrice * 0.585).toLocaleString()}원)</option>
+                                <option value="B2B 상시 운영">B2B 상시 운영 (판매가 65%, {floor10(basePrice * 0.65).toLocaleString()}원)</option>
+                                <option value="사입 공급가">사입 공급가 (판매가 50%, {floor10(basePrice * 0.50).toLocaleString()}원)</option>
+                                <option value="해외 공급가">해외 공급가 (사입×USD, {floor10(basePrice * 0.50).toLocaleString()}원)</option>
+                              </select>
+                            </td>
+                            {/* 예상 순매출 */}
+                            <td className="px-2 py-1.5 text-right tabular-nums text-[11px] font-semibold text-indigo-700">
+                              {netRevenue > 0 ? formatWon(netRevenue) : <span className="text-gray-300">–</span>}
+                            </td>
+                            {/* 예상 공헌이익 */}
+                            <td className="px-2 py-1.5 text-right tabular-nums text-[11px] font-semibold">
+                              {monthQty > 0
+                                ? monthContrib >= 0
+                                  ? <span className="text-emerald-700">{formatWon(monthContrib)}</span>
+                                  : <span className="text-red-500">-{formatWon(Math.abs(monthContrib))}</span>
+                                : <span className="text-gray-300">–</span>}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                    <tfoot>
+                      <tr className="bg-indigo-50 border-t border-indigo-200">
+                        <td className="px-3 py-1.5 text-[10px] font-semibold text-indigo-600">합계</td>
+                        <td className="px-3 py-1.5 text-right tabular-nums text-[11px] font-semibold text-gray-600">
+                          {(() => {
+                            const total = MONTHS.reduce((s, m) => s + getMonthQty(channel, m), 0);
+                            return total > 0 ? total.toLocaleString() : <span className="text-indigo-300">–</span>;
+                          })()}
+                        </td>
+                        <td className="px-3 py-1.5" />
+                        <td className="px-3 py-1.5" />
+                        <td className="px-2 py-1.5 text-right tabular-nums text-[11px] font-bold text-indigo-700">
+                          {(() => {
+                            const total = MONTHS.reduce((s, m) => {
+                              const base = cp.price > 0 ? cp.price : sku.price;
+                              const opt = getPricingOpt(channel, m);
+                              const scenarioPrice = calcScenarioPrice(opt, base);
+                              return s + Math.round(scenarioPrice / 1.1 * getMonthQty(channel, m));
+                            }, 0);
+                            return total > 0 ? formatWon(total) : <span className="text-indigo-300">–</span>;
+                          })()}
+                        </td>
+                        <td className="px-2 py-1.5 text-right tabular-nums text-[11px] font-bold">
+                          {(() => {
+                            const total = MONTHS.reduce((s, m) => {
+                              const base = cp.price > 0 ? cp.price : sku.price;
+                              const opt = getPricingOpt(channel, m);
+                              const scenarioPrice = calcScenarioPrice(opt, base);
+                              const mQty = getMonthQty(channel, m);
+                              const rev = Math.round(scenarioPrice / 1.1 * mQty);
+                              const vr = varCostByChannel[channel] ?? 0.25;
+                              return s + Math.round(rev * (1 - vr) - sku.cost * mQty);
+                            }, 0);
+                            if (MONTHS.every((m) => getMonthQty(channel, m) === 0))
+                              return <span className="text-indigo-300">–</span>;
+                            return total >= 0
+                              ? <span className="text-emerald-700">{formatWon(total)}</span>
+                              : <span className="text-red-500">-{formatWon(Math.abs(total))}</span>;
+                          })()}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </td>
+              </tr>
+            )}
+          </>
+        );
+      })}
+    </>
+  );
+
+  return (
+    <div className="space-y-2">
+    <div className="rounded-lg border border-gray-200 overflow-x-auto">
+      <table className="w-full text-xs" style={{ tableLayout: 'fixed' }}>
+        <colgroup>
+          <col style={{ width: '20%' }} />
+          <col style={{ width: '9%' }} />
+          <col style={{ width: '12%' }} />
+          <col style={{ width: '15%' }} />
+          <col style={{ width: '17%' }} />
+          <col style={{ width: '17%' }} />
+          <col style={{ width: '10%' }} />
+        </colgroup>
+        <thead>
+          <tr className="bg-gray-50 border-b border-gray-200">
+            <th className="px-3 py-2 text-center text-gray-500 font-semibold truncate">채널</th>
+            <th className="px-2 py-2 text-center text-gray-500 font-semibold truncate">비중</th>
+            <th className="px-2 py-2 text-center text-gray-500 font-semibold truncate">총수량</th>
+            <th className="px-2 py-2 text-center text-gray-500 font-semibold truncate">실매출단가</th>
+            <th className="px-2 py-2 text-center text-gray-500 font-semibold truncate">순매출</th>
+            <th className="px-2 py-2 text-center text-gray-500 font-semibold truncate">
+              공헌이익
+              <div className="text-[9px] text-gray-400 font-normal">변동비(Tableau)</div>
+            </th>
+            <th className="px-2 py-2 text-center text-gray-500 font-semibold truncate">CM%</th>
+          </tr>
+        </thead>
+        <tbody>
+          {renderGroup(B2C_CHANNELS, 'B2C', 'bg-sky-50/60 border-sky-200 text-sky-600')}
+          {renderGroup(B2B_CHANNELS, 'B2B', 'bg-violet-50/60 border-violet-200 text-violet-600')}
+        </tbody>
+        <tfoot>
+          <tr className="bg-indigo-50 border-t-2 border-indigo-200">
+            <td className="px-3 py-2 font-semibold text-indigo-800 whitespace-nowrap text-[11px]">합계</td>
+            <td className="px-2 py-2 text-center text-indigo-300 text-[11px]">–</td>
+            <td className="px-2 py-2 text-right tabular-nums font-semibold text-indigo-700 text-[11px] whitespace-nowrap">
+              {totals.qty > 0 ? totals.qty.toLocaleString() : '–'}
+            </td>
+            <td className="px-2 py-2 text-right text-[10px] text-indigo-600 whitespace-nowrap">
+              {weightedAvgPrice ? `avg ₩${weightedAvgPrice.toLocaleString()}` : '–'}
+            </td>
+            <td className="px-2 py-2 text-right font-semibold tabular-nums text-indigo-700 text-[11px] whitespace-nowrap">
+              {totals.revenue > 0 ? formatWon(totals.revenue) : '–'}
+            </td>
+            <td className="px-2 py-2 text-right font-semibold tabular-nums text-emerald-700 text-[11px] whitespace-nowrap">
+              {totals.profit > 0 ? formatWon(totals.profit) : '–'}
+            </td>
+            <td className="px-2 py-2 text-right whitespace-nowrap">
+              {totalCm !== null ? (
+                <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold ${cmBadgeCls(totalCm)}`}>{totalCm}%</span>
+              ) : '–'}
+            </td>
+          </tr>
+          <tr className="border-t border-gray-100">
+            <td colSpan={7} className="px-3 py-1.5 text-[10px] text-gray-400">
+              실매출단가 = ∑(월수량×시나리오가격) ÷ 총수량 · 공헌이익 = 순매출 − 변동비(25%) − 원가×수량
+            </td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
     </div>
   );
 }
