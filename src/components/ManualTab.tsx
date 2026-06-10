@@ -287,13 +287,13 @@ export function ManualTab() {
             <Tr><Td>사입 공급가</Td><Td>floor10(base × 0.50)</Td><Td>—</Td></Tr>
             <Tr>
               <Td>글로벌 공급가</Td>
-              <Td>floor10( (base ÷ 1250 × 1.6) ÷ 2 × USD환율 )</Td>
-              <Td>USD $ = (base ÷ 1250 × 1.6) ÷ 2  (소수점 2자리)<br/>USD환율: SKU별 pricingUsdRate (기본 1,400)</Td>
+              <Td>floor10( (base ÷ 1250 × 1.6) ÷ 2 × USD/KRW )</Td>
+              <Td>USD $ = (base ÷ 1250 × 1.6) ÷ 2  (소수점 2자리)<br/>USD/KRW: open.er-api.com 자동 갱신 (하루 1회, fallback 1,400)</Td>
             </Tr>
             <Tr>
               <Td>일본 공급가</Td>
-              <Td>floor10( (base ÷ 950 × 1.3) ÷ 2 × JPY환율 )</Td>
-              <Td>JPY ¥ = (base ÷ 950 × 1.3) ÷ 2  (정수)<br/>JPY환율: 현재 9.0 고정 (pricingJpyRate 미구현)</Td>
+              <Td>floor10( (base ÷ 950 × 1.3) ÷ 2 × JPY/KRW )</Td>
+              <Td>JPY ¥ = (base ÷ 950 × 1.3) ÷ 2  (정수)<br/>JPY/KRW: USD/KRW ÷ USD/JPY 교차 계산 (fallback 9.0)</Td>
             </Tr>
           </tbody>
         </table>
