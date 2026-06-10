@@ -138,6 +138,8 @@ export interface SkuData {
   monthlySplit: MonthlySplit[];     // 길이 8 (7~12월 + 익년 1~2월)
   step2OptionQty?: Record<string, number>;
   isConfirmed?: boolean;
+  finalOrderQty?: Record<string, number>;
+  finalOrderConfirmedAt?: string | null;
   isExpanded: boolean;
   _initialSnapshot: Omit<SkuData, 'isExpanded' | '_initialSnapshot'>;
 }

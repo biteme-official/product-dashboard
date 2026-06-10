@@ -164,6 +164,7 @@ function applyMigration(raw: any): SkuData {
     pricingUsdRate: raw.pricingUsdRate ?? 1400,
     isExpanded: false,
     isConfirmed: raw.isConfirmed ?? false,
+    finalOrderConfirmedAt: raw.finalOrderConfirmedAt ?? null,
     _initialSnapshot: {
       hasColors: false,
       colors: [],
@@ -244,6 +245,8 @@ interface StoreActions {
   importSkus: (skus: SkuData[]) => Promise<void>;
   replaceAllSkus: (skus: Omit<SkuData, '_initialSnapshot' | 'isExpanded'>[]) => Promise<void>;
   updateStep2OptionQty: (id: string, qty: Record<string, number>) => void;
+  updateFinalOrderQty: (id: string, qty: Record<string, number>) => void;
+  setFinalOrderConfirmed: (id: string, confirmed: boolean) => Promise<void>;
   persistSku: (id: string) => Promise<void>;
   setSkuConfirmed: (id: string, confirmed: boolean, role: string) => Promise<void>;
 }
@@ -554,6 +557,19 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
 
   updateStep2OptionQty: (id, qty) => {
     set({ skus: get().skus.map((s) => (s.id === id ? { ...s, step2OptionQty: qty } : s)) });
+  },
+
+  updateFinalOrderQty: (id, qty) => {
+    set({ skus: get().skus.map((s) => (s.id === id ? { ...s, finalOrderQty: qty } : s)) });
+  },
+
+  setFinalOrderConfirmed: async (id, confirmed) => {
+    const sku = get().skus.find((s) => s.id === id);
+    if (!sku) return;
+    const ts = confirmed ? new Date().toISOString() : null;
+    const updated = { ...sku, finalOrderConfirmedAt: ts };
+    set({ skus: get().skus.map((s) => (s.id === id ? updated : s)) });
+    await setDoc(doc(fsdb, SKUS_COL, id), toFirestore(updated));
   },
 
   persistSku: async (id) => {

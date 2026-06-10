@@ -56,6 +56,7 @@ export function SkuCard({ sku }: Props) {
   const activeCategory = useStore((s) => s.activeCategory);
   const { role } = useAuth();
   const canEdit = role === 'master' || role === 'pm';
+  const isFinalized = !!sku.finalOrderConfirmedAt;
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const isAtMax = skus.filter((s) => s.category === activeCategory).length >= 15;
 
@@ -190,13 +191,13 @@ export function SkuCard({ sku }: Props) {
           )}
           <div className="grid gap-4 grid-cols-1 md:grid-cols-[1fr_2fr_1.2fr]">
             {/* 열 1: 기본정보 */}
-            <BasicInfoColumn sku={sku} readOnly={!canEdit} />
+            <BasicInfoColumn sku={sku} readOnly={!canEdit || isFinalized} />
             {/* 열 2: 사이즈 분배 */}
-            <SizeDistColumn sku={sku} readOnly={!canEdit} />
+            <SizeDistColumn sku={sku} readOnly={!canEdit || isFinalized} />
             {/* 열 3: 기존 SKU 비교 */}
             <ComparisonColumn
               sku={sku}
-              readOnly={!canEdit}
+              readOnly={!canEdit || isFinalized}
               onComparisonDataChange={handleComparisonDataChange}
               onChannelDistChange={setCompChannelDist}
               onChannelYMDataChange={setCompChannelYM}
@@ -206,7 +207,7 @@ export function SkuCard({ sku }: Props) {
           </div>
           <MonthlyTable
             sku={sku}
-            readOnly={!canEdit}
+            readOnly={!canEdit || isFinalized}
             compMonthlyData={compMonthlyData}
             compModeLabel={compModeLabel}
             compMode={compMode}
@@ -581,8 +582,9 @@ function MonthlyTable({
   const { role } = useAuth();
   // STEP 1은 PM/master만 편집 가능
   const step1ReadOnly = readOnly || isMdRole(role);
-  // STEP 2는 MD 역할도 편집 가능 (채널/월별 목표량·판매가 설정)
-  const step2ReadOnly = isMdRole(role) ? false : readOnly;
+  // STEP 2는 MD 역할도 편집 가능, 단 최종발주 확정 후에는 모든 역할 잠김
+  const isFinalized2 = !!sku.finalOrderConfirmedAt;
+  const step2ReadOnly = (isMdRole(role) && !isFinalized2) ? false : readOnly;
 
   // STEP2 탭 진입 시, channelMonthQty가 미초기화 상태면 대응SKU 채널 비중으로 자동 세팅
   useEffect(() => {
