@@ -1388,6 +1388,17 @@ function PricingChannelTable({
               const yearBorder = (m: Month) => IS_NEXT_YEAR[m] && !IS_NEXT_YEAR[MONTHS[MONTHS.indexOf(m) - 1] as Month] ? 'border-l-2 border-gray-400' : '';
               const labelCell = 'px-3 py-2 border-r border-gray-200 bg-gray-100 whitespace-nowrap';
               const totalCell = 'px-3 py-2 text-right tabular-nums text-[11px] font-bold whitespace-nowrap border-l border-gray-200 bg-gray-100';
+              // 옵션별 비중 계산 (STEP3와 동일 로직)
+              const activeSizes = sku.sizes.filter((s) => s.isActive && s.ratio > 0);
+              const activeColors = sku.hasColors ? sku.colors.filter((c) => c.quantity > 0) : [];
+              const colorTotal = activeColors.reduce((s, c) => s + c.quantity, 0);
+              const multiSize = activeSizes.length > 1;
+              const multiColor = activeColors.length > 1 && colorTotal > 0;
+              const optionRows: { label: string; ratio: number }[] = multiColor && multiSize
+                ? activeColors.flatMap((c) => activeSizes.map((s) => ({ label: `${c.name} ${s.label}`, ratio: (c.quantity / colorTotal) * (s.ratio / 100) })))
+                : multiColor ? activeColors.map((c) => ({ label: c.name, ratio: c.quantity / colorTotal }))
+                : multiSize ? activeSizes.map((s) => ({ label: s.label, ratio: s.ratio / 100 }))
+                : [];
               return (
                 <tr key={`${channel}-monthly`} className="border-b border-gray-200 bg-gray-50/60">
                   <td colSpan={7} className="px-4 py-3">
@@ -1667,6 +1678,67 @@ function PricingChannelTable({
                         </table>
                       </div>
                     </div>
+
+                    {/* 최종 옵션 수량 */}
+                    {optionRows.length > 1 && (
+                      <div className="mt-3 rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+                        <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 border-b border-gray-200">
+                          <span className="text-[11px] font-bold text-gray-600">최종 옵션 수량</span>
+                          <span className="text-[10px] text-gray-400">
+                            {multiColor && multiSize ? '컬러·사이즈별' : multiColor ? '컬러별' : '사이즈별'} · 위 수량 수정 시 자동 반영
+                          </span>
+                        </div>
+                        <div className="overflow-x-auto">
+                          <table className="text-xs w-full">
+                            <thead>
+                              <tr className="bg-gray-100 border-b border-gray-200">
+                                <th className="px-3 py-1.5 text-left text-[11px] font-semibold text-gray-500 whitespace-nowrap border-r border-gray-200" style={{ minWidth: '90px' }}>옵션</th>
+                                <th className="px-2 py-1.5 text-center text-[10px] font-semibold text-gray-400 whitespace-nowrap border-r border-gray-200 w-10">비중</th>
+                                {MONTHS.map((m) => (
+                                  <th key={m} className={`px-2 py-1.5 text-center font-semibold whitespace-nowrap text-[11px] ${yearBorder(m)} ${IS_NEXT_YEAR[m] ? 'text-gray-500 bg-gray-200/60' : 'text-gray-500'}`} style={{ minWidth: '52px' }}>
+                                    {MONTH_LABELS[m]}
+                                  </th>
+                                ))}
+                                <th className="px-2 py-1.5 text-center text-[10px] font-semibold text-indigo-600 whitespace-nowrap border-l-2 border-gray-300 bg-indigo-50/60">FY26</th>
+                                <th className="px-2 py-1.5 text-center text-[10px] font-semibold text-gray-500 whitespace-nowrap border-l border-gray-200 bg-gray-100/80">FY27</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {optionRows.map((opt, i) => {
+                                const isLast = i === optionRows.length - 1;
+                                const optFY26 = FY26.reduce((s, m) => s + Math.round(getMonthQty(channel, m) * opt.ratio), 0);
+                                const optFY27 = FY27.reduce((s, m) => s + Math.round(getMonthQty(channel, m) * opt.ratio), 0);
+                                return (
+                                  <tr key={opt.label} className={`${isLast ? '' : 'border-b border-gray-100'} even:bg-gray-50/30`}>
+                                    <td className="px-3 py-1.5 text-[11px] font-medium text-gray-700 whitespace-nowrap border-r border-gray-200">
+                                      {opt.label}
+                                      <span className="ml-1.5 text-[10px] text-gray-400">{Math.round(opt.ratio * 100)}%</span>
+                                    </td>
+                                    <td className="px-2 py-1.5 text-center text-[10px] text-gray-400 border-r border-gray-200">
+                                      {Math.round(opt.ratio * 100)}%
+                                    </td>
+                                    {MONTHS.map((m) => {
+                                      const qty = Math.round(getMonthQty(channel, m) * opt.ratio);
+                                      return (
+                                        <td key={m} className={`px-2 py-1.5 text-center tabular-nums text-[11px] ${yearBorder(m)} ${IS_NEXT_YEAR[m] ? 'bg-blue-50/20' : ''}`}>
+                                          {qty > 0 ? <span className="text-gray-700">{qty.toLocaleString()}</span> : <span className="text-gray-300">–</span>}
+                                        </td>
+                                      );
+                                    })}
+                                    <td className="px-2 py-1.5 text-center tabular-nums text-[11px] text-indigo-600 border-l-2 border-gray-300 bg-indigo-50/30">
+                                      {optFY26 > 0 ? optFY26.toLocaleString() : <span className="text-gray-300">–</span>}
+                                    </td>
+                                    <td className="px-2 py-1.5 text-center tabular-nums text-[11px] text-gray-600 border-l border-gray-200 bg-gray-100/50">
+                                      {optFY27 > 0 ? optFY27.toLocaleString() : <span className="text-gray-300">–</span>}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
                   </td>
                 </tr>
               );
