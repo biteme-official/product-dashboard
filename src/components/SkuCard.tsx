@@ -5,7 +5,7 @@ import { useStore } from '../store';
 import { useAuth } from '../store/auth';
 import { revenueMultiplier, calcDynamicMultiplier } from '../utils/calc';
 import { useState, useRef, useEffect, useMemo, type Dispatch, type SetStateAction, type ChangeEvent } from 'react';
-import { fetchTeamCateData, calcVariableCostRatio, type TeamCateMap } from '../services/tableau';
+import { fetchTeamCateData, calcVariableCostRatio, type TeamCateMap, type ChannelByYearMonth } from '../services/tableau';
 import { SizeDistColumn } from './SizeDistColumn';
 import { ComparisonColumn } from './ComparisonColumn';
 import { NumericInput } from './NumericInput';
@@ -63,6 +63,8 @@ export function SkuCard({ sku }: Props) {
   const [compModeLabel, setCompModeLabel] = useState('직전 12개월');
   // 대응SKU 채널 분포 (Tableau 채널별 실적 → STEP2 기본값 산출에 사용)
   const [compChannelDist, setCompChannelDist] = useState<Record<string, number> | null>(null);
+  // 대응SKU 채널×연월 원시 데이터 (STEP2 월별 비교행용)
+  const [compChannelYM, setCompChannelYM] = useState<ChannelByYearMonth | null>(null);
 
   function handleComparisonDataChange(
     data: Partial<Record<number, number>>,
@@ -195,6 +197,7 @@ export function SkuCard({ sku }: Props) {
               readOnly={!canEdit}
               onComparisonDataChange={handleComparisonDataChange}
               onChannelDistChange={setCompChannelDist}
+              onChannelYMDataChange={setCompChannelYM}
               step3Revenue={step3Totals?.revenue}
               step3Profit={step3Totals?.profit}
             />
@@ -206,6 +209,7 @@ export function SkuCard({ sku }: Props) {
             compModeLabel={compModeLabel}
             compMode={compMode}
             compChannelDist={compChannelDist}
+            compChannelYM={compChannelYM}
             pricingOpts={pricingOpts}
             setPricingOpts={setPricingOpts}
             onStep3TotalsChange={setStep3Totals}
@@ -517,6 +521,7 @@ function MonthlyTable({
   compModeLabel,
   compMode,
   compChannelDist,
+  compChannelYM,
   pricingOpts,
   setPricingOpts,
   onStep3TotalsChange,
@@ -527,6 +532,7 @@ function MonthlyTable({
   compModeLabel: string;
   compMode: 'rolling12' | 'samePeriod';
   compChannelDist: Record<string, number> | null;
+  compChannelYM: ChannelByYearMonth | null;
   pricingOpts: Record<string, string>;
   setPricingOpts: Dispatch<SetStateAction<Record<string, string>>>;
   onStep3TotalsChange: (totals: { revenue: number; profit: number } | null) => void;
@@ -677,6 +683,9 @@ function MonthlyTable({
           onTotalsChange={onStep3TotalsChange}
           onBeforeEdit={captureStep2Backup}
           varCostByChannel={varCostByChannel}
+          compChannelYM={compChannelYM}
+          compMode={compMode}
+          compModeLabel={compModeLabel}
         />
       ) : activeTab === 'channel' ? (
         <>
@@ -1125,6 +1134,8 @@ function ChannelMonthTable({ sku, monthlySplit: _monthlySplit }: {
 interface PricingScenario {
   id: string;
   label: string;
+  /** 드롭다운 괄호 힌트. 지정 시 % 계산 대신 이 텍스트를 표시 */
+  hint?: string;
   /** 채널 판매가(base)를 받아 KRW 시나리오 가격 반환 */
   calcKrwPrice: (base: number) => number;
   /** true이면 실판매가 열에 USD 금액도 표시 */
@@ -1144,17 +1155,17 @@ const calcOpenSpecialPrice = (base: number): number => {
 };
 
 const PRICING_SCENARIOS: PricingScenario[] = [
-  { id: '오픈특가',       label: '오픈특가',       calcKrwPrice: (b) => calcOpenSpecialPrice(b) },
-  { id: '신상위크',       label: '신상위크',       calcKrwPrice: (b) => Math.max(0, calcOpenSpecialPrice(b) - 1000) },
-  { id: '신상위크 라이브', label: '신상위크 라이브', calcKrwPrice: (b) => Math.max(0, calcOpenSpecialPrice(b) - 2000) },
-  { id: '선단독',         label: '선단독',         calcKrwPrice: (b) => Math.max(0, calcOpenSpecialPrice(b) - 1000) },
-  { id: '상시 최대할인율', label: '상시 최대할인율', calcKrwPrice: (b) => floor10(b * 0.85) },
-  { id: '특가 최대할인율', label: '특가 최대할인율', calcKrwPrice: (b) => floor10(b * 0.80) },
-  { id: '시즌오프(의류전용)',       label: '시즌오프(의류전용)',       calcKrwPrice: (b) => floor10(b * 0.75) },
-  { id: 'B2B 오픈 할인',  label: 'B2B 오픈 할인',  calcKrwPrice: (b) => floor10(b * 0.65 * 0.90) },
-  { id: 'B2B 상시 운영',  label: 'B2B 상시 운영',  calcKrwPrice: (b) => floor10(b * 0.65) },
-  { id: '사입 공급가',    label: '사입 공급가',    calcKrwPrice: (b) => floor10(b * 0.50) },
-  { id: '해외 공급가',    label: '해외 공급가',    calcKrwPrice: (b) => floor10(b * 0.50), isUsd: true },
+  { id: '오픈특가',        label: '오픈특가',        hint: '특가최대-900단위',  calcKrwPrice: (b) => calcOpenSpecialPrice(b) },
+  { id: '신상위크',        label: '신상위크',        hint: '오픈특가-천원',     calcKrwPrice: (b) => Math.max(0, calcOpenSpecialPrice(b) - 1000) },
+  { id: '신상위크 라이브', label: '신상위크 라이브', hint: '신상위크-천원',     calcKrwPrice: (b) => Math.max(0, calcOpenSpecialPrice(b) - 2000) },
+  { id: '선단독',          label: '선단독',          hint: '오픈특가-천원',     calcKrwPrice: (b) => Math.max(0, calcOpenSpecialPrice(b) - 1000) },
+  { id: '상시 최대할인율', label: '상시 최대할인율',                            calcKrwPrice: (b) => floor10(b * 0.85) },
+  { id: '특가 최대할인율', label: '특가 최대할인율',                            calcKrwPrice: (b) => floor10(b * 0.80) },
+  { id: '시즌오프(의류전용)', label: '시즌오프(의류전용)',                       calcKrwPrice: (b) => floor10(b * 0.75) },
+  { id: 'B2B 오픈 할인',   label: 'B2B 오픈 할인',                             calcKrwPrice: (b) => floor10(b * 0.65 * 0.90) },
+  { id: 'B2B 상시 운영',   label: 'B2B 상시 운영',                             calcKrwPrice: (b) => floor10(b * 0.65) },
+  { id: '사입 공급가',     label: '사입 공급가',                               calcKrwPrice: (b) => floor10(b * 0.50) },
+  { id: '해외 공급가',     label: '해외 공급가',                               calcKrwPrice: (b) => floor10(b * 0.50), isUsd: true },
 ];
 
 // ── STEP 2 채널별 목표량 테이블 ──────────────────────────────────────────
@@ -1164,6 +1175,9 @@ function PricingChannelTable({
   onTotalsChange,
   onBeforeEdit,
   varCostByChannel = {},
+  compChannelYM,
+  compMode,
+  compModeLabel,
 }: {
   sku: SkuData;
   readOnly: boolean;
@@ -1172,6 +1186,9 @@ function PricingChannelTable({
   onTotalsChange?: (totals: { revenue: number; profit: number }) => void;
   onBeforeEdit?: () => void;
   varCostByChannel?: Record<string, number>;
+  compChannelYM?: ChannelByYearMonth | null;
+  compMode?: 'rolling12' | 'samePeriod';
+  compModeLabel?: string;
 }) {
   const updateChannelMonthQty = useStore((s) => s.updateChannelMonthQty);
   const persistSku = useStore((s) => s.persistSku);
@@ -1200,6 +1217,26 @@ function PricingChannelTable({
 
   const setPricingOpt = (channel: Channel, month: Month, optId: string) =>
     setPricingOpts((prev) => ({ ...prev, [`${channel}-${month}`]: optId }));
+
+  // 대응SKU 채널×월 비교 수량 (compMode에 따라 year 매핑)
+  const releaseYear = sku.releaseDate ? parseInt(sku.releaseDate.split('-')[0], 10) : null;
+  const getCompQty = (channel: Channel, month: Month): number | null => {
+    if (!compChannelYM) return null;
+    const byYM = compChannelYM[channel];
+    if (!byYM) return null;
+    const isNextYr = IS_NEXT_YEAR[month];
+    if (compMode === 'samePeriod') {
+      const lookupYear = isNextYr ? releaseYear : (releaseYear ? releaseYear - 1 : null);
+      if (!lookupYear) return null;
+      return byYM[lookupYear]?.[month] ?? null;
+    } else {
+      const allYears = Object.keys(byYM).map(Number).sort((a, b) => b - a);
+      for (const y of allYears) {
+        if (byYM[y]?.[month] !== undefined) return byYM[y][month];
+      }
+      return null;
+    }
+  };
 
   /** basePrice 기준으로 시나리오 KRW 가격을 반환 (시나리오 없으면 base 그대로) */
   const calcScenarioPrice = (optId: string, base: number): number => {
@@ -1286,38 +1323,38 @@ function PricingChannelTable({
         const displayQty = channelMonthTotal > 0 ? channelMonthTotal : qty;
         return (
           <>
-            <tr key={channel} className={`border-b border-gray-100 ${isExpanded ? 'bg-gray-50' : 'hover:bg-gray-50/40'}`}>
+            <tr key={channel} className={`border-b border-gray-100 transition-colors ${isExpanded ? 'bg-indigo-50/60 border-l-2 border-l-indigo-400' : 'hover:bg-gray-50/40'}`}>
               {/* 채널명 + 토글 */}
               <td className="px-2 py-1.5">
                 <button
                   onClick={() => toggleChannel(channel)}
                   className="flex items-center gap-1.5 w-full text-left group"
                 >
-                  <span className={`text-[10px] text-gray-400 transition-transform duration-150 ${isExpanded ? 'rotate-90' : ''}`}>▶</span>
+                  <span className={`text-[10px] transition-transform duration-150 ${isExpanded ? 'rotate-90 text-indigo-500' : 'text-gray-400'}`}>▶</span>
                   <span className="inline-block w-2 h-2 rounded-full flex-shrink-0" style={{ background: CHANNEL_COLORS[channel] }} />
-                  <span className="font-medium text-gray-700 text-[11px] group-hover:text-indigo-600 truncate">{channel}</span>
+                  <span className={`text-[11px] truncate ${isExpanded ? 'font-bold text-indigo-700' : 'font-medium text-gray-700 group-hover:text-indigo-600'}`}>{channel}</span>
                 </button>
               </td>
               {/* 채널 비중 */}
-              <td className="px-2 py-1.5 text-center tabular-nums text-[11px] text-gray-500 truncate">
+              <td className={`px-2 py-1.5 text-center tabular-nums text-[11px] truncate ${isExpanded ? 'font-bold text-indigo-600' : 'text-gray-500'}`}>
                 {totals.qty > 0 && displayQty > 0
                   ? `${Math.round((displayQty / totals.qty) * 100)}%`
                   : <span className="text-gray-300">–</span>}
               </td>
               {/* 총수량 — 토글 입력값 합산 */}
-              <td className="px-2 py-1.5 text-right tabular-nums text-[11px] font-medium text-gray-700 truncate">
+              <td className={`px-2 py-1.5 text-right tabular-nums text-[11px] truncate ${isExpanded ? 'font-bold text-indigo-700' : 'font-medium text-gray-700'}`}>
                 {displayQty > 0 ? displayQty.toLocaleString() : <span className="text-gray-300">–</span>}
               </td>
               {/* 실매출단가 — 월별 시나리오 가중평균 */}
-              <td className="px-2 py-1.5 text-right tabular-nums text-[11px] text-gray-600 truncate">
+              <td className={`px-2 py-1.5 text-right tabular-nums text-[11px] truncate ${isExpanded ? 'font-semibold text-indigo-600' : 'text-gray-600'}`}>
                 {qty > 0 ? netPrice.toLocaleString() : <span className="text-gray-300">–</span>}
               </td>
               {/* 총매출 */}
-              <td className="px-2 py-1.5 text-right tabular-nums text-[11px] font-medium text-gray-700 truncate">
+              <td className={`px-2 py-1.5 text-right tabular-nums text-[11px] truncate ${isExpanded ? 'font-bold text-indigo-700' : 'font-medium text-gray-700'}`}>
                 {revenue > 0 ? formatWon(revenue) : <span className="text-gray-300">–</span>}
               </td>
               {/* 공헌이익 */}
-              <td className="px-2 py-1.5 text-right tabular-nums text-[11px] font-medium text-emerald-700 truncate">
+              <td className={`px-2 py-1.5 text-right tabular-nums text-[11px] truncate ${isExpanded ? 'font-bold' : 'font-medium'} text-emerald-700`}>
                 {profit > 0 ? formatWon(profit) : profit < 0 ? <span className="text-red-500">{formatWon(Math.abs(profit))}</span> : <span className="text-gray-300">–</span>}
               </td>
               {/* CM% */}
@@ -1328,189 +1365,284 @@ function PricingChannelTable({
               </td>
             </tr>
 
-            {/* 월별 상세 (펼침) */}
-            {isExpanded && (
-              <tr key={`${channel}-monthly`} className="border-b border-indigo-100">
-                <td colSpan={7} className="px-0 py-0">
-                  {/* 일괄반영 툴바 */}
-                  <div className="flex items-center gap-2 px-3 py-2 bg-indigo-50/50 border-b border-indigo-100">
-                    <span className="text-[10px] font-semibold text-indigo-500 flex-shrink-0">일괄 적용</span>
-                    <select
-                      value={channelBulkOpt[channel] ?? ''}
-                      onChange={(e) => setChannelBulkOpt((prev) => ({ ...prev, [channel]: e.target.value }))}
-                      className="flex-1 min-w-0 text-[11px] rounded border border-indigo-200 px-1.5 py-0.5 bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-indigo-400"
-                    >
-                      <option value="">-- 전략 선택 --</option>
-                      {PRICING_SCENARIOS.map((s) => {
-                        const bPrice = (getPricing(channel).price > 0 ? getPricing(channel).price : sku.price);
-                        return (
-                          <option key={s.id} value={s.id}>
-                            {s.label} ({s.calcKrwPrice(bPrice).toLocaleString()}원)
-                          </option>
-                        );
-                      })}
-                    </select>
-                    <button
-                      onClick={() => {
-                        onBeforeEdit?.();
-                        const opt = channelBulkOpt[channel] ?? '';
-                        setPricingOpts((prev) => {
-                          const next = { ...prev };
-                          MONTHS.forEach((m) => { next[`${channel}-${m}`] = opt; });
-                          return next;
-                        });
-                      }}
-                      disabled={!channelBulkOpt[channel]}
-                      className="flex-shrink-0 text-[11px] px-2.5 py-0.5 rounded bg-indigo-600 text-white font-semibold hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                    >
-                      일괄반영
-                    </button>
-                  </div>
-                  <table className="w-full text-xs" style={{ tableLayout: 'fixed' }}>
-                    <colgroup>
-                      <col style={{ width: '8%' }} />
-                      <col style={{ width: '12%' }} />
-                      <col style={{ width: '13%' }} />
-                      <col style={{ width: '34%' }} />
-                      <col style={{ width: '17%' }} />
-                      <col style={{ width: '16%' }} />
-                    </colgroup>
-                    <thead>
-                      <tr className="bg-indigo-50/60 border-b border-indigo-100">
-                        <th className="px-2 py-1.5 text-center text-[10px] font-semibold text-indigo-400">월</th>
-                        <th className="px-2 py-1.5 text-center text-[10px] font-semibold text-indigo-400">수량</th>
-                        <th className="px-2 py-1.5 text-center text-[10px] font-semibold text-indigo-400">실판매가</th>
-                        <th className="px-2 py-1.5 text-center text-[10px] font-semibold text-indigo-400">판매가 설정</th>
-                        <th className="px-2 py-1.5 text-center text-[10px] font-semibold text-indigo-400">예상 순매출</th>
-                        <th className="px-2 py-1.5 text-center text-[10px] font-semibold text-indigo-400">예상 공헌이익</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {MONTHS.map((m) => {
-                        const optId = getPricingOpt(channel, m);
-                        const basePrice = cp.price > 0 ? cp.price : sku.price;
-                        const scenarioKrwPrice = calcScenarioPrice(optId, basePrice);
-                        const monthQty = getMonthQty(channel, m);
-                        const netRevenue = Math.round(scenarioKrwPrice / 1.1 * monthQty);
-                        // 예상 공헌이익 = 순매출 − 변동비(Tableau 역산) − 원가×수량
-                        const varRatio = varCostByChannel[channel] ?? 0.25;
-                        const monthContrib = Math.round(netRevenue * (1 - varRatio) - sku.cost * monthQty);
-                        return (
-                          <tr key={m} className={`border-b border-indigo-50 ${IS_NEXT_YEAR[m] ? 'bg-blue-50/20' : 'bg-white'}`}>
-                            {/* 월 */}
-                            <td className="px-3 py-1.5">
-                              <span className={`text-[11px] font-semibold ${IS_NEXT_YEAR[m] ? 'text-blue-500' : 'text-gray-600'}`}>
-                                {MONTH_LABELS[m]}
-                              </span>
-                              {IS_NEXT_YEAR[m] && (
-                                <span className="ml-1 text-[9px] text-blue-400">27년</span>
-                              )}
-                            </td>
-                            {/* 수량 입력 */}
-                            <td className="px-1 py-1">
-                              <NumericInput
-                                value={monthQty}
-                                onChange={(val) => updateChannelMonthQty(sku.id, channel, m, val)}
-                                onBlur={() => persistSku(sku.id)}
-                                onFocus={() => onBeforeEdit?.()}
-                                disabled={readOnly}
-                                placeholder="0"
-                                className={`w-full text-right rounded px-1.5 py-1 text-[11px] border border-gray-200 focus:outline-none focus:ring-1 focus:ring-indigo-400 ${
-                                  readOnly ? 'bg-gray-50 text-gray-400 cursor-not-allowed' : 'bg-white text-gray-700'
-                                }`}
-                              />
-                            </td>
-                            {/* 실판매가 — 시나리오 가격(수수료 미반영) */}
-                            <td className="px-3 py-1.5 text-right tabular-nums">
-                              {scenarioKrwPrice > 0 ? (
-                                <span className="text-[11px] text-gray-700 font-medium">
-                                  {scenarioKrwPrice.toLocaleString()}
-                                </span>
-                              ) : <span className="text-gray-300 text-[11px]">–</span>}
-                            </td>
-                            {/* 판매가 설정 드롭다운 */}
-                            <td className="px-2 py-1">
-                              <select
-                                value={optId}
-                                onChange={(e) => { onBeforeEdit?.(); setPricingOpt(channel, m, e.target.value); }}
-                                className="w-full text-[11px] rounded border border-gray-200 px-1.5 py-1 bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-indigo-400"
-                              >
-                                <option value="">채널 판매가 ({basePrice.toLocaleString()}원)</option>
-                                <option value="오픈특가">오픈특가 (특가최대할인율 미만 900단위, {calcOpenSpecialPrice(basePrice).toLocaleString()}원)</option>
-                                <option value="신상위크">신상위크 (오픈특가 -1,000원, {Math.max(0, calcOpenSpecialPrice(basePrice) - 1000).toLocaleString()}원)</option>
-                                <option value="신상위크 라이브">신상위크 라이브 (신상위크 -1,000원, {Math.max(0, calcOpenSpecialPrice(basePrice) - 2000).toLocaleString()}원)</option>
-                                <option value="선단독">선단독 (오픈특가 -1,000원, {Math.max(0, calcOpenSpecialPrice(basePrice) - 1000).toLocaleString()}원)</option>
-                                <option value="상시 최대할인율">상시 최대할인율 (판매가 15% 할인, {floor10(basePrice * 0.85).toLocaleString()}원)</option>
-                                <option value="특가 최대할인율">특가 최대할인율 (판매가 20% 할인, {floor10(basePrice * 0.80).toLocaleString()}원)</option>
-                                <option value="시즌오프(의류전용)">시즌오프(의류전용) (판매가 25% 할인, {floor10(basePrice * 0.75).toLocaleString()}원)</option>
-                                <option value="B2B 오픈 할인">B2B 오픈 할인 (B2B상시 -10%, {floor10(basePrice * 0.585).toLocaleString()}원)</option>
-                                <option value="B2B 상시 운영">B2B 상시 운영 (판매가 65%, {floor10(basePrice * 0.65).toLocaleString()}원)</option>
-                                <option value="사입 공급가">사입 공급가 (판매가 50%, {floor10(basePrice * 0.50).toLocaleString()}원)</option>
-                                <option value="해외 공급가">해외 공급가 (사입×USD, {floor10(basePrice * 0.50).toLocaleString()}원)</option>
-                              </select>
-                            </td>
-                            {/* 예상 순매출 */}
-                            <td className="px-2 py-1.5 text-right tabular-nums text-[11px] font-semibold text-indigo-700">
-                              {netRevenue > 0 ? formatWon(netRevenue) : <span className="text-gray-300">–</span>}
-                            </td>
-                            {/* 예상 공헌이익 */}
-                            <td className="px-2 py-1.5 text-right tabular-nums text-[11px] font-semibold">
-                              {monthQty > 0
-                                ? monthContrib >= 0
-                                  ? <span className="text-emerald-700">{formatWon(monthContrib)}</span>
-                                  : <span className="text-red-500">-{formatWon(Math.abs(monthContrib))}</span>
-                                : <span className="text-gray-300">–</span>}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                    <tfoot>
-                      <tr className="bg-indigo-50 border-t border-indigo-200">
-                        <td className="px-3 py-1.5 text-[10px] font-semibold text-indigo-600">합계</td>
-                        <td className="px-3 py-1.5 text-right tabular-nums text-[11px] font-semibold text-gray-600">
-                          {(() => {
-                            const total = MONTHS.reduce((s, m) => s + getMonthQty(channel, m), 0);
-                            return total > 0 ? total.toLocaleString() : <span className="text-indigo-300">–</span>;
-                          })()}
-                        </td>
-                        <td className="px-3 py-1.5" />
-                        <td className="px-3 py-1.5" />
-                        <td className="px-2 py-1.5 text-right tabular-nums text-[11px] font-bold text-indigo-700">
-                          {(() => {
-                            const total = MONTHS.reduce((s, m) => {
-                              const base = cp.price > 0 ? cp.price : sku.price;
-                              const opt = getPricingOpt(channel, m);
-                              const scenarioPrice = calcScenarioPrice(opt, base);
-                              return s + Math.round(scenarioPrice / 1.1 * getMonthQty(channel, m));
-                            }, 0);
-                            return total > 0 ? formatWon(total) : <span className="text-indigo-300">–</span>;
-                          })()}
-                        </td>
-                        <td className="px-2 py-1.5 text-right tabular-nums text-[11px] font-bold">
-                          {(() => {
-                            const total = MONTHS.reduce((s, m) => {
-                              const base = cp.price > 0 ? cp.price : sku.price;
-                              const opt = getPricingOpt(channel, m);
-                              const scenarioPrice = calcScenarioPrice(opt, base);
-                              const mQty = getMonthQty(channel, m);
-                              const rev = Math.round(scenarioPrice / 1.1 * mQty);
-                              const vr = varCostByChannel[channel] ?? 0.25;
-                              return s + Math.round(rev * (1 - vr) - sku.cost * mQty);
-                            }, 0);
-                            if (MONTHS.every((m) => getMonthQty(channel, m) === 0))
-                              return <span className="text-indigo-300">–</span>;
-                            return total >= 0
-                              ? <span className="text-emerald-700">{formatWon(total)}</span>
-                              : <span className="text-red-500">-{formatWon(Math.abs(total))}</span>;
-                          })()}
-                        </td>
-                      </tr>
-                    </tfoot>
-                  </table>
-                </td>
-              </tr>
-            )}
+            {/* 월별 상세 (펼침) — 월을 열로, 항목을 행으로 */}
+            {isExpanded && (() => {
+              const FY26 = MONTHS.filter((m) => !IS_NEXT_YEAR[m]);
+              const FY27 = MONTHS.filter((m) => IS_NEXT_YEAR[m]);
+              const yearBorder = (m: Month) => IS_NEXT_YEAR[m] && !IS_NEXT_YEAR[MONTHS[MONTHS.indexOf(m) - 1] as Month] ? 'border-l-2 border-gray-400' : '';
+              const labelCell = 'px-3 py-2 border-r border-gray-200 bg-gray-100 whitespace-nowrap';
+              const totalCell = 'px-3 py-2 text-right tabular-nums text-[11px] font-bold whitespace-nowrap border-l border-gray-200 bg-gray-100';
+              return (
+                <tr key={`${channel}-monthly`} className="border-b border-gray-200 bg-gray-50/60">
+                  <td colSpan={7} className="px-4 py-3">
+                    {/* 일괄 적용 툴바 */}
+                    <div className="flex items-center gap-2 mb-2.5">
+                      <span className="text-[11px] font-semibold text-gray-500 whitespace-nowrap">판매가 일괄 설정</span>
+                      <select
+                        value={channelBulkOpt[channel] ?? ''}
+                        onChange={(e) => setChannelBulkOpt((prev) => ({ ...prev, [channel]: e.target.value }))}
+                        className="text-[11px] rounded border border-gray-300 px-1.5 py-0.5 bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-gray-400"
+                      >
+                        <option value="">-- 전략 선택 --</option>
+                        {PRICING_SCENARIOS.map((s) => {
+                          const bPrice = cp.price > 0 ? cp.price : sku.price;
+                          const suffix = s.hint ?? (bPrice > 0 ? `${Math.round((1 - s.calcKrwPrice(bPrice) / bPrice) * 100)}%` : '');
+                          return <option key={s.id} value={s.id}>{s.label} ({suffix})</option>;
+                        })}
+                      </select>
+                      <button
+                        onClick={() => {
+                          onBeforeEdit?.();
+                          const opt = channelBulkOpt[channel] ?? '';
+                          setPricingOpts((prev) => {
+                            const next = { ...prev };
+                            MONTHS.forEach((m) => { next[`${channel}-${m}`] = opt; });
+                            return next;
+                          });
+                        }}
+                        disabled={!channelBulkOpt[channel]}
+                        className="text-[11px] px-2.5 py-0.5 rounded-md bg-gray-700 text-white font-semibold hover:bg-gray-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
+                      >
+                        일괄반영
+                      </button>
+                    </div>
+
+                    {/* 테이블 */}
+                    <div className="rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+                      <div className="overflow-x-auto">
+                        <table className="text-xs w-full">
+                          <thead>
+                            <tr className="bg-gray-100 border-b-2 border-gray-300">
+                              <th className="px-3 py-2 text-left text-[11px] font-bold text-gray-500 whitespace-nowrap border-r border-gray-200" style={{ minWidth: '80px' }}>구분</th>
+                              {MONTHS.map((m) => (
+                                <th key={m} className={`px-2 py-2 text-center font-bold whitespace-nowrap ${yearBorder(m)} ${IS_NEXT_YEAR[m] ? 'text-gray-500 bg-gray-200/60' : 'text-gray-600'}`} style={{ minWidth: '76px' }}>
+                                  <div className="text-[13px]">{MONTH_LABELS[m]}</div>
+                                  {IS_NEXT_YEAR[m] && <div className="text-[9px] text-gray-400 font-normal">27년</div>}
+                                </th>
+                              ))}
+                              <th className="px-3 py-2 text-center text-[11px] font-bold text-gray-500 whitespace-nowrap border-l-2 border-gray-300 bg-gray-200/50" style={{ minWidth: '72px' }}>26년<br/>합계</th>
+                              <th className="px-3 py-2 text-center text-[11px] font-bold text-gray-400 whitespace-nowrap border-l border-gray-200 bg-gray-200/50" style={{ minWidth: '72px' }}>27년<br/>합계</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {/* 대응SKU 비교 행 */}
+                            {compChannelYM && (
+                              <tr className="border-b border-gray-400/30 bg-gray-300/30">
+                                <td className="px-3 py-0.5 border-r border-gray-300 bg-gray-400/20 whitespace-nowrap">
+                                  <div className="text-[9px] font-bold text-gray-600 leading-tight">대응SKU</div>
+                                  <div className="text-[8px] text-gray-400 font-normal leading-tight">{compModeLabel ?? ''}</div>
+                                </td>
+                                {MONTHS.map((m) => {
+                                  const compQty = getCompQty(channel, m);
+                                  return (
+                                    <td key={m} className={`px-2 py-0.5 text-right tabular-nums ${yearBorder(m)} ${IS_NEXT_YEAR[m] ? 'bg-gray-300/20' : ''}`}>
+                                      {compQty !== null
+                                        ? <span className="text-[10px] font-medium text-gray-600">{compQty.toLocaleString()}</span>
+                                        : <span className="text-[10px] text-gray-300">–</span>}
+                                    </td>
+                                  );
+                                })}
+                                <td className="px-3 py-0.5 text-right tabular-nums border-l-2 border-gray-400/40 bg-gray-400/20 whitespace-nowrap">
+                                  {(() => {
+                                    const t = FY26.reduce((s, m) => s + (getCompQty(channel, m) ?? 0), 0);
+                                    return t > 0 ? <span className="text-[10px] font-semibold text-gray-600">{t.toLocaleString()}</span> : <span className="text-[10px] text-gray-300">–</span>;
+                                  })()}
+                                </td>
+                                <td className="px-3 py-0.5 text-right tabular-nums border-l border-gray-300 bg-gray-400/20 whitespace-nowrap">
+                                  {(() => {
+                                    const t = FY27.reduce((s, m) => s + (getCompQty(channel, m) ?? 0), 0);
+                                    return t > 0 ? <span className="text-[10px] font-semibold text-gray-500">{t.toLocaleString()}</span> : <span className="text-[10px] text-gray-300">–</span>;
+                                  })()}
+                                </td>
+                              </tr>
+                            )}
+                            {/* 수량 행 */}
+                            <tr className="border-b border-gray-100 bg-white">
+                              <td className={labelCell}>
+                                <span className="text-[11px] font-bold text-gray-600">수량</span>
+                              </td>
+                              {MONTHS.map((m) => {
+                                const compQty = getCompQty(channel, m);
+                                const monthQtyVal = getMonthQty(channel, m);
+                                const growthRate = compQty && compQty > 0
+                                  ? ((monthQtyVal - compQty) / compQty * 100)
+                                  : null;
+                                return (
+                                  <td key={m} className={`px-1 py-1 ${yearBorder(m)} ${IS_NEXT_YEAR[m] ? 'bg-gray-50/60' : ''}`}>
+                                    <div className="flex items-center gap-0.5">
+                                      <NumericInput
+                                        value={monthQtyVal}
+                                        onChange={(val) => updateChannelMonthQty(sku.id, channel, m, val)}
+                                        onBlur={() => persistSku(sku.id)}
+                                        onFocus={() => onBeforeEdit?.()}
+                                        disabled={readOnly}
+                                        placeholder="0"
+                                        className={`text-right rounded-md px-1 py-1 text-[11px] border focus:outline-none focus:ring-1 focus:ring-gray-400 ${
+                                          readOnly ? 'bg-gray-50 text-gray-400 cursor-not-allowed border-gray-200' : 'bg-white text-gray-700 border-gray-200 hover:border-gray-400'
+                                        }`}
+                                        style={{ width: '52px' }}
+                                      />
+                                      {growthRate !== null && (
+                                        <span className={`text-[9px] font-semibold leading-none whitespace-nowrap ${growthRate > 0 ? 'text-emerald-600' : growthRate < 0 ? 'text-red-500' : 'text-gray-400'}`}>
+                                          {growthRate > 0 ? '+' : ''}{growthRate.toFixed(1)}%
+                                        </span>
+                                      )}
+                                    </div>
+                                  </td>
+                                );
+                              })}
+                              <td className={`${totalCell} border-l-2 border-gray-300 text-gray-700`}>
+                                {(() => { const t = FY26.reduce((s, m) => s + getMonthQty(channel, m), 0); return t > 0 ? t.toLocaleString() : <span className="text-gray-300">–</span>; })()}
+                              </td>
+                              <td className={`${totalCell} text-gray-500`}>
+                                {(() => { const t = FY27.reduce((s, m) => s + getMonthQty(channel, m), 0); return t > 0 ? t.toLocaleString() : <span className="text-gray-300">–</span>; })()}
+                              </td>
+                            </tr>
+                            {/* 판매가 설정 행 */}
+                            <tr className="border-b border-gray-100 bg-gray-50/50">
+                              <td className={labelCell}>
+                                <span className="text-[11px] font-bold text-gray-600">판매가 설정</span>
+                              </td>
+                              {MONTHS.map((m) => {
+                                const optId = getPricingOpt(channel, m);
+                                const basePrice = cp.price > 0 ? cp.price : sku.price;
+                                return (
+                                  <td key={m} className={`px-1.5 py-1.5 ${yearBorder(m)} ${IS_NEXT_YEAR[m] ? 'bg-gray-50/60' : ''}`}>
+                                    <select
+                                      value={optId}
+                                      onChange={(e) => { onBeforeEdit?.(); setPricingOpt(channel, m, e.target.value); }}
+                                      className="w-full text-[10px] rounded border border-gray-200 px-1 py-0.5 bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-gray-400 hover:border-gray-400"
+                                    >
+                                      <option value="">채널가</option>
+                                      {PRICING_SCENARIOS.map((s) => {
+                                        const suffix = s.hint ?? (basePrice > 0 ? `${Math.round((1 - s.calcKrwPrice(basePrice) / basePrice) * 100)}%` : '');
+                                        return <option key={s.id} value={s.id}>{s.label} ({suffix})</option>;
+                                      })}
+                                    </select>
+                                  </td>
+                                );
+                              })}
+                              <td className="border-l-2 border-gray-300 bg-gray-100" />
+                              <td className="border-l border-gray-200 bg-gray-100" />
+                            </tr>
+                            {/* 실 판매가 행 */}
+                            <tr className="border-b-2 border-gray-200 bg-white">
+                              <td className={labelCell}>
+                                <span className="text-[11px] font-semibold text-gray-500">실 판매가</span>
+                              </td>
+                              {MONTHS.map((m) => {
+                                const optId = getPricingOpt(channel, m);
+                                const basePrice = cp.price > 0 ? cp.price : sku.price;
+                                const scenarioKrwPrice = calcScenarioPrice(optId, basePrice);
+                                return (
+                                  <td key={m} className={`px-2 py-2 text-right tabular-nums ${yearBorder(m)} ${IS_NEXT_YEAR[m] ? 'bg-gray-50/60' : ''}`}>
+                                    {scenarioKrwPrice > 0
+                                      ? <span className="text-[11px] text-gray-700 font-semibold">{scenarioKrwPrice.toLocaleString()}</span>
+                                      : <span className="text-gray-300 text-[11px]">–</span>}
+                                  </td>
+                                );
+                              })}
+                              <td className="border-l-2 border-gray-300 bg-gray-100" />
+                              <td className="border-l border-gray-200 bg-gray-100" />
+                            </tr>
+                            {/* 예상 순매출 행 */}
+                            <tr className="border-b border-blue-100 bg-blue-50/50">
+                              <td className="px-3 py-2 border-r border-blue-200 bg-blue-100/70 whitespace-nowrap">
+                                <span className="text-[11px] font-bold text-blue-700">예상 순매출</span>
+                              </td>
+                              {MONTHS.map((m) => {
+                                const optId = getPricingOpt(channel, m);
+                                const basePrice = cp.price > 0 ? cp.price : sku.price;
+                                const scenarioKrwPrice = calcScenarioPrice(optId, basePrice);
+                                const monthQty = getMonthQty(channel, m);
+                                const netRevenue = Math.round(scenarioKrwPrice / 1.1 * monthQty);
+                                return (
+                                  <td key={m} className={`px-2 py-2 text-right tabular-nums text-[11px] font-semibold text-blue-700 ${yearBorder(m)} ${IS_NEXT_YEAR[m] ? 'bg-blue-50/40' : ''}`}>
+                                    {netRevenue > 0 ? formatWon(netRevenue) : <span className="text-blue-200">–</span>}
+                                  </td>
+                                );
+                              })}
+                              <td className="px-3 py-2 text-right tabular-nums text-[11px] font-bold text-blue-700 border-l-2 border-blue-300 bg-blue-100/70 whitespace-nowrap">
+                                {(() => {
+                                  const t = FY26.reduce((s, m) => {
+                                    const base = cp.price > 0 ? cp.price : sku.price;
+                                    const sp = calcScenarioPrice(getPricingOpt(channel, m), base);
+                                    return s + Math.round(sp / 1.1 * getMonthQty(channel, m));
+                                  }, 0);
+                                  return t > 0 ? formatWon(t) : <span className="text-blue-200">–</span>;
+                                })()}
+                              </td>
+                              <td className="px-3 py-2 text-right tabular-nums text-[11px] font-bold text-blue-600 border-l border-blue-200 bg-blue-100/70 whitespace-nowrap">
+                                {(() => {
+                                  const t = FY27.reduce((s, m) => {
+                                    const base = cp.price > 0 ? cp.price : sku.price;
+                                    const sp = calcScenarioPrice(getPricingOpt(channel, m), base);
+                                    return s + Math.round(sp / 1.1 * getMonthQty(channel, m));
+                                  }, 0);
+                                  return t > 0 ? formatWon(t) : <span className="text-blue-200">–</span>;
+                                })()}
+                              </td>
+                            </tr>
+                            {/* 예상 공헌이익 행 */}
+                            <tr className="bg-emerald-50/50">
+                              <td className={`${labelCell} border-r-emerald-200`}>
+                                <span className="text-[11px] font-bold text-emerald-700">예상 공헌이익</span>
+                              </td>
+                              {MONTHS.map((m) => {
+                                const optId = getPricingOpt(channel, m);
+                                const basePrice = cp.price > 0 ? cp.price : sku.price;
+                                const scenarioKrwPrice = calcScenarioPrice(optId, basePrice);
+                                const monthQty = getMonthQty(channel, m);
+                                const netRevenue = Math.round(scenarioKrwPrice / 1.1 * monthQty);
+                                const varRatio = varCostByChannel[channel] ?? 0.25;
+                                const monthContrib = Math.round(netRevenue * (1 - varRatio) - sku.cost * monthQty);
+                                return (
+                                  <td key={m} className={`px-2 py-2 text-right tabular-nums text-[11px] font-semibold ${yearBorder(m)} ${IS_NEXT_YEAR[m] ? 'bg-emerald-50/30' : ''}`}>
+                                    {monthQty > 0
+                                      ? monthContrib >= 0
+                                        ? <span className="text-emerald-700">{formatWon(monthContrib)}</span>
+                                        : <span className="text-red-500">-{formatWon(Math.abs(monthContrib))}</span>
+                                      : <span className="text-gray-300">–</span>}
+                                  </td>
+                                );
+                              })}
+                              <td className={`${totalCell} border-l-2 border-gray-300`}>
+                                {(() => {
+                                  const t = FY26.reduce((s, m) => {
+                                    const base = cp.price > 0 ? cp.price : sku.price;
+                                    const sp = calcScenarioPrice(getPricingOpt(channel, m), base);
+                                    const mQty = getMonthQty(channel, m);
+                                    const rev = Math.round(sp / 1.1 * mQty);
+                                    const vr = varCostByChannel[channel] ?? 0.25;
+                                    return s + Math.round(rev * (1 - vr) - sku.cost * mQty);
+                                  }, 0);
+                                  if (FY26.every((m) => getMonthQty(channel, m) === 0)) return <span className="text-gray-300">–</span>;
+                                  return t >= 0 ? <span className="text-emerald-700">{formatWon(t)}</span> : <span className="text-red-500">-{formatWon(Math.abs(t))}</span>;
+                                })()}
+                              </td>
+                              <td className={`${totalCell}`}>
+                                {(() => {
+                                  const t = FY27.reduce((s, m) => {
+                                    const base = cp.price > 0 ? cp.price : sku.price;
+                                    const sp = calcScenarioPrice(getPricingOpt(channel, m), base);
+                                    const mQty = getMonthQty(channel, m);
+                                    const rev = Math.round(sp / 1.1 * mQty);
+                                    const vr = varCostByChannel[channel] ?? 0.25;
+                                    return s + Math.round(rev * (1 - vr) - sku.cost * mQty);
+                                  }, 0);
+                                  if (FY27.every((m) => getMonthQty(channel, m) === 0)) return <span className="text-gray-300">–</span>;
+                                  return t >= 0 ? <span className="text-emerald-600">{formatWon(t)}</span> : <span className="text-red-500">-{formatWon(Math.abs(t))}</span>;
+                                })()}
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })()}
           </>
         );
       })}
@@ -1531,17 +1663,17 @@ function PricingChannelTable({
           <col style={{ width: '10%' }} />
         </colgroup>
         <thead>
-          <tr className="bg-gray-50 border-b border-gray-200">
-            <th className="px-3 py-2 text-center text-gray-500 font-semibold truncate">채널</th>
-            <th className="px-2 py-2 text-center text-gray-500 font-semibold truncate">비중</th>
-            <th className="px-2 py-2 text-center text-gray-500 font-semibold truncate">총수량</th>
-            <th className="px-2 py-2 text-center text-gray-500 font-semibold truncate">실매출단가</th>
-            <th className="px-2 py-2 text-center text-gray-500 font-semibold truncate">순매출</th>
-            <th className="px-2 py-2 text-center text-gray-500 font-semibold truncate">
+          <tr className="bg-indigo-50 border-b border-indigo-200">
+            <th className="px-3 py-2 text-center text-indigo-600 font-semibold truncate">채널</th>
+            <th className="px-2 py-2 text-center text-indigo-600 font-semibold truncate">비중</th>
+            <th className="px-2 py-2 text-center text-indigo-600 font-semibold truncate">총수량</th>
+            <th className="px-2 py-2 text-center text-indigo-600 font-semibold truncate">실매출단가</th>
+            <th className="px-2 py-2 text-center text-indigo-600 font-semibold truncate">순매출</th>
+            <th className="px-2 py-2 text-center text-indigo-600 font-semibold truncate">
               공헌이익
-              <div className="text-[9px] text-gray-400 font-normal">변동비(Tableau)</div>
+              <div className="text-[9px] text-indigo-400 font-normal">변동비(Tableau)</div>
             </th>
-            <th className="px-2 py-2 text-center text-gray-500 font-semibold truncate">CM%</th>
+            <th className="px-2 py-2 text-center text-indigo-600 font-semibold truncate">CM%</th>
           </tr>
         </thead>
         <tbody>

@@ -1,4 +1,4 @@
-import { useState, type FocusEvent, type ChangeEvent, type KeyboardEvent } from 'react';
+import React, { useState, type FocusEvent, type ChangeEvent, type KeyboardEvent } from 'react';
 
 interface Props {
   value: number;
@@ -8,6 +8,7 @@ interface Props {
   onKeyDown?: (e: KeyboardEvent<HTMLInputElement>) => void;
   placeholder?: string;
   className?: string;
+  style?: React.CSSProperties;
   allowDecimal?: boolean;
   disabled?: boolean;
   autoFocus?: boolean;
@@ -28,6 +29,7 @@ export function NumericInput({
   onKeyDown,
   placeholder,
   className,
+  style,
   allowDecimal = false,
   disabled = false,
   autoFocus = false,
@@ -83,6 +85,7 @@ export function NumericInput({
       onKeyDown={onKeyDown}
       placeholder={placeholder}
       className={className}
+      style={style}
       disabled={disabled}
       autoFocus={autoFocus}
     />

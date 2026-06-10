@@ -16,6 +16,7 @@ import {
   aggregateChannelByYearMonth,
   type SkuShipmentInfo,
   type ChannelDataMap,
+  type ChannelByYearMonth,
 } from '../services/tableau';
 
 type CompareMode = 'rolling12' | 'samePeriod';
@@ -59,11 +60,12 @@ interface Props {
     label: string,
   ) => void;
   onChannelDistChange?: (dist: Record<string, number> | null) => void;
+  onChannelYMDataChange?: (data: ChannelByYearMonth | null) => void;
   step3Revenue?: number;
   step3Profit?: number;
 }
 
-export function ComparisonColumn({ sku, readOnly, onComparisonDataChange, onChannelDistChange, step3Revenue, step3Profit }: Props) {
+export function ComparisonColumn({ sku, readOnly, onComparisonDataChange, onChannelDistChange, onChannelYMDataChange, step3Revenue, step3Profit }: Props) {
   const updateSku = useStore((s) => s.updateSku);
   const persistSku = useStore((s) => s.persistSku);
 
@@ -140,6 +142,7 @@ export function ComparisonColumn({ sku, readOnly, onComparisonDataChange, onChan
     if (!channelMap || selectedSkus.length === 0) {
       setChannelPeriodQty(null);
       onChannelDistChange?.(null);
+      onChannelYMDataChange?.(null);
       return;
     }
     const rm = getReleaseMonth(sku.releaseDate);
@@ -150,6 +153,7 @@ export function ComparisonColumn({ sku, readOnly, onComparisonDataChange, onChan
     const dist = Object.keys(qty).length > 0 ? qty : null;
     setChannelPeriodQty(dist);
     onChannelDistChange?.(dist);
+    onChannelYMDataChange?.(Object.keys(aggregated).length > 0 ? aggregated : null);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedSkus, compareMode, channelMap]);
 

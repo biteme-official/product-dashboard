@@ -248,13 +248,30 @@ interface StoreActions {
   setSkuConfirmed: (id: string, confirmed: boolean, role: string) => Promise<void>;
 }
 
+const readSession = <T>(key: string, fallback: T): T => {
+  try {
+    const v = sessionStorage.getItem(key);
+    return v !== null ? (JSON.parse(v) as T) : fallback;
+  } catch { return fallback; }
+};
+const writeSession = (key: string, val: unknown) => {
+  try { sessionStorage.setItem(key, JSON.stringify(val)); } catch {}
+};
+
 export const useStore = create<AppState & StoreActions>((set, get) => ({
-  activeCategory: '의류',
-  activeBrand: '전체',
+  activeCategory: readSession<Category>('store:activeCategory', '의류'),
+  activeBrand: readSession<Brand | '전체'>('store:activeBrand', '전체'),
   skus: [],
 
-  setActiveCategory: (category) => set({ activeCategory: category, activeBrand: '전체' }),
-  setActiveBrand: (brand) => set({ activeBrand: brand }),
+  setActiveCategory: (category) => {
+    writeSession('store:activeCategory', category);
+    writeSession('store:activeBrand', '전체');
+    set({ activeCategory: category, activeBrand: '전체' });
+  },
+  setActiveBrand: (brand) => {
+    writeSession('store:activeBrand', brand);
+    set({ activeBrand: brand });
+  },
 
   // Firestore 실시간 리스너 — 반환값(unsubscribe)을 App.tsx useEffect cleanup으로 사용
   loadSkus: () => {

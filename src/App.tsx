@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useStore } from './store';
 import { useAuth } from './store/auth';
 import type { Category, SkuData } from './types';
@@ -14,6 +14,20 @@ import { ConfirmLogModal } from './components/ConfirmLogModal';
 import { parseImportJson, type RawSkuInput } from './utils/importParser';
 
 type MainTab = 'pm' | 'md' | 'pricing' | 'manual';
+
+function useSessionState<T>(key: string, initial: T): [T, (val: T) => void] {
+  const [state, setState] = useState<T>(() => {
+    try {
+      const stored = sessionStorage.getItem(key);
+      return stored !== null ? (JSON.parse(stored) as T) : initial;
+    } catch { return initial; }
+  });
+  const setter = useCallback((val: T) => {
+    setState(val);
+    try { sessionStorage.setItem(key, JSON.stringify(val)); } catch {}
+  }, [key]);
+  return useMemo(() => [state, setter], [state, setter]);
+}
 
 interface PendingImport {
   _id: string;
@@ -38,8 +52,8 @@ function App() {
   const [showPinManager, setShowPinManager] = useState(false);
   const [showConfirmLog, setShowConfirmLog] = useState(false);
   const [backupState, setBackupState] = useState<'idle' | 'done' | 'error'>('idle');
-  const [activeMainTab, setActiveMainTab] = useState<MainTab>('pm');
-  const [pricingCategory, setPricingCategory] = useState<Category | '전체'>('전체');
+  const [activeMainTab, setActiveMainTab] = useSessionState<MainTab>('app:mainTab', 'pm');
+  const [pricingCategory, setPricingCategory] = useSessionState<Category | '전체'>('app:pricingCat', '전체');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   function handleExport() {
