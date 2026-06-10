@@ -1,0 +1,331 @@
+export function ManualTab() {
+  return (
+    <div className="max-w-4xl mx-auto px-4 py-6 space-y-10 text-sm text-gray-700">
+
+      {/* 1. 데이터 소스 */}
+      <section>
+        <h2 className="text-base font-bold text-gray-900 mb-3 pb-1 border-b border-gray-200">1. 데이터 소스</h2>
+        <table className="w-full border-collapse text-xs">
+          <thead>
+            <tr className="bg-gray-50">
+              <Th>데이터</Th>
+              <Th>Tableau 뷰</Th>
+              <Th>사용처</Th>
+            </tr>
+          </thead>
+          <tbody>
+            <Tr>
+              <Td>SKU 월별 출고량</Td>
+              <Td>출고데이터 MCP 연결용 (SKU 토탈)</Td>
+              <Td>대응SKU 자동완성 · STEP1/STEP2 기준값 산출</Td>
+            </Tr>
+            <Tr>
+              <Td>채널별 출고량</Td>
+              <Td>채널별 출고 뷰 (VITE_TABLEAU_CHANNEL_VIEW_ID)</Td>
+              <Td>STEP2 채널 비중 기본값 자동 세팅</Td>
+            </Tr>
+            <Tr>
+              <Td>팀카테 공헌이익</Td>
+              <Td>MCP / sheet0 (팀카테 공헌이익)</Td>
+              <Td>STEP3 변동비 비중 역산 — contribution 항목</Td>
+            </Tr>
+            <Tr>
+              <Td>팀카테 순매출·원가</Td>
+              <Td>MCP / sheet1 (팀카테 순매출·원가)</Td>
+              <Td>STEP3 변동비 비중 역산 — revenue·cost 항목</Td>
+            </Tr>
+          </tbody>
+        </table>
+        <p className="mt-2 text-xs text-gray-400">* Tableau REST API v3.21. PAT 인증 후 뷰 CSV 다운로드 방식으로 수집. 세션 내 캐싱(maxAge 60분).</p>
+      </section>
+
+      {/* 2. 채널 매핑 */}
+      <section>
+        <h2 className="text-base font-bold text-gray-900 mb-3 pb-1 border-b border-gray-200">2. 채널 매핑</h2>
+
+        <p className="text-xs text-gray-500 mb-2">Tableau 원본 채널명 → 대시보드 채널명 변환 규칙</p>
+        <table className="w-full border-collapse text-xs mb-4">
+          <thead>
+            <tr className="bg-gray-50">
+              <Th>Tableau 채널명</Th>
+              <Th>대시보드 채널</Th>
+              <Th>비고</Th>
+            </tr>
+          </thead>
+          <tbody>
+            <Tr><Td>SSFW 스스</Td><Td>스스</Td><Td></Td></Tr>
+            <Tr><Td>SSFW 자사몰</Td><Td>스스</Td><Td></Td></Tr>
+            <Tr><Td>바잇미 자사몰</Td><Td>자사몰</Td><Td></Td></Tr>
+            <Tr><Td>사입</Td><Td>사입및페어</Td><Td></Td></Tr>
+            <Tr><Td>페어</Td><Td>사입및페어</Td><Td></Td></Tr>
+            <Tr><Td>해외</Td><Td>글로벌 · 일본</Td><Td>동일 수량을 두 채널 각각 100% 반영 (분배 아님)</Td></Tr>
+            <Tr><Td>협찬 · 기타 · CS · 공구 · 팝업</Td><Td>—</Td><Td>집계에서 제외</Td></Tr>
+          </tbody>
+        </table>
+
+        <p className="text-xs text-gray-500 mb-2">대시보드 채널 → Tableau 채널ROI용 변환 (변동비 비중 조회용)</p>
+        <table className="w-full border-collapse text-xs">
+          <thead>
+            <tr className="bg-gray-50">
+              <Th>대시보드 채널</Th>
+              <Th>Tableau 채널ROI용</Th>
+            </tr>
+          </thead>
+          <tbody>
+            <Tr><Td>자사몰</Td><Td>바잇미 자사몰</Td></Tr>
+            <Tr><Td>스스</Td><Td>스스</Td></Tr>
+            <Tr><Td>쿠팡</Td><Td>쿠팡</Td></Tr>
+            <Tr><Td>B2B</Td><Td>B2B</Td></Tr>
+            <Tr><Td>사입및페어 · 위탁</Td><Td>그외</Td></Tr>
+            <Tr><Td>글로벌 · 일본</Td><Td>해외</Td></Tr>
+          </tbody>
+        </table>
+      </section>
+
+      {/* 3. 카테고리 매핑 */}
+      <section>
+        <h2 className="text-base font-bold text-gray-900 mb-3 pb-1 border-b border-gray-200">3. 카테고리 매핑</h2>
+        <p className="text-xs text-gray-500 mb-2">대시보드 카테고리 → Tableau 팀 구분카테 (변동비 조회용)</p>
+        <table className="w-full border-collapse text-xs">
+          <thead>
+            <tr className="bg-gray-50">
+              <Th>대시보드 카테고리</Th>
+              <Th>Tableau 팀 구분카테</Th>
+            </tr>
+          </thead>
+          <tbody>
+            <Tr><Td>의류 · 잡화</Td><Td>의류/잡화</Td></Tr>
+            <Tr><Td>식품</Td><Td>영양제/식품</Td></Tr>
+            <Tr><Td>장난감</Td><Td>장난감</Td></Tr>
+            <Tr><Td>용품</Td><Td>용품</Td></Tr>
+          </tbody>
+        </table>
+      </section>
+
+      {/* 4. 집계 기간 모드 */}
+      <section>
+        <h2 className="text-base font-bold text-gray-900 mb-3 pb-1 border-b border-gray-200">4. 집계 기간 모드</h2>
+        <table className="w-full border-collapse text-xs">
+          <thead>
+            <tr className="bg-gray-50">
+              <Th>모드</Th>
+              <Th>기간 정의</Th>
+              <Th>사용처</Th>
+            </tr>
+          </thead>
+          <tbody>
+            <Tr>
+              <Td>직전 12개월 (rolling12)</Td>
+              <Td>데이터 내 가장 최근 월 기준으로 역순 최대 12개월</Td>
+              <Td>대응SKU 출고 기준값 · STEP3 변동비 기본 모드</Td>
+            </Tr>
+            <Tr>
+              <Td>동기간 (samePeriod)</Td>
+              <Td>출시월 ~ 12월, 전년도 동기간</Td>
+              <Td>시즈널 SKU의 시즌 내 비교</Td>
+            </Tr>
+          </tbody>
+        </table>
+      </section>
+
+      {/* 5. STEP1 계산식 */}
+      <section>
+        <h2 className="text-base font-bold text-gray-900 mb-3 pb-1 border-b border-gray-200">5. STEP 1 — 월별 발주 계획</h2>
+        <table className="w-full border-collapse text-xs">
+          <thead>
+            <tr className="bg-gray-50">
+              <Th>항목</Th>
+              <Th>계산식</Th>
+              <Th>비고</Th>
+            </tr>
+          </thead>
+          <tbody>
+            <Tr>
+              <Td>예상 순매출</Td>
+              <Td>총 발주량 × 판매가 ÷ 1.1 × 매출계수</Td>
+              <Td>부가세 제외</Td>
+            </Tr>
+            <Tr>
+              <Td>매출계수</Td>
+              <Td>(B2C 채널 비중 합 / 전체) × 0.75 + (B2B 채널 비중 합 / 전체) × 0.55</Td>
+              <Td>채널 비중 미입력 시 카테고리 고정값 사용</Td>
+            </Tr>
+            <Tr>
+              <Td>카테고리 B2C 비중 (fallback)</Td>
+              <Td>의류 60% · 용품 55% · 잡화 65% · 장난감 35% · 식품 65%</Td>
+              <Td></Td>
+            </Tr>
+            <Tr>
+              <Td>B2C 채널</Td>
+              <Td>자사몰 · 스스 · 위탁</Td>
+              <Td>실질 판매가율 75%</Td>
+            </Tr>
+            <Tr>
+              <Td>B2B 채널</Td>
+              <Td>쿠팡 · B2B · 사입및페어 · 글로벌 · 일본</Td>
+              <Td>실질 판매가율 55%</Td>
+            </Tr>
+          </tbody>
+        </table>
+      </section>
+
+      {/* 6. STEP2 계산식 */}
+      <section>
+        <h2 className="text-base font-bold text-gray-900 mb-3 pb-1 border-b border-gray-200">6. STEP 2 — 채널별 목표량 설정</h2>
+        <table className="w-full border-collapse text-xs mb-3">
+          <thead>
+            <tr className="bg-gray-50">
+              <Th>항목</Th>
+              <Th>계산식</Th>
+              <Th>비고</Th>
+            </tr>
+          </thead>
+          <tbody>
+            <Tr>
+              <Td>채널별 초기 수량</Td>
+              <Td>총 발주량 × 대응SKU 채널 비중</Td>
+              <Td>대응SKU 선택 시 자동 세팅. 대응SKU 없으면 기본 비중(%)으로 산출</Td>
+            </Tr>
+            <Tr>
+              <Td>월별 배분</Td>
+              <Td>채널 수량 × STEP1 월별 비율</Td>
+              <Td>STEP1 미입력 시 균등 배분</Td>
+            </Tr>
+            <Tr>
+              <Td>순매출</Td>
+              <Td>시나리오 가격 ÷ 1.1 × 수량</Td>
+              <Td>부가세 제외</Td>
+            </Tr>
+            <Tr>
+              <Td>공헌이익</Td>
+              <Td>순매출 × 0.75 − 원가 × 수량</Td>
+              <Td>변동비 25% 고정 적용</Td>
+            </Tr>
+            <Tr>
+              <Td>CM율</Td>
+              <Td>공헌이익 ÷ 순매출 × 100</Td>
+              <Td></Td>
+            </Tr>
+          </tbody>
+        </table>
+        <p className="text-xs text-gray-400">* STEP2의 변동비는 25% 고정값. 채널·카테고리별 실측 변동비는 STEP3에서 반영됩니다.</p>
+      </section>
+
+      {/* 7. STEP3 계산식 */}
+      <section>
+        <h2 className="text-base font-bold text-gray-900 mb-3 pb-1 border-b border-gray-200">7. STEP 3 — 채널별 수량 확정 · 공헌이익 검토</h2>
+        <table className="w-full border-collapse text-xs mb-3">
+          <thead>
+            <tr className="bg-gray-50">
+              <Th>항목</Th>
+              <Th>계산식</Th>
+              <Th>비고</Th>
+            </tr>
+          </thead>
+          <tbody>
+            <Tr>
+              <Td>실매출단가</Td>
+              <Td>∑(월수량 × 시나리오가격) ÷ 총수량</Td>
+              <Td>수수료 미반영 가격 기준</Td>
+            </Tr>
+            <Tr>
+              <Td>순매출</Td>
+              <Td>실매출단가 ÷ 1.1 × 총수량</Td>
+              <Td>부가세 제외</Td>
+            </Tr>
+            <Tr>
+              <Td>변동비 비중</Td>
+              <Td>(순매출 − 원가 − 공헌이익) ÷ 순매출</Td>
+              <Td>Tableau 팀카테 데이터 기반 역산. 데이터 없으면 25% fallback</Td>
+            </Tr>
+            <Tr>
+              <Td>공헌이익</Td>
+              <Td>순매출 × (1 − 변동비 비중) − 원가 × 수량</Td>
+              <Td></Td>
+            </Tr>
+            <Tr>
+              <Td>CM율</Td>
+              <Td>공헌이익 ÷ 순매출 × 100</Td>
+              <Td>≥ 80% 초록 / ≥ 70% 노랑 / &lt; 70% 빨강</Td>
+            </Tr>
+          </tbody>
+        </table>
+      </section>
+
+      {/* 8. 시나리오 가격 */}
+      <section>
+        <h2 className="text-base font-bold text-gray-900 mb-3 pb-1 border-b border-gray-200">8. 판매가 시나리오 계산식</h2>
+        <p className="text-xs text-gray-500 mb-2">* base = 채널 판매가 (채널별 설정 없으면 SKU 기본 판매가)</p>
+        <p className="text-xs text-gray-500 mb-3">* floor10(x) = x를 10원 단위 내림. calcOpenSpecialPrice(base) = floor10(base × 0.80)을 1000원 단위로 내림한 값에 +900</p>
+        <table className="w-full border-collapse text-xs">
+          <thead>
+            <tr className="bg-gray-50">
+              <Th>시나리오</Th>
+              <Th>계산식</Th>
+            </tr>
+          </thead>
+          <tbody>
+            <Tr><Td>오픈특가</Td><Td>calcOpenSpecialPrice(base)   =   floor((floor10(base × 0.80) − 901) ÷ 1000) × 1000 + 900</Td></Tr>
+            <Tr><Td>신상위크</Td><Td>max(0, 오픈특가 − 1,000)</Td></Tr>
+            <Tr><Td>신상위크 라이브</Td><Td>max(0, 오픈특가 − 2,000)</Td></Tr>
+            <Tr><Td>선단독</Td><Td>max(0, 오픈특가 − 1,000)</Td></Tr>
+            <Tr><Td>상시 최대할인율</Td><Td>floor10(base × 0.85)</Td></Tr>
+            <Tr><Td>특가 최대할인율</Td><Td>floor10(base × 0.80)</Td></Tr>
+            <Tr><Td>시즌오프 (의류전용)</Td><Td>floor10(base × 0.75)</Td></Tr>
+            <Tr><Td>B2B 오픈 할인</Td><Td>floor10(base × 0.65 × 0.90)</Td></Tr>
+            <Tr><Td>B2B 상시 운영</Td><Td>floor10(base × 0.65)</Td></Tr>
+            <Tr><Td>사입 공급가</Td><Td>floor10(base × 0.50)</Td></Tr>
+            <Tr><Td>해외 공급가</Td><Td>floor10(base × 0.50)</Td></Tr>
+          </tbody>
+        </table>
+        <p className="mt-2 text-xs text-gray-400">* 쿠팡·B2B·사입및페어는 시나리오 미설정 시 'B2B 상시 운영' 자동 적용.</p>
+      </section>
+
+      {/* 9. 채널별 수수료 */}
+      <section>
+        <h2 className="text-base font-bold text-gray-900 mb-3 pb-1 border-b border-gray-200">9. 채널별 기본 수수료율</h2>
+        <table className="w-full border-collapse text-xs">
+          <thead>
+            <tr className="bg-gray-50">
+              <Th>채널</Th>
+              <Th>기본 수수료율</Th>
+              <Th>비고</Th>
+            </tr>
+          </thead>
+          <tbody>
+            <Tr><Td>자사몰</Td><Td>3%</Td><Td></Td></Tr>
+            <Tr><Td>스스</Td><Td>5.5%</Td><Td></Td></Tr>
+            <Tr><Td>위탁</Td><Td>25%</Td><Td></Td></Tr>
+            <Tr><Td>쿠팡</Td><Td>35%</Td><Td></Td></Tr>
+            <Tr><Td>B2B</Td><Td>0%</Td><Td></Td></Tr>
+            <Tr><Td>사입및페어</Td><Td>0%</Td><Td></Td></Tr>
+            <Tr><Td>글로벌</Td><Td>0%</Td><Td></Td></Tr>
+            <Tr><Td>일본</Td><Td>0%</Td><Td></Td></Tr>
+          </tbody>
+        </table>
+        <p className="mt-2 text-xs text-gray-400">* 채널별 수수료율은 프라이싱 탭에서 SKU단위 편집 가능.</p>
+      </section>
+
+    </div>
+  );
+}
+
+function Th({ children }: { children?: React.ReactNode }) {
+  return (
+    <th className="px-3 py-2 text-left text-[11px] font-semibold text-gray-500 border border-gray-200 bg-gray-50">
+      {children}
+    </th>
+  );
+}
+
+function Td({ children }: { children?: React.ReactNode }) {
+  return (
+    <td className="px-3 py-2 text-[11px] text-gray-700 border border-gray-200 align-top">
+      {children}
+    </td>
+  );
+}
+
+function Tr({ children }: { children?: React.ReactNode }) {
+  return <tr className="even:bg-gray-50/40">{children}</tr>;
+}

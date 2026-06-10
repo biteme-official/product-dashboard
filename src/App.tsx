@@ -7,12 +7,13 @@ import { SkuOrderSection } from './components/SkuOrderSection';
 import { MdSummarySection } from './components/MdSummarySection';
 import { BrandFilter } from './components/BrandFilter';
 import { PricingListSection } from './components/PricingListSection';
+import { ManualTab } from './components/ManualTab';
 import { LoginScreen } from './components/LoginScreen';
 import { PinManager } from './components/PinManager';
 import { ConfirmLogModal } from './components/ConfirmLogModal';
 import { parseImportJson, type RawSkuInput } from './utils/importParser';
 
-type MainTab = 'pm' | 'md' | 'pricing';
+type MainTab = 'pm' | 'md' | 'pricing' | 'manual';
 
 interface PendingImport {
   _id: string;
@@ -233,8 +234,19 @@ function App() {
               </button>
             );
           })}
+          <div className="w-px h-5 bg-gray-200 mx-1 self-center" />
+          <button
+            onClick={() => setActiveMainTab('manual')}
+            className={`px-3 py-1.5 text-xs font-medium rounded-t-lg border-b-2 transition-all ${
+              activeMainTab === 'manual'
+                ? 'border-gray-400 text-gray-700 bg-gray-50'
+                : 'border-transparent text-gray-400 hover:text-gray-500 hover:bg-gray-50'
+            }`}
+          >
+            메뉴얼
+          </button>
         </div>
-        {activeMainTab === 'pricing' ? (
+        {activeMainTab === 'manual' ? null : activeMainTab === 'pricing' ? (
           <>
             <CategoryTabs showAll value={pricingCategory} onChange={setPricingCategory} />
             <BrandFilter categoryFilter={pricingCategory} />
@@ -249,7 +261,9 @@ function App() {
 
       {/* 메인 콘텐츠 */}
       <main className="max-w-screen-xl mx-auto">
-        {activeMainTab === 'pricing' ? (
+        {activeMainTab === 'manual' ? (
+          <ManualTab />
+        ) : activeMainTab === 'pricing' ? (
           <PricingListSection pricingCategory={pricingCategory} />
         ) : activeMainTab === 'pm' ? (
           <>
