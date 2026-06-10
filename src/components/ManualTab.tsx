@@ -199,7 +199,7 @@ export function ManualTab() {
             <Tr>
               <Td>CM율</Td>
               <Td>공헌이익 ÷ 순매출 × 100</Td>
-              <Td>≥ 80% 초록 / ≥ 70% 노랑 / &lt; 70% 빨강</Td>
+              <Td>≥ 40% 초록 / ≥ 30% 노랑 / &lt; 30% 빨강</Td>
             </Tr>
           </tbody>
         </table>
@@ -251,7 +251,7 @@ export function ManualTab() {
             <Tr><Td>해외 공급가</Td><Td>floor10(base × 0.50)</Td></Tr>
           </tbody>
         </table>
-        <p className="mt-2 text-xs text-gray-400">* 쿠팡·B2B·사입및페어는 시나리오 미설정 시 'B2B 상시 운영' 자동 적용.</p>
+        <p className="mt-2 text-xs text-gray-400">* 쿠팡·B2B·사입및페어는 시나리오 미설정 시 'B2B 상시 운영' 자동 적용. 글로벌·일본은 '해외 공급가' 자동 적용.</p>
       </section>
 
     </div>

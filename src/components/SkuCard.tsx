@@ -1177,11 +1177,12 @@ function PricingChannelTable({
     });
   };
 
-  // 글로벌·일본 제외 B2B 채널은 'B2B 상시 운영' 기본 전략
   const DEFAULT_OPT: Partial<Record<Channel, string>> = {
     '쿠팡': 'B2B 상시 운영',
     'B2B': 'B2B 상시 운영',
     '사입및페어': 'B2B 상시 운영',
+    '글로벌': '해외 공급가',
+    '일본': '해외 공급가',
   };
 
   const getPricingOpt = (channel: Channel, month: Month) =>
@@ -1232,8 +1233,8 @@ function PricingChannelTable({
 
   const cmBadgeCls = (cm: number | null) => {
     if (cm === null) return 'bg-gray-100 text-gray-400';
-    if (cm >= 80) return 'bg-emerald-100 text-emerald-800';
-    if (cm >= 70) return 'bg-yellow-100 text-yellow-800';
+    if (cm >= 40) return 'bg-emerald-100 text-emerald-800';
+    if (cm >= 30) return 'bg-yellow-100 text-yellow-800';
     return 'bg-red-100 text-red-700';
   };
 
