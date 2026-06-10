@@ -10,7 +10,7 @@ const TABS: TabId[] = ['전체 요약', ...CHANNELS];
 
 export function MdSummarySection() {
   const [activeTab, setActiveTab] = useState<TabId>('전체 요약');
-  const [selectedSkuIds, setSelectedSkuIds] = useState<Set<string> | null>(null); // null = 전체
+  const [selectedSkuIds, setSelectedSkuIds] = useState<Set<string>>(new Set());
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -36,44 +36,40 @@ export function MdSummarySection() {
 
   // 카테고리/브랜드 필터 변경 시 SKU 선택 초기화
   useEffect(() => {
-    setSelectedSkuIds(null);
+    setSelectedSkuIds(new Set());
   }, [activeCategory, activeBrand]);
 
   const visibleSkus = categoryFiltered.filter((s) =>
     searchQuery === '' || s.name.toLowerCase().includes(searchQuery.toLowerCase()),
   );
 
-  const filtered = selectedSkuIds === null
+  // 빈 Set = 필터 없음(전체 표시), 값 있으면 해당 SKU만 표시
+  const filtered = selectedSkuIds.size === 0
     ? categoryFiltered
     : categoryFiltered.filter((s) => selectedSkuIds.has(s.id));
 
-  const allSelected = selectedSkuIds === null || selectedSkuIds.size === categoryFiltered.length;
-  const selectedCount = selectedSkuIds === null ? categoryFiltered.length : selectedSkuIds.size;
+  const allSelected = selectedSkuIds.size === categoryFiltered.length && categoryFiltered.length > 0;
 
   function toggleAll() {
-    setSelectedSkuIds(null);
-  }
-
-  function toggleSku(id: string) {
-    if (selectedSkuIds === null) {
-      // 전체 선택 상태에서 하나 해제 → 나머지 전부 선택
-      const next = new Set(categoryFiltered.map((s) => s.id));
-      next.delete(id);
-      setSelectedSkuIds(next.size === categoryFiltered.length ? null : next);
+    if (allSelected) {
+      setSelectedSkuIds(new Set());
     } else {
-      const next = new Set(selectedSkuIds);
-      if (next.has(id)) {
-        next.delete(id);
-        setSelectedSkuIds(next.size === 0 ? null : next);
-      } else {
-        next.add(id);
-        setSelectedSkuIds(next.size === categoryFiltered.length ? null : next);
-      }
+      setSelectedSkuIds(new Set(categoryFiltered.map((s) => s.id)));
     }
   }
 
+  function toggleSku(id: string) {
+    const next = new Set(selectedSkuIds);
+    if (next.has(id)) {
+      next.delete(id);
+    } else {
+      next.add(id);
+    }
+    setSelectedSkuIds(next);
+  }
+
   function isSkuSelected(id: string) {
-    return selectedSkuIds === null || selectedSkuIds.has(id);
+    return selectedSkuIds.has(id);
   }
 
   return (
@@ -105,9 +101,11 @@ export function MdSummarySection() {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
           <span>
-            {allSelected
+            {selectedSkuIds.size === 0
               ? `SKU 전체 (${categoryFiltered.length})`
-              : `SKU ${selectedCount}개 선택`}
+              : allSelected
+                ? `SKU 전체 선택 (${categoryFiltered.length})`
+                : `SKU ${selectedSkuIds.size}개 선택`}
           </span>
           <svg className={`w-3 h-3 text-gray-400 transition-transform ${dropdownOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
