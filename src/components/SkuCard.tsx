@@ -568,6 +568,7 @@ function MonthlyTable({
     });
   }
   const updateMonthlyQty = useStore((s) => s.updateMonthlyQty);
+  const updateMonthlySplit = useStore((s) => s.updateMonthlySplit);
   const batchInitChannelMonthQty = useStore((s) => s.batchInitChannelMonthQty);
   const persistSku = useStore((s) => s.persistSku);
   const { role } = useAuth();
@@ -787,32 +788,62 @@ function MonthlyTable({
               </td>
             </tr>
 
-            {/* 비중 행 — 월별 수량 / 총 수량 */}
+            {/* 비중 행 — 입력 가능, 비중 입력 시 수량 자동 계산 */}
             <tr className="border-b border-gray-100">
-              <td className="px-3 py-2 text-gray-400 font-medium whitespace-nowrap text-[11px]">비중</td>
+              <td className="px-3 py-2 text-gray-400 font-medium whitespace-nowrap text-[11px]">
+                <div>비중</div>
+                <div className="text-[10px] text-gray-300 leading-tight">→ 수량</div>
+              </td>
               {MONTHS.map((m) => {
                 const ms = sku.monthlySplit.find((x) => x.month === m)!;
                 const disabled = isDisabled(m);
-                const pct = !disabled && totalQty > 0
-                  ? Math.round((ms.quantity / totalQty) * 100)
-                  : null;
+                const derivedQty = sku.totalOrderQty > 0
+                  ? Math.round(sku.totalOrderQty * ms.ratio / 100)
+                  : 0;
                 return (
-                  <td key={m} className={`px-2 py-2 text-center tabular-nums ${IS_NEXT_YEAR[m] ? 'bg-blue-50/20' : ''}`}>
-                    {pct === null || ms.quantity === 0 ? (
-                      <span className="text-gray-300">–</span>
+                  <td key={m} className={`px-1 py-1 ${IS_NEXT_YEAR[m] ? 'bg-blue-50/20' : ''}`}>
+                    {disabled ? (
+                      <div className="text-center text-gray-300">–</div>
                     ) : (
-                      <span className="text-gray-500 text-[11px]">{pct}%</span>
+                      <div className="flex flex-col gap-0.5">
+                        <div className="relative flex items-center">
+                          <NumericInput
+                            value={ms.ratio}
+                            onChange={(val) => updateMonthlySplit(sku.id, m, val)}
+                            onBlur={() => persistSku(sku.id)}
+                            disabled={step1ReadOnly}
+                            placeholder="0"
+                            className={`w-full text-center rounded px-1 py-1 border border-gray-200 focus:outline-none focus:ring-1 focus:ring-indigo-400 text-[11px] ${
+                              step1ReadOnly ? 'bg-gray-50 text-gray-400 cursor-not-allowed' : 'bg-white'
+                            }`}
+                          />
+                          <span className="absolute right-1.5 text-[10px] text-gray-400 pointer-events-none">%</span>
+                        </div>
+                        <div className="text-center text-[10px] text-indigo-500 tabular-nums">
+                          {derivedQty > 0 ? derivedQty.toLocaleString() : <span className="text-gray-300">–</span>}
+                        </div>
+                      </div>
                     )}
                   </td>
                 );
               })}
-              <td className="px-2 py-2 text-center text-indigo-600 text-[11px] bg-indigo-50/50 tabular-nums whitespace-nowrap">
-                {totalQty > 0 && fy26Qty > 0
-                  ? `${Math.round((fy26Qty / totalQty) * 100)}%`
-                  : <span className="text-gray-300">–</span>}
+              <td className="px-2 py-2 text-center bg-indigo-50/50 tabular-nums whitespace-nowrap">
+                <div className="text-indigo-600 text-[11px]">
+                  {totalQty > 0 && fy26Qty > 0
+                    ? `${Math.round((fy26Qty / totalQty) * 100)}%`
+                    : <span className="text-gray-300">–</span>}
+                </div>
+                <div className="text-[10px] text-indigo-400">
+                  {fy26Qty > 0 ? fy26Qty.toLocaleString() : <span className="text-gray-300">–</span>}
+                </div>
               </td>
-              <td className="px-2 py-2 text-center text-gray-400 text-[11px] bg-gray-50">
-                {totalQty > 0 ? '100%' : <span className="text-gray-300">–</span>}
+              <td className="px-2 py-2 text-center bg-gray-50 tabular-nums">
+                <div className="text-gray-400 text-[11px]">
+                  {totalQty > 0 ? '100%' : <span className="text-gray-300">–</span>}
+                </div>
+                <div className="text-[10px] text-gray-400">
+                  {totalQty > 0 ? totalQty.toLocaleString() : <span className="text-gray-300">–</span>}
+                </div>
               </td>
             </tr>
 
