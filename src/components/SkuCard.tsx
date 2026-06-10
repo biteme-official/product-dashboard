@@ -1619,7 +1619,7 @@ function PricingChannelTable({
           </tr>
           <tr className="border-t border-gray-100">
             <td colSpan={7} className="px-3 py-1.5 text-[10px] text-gray-400">
-              실매출단가 = ∑(월수량×시나리오가격) ÷ 총수량 · 공헌이익 = 순매출 − 변동비(25%) − 원가×수량
+              실매출단가 = ∑(월수량×시나리오가격) ÷ 총수량 &nbsp;·&nbsp; 공헌이익 = 순매출 − 변동비 − 원가×수량 &nbsp;*변동비는 해당 카테고리의 대응SKU 동기간 평균 변동비 비중으로 계산됩니다. 대응SKU 없을 시 25%로 임의계산됩니다.
             </td>
           </tr>
         </tfoot>

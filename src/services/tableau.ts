@@ -103,7 +103,17 @@ function parseCSV(csv: string): Array<{ skuName: string; monthNum: number; year:
 }
 
 // 채널 차트·집계에서 제외할 채널
-const EXCLUDED_CHANNELS = new Set(['협찬', '기타', 'CS']);
+const EXCLUDED_CHANNELS = new Set(['협찬', '기타', 'CS', '공구', '팝업']);
+
+// Tableau 채널명 → 앱 채널명 정규화 (string[] = 복수 채널에 동일 수량 각각 반영)
+const TABLEAU_CHANNEL_NORMALIZE: Record<string, string | string[]> = {
+  'SSFW 스스':    '스스',
+  'SSFW 자사몰':  '스스',
+  '바잇미 자사몰': '자사몰',
+  '사입':         '사입및페어',
+  '페어':         '사입및페어',
+  '해외':         ['글로벌', '일본'],
+};
 
 // ── 채널별 데이터 타입 ───────────────────────────────────────────────────
 /** channel → year → month → qty */
@@ -170,11 +180,15 @@ async function loadChannelData(retry = true): Promise<ChannelDataMap> {
   const rows = parseChannelCSV(await res.text());
   const map: ChannelDataMap = new Map();
   for (const r of rows) {
+    const normalized = TABLEAU_CHANNEL_NORMALIZE[r.channel] ?? r.channel;
+    const targets = Array.isArray(normalized) ? normalized : [normalized];
     if (!map.has(r.skuName)) map.set(r.skuName, {});
     const byCh = map.get(r.skuName)!;
-    if (!byCh[r.channel]) byCh[r.channel] = {};
-    if (!byCh[r.channel][r.year]) byCh[r.channel][r.year] = {};
-    byCh[r.channel][r.year][r.monthNum] = (byCh[r.channel][r.year][r.monthNum] ?? 0) + r.qty;
+    for (const ch of targets) {
+      if (!byCh[ch]) byCh[ch] = {};
+      if (!byCh[ch][r.year]) byCh[ch][r.year] = {};
+      byCh[ch][r.year][r.monthNum] = (byCh[ch][r.year][r.monthNum] ?? 0) + r.qty;
+    }
   }
   return map;
 }
