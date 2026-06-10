@@ -1,20 +1,18 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useStore } from './store';
 import { useAuth } from './store/auth';
-import type { SkuData } from './types';
+import type { Category, SkuData } from './types';
 import { CategoryTabs } from './components/CategoryTabs';
 import { SkuOrderSection } from './components/SkuOrderSection';
-import { MonthlySalesSection } from './components/MonthlySalesSection';
-import { ChannelSimSection } from './components/ChannelSimSection';
-import { RevenueChartSection } from './components/RevenueChartSection';
-import { MdViewSection } from './components/MdViewSection';
-import { MdSimSection } from './components/MdSimSection';
+import { MdSummarySection } from './components/MdSummarySection';
 import { BrandFilter } from './components/BrandFilter';
+import { PricingListSection } from './components/PricingListSection';
 import { LoginScreen } from './components/LoginScreen';
 import { PinManager } from './components/PinManager';
+import { ConfirmLogModal } from './components/ConfirmLogModal';
 import { parseImportJson, type RawSkuInput } from './utils/importParser';
 
-type MainTab = 'pm' | 'md';
+type MainTab = 'pm' | 'md' | 'pricing';
 
 interface PendingImport {
   _id: string;
@@ -37,8 +35,10 @@ function App() {
   const [pending, setPending] = useState<PendingImport | null>(null);
   const [importState, setImportState] = useState<'idle' | 'done' | 'error'>('idle');
   const [showPinManager, setShowPinManager] = useState(false);
+  const [showConfirmLog, setShowConfirmLog] = useState(false);
   const [backupState, setBackupState] = useState<'idle' | 'done' | 'error'>('idle');
   const [activeMainTab, setActiveMainTab] = useState<MainTab>('pm');
+  const [pricingCategory, setPricingCategory] = useState<Category | '전체'>('전체');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   function handleExport() {
@@ -111,10 +111,11 @@ function App() {
   return (
     <div className="min-h-screen bg-gray-50">
       {showPinManager && <PinManager onClose={() => setShowPinManager(false)} />}
+      {showConfirmLog && <ConfirmLogModal onClose={() => setShowConfirmLog(false)} />}
       {/* 헤더 */}
       <header className="bg-white border-b border-gray-200 px-3 sm:px-6 py-3 flex items-center gap-2 flex-wrap">
         <div>
-          <h1 className="text-base font-bold text-gray-900 leading-tight">MD Dashboard</h1>
+          <h1 className="text-base font-bold text-gray-900 leading-tight">Product Dashboard</h1>
           <p className="text-xs text-gray-400 hidden sm:block">발주량 시뮬레이션 &amp; 월별 판매 계획</p>
         </div>
 
@@ -156,16 +157,25 @@ function App() {
               {backupState === 'error' && (
                 <span className="text-xs text-red-500">복원 실패</span>
               )}
+
             </>
           )}
 
           {role === 'master' && (
-            <button
-              onClick={() => setShowPinManager(true)}
-              className="text-xs px-2.5 py-1 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-100 transition-colors"
-            >
-              ⚙ PIN 관리
-            </button>
+            <>
+              <button
+                onClick={() => setShowConfirmLog(true)}
+                className="text-xs px-2.5 py-1 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-100 transition-colors"
+              >
+                확정 로그
+              </button>
+              <button
+                onClick={() => setShowPinManager(true)}
+                className="text-xs px-2.5 py-1 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-100 transition-colors"
+              >
+                ⚙ PIN 관리
+              </button>
+            </>
           )}
           <button
             onClick={logout}
@@ -201,15 +211,18 @@ function App() {
 
       {/* PM / MD 탭 + 카테고리 탭 + 브랜드 필터 (sticky) */}
       <div className="sticky top-0 z-10 bg-white shadow-sm">
-        {/* 최상단: PM / MD 탭 */}
+        {/* 최상단: PM / MD / 프라이싱 탭 */}
         <div className="flex items-center gap-1 px-3 pt-2 pb-0 border-b border-gray-100">
-          {(['pm', 'md'] as MainTab[]).map((tab) => {
-            const label = tab === 'pm' ? 'PM 뷰' : 'MD 뷰';
-            const isActive = activeMainTab === tab;
+          {([
+            { key: 'pm', label: 'SKU 리스트' },
+            { key: 'md', label: '채널별 요약' },
+            { key: 'pricing', label: '프라이싱' },
+          ] as { key: MainTab; label: string }[]).map(({ key, label }) => {
+            const isActive = activeMainTab === key;
             return (
               <button
-                key={tab}
-                onClick={() => setActiveMainTab(tab)}
+                key={key}
+                onClick={() => setActiveMainTab(key)}
                 className={`px-4 py-1.5 text-sm font-semibold rounded-t-lg border-b-2 transition-all ${
                   isActive
                     ? 'border-indigo-600 text-indigo-700 bg-indigo-50/60'
@@ -221,66 +234,32 @@ function App() {
             );
           })}
         </div>
-        <CategoryTabs />
-        <BrandFilter />
+        {activeMainTab === 'pricing' ? (
+          <>
+            <CategoryTabs showAll value={pricingCategory} onChange={setPricingCategory} />
+            <BrandFilter categoryFilter={pricingCategory} />
+          </>
+        ) : (
+          <>
+            <CategoryTabs />
+            <BrandFilter />
+          </>
+        )}
       </div>
 
       {/* 메인 콘텐츠 */}
       <main className="max-w-screen-xl mx-auto">
-        {activeMainTab === 'pm' ? (
+        {activeMainTab === 'pricing' ? (
+          <PricingListSection pricingCategory={pricingCategory} />
+        ) : activeMainTab === 'pm' ? (
           <>
             {/* Section A */}
             <SkuOrderSection />
-
-            <div className="mx-4 my-2 flex items-center gap-3">
-              <div className="flex-1 border-t border-gray-200" />
-              <span className="text-xs text-gray-400 bg-gray-50 px-3 py-1 rounded-full border border-gray-200">
-                월별 시뮬레이션
-              </span>
-              <div className="flex-1 border-t border-gray-200" />
-            </div>
-
-            {/* Section B */}
-            <MonthlySalesSection />
-
-            <div className="mx-4 my-2 flex items-center gap-3">
-              <div className="flex-1 border-t border-gray-200" />
-              <span className="text-xs text-gray-400 bg-gray-50 px-3 py-1 rounded-full border border-gray-200">
-                채널 시뮬레이션
-              </span>
-              <div className="flex-1 border-t border-gray-200" />
-            </div>
-
-            {/* Section C */}
-            <ChannelSimSection />
           </>
         ) : (
-          <>
-            {/* MD 탭: 채널×월 통합 시뮬레이션 */}
-            <MdSimSection />
-
-            <div className="mx-4 my-2 flex items-center gap-3">
-              <div className="flex-1 border-t border-gray-200" />
-              <span className="text-xs text-gray-400 bg-gray-50 px-3 py-1 rounded-full border border-gray-200">
-                MD 요약
-              </span>
-              <div className="flex-1 border-t border-gray-200" />
-            </div>
-
-            {/* MD 탭: 요약 뷰 */}
-            <MdViewSection />
-
-            <div className="mx-4 my-2 flex items-center gap-3">
-              <div className="flex-1 border-t border-gray-200" />
-              <span className="text-xs text-gray-400 bg-gray-50 px-3 py-1 rounded-full border border-gray-200">
-                매출 차트
-              </span>
-              <div className="flex-1 border-t border-gray-200" />
-            </div>
-
-            {/* MD 탭: 채널별 월별 매출 현황 */}
-            <RevenueChartSection />
-          </>
+          <div className="px-4 py-4">
+            <MdSummarySection />
+          </div>
         )}
       </main>
     </div>
