@@ -351,7 +351,7 @@ export function SizeDistColumn({ sku, readOnly }: Props) {
   );
 }
 
-// ── STEP2 MD 수정 목표량 기준 옵션별 발주량 테이블 ──
+// ── MD 채널별 목표량 반영 옵션별 발주량 테이블 ──
 function Step2OrderTable({ sku, sumRatios }: { sku: SkuData; sumRatios: number }) {
   const { updateStep2OptionQty, persistSku } = useStore();
   // 부모 리렌더 지연 없이 channelMonthQty/step2OptionQty 변경 즉시 반영
@@ -436,7 +436,7 @@ function Step2OrderTable({ sku, sumRatios }: { sku: SkuData; sumRatios: number }
 
   const tableHeader = (
     <div className="flex items-center justify-between mb-1">
-      <label className="text-xs text-gray-500 font-medium">STEP2 MD 수정 목표량 기준 옵션별 발주량</label>
+      <label className="text-xs text-gray-500 font-medium">MD 채널별 목표량 반영 옵션별 발주량</label>
       <div className="flex items-center gap-1">
         <button
           onClick={resetToComputed}
@@ -479,11 +479,11 @@ function Step2OrderTable({ sku, sumRatios }: { sku: SkuData; sumRatios: number }
           <table className="w-full text-xs border-collapse">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200">
-                <th className="px-2 py-1.5 text-left font-semibold text-gray-500 border-r border-gray-200 min-w-[60px]">컬러</th>
+                <th className="px-2 py-1 text-left font-medium text-gray-400 border-r border-gray-200 min-w-[60px]">컬러</th>
                 {activeSizes.map((s) => (
-                  <th key={s.label} className="px-2 py-1.5 text-center font-semibold text-indigo-600 border-r border-gray-200 last:border-r-0 min-w-[44px]">{s.label}</th>
+                  <th key={s.label} className="px-2 py-1 text-center font-medium text-gray-400 border-r border-gray-200 last:border-r-0 min-w-[44px]">{s.label}</th>
                 ))}
-                <th className="px-2 py-1.5 text-center font-semibold text-gray-500 min-w-[52px]">합계</th>
+                <th className="px-2 py-1 text-center font-medium text-gray-400 min-w-[52px]">합계</th>
               </tr>
             </thead>
             <tbody>
@@ -491,19 +491,19 @@ function Step2OrderTable({ sku, sumRatios }: { sku: SkuData; sumRatios: number }
                 const rowTotal = activeSizes.reduce((sum, s) => sum + getDraftCS(color.id, color.quantity, s.label, s.ratio), 0);
                 return (
                   <tr key={color.id} className={`border-b border-gray-100 last:border-b-0 ${rowIdx % 2 === 0 ? 'bg-white' : 'bg-gray-50/40'}`}>
-                    <td className="px-2 py-1.5 border-r border-gray-200 font-medium text-gray-700 truncate max-w-[60px]">
+                    <td className="px-2 py-1 border-r border-gray-200 text-gray-600 truncate max-w-[60px]">
                       {color.name || <span className="text-gray-300">(미입력)</span>}
                     </td>
                     {activeSizes.map((s) => {
                       const key = csKey(color.id, s.label);
                       const qty = getDraftCS(color.id, color.quantity, s.label, s.ratio);
                       return (
-                        <td key={s.label} className="px-1 py-1 text-center text-gray-600 border-r border-gray-100 tabular-nums">
+                        <td key={s.label} className="px-1 py-1 text-center text-gray-500 border-r border-gray-100 tabular-nums">
                           {isEditing ? editInput(key, dispCS(color.id, color.quantity, s.label, s.ratio)) : (qty > 0 ? qty.toLocaleString() : <span className="text-gray-300">0</span>)}
                         </td>
                       );
                     })}
-                    <td className="px-2 py-1.5 text-center font-semibold text-indigo-700 tabular-nums">
+                    <td className="px-2 py-1 text-center font-medium text-gray-600 tabular-nums">
                       {rowTotal > 0 ? rowTotal.toLocaleString() : <span className="text-gray-300">0</span>}
                     </td>
                   </tr>
@@ -511,14 +511,14 @@ function Step2OrderTable({ sku, sumRatios }: { sku: SkuData; sumRatios: number }
               })}
             </tbody>
             <tfoot>
-              <tr className="bg-indigo-50 border-t-2 border-indigo-200">
-                <td className="px-2 py-1.5 text-xs font-semibold text-indigo-700 border-r border-indigo-200">합계</td>
+              <tr className="bg-gray-50 border-t border-gray-200">
+                <td className="px-2 py-1 text-xs font-semibold text-gray-500 border-r border-gray-200">합계</td>
                 {colTotals.map((total, i) => (
-                  <td key={activeSizes[i].label} className="px-2 py-1.5 text-center text-xs font-semibold text-indigo-700 border-r border-indigo-100 tabular-nums">
-                    {total > 0 ? total.toLocaleString() : <span className="text-indigo-300">0</span>}
+                  <td key={activeSizes[i].label} className="px-2 py-1 text-center text-xs font-semibold text-gray-600 border-r border-gray-100 tabular-nums">
+                    {total > 0 ? total.toLocaleString() : <span className="text-gray-300">0</span>}
                   </td>
                 ))}
-                <td className="px-2 py-1.5 text-center text-xs font-bold text-indigo-700 tabular-nums">{grandTotal.toLocaleString()}</td>
+                <td className="px-2 py-1 text-center text-xs font-semibold text-gray-600 tabular-nums">{grandTotal.toLocaleString()}</td>
               </tr>
             </tfoot>
           </table>
@@ -538,8 +538,8 @@ function Step2OrderTable({ sku, sumRatios }: { sku: SkuData; sumRatios: number }
           <table className="w-full text-xs border-collapse">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200">
-                <th className="px-2 py-1.5 text-left font-semibold text-gray-500 border-r border-gray-200">컬러</th>
-                <th className="px-2 py-1.5 text-center font-semibold text-indigo-600">수량</th>
+                <th className="px-2 py-1 text-left font-medium text-gray-400 border-r border-gray-200">컬러</th>
+                <th className="px-2 py-1 text-center font-medium text-gray-400">수량</th>
               </tr>
             </thead>
             <tbody>
@@ -548,10 +548,10 @@ function Step2OrderTable({ sku, sumRatios }: { sku: SkuData; sumRatios: number }
                 const qty = getDraftC(color.id, color.quantity);
                 return (
                   <tr key={color.id} className={`border-b border-gray-100 last:border-b-0 ${rowIdx % 2 === 0 ? 'bg-white' : 'bg-gray-50/40'}`}>
-                    <td className="px-2 py-1.5 border-r border-gray-200 font-medium text-gray-700">
+                    <td className="px-2 py-1 border-r border-gray-200 text-gray-600">
                       {color.name || <span className="text-gray-300">(미입력)</span>}
                     </td>
-                    <td className="px-1 py-1 text-center text-gray-600 tabular-nums">
+                    <td className="px-1 py-1 text-center text-gray-500 tabular-nums">
                       {isEditing ? editInput(key, dispC(color.id, color.quantity)) : (qty > 0 ? qty.toLocaleString() : <span className="text-gray-300">0</span>)}
                     </td>
                   </tr>
@@ -559,9 +559,9 @@ function Step2OrderTable({ sku, sumRatios }: { sku: SkuData; sumRatios: number }
               })}
             </tbody>
             <tfoot>
-              <tr className="bg-indigo-50 border-t-2 border-indigo-200">
-                <td className="px-2 py-1.5 text-xs font-semibold text-indigo-700 border-r border-indigo-200">합계</td>
-                <td className="px-2 py-1.5 text-center text-xs font-bold text-indigo-700 tabular-nums">{grandTotal.toLocaleString()}</td>
+              <tr className="bg-gray-50 border-t border-gray-200">
+                <td className="px-2 py-1 text-xs font-semibold text-gray-500 border-r border-gray-200">합계</td>
+                <td className="px-2 py-1 text-center text-xs font-semibold text-gray-600 tabular-nums">{grandTotal.toLocaleString()}</td>
               </tr>
             </tfoot>
           </table>
@@ -581,26 +581,26 @@ function Step2OrderTable({ sku, sumRatios }: { sku: SkuData; sumRatios: number }
         <table className="w-full text-xs border-collapse">
           <thead>
             <tr className="bg-gray-50 border-b border-gray-200">
-              <th className="px-2 py-1.5 text-left font-semibold text-gray-500 border-r border-gray-200 w-[52px]"></th>
+              <th className="px-2 py-1 text-left font-medium text-gray-400 border-r border-gray-200 w-[52px]"></th>
               {activeSizes.map((s) => (
-                <th key={s.label} className="px-2 py-1.5 text-center font-semibold text-indigo-600 border-r border-gray-200 last:border-r-0 min-w-[44px]">{s.label}</th>
+                <th key={s.label} className="px-2 py-1 text-center font-medium text-gray-400 border-r border-gray-200 last:border-r-0 min-w-[44px]">{s.label}</th>
               ))}
-              <th className="px-2 py-1.5 text-center font-semibold text-gray-500 min-w-[52px]">합계</th>
+              <th className="px-2 py-1 text-center font-medium text-gray-400 min-w-[52px]">합계</th>
             </tr>
           </thead>
           <tbody>
             <tr className="border-b border-gray-100">
-              <td className="px-2 py-1.5 border-r border-gray-200 font-medium text-gray-600">수량</td>
+              <td className="px-2 py-1 border-r border-gray-200 text-gray-600">수량</td>
               {activeSizes.map((s) => {
                 const key = sKey(s.label);
                 const qty = getDraftS(s.label, s.ratio);
                 return (
-                  <td key={s.label} className="px-1 py-1 text-center text-gray-600 border-r border-gray-100 tabular-nums">
+                  <td key={s.label} className="px-1 py-1 text-center text-gray-500 border-r border-gray-100 tabular-nums">
                     {isEditing ? editInput(key, dispS(s.label, s.ratio)) : (qty > 0 ? qty.toLocaleString() : <span className="text-gray-300">0</span>)}
                   </td>
                 );
               })}
-              <td className="px-2 py-1.5 text-center font-semibold text-indigo-700 tabular-nums">{sizeGrandTotal.toLocaleString()}</td>
+              <td className="px-2 py-1 text-center font-medium text-gray-600 tabular-nums">{sizeGrandTotal.toLocaleString()}</td>
             </tr>
           </tbody>
         </table>
@@ -628,26 +628,23 @@ function ColorSizeResultTable({ sku, sumRatios }: { sku: SkuData; sumRatios: num
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-1.5">
-        <label className="text-xs text-gray-500">컬러 × 사이즈 수량 결과</label>
-        <div className="flex items-center gap-1.5">
-          <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">자동 계산</span>
-          <CopyButton sku={sku} />
-        </div>
+      <div className="flex items-center justify-between mb-1">
+        <label className="text-xs text-gray-400">옵션별 발주량 (기본)</label>
+        <CopyButton sku={sku} />
       </div>
       <div className="overflow-x-auto rounded-lg border border-gray-200">
         <table className="w-full text-xs border-collapse">
           <thead>
             <tr className="bg-gray-50 border-b border-gray-200">
-              <th className="px-2 py-1.5 text-left font-semibold text-gray-500 border-r border-gray-200 min-w-[60px]">
+              <th className="px-2 py-1 text-left font-medium text-gray-400 border-r border-gray-200 min-w-[60px]">
                 컬러
               </th>
               {activeSizes.map((s) => (
-                <th key={s.label} className="px-2 py-1.5 text-center font-semibold text-indigo-600 border-r border-gray-200 last:border-r-0 min-w-[44px]">
+                <th key={s.label} className="px-2 py-1 text-center font-medium text-gray-400 border-r border-gray-200 last:border-r-0 min-w-[44px]">
                   {s.label}
                 </th>
               ))}
-              <th className="px-2 py-1.5 text-center font-semibold text-gray-500 min-w-[52px]">
+              <th className="px-2 py-1 text-center font-medium text-gray-400 min-w-[52px]">
                 합계
               </th>
             </tr>
@@ -660,34 +657,34 @@ function ColorSizeResultTable({ sku, sumRatios }: { sku: SkuData; sumRatios: num
                   rowIdx % 2 === 0 ? 'bg-white' : 'bg-gray-50/40'
                 }`}
               >
-                <td className="px-2 py-1.5 border-r border-gray-200 font-medium text-gray-700 truncate max-w-[60px]">
+                <td className="px-2 py-1 border-r border-gray-200 text-gray-600 truncate max-w-[60px]">
                   {color.name || <span className="text-gray-300">(미입력)</span>}
                 </td>
                 {activeSizes.map((s) => {
                   const qty = cellQty(color.quantity, s.ratio);
                   return (
-                    <td key={s.label} className="px-2 py-1.5 text-center text-gray-600 border-r border-gray-100 tabular-nums">
+                    <td key={s.label} className="px-2 py-1 text-center text-gray-500 border-r border-gray-100 tabular-nums">
                       {qty > 0 ? qty.toLocaleString() : <span className="text-gray-300">0</span>}
                     </td>
                   );
                 })}
-                <td className="px-2 py-1.5 text-center font-semibold text-indigo-700 tabular-nums">
+                <td className="px-2 py-1 text-center font-medium text-gray-600 tabular-nums">
                   {color.quantity > 0 ? color.quantity.toLocaleString() : <span className="text-gray-300">0</span>}
                 </td>
               </tr>
             ))}
           </tbody>
           <tfoot>
-            <tr className="bg-indigo-50 border-t-2 border-indigo-200">
-              <td className="px-2 py-1.5 text-xs font-semibold text-indigo-700 border-r border-indigo-200">
+            <tr className="bg-gray-50 border-t border-gray-200">
+              <td className="px-2 py-1 text-xs font-semibold text-gray-500 border-r border-gray-200">
                 합계
               </td>
               {colTotals.map((total, i) => (
-                <td key={activeSizes[i].label} className="px-2 py-1.5 text-center text-xs font-semibold text-indigo-700 border-r border-indigo-100 tabular-nums">
-                  {total > 0 ? total.toLocaleString() : <span className="text-indigo-300">0</span>}
+                <td key={activeSizes[i].label} className="px-2 py-1 text-center text-xs font-semibold text-gray-600 border-r border-gray-100 tabular-nums">
+                  {total > 0 ? total.toLocaleString() : <span className="text-gray-300">0</span>}
                 </td>
               ))}
-              <td className="px-2 py-1.5 text-center text-xs font-bold text-indigo-700 tabular-nums">
+              <td className="px-2 py-1 text-center text-xs font-semibold text-gray-600 tabular-nums">
                 {grandTotal > 0 ? grandTotal.toLocaleString() : '0'}
               </td>
             </tr>
