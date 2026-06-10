@@ -203,7 +203,43 @@ export function ManualTab() {
             </Tr>
           </tbody>
         </table>
-        <p className="text-xs text-gray-400">* 변동비 비중은 수수료를 포함한 Tableau 실적 데이터 기반 역산값입니다. 수수료를 별도 반영하지 않습니다.</p>
+        <p className="text-xs text-gray-400 mb-4">* 변동비 비중은 수수료를 포함한 Tableau 실적 데이터 기반 역산값입니다. 수수료를 별도 반영하지 않습니다.</p>
+
+        <p className="text-xs font-semibold text-gray-600 mb-2">채널 토글 펼침 — 월별 상세 테이블</p>
+        <table className="w-full border-collapse text-xs mb-2">
+          <thead>
+            <tr className="bg-gray-50">
+              <Th>행</Th>
+              <Th>설명</Th>
+            </tr>
+          </thead>
+          <tbody>
+            <Tr>
+              <Td>대응SKU 비교 (회색)</Td>
+              <Td>대응SKU의 채널×월 출고량 표시. 스큐카드 상단 기간 설정에 따라 '직전 12개월' 또는 '동기간' 데이터 사용. 참고용으로만 표시되며 계산에 영향 없음</Td>
+            </Tr>
+            <Tr>
+              <Td>목표 수량 입력</Td>
+              <Td>월별 목표 수량 직접 입력. 입력칸 우측에 대응SKU 대비 증감율(소수점 1자리) 표시</Td>
+            </Tr>
+            <Tr>
+              <Td>판매가 설정</Td>
+              <Td>월별 판매가 시나리오 선택. 채널·월별 개별 설정 가능. 일괄반영 버튼으로 전체 월에 동일 시나리오 적용 가능</Td>
+            </Tr>
+            <Tr>
+              <Td>실 판매가</Td>
+              <Td>시나리오 적용 후 KRW 판매가 표시. 글로벌·일본 공급가 시나리오 선택 시 KRW 아래 외화 금액 (USD $ / JPY ¥) 추가 표시</Td>
+            </Tr>
+            <Tr>
+              <Td>예상 순매출 (파란색)</Td>
+              <Td>실 판매가 ÷ 1.1 × 월 수량. FY26(7–12월) 합계 / FY27(1–2월) 합계 별도 표시</Td>
+            </Tr>
+            <Tr>
+              <Td>예상 공헌이익 (초록색)</Td>
+              <Td>순매출 × (1 − 변동비 비중) − 원가 × 수량. FY26/FY27 합계 별도 표시</Td>
+            </Tr>
+          </tbody>
+        </table>
       </section>
 
       {/* 7. STEP3 */}
@@ -234,24 +270,55 @@ export function ManualTab() {
           <thead>
             <tr className="bg-gray-50">
               <Th>시나리오</Th>
-              <Th>계산식</Th>
+              <Th>계산식 (KRW)</Th>
+              <Th>외화 보조 표시</Th>
             </tr>
           </thead>
           <tbody>
-            <Tr><Td>오픈특가</Td><Td>calcOpenSpecialPrice(base)   =   floor((floor10(base × 0.80) − 901) ÷ 1000) × 1000 + 900</Td></Tr>
-            <Tr><Td>신상위크</Td><Td>max(0, 오픈특가 − 1,000)</Td></Tr>
-            <Tr><Td>신상위크 라이브</Td><Td>max(0, 오픈특가 − 2,000)</Td></Tr>
-            <Tr><Td>선단독</Td><Td>max(0, 오픈특가 − 1,000)</Td></Tr>
-            <Tr><Td>상시 최대할인율</Td><Td>floor10(base × 0.85)</Td></Tr>
-            <Tr><Td>특가 최대할인율</Td><Td>floor10(base × 0.80)</Td></Tr>
-            <Tr><Td>시즌오프 (의류전용)</Td><Td>floor10(base × 0.75)</Td></Tr>
-            <Tr><Td>B2B 오픈 할인</Td><Td>floor10(base × 0.65 × 0.90)</Td></Tr>
-            <Tr><Td>B2B 상시 운영</Td><Td>floor10(base × 0.65)</Td></Tr>
-            <Tr><Td>사입 공급가</Td><Td>floor10(base × 0.50)</Td></Tr>
-            <Tr><Td>해외 공급가</Td><Td>floor10(base × 0.50)</Td></Tr>
+            <Tr><Td>오픈특가</Td><Td>calcOpenSpecialPrice(base)   =   floor((floor10(base × 0.80) − 901) ÷ 1000) × 1000 + 900</Td><Td>—</Td></Tr>
+            <Tr><Td>신상위크</Td><Td>max(0, 오픈특가 − 1,000)</Td><Td>—</Td></Tr>
+            <Tr><Td>신상위크 라이브</Td><Td>max(0, 오픈특가 − 2,000)</Td><Td>—</Td></Tr>
+            <Tr><Td>선단독</Td><Td>max(0, 오픈특가 − 1,000)</Td><Td>—</Td></Tr>
+            <Tr><Td>상시 최대할인율</Td><Td>floor10(base × 0.85)</Td><Td>—</Td></Tr>
+            <Tr><Td>특가 최대할인율</Td><Td>floor10(base × 0.80)</Td><Td>—</Td></Tr>
+            <Tr><Td>시즌오프 (의류전용)</Td><Td>floor10(base × 0.75)</Td><Td>—</Td></Tr>
+            <Tr><Td>B2B 오픈 할인</Td><Td>floor10(base × 0.65 × 0.90)</Td><Td>—</Td></Tr>
+            <Tr><Td>B2B 상시 운영</Td><Td>floor10(base × 0.65)</Td><Td>—</Td></Tr>
+            <Tr><Td>사입 공급가</Td><Td>floor10(base × 0.50)</Td><Td>—</Td></Tr>
+            <Tr>
+              <Td>글로벌 공급가</Td>
+              <Td>floor10( (base ÷ 1250 × 1.6) ÷ 2 × USD환율 )</Td>
+              <Td>USD $ = (base ÷ 1250 × 1.6) ÷ 2  (소수점 2자리)<br/>USD환율: SKU별 pricingUsdRate (기본 1,400)</Td>
+            </Tr>
+            <Tr>
+              <Td>일본 공급가</Td>
+              <Td>floor10( (base ÷ 950 × 1.3) ÷ 2 × JPY환율 )</Td>
+              <Td>JPY ¥ = (base ÷ 950 × 1.3) ÷ 2  (정수)<br/>JPY환율: 현재 9.0 고정 (pricingJpyRate 미구현)</Td>
+            </Tr>
           </tbody>
         </table>
-        <p className="mt-2 text-xs text-gray-400">* 쿠팡·B2B·사입및페어는 시나리오 미설정 시 'B2B 상시 운영' 자동 적용. 글로벌·일본은 '해외 공급가' 자동 적용.</p>
+        <p className="mt-2 text-xs text-gray-400">* 쿠팡·B2B·사입및페어는 시나리오 미설정 시 'B2B 상시 운영' 자동 적용. 글로벌은 '글로벌 공급가', 일본은 '일본 공급가' 자동 적용.</p>
+        <p className="mt-1 text-xs text-gray-400">* 글로벌·일본 공급가 선택 시 실 판매가 행에 KRW 금액 아래 외화 금액(USD $ / JPY ¥)이 보조 표시됩니다.</p>
+      </section>
+
+      {/* 9. UI 동작 */}
+      <section>
+        <h2 className="text-base font-bold text-gray-900 mb-3 pb-1 border-b border-gray-200">9. UI 동작 — 페이지 상태 유지</h2>
+        <p className="text-xs text-gray-600 mb-2">새로고침 후에도 직전 상태가 복원됩니다. sessionStorage 기반으로 브라우저 탭 단위로 유지되며, 탭을 닫으면 초기화됩니다.</p>
+        <table className="w-full border-collapse text-xs">
+          <thead>
+            <tr className="bg-gray-50">
+              <Th>유지되는 상태</Th>
+              <Th>설명</Th>
+            </tr>
+          </thead>
+          <tbody>
+            <Tr><Td>메인 탭 (SKU 리스트 / 채널별 요약 / 프라이싱)</Td><Td>마지막으로 열었던 탭으로 복원</Td></Tr>
+            <Tr><Td>카테고리 필터</Td><Td>SKU 리스트 및 프라이싱 탭의 카테고리 선택값 복원</Td></Tr>
+            <Tr><Td>브랜드 필터</Td><Td>선택된 브랜드 복원</Td></Tr>
+            <Tr><Td>프라이싱 카테고리</Td><Td>프라이싱 탭 카테고리 필터 복원</Td></Tr>
+          </tbody>
+        </table>
       </section>
 
     </div>
