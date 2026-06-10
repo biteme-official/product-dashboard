@@ -665,6 +665,14 @@ function MonthlyTable({
                 </button>
               </>
             )}
+            {(() => {
+              const step2Total = sku.channelMonthQty.reduce((s, e) => s + e.qty, 0);
+              return sku.totalOrderQty > 0 && step2Total > 0 && step2Total < sku.totalOrderQty ? (
+                <span className="text-[11px] font-semibold text-white bg-red-500 px-2 py-0.5 rounded-full whitespace-nowrap">
+                  * MOQ 미달! 수정하세요
+                </span>
+              ) : null;
+            })()}
             <button
               onClick={() => {
                 captureStep2Backup();
