@@ -1153,7 +1153,7 @@ interface PricingScenario {
   /** 채널 판매가(base)와 환율을 받아 KRW 시나리오 가격 반환 */
   calcKrwPrice: (base: number, usdRate?: number, jpyRate?: number) => number;
   /** 외화 보조 표시: 원화 환산 전 외화 금액 반환 */
-  foreignAmt?: (base: number) => { symbol: string; amount: number; decimals: number } | null;
+  foreignAmt?: (base: number, usdRate?: number, jpyRate?: number) => { symbol: string; amount: number; decimals: number } | null;
 }
 
 /** 비율 계산 결과를 10원 단위 버림 */
@@ -1187,9 +1187,9 @@ const PRICING_SCENARIOS: PricingScenario[] = [
   },
   {
     id: '일본 공급가', label: '일본 공급가', hint: 'JPY 공급가',
-    // (판매가 / 950 * 1.3) / 2 * JPYKRW — TODO: SkuData에 pricingJpyRate 추가 시 연동 (현재 9.0 고정)
-    calcKrwPrice: (b, _usd, jpyRate = 9.0) => floor10((b / 950 * 1.3) / 2 * jpyRate),
-    foreignAmt: (b) => ({ symbol: 'JPY ¥', amount: Math.round((b / 950 * 1.3) / 2), decimals: 0 }),
+    // JPY공급가 = (판매가 / jpyKrw * 1.3) / 2  →  KRW환산 = JPY공급가 * jpyKrw = 판매가 * 0.65
+    calcKrwPrice: (b, _usd, jpyRate = 9.0) => floor10((b / jpyRate * 1.3) / 2 * jpyRate),
+    foreignAmt: (b, _usd, jpyRate = 9.0) => ({ symbol: 'JPY ¥', amount: Math.round((b / jpyRate * 1.3) / 2), decimals: 0 }),
   },
 ];
 
@@ -1575,7 +1575,7 @@ function PricingChannelTable({
                                 const basePrice = cp.price > 0 ? cp.price : sku.price;
                                 const scenarioKrwPrice = calcScenarioPrice(optId, basePrice);
                                 const scenario = PRICING_SCENARIOS.find((x) => x.id === optId);
-                                const foreign = scenario?.foreignAmt?.(basePrice) ?? null;
+                                const foreign = scenario?.foreignAmt?.(basePrice, usdKrw, jpyKrw) ?? null;
                                 return (
                                   <td key={m} className={`px-2 py-2 text-right tabular-nums ${yearBorder(m)} ${IS_NEXT_YEAR[m] ? 'bg-gray-50/60' : ''}`}>
                                     {scenarioKrwPrice > 0
