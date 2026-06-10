@@ -79,9 +79,14 @@ export function ComparisonColumn({ sku, readOnly, onComparisonDataChange, onChan
   const [channelConfigured, setChannelConfigured] = useState(true); // VIEW_ID 설정 여부
   const [channelPeriodQty, setChannelPeriodQty] = useState<Record<string, number> | null>(null);
 
+  // 의류·잡화는 동기간이 기본값
+  const defaultMode: CompareMode = (sku.category === '의류' || sku.category === '잡화') ? 'samePeriod' : 'rolling12';
+
   // 선택된 대응 SKU 목록 (복수)
   const [selectedSkus, setSelectedSkus] = useState<SkuShipmentInfo[]>([]);
-  const [compareMode, setCompareMode] = useState<CompareMode>('rolling12');
+  const [compareMode, setCompareMode] = useState<CompareMode>(() =>
+    (sku.category === '의류' || sku.category === '잡화') ? 'samePeriod' : 'rolling12'
+  );
 
   // 검색 UI
   const [query, setQuery] = useState('');
@@ -90,12 +95,12 @@ export function ComparisonColumn({ sku, readOnly, onComparisonDataChange, onChan
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // SKU 카드 변경 시 초기화
+  // SKU 카드 변경 시 초기화 (의류·잡화는 동기간으로 리셋)
   useEffect(() => {
     setQuery('');
-    setCompareMode('rolling12');
+    setCompareMode(defaultMode);
     setSelectedSkus([]);
-    onComparisonDataChange?.({}, 'rolling12', '직전 12개월');
+    onComparisonDataChange?.({}, defaultMode, defaultMode === 'samePeriod' ? '동기간' : '직전 12개월');
     onChannelDistChange?.(null);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sku.id]);
@@ -122,6 +127,7 @@ export function ComparisonColumn({ sku, readOnly, onComparisonDataChange, onChan
   }, []);
 
   // allSkus 로드 후 저장된 선택 SKU 자동 복원
+  // 의류·잡화는 동기간으로 복원 + store 값도 갱신 (일괄반영)
   useEffect(() => {
     if (allSkus.length === 0 || selectedSkus.length > 0) return;
     const savedNames = sku.comparisonSku.compareSkuNames ?? (sku.comparisonSku.name ? [sku.comparisonSku.name] : []);
@@ -129,11 +135,8 @@ export function ComparisonColumn({ sku, readOnly, onComparisonDataChange, onChan
     const found = savedNames.map((n) => allSkus.find((s) => s.name === n)).filter(Boolean) as SkuShipmentInfo[];
     if (found.length === 0) return;
     setSelectedSkus(found);
-    const aggregated = aggregateByYearMonth(found);
-    const rm = getReleaseMonth(sku.releaseDate);
-    const ry = sku.releaseDate ? parseInt(sku.releaseDate.split('-')[0], 10) : null;
-    const data = calcMonthlyDisplayData(aggregated, 'rolling12', rm, ry);
-    onComparisonDataChange?.(data, 'rolling12', '직전 12개월');
+    setCompareMode(defaultMode);
+    applySelection(found, defaultMode);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allSkus]);
 
@@ -229,15 +232,15 @@ export function ComparisonColumn({ sku, readOnly, onComparisonDataChange, onChan
       ? selectedSkus.filter((x) => x.name !== s.name)
       : [...selectedSkus, s];
     setSelectedSkus(next);
-    setCompareMode('rolling12');
-    applySelection(next, 'rolling12');
+    setCompareMode(defaultMode);
+    applySelection(next, defaultMode);
   }
 
   function removeChip(name: string) {
     const next = selectedSkus.filter((s) => s.name !== name);
     setSelectedSkus(next);
-    setCompareMode('rolling12');
-    applySelection(next, 'rolling12');
+    setCompareMode(defaultMode);
+    applySelection(next, defaultMode);
   }
 
   function handleModeToggle() {
