@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useStore } from '../store';
 import { useAuth } from '../store/auth';
+import { isMdRole } from '../utils/pin';
 import { MONTHS, CHANNELS, B2C_CHANNELS, type Month, type Channel } from '../types';
 import { getChannelRate } from '../utils/calc';
 
@@ -31,7 +32,7 @@ export function ChannelSimSection() {
   const applyChannelRatiosToFiltered = useStore((s) => s.applyChannelRatiosToFiltered);
   const persistSku = useStore((s) => s.persistSku);
   const { role } = useAuth();
-  const canEdit = role === 'master' || role === 'md';
+  const canEdit = role === 'master' || isMdRole(role);
 
   const eligibleSkus = skus.filter(
     (sku) =>

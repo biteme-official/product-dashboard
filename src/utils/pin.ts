@@ -1,7 +1,14 @@
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { fsdb } from '../lib/firebase';
 
-export type Role = 'master' | 'pm' | 'md';
+export type Role = 'master' | 'pm' | 'platform_md' | 'brand_md' | 'global';
+
+export const ALL_ROLES: readonly Role[] = ['master', 'pm', 'platform_md', 'brand_md', 'global'] as const;
+export const MD_ROLES: readonly Role[] = ['platform_md', 'brand_md', 'global'] as const;
+
+/** platform_md / brand_md / global 여부 확인 */
+export const isMdRole = (role: Role | null | undefined): boolean =>
+  !!(role && (MD_ROLES as readonly string[]).includes(role));
 
 const PINS_DOC = doc(fsdb, 'config', 'pins');
 
@@ -31,5 +38,5 @@ export async function verifyPin(role: Role, pin: string): Promise<boolean> {
 // 모든 역할의 PIN이 Firestore에 설정되어 있는지 확인
 export async function allPinsSet(): Promise<boolean> {
   const pins = await fetchPins();
-  return !!(pins.master && pins.pm && pins.md);
+  return ALL_ROLES.every((r) => !!pins[r]);
 }

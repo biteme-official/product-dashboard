@@ -1,12 +1,20 @@
 import { useState, useRef, useEffect } from 'react';
-import { setPin, type Role } from '../utils/pin';
+import { setPin, ALL_ROLES, type Role } from '../utils/pin';
 
-const ROLES: Role[] = ['master', 'pm', 'md'];
-const ROLE_LABELS: Record<Role, string> = { master: 'MASTER', pm: 'PM', md: 'MD' };
+const ROLE_LABELS: Record<Role, string> = {
+  master:      'MASTER',
+  pm:          'PM',
+  platform_md: '플랫폼MD',
+  brand_md:    '브랜드MD',
+  global:      '글로벌',
+};
+
 const ROLE_COLORS: Record<Role, string> = {
-  master: 'text-indigo-700 bg-indigo-50',
-  pm:     'text-violet-700 bg-violet-50',
-  md:     'text-emerald-700 bg-emerald-50',
+  master:      'text-indigo-700 bg-indigo-50',
+  pm:          'text-violet-700 bg-violet-50',
+  platform_md: 'text-emerald-700 bg-emerald-50',
+  brand_md:    'text-amber-700 bg-amber-50',
+  global:      'text-sky-700 bg-sky-50',
 };
 
 function PinInput({
@@ -110,8 +118,8 @@ export function PinManager({ onClose }: { onClose: () => void }) {
 
         <p className="text-xs text-gray-400">각 역할의 PIN을 변경할 수 있습니다.</p>
 
-        <div className="space-y-3">
-          {ROLES.map((role) => (
+        <div className="space-y-2">
+          {ALL_ROLES.map((role) => (
             <div key={role} className="border border-gray-200 rounded-xl p-3">
               <div className="flex items-center justify-between">
                 <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${ROLE_COLORS[role]}`}>

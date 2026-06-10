@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useStore } from '../store';
 import { useAuth } from '../store/auth';
+import { isMdRole } from '../utils/pin';
 import { MONTHS, CHANNELS, B2C_CHANNELS, type Month, type Channel } from '../types';
 import { getChannelRate } from '../utils/calc';
 
@@ -31,7 +32,7 @@ export function MdSimSection() {
   const persistSku = useStore((s) => s.persistSku);
   const setSkuConfirmed = useStore((s) => s.setSkuConfirmed);
   const { role } = useAuth();
-  const canEdit = role === 'master' || role === 'md';
+  const canEdit = role === 'master' || isMdRole(role);
 
   const eligibleSkus = useMemo(
     () =>
@@ -154,7 +155,7 @@ export function MdSimSection() {
                       <button
                         onClick={() => {
                           if (window.confirm('확정건 수정 시 유관부서 공유/확인 필수') && sku) {
-                            setSkuConfirmed(sku.id, false, role);
+                            setSkuConfirmed(sku.id, false, role!);
                           }
                         }}
                         className="text-xs px-3 py-1.5 rounded-lg border border-red-300 text-red-600 bg-red-50 hover:bg-red-100 transition-colors whitespace-nowrap font-semibold"
@@ -163,7 +164,7 @@ export function MdSimSection() {
                       </button>
                     ) : (
                       <button
-                        onClick={() => { if (sku) setSkuConfirmed(sku.id, true, role); }}
+                        onClick={() => { if (sku) setSkuConfirmed(sku.id, true, role!); }}
                         className="text-xs px-3 py-1.5 rounded-lg border border-emerald-400 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition-colors whitespace-nowrap font-semibold"
                       >
                         ✓ 확정

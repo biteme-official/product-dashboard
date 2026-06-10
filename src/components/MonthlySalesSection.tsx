@@ -1,6 +1,7 @@
 import { useRef } from 'react';
 import { useStore } from '../store';
 import { useAuth } from '../store/auth';
+import { isMdRole } from '../utils/pin';
 import { MONTHS, getReleaseMonth, simPosition, type Month } from '../types';
 
 /** 1억 이상이면 억 단위, 그 미만이면 만 단위로 표시 */
@@ -32,7 +33,7 @@ export function MonthlySalesSection() {
   const updateMonthlySplit = useStore((s) => s.updateMonthlySplit);
   const persistSku = useStore((s) => s.persistSku);
   const { role } = useAuth();
-  const canEdit = role === 'master' || role === 'md';
+  const canEdit = role === 'master' || isMdRole(role);
 
   const filteredSkus = skus.filter(
     (s) =>

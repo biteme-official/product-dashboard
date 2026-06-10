@@ -10,6 +10,7 @@ import { SizeDistColumn } from './SizeDistColumn';
 import { ComparisonColumn } from './ComparisonColumn';
 import { NumericInput } from './NumericInput';
 import { useExchangeRates } from '../utils/useExchangeRates';
+import { isMdRole } from '../utils/pin';
 
 const MONTH_LABELS: Record<Month, string> = {
   7: '7월', 8: '8월', 9: '9월', 10: '10월', 11: '11월', 12: '12월',
@@ -579,7 +580,7 @@ function MonthlyTable({
   const persistSku = useStore((s) => s.persistSku);
   const { role } = useAuth();
   // STEP 1은 PM/master만 편집 가능
-  const step1ReadOnly = readOnly || role === 'md';
+  const step1ReadOnly = readOnly || isMdRole(role);
 
   // STEP2 탭 진입 시, channelMonthQty가 미초기화 상태면 대응SKU 채널 비중으로 자동 세팅
   useEffect(() => {
