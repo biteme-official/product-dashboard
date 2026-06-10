@@ -592,13 +592,8 @@ function MonthlyTable({
     releaseMonth !== null && simPosition(m) < simPosition(releaseMonth);
 
   const totalQty = sku.monthlySplit.reduce((sum, ms) => sum + ms.quantity, 0);
-  const totalRevenue = sku.monthlySplit.reduce((sum, ms) => sum + ms.revenue, 0);
-  const totalProfit = sku.monthlySplit.reduce((sum, ms) => sum + ms.contributionProfit, 0);
-
   const fy26Split = sku.monthlySplit.filter((ms) => !IS_NEXT_YEAR[ms.month]);
   const fy26Qty = fy26Split.reduce((sum, ms) => sum + ms.quantity, 0);
-  const fy26Revenue = fy26Split.reduce((sum, ms) => sum + ms.revenue, 0);
-  const fy26Profit = fy26Split.reduce((sum, ms) => sum + ms.contributionProfit, 0);
 
   return (
     <div className="mt-4 pt-4 border-t border-gray-100">
@@ -880,59 +875,6 @@ function MonthlyTable({
               );
             })()}
 
-            {/* 예상매출 행 */}
-            <tr className="border-b border-gray-100">
-              <td className="px-3 py-2 text-gray-500 font-medium whitespace-nowrap">예상매출</td>
-              {MONTHS.map((m) => {
-                const ms = sku.monthlySplit.find((x) => x.month === m)!;
-                const disabled = isDisabled(m);
-                return (
-                  <td
-                    key={m}
-                    className={`px-2 py-2 text-center tabular-nums ${IS_NEXT_YEAR[m] ? 'bg-blue-50/30' : ''}`}
-                  >
-                    {disabled || ms.revenue === 0 ? (
-                      <span className="text-gray-300">–</span>
-                    ) : (
-                      <span className="text-gray-600">{formatWon(ms.revenue)}</span>
-                    )}
-                  </td>
-                );
-              })}
-              <td className="px-2 py-2 text-center font-semibold text-indigo-700 bg-indigo-50/50 whitespace-nowrap">
-                {fy26Revenue > 0 ? formatWon(fy26Revenue) : <span className="text-gray-300">–</span>}
-              </td>
-              <td className="px-2 py-2 text-center font-semibold text-indigo-600 bg-gray-50 whitespace-nowrap">
-                {totalRevenue > 0 ? formatWon(totalRevenue) : <span className="text-gray-300">–</span>}
-              </td>
-            </tr>
-
-            {/* 예상공헌이익 행 */}
-            <tr>
-              <td className="px-3 py-2 text-gray-500 font-medium whitespace-nowrap">예상공헌이익</td>
-              {MONTHS.map((m) => {
-                const ms = sku.monthlySplit.find((x) => x.month === m)!;
-                const disabled = isDisabled(m);
-                return (
-                  <td
-                    key={m}
-                    className={`px-2 py-2 text-center tabular-nums ${IS_NEXT_YEAR[m] ? 'bg-blue-50/30' : ''}`}
-                  >
-                    {disabled || ms.contributionProfit === 0 ? (
-                      <span className="text-gray-300">–</span>
-                    ) : (
-                      <span className="text-emerald-600">{formatWon(ms.contributionProfit)}</span>
-                    )}
-                  </td>
-                );
-              })}
-              <td className="px-2 py-2 text-center font-semibold text-emerald-700 bg-emerald-50/50 whitespace-nowrap">
-                {fy26Profit > 0 ? formatWon(fy26Profit) : <span className="text-gray-300">–</span>}
-              </td>
-              <td className="px-2 py-2 text-center font-semibold text-emerald-600 bg-gray-50 whitespace-nowrap">
-                {totalProfit > 0 ? formatWon(totalProfit) : <span className="text-gray-300">–</span>}
-              </td>
-            </tr>
           </tbody>
         </table>
       </div>
@@ -1169,7 +1111,7 @@ function ChannelMonthTable({ sku, monthlySplit: _monthlySplit }: {
   );
 }
 
-// ── STEP 3 판매가 시나리오 정의 ──────────────────────────────────────────
+// ── STEP 2 판매가 시나리오 정의 ──────────────────────────────────────────
 interface PricingScenario {
   id: string;
   label: string;
@@ -1205,7 +1147,7 @@ const PRICING_SCENARIOS: PricingScenario[] = [
   { id: '해외 공급가',    label: '해외 공급가',    calcKrwPrice: (b) => floor10(b * 0.50), isUsd: true },
 ];
 
-// ── STEP 3 예상매출 검토 테이블 ──────────────────────────────────────────
+// ── STEP 2 채널별 목표량 테이블 ──────────────────────────────────────────
 function PricingChannelTable({
   sku, readOnly,
   pricingOpts, setPricingOpts,

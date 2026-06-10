@@ -17,7 +17,7 @@ export function ManualTab() {
             <Tr>
               <Td>SKU 월별 출고량</Td>
               <Td>출고데이터 MCP 연결용 (SKU 토탈)</Td>
-              <Td>대응SKU 자동완성 · STEP1/STEP2 기준값 산출</Td>
+              <Td>대응SKU 자동완성 · STEP2 채널 비중 기준값 산출</Td>
             </Tr>
             <Tr>
               <Td>채널별 출고량</Td>
@@ -27,12 +27,12 @@ export function ManualTab() {
             <Tr>
               <Td>팀카테 공헌이익</Td>
               <Td>MCP / sheet0 (팀카테 공헌이익)</Td>
-              <Td>STEP3 변동비 비중 역산 — contribution 항목</Td>
+              <Td>STEP2 변동비 비중 역산 — contribution 항목</Td>
             </Tr>
             <Tr>
               <Td>팀카테 순매출·원가</Td>
               <Td>MCP / sheet1 (팀카테 순매출·원가)</Td>
-              <Td>STEP3 변동비 비중 역산 — revenue·cost 항목</Td>
+              <Td>STEP2 변동비 비중 역산 — revenue·cost 항목</Td>
             </Tr>
           </tbody>
         </table>
@@ -117,12 +117,12 @@ export function ManualTab() {
             <Tr>
               <Td>직전 12개월 (rolling12)</Td>
               <Td>데이터 내 가장 최근 월 기준으로 역순 최대 12개월</Td>
-              <Td>대응SKU 출고 기준값 · STEP3 변동비 기본 모드</Td>
+              <Td>대응SKU 출고 기준값 산출 · STEP2 변동비 기본 모드</Td>
             </Tr>
             <Tr>
               <Td>동기간 (samePeriod)</Td>
               <Td>출시월 ~ 12월, 전년도 동기간</Td>
-              <Td>시즈널 SKU의 시즌 내 비교</Td>
+              <Td>동기간으로 설정된 경우 해당 기간의 변동비 비중 계산에 적용</Td>
             </Tr>
           </tbody>
         </table>
@@ -135,35 +135,20 @@ export function ManualTab() {
           <thead>
             <tr className="bg-gray-50">
               <Th>항목</Th>
-              <Th>계산식</Th>
+              <Th>설명</Th>
               <Th>비고</Th>
             </tr>
           </thead>
           <tbody>
             <Tr>
-              <Td>예상 순매출</Td>
-              <Td>총 발주량 × 판매가 ÷ 1.1 × 매출계수</Td>
-              <Td>부가세 제외</Td>
+              <Td>월별 발주 수량</Td>
+              <Td>PM이 각 월의 목표 수량을 직접 입력</Td>
+              <Td>STEP2 채널 배분의 월별 기준이 됨</Td>
             </Tr>
             <Tr>
-              <Td>매출계수</Td>
-              <Td>(B2C 채널 비중 합 / 전체) × 0.75 + (B2B 채널 비중 합 / 전체) × 0.55</Td>
-              <Td>채널 비중 미입력 시 카테고리 고정값 사용</Td>
-            </Tr>
-            <Tr>
-              <Td>카테고리 B2C 비중 (fallback)</Td>
+              <Td>카테고리 B2C 비중 (기본값)</Td>
               <Td>의류 60% · 용품 55% · 잡화 65% · 장난감 35% · 식품 65%</Td>
-              <Td></Td>
-            </Tr>
-            <Tr>
-              <Td>B2C 채널</Td>
-              <Td>자사몰 · 스스 · 위탁</Td>
-              <Td>실질 판매가율 75%</Td>
-            </Tr>
-            <Tr>
-              <Td>B2B 채널</Td>
-              <Td>쿠팡 · B2B · 사입및페어 · 글로벌 · 일본</Td>
-              <Td>실질 판매가율 55%</Td>
+              <Td>대응SKU 없을 시 기본값</Td>
             </Tr>
           </tbody>
         </table>
@@ -184,7 +169,7 @@ export function ManualTab() {
             <Tr>
               <Td>채널별 초기 수량</Td>
               <Td>총 발주량 × 대응SKU 채널 비중</Td>
-              <Td>대응SKU 선택 시 자동 세팅. 대응SKU 없으면 기본 비중(%)으로 산출</Td>
+              <Td>대응SKU 선택 시 자동 세팅. 없으면 카테고리 기본 비중 사용</Td>
             </Tr>
             <Tr>
               <Td>월별 배분</Td>
@@ -192,41 +177,9 @@ export function ManualTab() {
               <Td>STEP1 미입력 시 균등 배분</Td>
             </Tr>
             <Tr>
-              <Td>순매출</Td>
-              <Td>시나리오 가격 ÷ 1.1 × 수량</Td>
-              <Td>부가세 제외</Td>
-            </Tr>
-            <Tr>
-              <Td>공헌이익</Td>
-              <Td>순매출 × 0.75 − 원가 × 수량</Td>
-              <Td>변동비 25% 고정 적용</Td>
-            </Tr>
-            <Tr>
-              <Td>CM율</Td>
-              <Td>공헌이익 ÷ 순매출 × 100</Td>
-              <Td></Td>
-            </Tr>
-          </tbody>
-        </table>
-        <p className="text-xs text-gray-400">* STEP2의 변동비는 25% 고정값. 채널·카테고리별 실측 변동비는 STEP3에서 반영됩니다.</p>
-      </section>
-
-      {/* 7. STEP3 계산식 */}
-      <section>
-        <h2 className="text-base font-bold text-gray-900 mb-3 pb-1 border-b border-gray-200">7. STEP 3 — 채널별 수량 확정 · 공헌이익 검토</h2>
-        <table className="w-full border-collapse text-xs mb-3">
-          <thead>
-            <tr className="bg-gray-50">
-              <Th>항목</Th>
-              <Th>계산식</Th>
-              <Th>비고</Th>
-            </tr>
-          </thead>
-          <tbody>
-            <Tr>
               <Td>실매출단가</Td>
               <Td>∑(월수량 × 시나리오가격) ÷ 총수량</Td>
-              <Td>수수료 미반영 가격 기준</Td>
+              <Td>수수료 미반영</Td>
             </Tr>
             <Tr>
               <Td>순매출</Td>
@@ -236,7 +189,7 @@ export function ManualTab() {
             <Tr>
               <Td>변동비 비중</Td>
               <Td>(순매출 − 원가 − 공헌이익) ÷ 순매출</Td>
-              <Td>Tableau 팀카테 데이터 기반 역산. 데이터 없으면 25% fallback</Td>
+              <Td>Tableau 팀카테 데이터 역산. 데이터 없으면 25% fallback</Td>
             </Tr>
             <Tr>
               <Td>공헌이익</Td>
@@ -248,6 +201,26 @@ export function ManualTab() {
               <Td>공헌이익 ÷ 순매출 × 100</Td>
               <Td>≥ 80% 초록 / ≥ 70% 노랑 / &lt; 70% 빨강</Td>
             </Tr>
+          </tbody>
+        </table>
+        <p className="text-xs text-gray-400">* 변동비 비중은 수수료를 포함한 Tableau 실적 데이터 기반 역산값입니다. 수수료를 별도 반영하지 않습니다.</p>
+      </section>
+
+      {/* 7. STEP3 */}
+      <section>
+        <h2 className="text-base font-bold text-gray-900 mb-3 pb-1 border-b border-gray-200">7. STEP 3 — 채널별 수량 확정</h2>
+        <p className="text-xs text-gray-600 mb-3">채널×월별 수량과 상세 옵션(사이즈별, 컬러별 등)을 최종 확인하는 페이지입니다. 별도 재무 계산은 없습니다.</p>
+        <table className="w-full border-collapse text-xs">
+          <thead>
+            <tr className="bg-gray-50">
+              <Th>표시 항목</Th>
+              <Th>설명</Th>
+            </tr>
+          </thead>
+          <tbody>
+            <Tr><Td>채널별 수량</Td><Td>채널×월 조합의 목표 수량</Td></Tr>
+            <Tr><Td>26년 연간 합계</Td><Td>7~12월 수량 합산 (익년 1~2월 제외)</Td></Tr>
+            <Tr><Td>전체 합계</Td><Td>7월~익년 2월 전체 수량 합산</Td></Tr>
           </tbody>
         </table>
       </section>
@@ -279,31 +252,6 @@ export function ManualTab() {
           </tbody>
         </table>
         <p className="mt-2 text-xs text-gray-400">* 쿠팡·B2B·사입및페어는 시나리오 미설정 시 'B2B 상시 운영' 자동 적용.</p>
-      </section>
-
-      {/* 9. 채널별 수수료 */}
-      <section>
-        <h2 className="text-base font-bold text-gray-900 mb-3 pb-1 border-b border-gray-200">9. 채널별 기본 수수료율</h2>
-        <table className="w-full border-collapse text-xs">
-          <thead>
-            <tr className="bg-gray-50">
-              <Th>채널</Th>
-              <Th>기본 수수료율</Th>
-              <Th>비고</Th>
-            </tr>
-          </thead>
-          <tbody>
-            <Tr><Td>자사몰</Td><Td>3%</Td><Td></Td></Tr>
-            <Tr><Td>스스</Td><Td>5.5%</Td><Td></Td></Tr>
-            <Tr><Td>위탁</Td><Td>25%</Td><Td></Td></Tr>
-            <Tr><Td>쿠팡</Td><Td>35%</Td><Td></Td></Tr>
-            <Tr><Td>B2B</Td><Td>0%</Td><Td></Td></Tr>
-            <Tr><Td>사입및페어</Td><Td>0%</Td><Td></Td></Tr>
-            <Tr><Td>글로벌</Td><Td>0%</Td><Td></Td></Tr>
-            <Tr><Td>일본</Td><Td>0%</Td><Td></Td></Tr>
-          </tbody>
-        </table>
-        <p className="mt-2 text-xs text-gray-400">* 채널별 수수료율은 프라이싱 탭에서 SKU단위 편집 가능.</p>
       </section>
 
     </div>
