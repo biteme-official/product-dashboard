@@ -1706,13 +1706,14 @@ function PricingChannelTable({
                             <tbody>
                               {optionRows.map((opt, i) => {
                                 const isLast = i === optionRows.length - 1;
+                                // 컬러+사이즈 조합일 때 새 컬러 그룹 시작 지점에 구분선
+                                const isColorGroupStart = multiColor && multiSize && i > 0 && i % activeSizes.length === 0;
                                 const optFY26 = FY26.reduce((s, m) => s + Math.round(getMonthQty(channel, m) * opt.ratio), 0);
                                 const optFY27 = FY27.reduce((s, m) => s + Math.round(getMonthQty(channel, m) * opt.ratio), 0);
                                 return (
-                                  <tr key={opt.label} className={`${isLast ? '' : 'border-b border-gray-100'} even:bg-gray-50/30`}>
+                                  <tr key={opt.label} className={`${isLast ? '' : 'border-b border-gray-100'} ${isColorGroupStart ? 'border-t-2 border-gray-300' : ''} even:bg-gray-50/30`}>
                                     <td className="px-3 py-1.5 text-[11px] font-medium text-gray-700 whitespace-nowrap border-r border-gray-200">
                                       {opt.label}
-                                      <span className="ml-1.5 text-[10px] text-gray-400">{Math.round(opt.ratio * 100)}%</span>
                                     </td>
                                     <td className="px-2 py-1.5 text-center text-[10px] text-gray-400 border-r border-gray-200">
                                       {Math.round(opt.ratio * 100)}%
