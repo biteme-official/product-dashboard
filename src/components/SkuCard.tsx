@@ -1136,10 +1136,10 @@ interface PricingScenario {
   label: string;
   /** 드롭다운 괄호 힌트. 지정 시 % 계산 대신 이 텍스트를 표시 */
   hint?: string;
-  /** 채널 판매가(base)를 받아 KRW 시나리오 가격 반환 */
-  calcKrwPrice: (base: number) => number;
-  /** true이면 실판매가 열에 USD 금액도 표시 */
-  isUsd?: boolean;
+  /** 채널 판매가(base)와 환율을 받아 KRW 시나리오 가격 반환 */
+  calcKrwPrice: (base: number, usdRate?: number, jpyRate?: number) => number;
+  /** 외화 보조 표시: 원화 환산 전 외화 금액 반환 */
+  foreignAmt?: (base: number) => { symbol: string; amount: number; decimals: number } | null;
 }
 
 /** 비율 계산 결과를 10원 단위 버림 */
@@ -1165,7 +1165,18 @@ const PRICING_SCENARIOS: PricingScenario[] = [
   { id: 'B2B 오픈 할인',   label: 'B2B 오픈 할인',                             calcKrwPrice: (b) => floor10(b * 0.65 * 0.90) },
   { id: 'B2B 상시 운영',   label: 'B2B 상시 운영',                             calcKrwPrice: (b) => floor10(b * 0.65) },
   { id: '사입 공급가',     label: '사입 공급가',                               calcKrwPrice: (b) => floor10(b * 0.50) },
-  { id: '해외 공급가',     label: '해외 공급가',                               calcKrwPrice: (b) => floor10(b * 0.50), isUsd: true },
+  {
+    id: '글로벌 공급가', label: '글로벌 공급가', hint: 'USD 공급가',
+    // (판매가 / 1250 * 1.6) / 2 * USDKRW — sku.pricingUsdRate 사용
+    calcKrwPrice: (b, usdRate = 1400) => floor10((b / 1250 * 1.6) / 2 * usdRate),
+    foreignAmt: (b) => ({ symbol: 'USD $', amount: Math.round((b / 1250 * 1.6) / 2 * 100) / 100, decimals: 2 }),
+  },
+  {
+    id: '일본 공급가', label: '일본 공급가', hint: 'JPY 공급가',
+    // (판매가 / 950 * 1.3) / 2 * JPYKRW — TODO: SkuData에 pricingJpyRate 추가 시 연동 (현재 9.0 고정)
+    calcKrwPrice: (b, _usd, jpyRate = 9.0) => floor10((b / 950 * 1.3) / 2 * jpyRate),
+    foreignAmt: (b) => ({ symbol: 'JPY ¥', amount: Math.round((b / 950 * 1.3) / 2), decimals: 0 }),
+  },
 ];
 
 // ── STEP 2 채널별 목표량 테이블 ──────────────────────────────────────────
@@ -1208,8 +1219,8 @@ function PricingChannelTable({
     '쿠팡': 'B2B 상시 운영',
     'B2B': 'B2B 상시 운영',
     '사입및페어': 'B2B 상시 운영',
-    '글로벌': '해외 공급가',
-    '일본': '해외 공급가',
+    '글로벌': '글로벌 공급가',
+    '일본': '일본 공급가',
   };
 
   const getPricingOpt = (channel: Channel, month: Month) =>
@@ -1242,7 +1253,8 @@ function PricingChannelTable({
   const calcScenarioPrice = (optId: string, base: number): number => {
     if (!optId) return base;
     const s = PRICING_SCENARIOS.find((x) => x.id === optId);
-    return s ? s.calcKrwPrice(base) : base;
+    // TODO: pricingJpyRate를 SkuData에 추가한 뒤 세 번째 인자로 전달
+    return s ? s.calcKrwPrice(base, sku.pricingUsdRate) : base;
   };
 
   const getPricing = (channel: Channel): ChannelPricing => {
@@ -1534,10 +1546,19 @@ function PricingChannelTable({
                                 const optId = getPricingOpt(channel, m);
                                 const basePrice = cp.price > 0 ? cp.price : sku.price;
                                 const scenarioKrwPrice = calcScenarioPrice(optId, basePrice);
+                                const scenario = PRICING_SCENARIOS.find((x) => x.id === optId);
+                                const foreign = scenario?.foreignAmt?.(basePrice) ?? null;
                                 return (
                                   <td key={m} className={`px-2 py-2 text-right tabular-nums ${yearBorder(m)} ${IS_NEXT_YEAR[m] ? 'bg-gray-50/60' : ''}`}>
                                     {scenarioKrwPrice > 0
-                                      ? <span className="text-[11px] text-gray-700 font-semibold">{scenarioKrwPrice.toLocaleString()}</span>
+                                      ? <div className="flex flex-col items-end gap-0.5">
+                                          <span className="text-[11px] text-gray-700 font-semibold">{scenarioKrwPrice.toLocaleString()}</span>
+                                          {foreign && (
+                                            <span className="text-[9px] text-indigo-400 font-medium leading-none">
+                                              {foreign.symbol}{foreign.amount.toFixed(foreign.decimals)}
+                                            </span>
+                                          )}
+                                        </div>
                                       : <span className="text-gray-300 text-[11px]">–</span>}
                                   </td>
                                 );
