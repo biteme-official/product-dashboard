@@ -1,5 +1,5 @@
 import type { SkuData } from '../types';
-import { BRANDS, MONTHS, CHANNELS, B2C_CHANNELS, B2B_CHANNELS, DEFAULT_CHANNEL_COMMISSION, getReleaseMonth, simPosition, type Month, type Channel } from '../types';
+import { BRANDS, MONTHS, CHANNELS, B2C_CHANNELS, B2B_CHANNELS, DISABLED_CHANNELS, DEFAULT_CHANNEL_COMMISSION, getReleaseMonth, simPosition, type Month, type Channel } from '../types';
 import type { ChannelMonthQtyEntry, ChannelPricing } from '../types';
 import { useStore } from '../store';
 import { useAuth } from '../store/auth';
@@ -1504,10 +1504,10 @@ function PricingChannelTable({
                                         onChange={(val) => updateChannelMonthQty(sku.id, channel, m, val)}
                                         onBlur={() => persistSku(sku.id)}
                                         onFocus={() => onBeforeEdit?.()}
-                                        disabled={readOnly}
+                                        disabled={readOnly || (DISABLED_CHANNELS as readonly string[]).includes(channel)}
                                         placeholder="0"
                                         className={`text-right rounded-md px-1 py-1 text-[11px] border focus:outline-none focus:ring-1 focus:ring-gray-400 ${
-                                          readOnly ? 'bg-gray-50 text-gray-400 cursor-not-allowed border-gray-200' : 'bg-white text-gray-700 border-gray-200 hover:border-gray-400'
+                                          readOnly || (DISABLED_CHANNELS as readonly string[]).includes(channel) ? 'bg-gray-50 text-gray-400 cursor-not-allowed border-gray-200' : 'bg-white text-gray-700 border-gray-200 hover:border-gray-400'
                                         }`}
                                         style={{ width: '52px' }}
                                       />

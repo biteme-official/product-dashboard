@@ -6,7 +6,7 @@ import {
 } from 'firebase/firestore';
 import { fsdb } from '../lib/firebase';
 import type { AppState, Category, Month, SkuData, MonthlySplit, ColorEntry, ChannelMonthEntry, ChannelMonthQtyEntry, ChannelPricing } from '../types';
-import { MAX_SIZES, SIZE_LABELS, MONTHS, CHANNELS, BRANDS, DEFAULT_CHANNEL_RATIOS, DEFAULT_CHANNEL_COMMISSION, getReleaseMonth, simPosition, type Brand, type Channel } from '../types';
+import { MAX_SIZES, SIZE_LABELS, MONTHS, CHANNELS, BRANDS, DEFAULT_CHANNEL_RATIOS, DEFAULT_CHANNEL_COMMISSION, DISABLED_CHANNELS, getReleaseMonth, simPosition, type Brand, type Channel } from '../types';
 import { recalcQuantities, revenueMultiplier, calcDynamicMultiplier } from '../utils/calc';
 
 const SKUS_COL = 'skus';
@@ -219,6 +219,10 @@ function applyMigration(raw: any): SkuData {
       base.channelMonthlySplit = deriveChannelMonthlySplit(base);
     }
   }
+  // 비활성 채널 채널×월 목표량 강제 0
+  base.channelMonthQty = base.channelMonthQty.map((e) =>
+    (DISABLED_CHANNELS as readonly string[]).includes(e.channel) ? { ...e, qty: 0 } : e,
+  );
   return base;
 }
 
@@ -281,7 +285,7 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
     const q = collection(fsdb, SKUS_COL);
     const unsub = onSnapshot(q, (snapshot) => {
       const expandedMap = new Map(get().skus.map((s) => [s.id, s.isExpanded]));
-      const raw = snapshot.docs.map((d) => ({ ...d.data(), id: d.id }));
+      const raw: any[] = snapshot.docs.map((d) => ({ ...d.data(), id: d.id }));
       const processed = raw
         .map(applyMigration)
         .map((s) => ({
@@ -296,6 +300,17 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
           return a.releaseDate.localeCompare(b.releaseDate);
         });
       set({ skus: processed });
+      // 비활성 채널에 잔존하는 qty > 0 이면 Firestore에도 0으로 저장 (1회성 마이그레이션)
+      const toMigrate = processed.filter((s) =>
+        (raw.find((r: any) => r.id === s.id)?.channelMonthQty ?? []).some(
+          (e: any) => (DISABLED_CHANNELS as readonly string[]).includes(e.channel) && e.qty > 0,
+        ),
+      );
+      if (toMigrate.length > 0) {
+        const batch = writeBatch(fsdb);
+        toMigrate.forEach((s) => batch.set(doc(fsdb, SKUS_COL, s.id), toFirestore(s)));
+        batch.commit().catch(console.error);
+      }
     });
     return unsub;
   },
@@ -378,6 +393,7 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
   },
 
   updateChannelMonthQty: (id, channel, month, qty) => {
+    if ((DISABLED_CHANNELS as readonly string[]).includes(channel)) return;
     const skus = get().skus;
     const sku = skus.find((s) => s.id === id);
     if (!sku) return;
@@ -394,7 +410,10 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
     const skus = get().skus;
     const sku = skus.find((s) => s.id === id);
     if (!sku) return;
-    set({ skus: skus.map((s) => (s.id === id ? { ...s, channelMonthQty: entries } : s)) });
+    const safe = entries.map((e) =>
+      (DISABLED_CHANNELS as readonly string[]).includes(e.channel) ? { ...e, qty: 0 } : e,
+    );
+    set({ skus: skus.map((s) => (s.id === id ? { ...s, channelMonthQty: safe } : s)) });
   },
 
   updateChannelPricing: (id, channel, patch) => {
