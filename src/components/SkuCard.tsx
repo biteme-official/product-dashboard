@@ -567,7 +567,6 @@ function MonthlyTable({
       return [...prev, snapshot];
     });
   }
-  const updateMonthlyQty = useStore((s) => s.updateMonthlyQty);
   const updateMonthlySplit = useStore((s) => s.updateMonthlySplit);
   const batchInitChannelMonthQty = useStore((s) => s.batchInitChannelMonthQty);
   const persistSku = useStore((s) => s.persistSku);
@@ -595,6 +594,12 @@ function MonthlyTable({
   const totalQty = sku.monthlySplit.reduce((sum, ms) => sum + ms.quantity, 0);
   const fy26Split = sku.monthlySplit.filter((ms) => !IS_NEXT_YEAR[ms.month]);
   const fy26Qty = fy26Split.reduce((sum, ms) => sum + ms.quantity, 0);
+  const fy26RatioSum = fy26Split
+    .filter((ms) => !isDisabled(ms.month))
+    .reduce((sum, ms) => sum + ms.ratio, 0);
+  const totalRatioSum = sku.monthlySplit
+    .filter((ms) => !isDisabled(ms.month))
+    .reduce((sum, ms) => sum + ms.ratio, 0);
 
   return (
     <div className="mt-4 pt-4 border-t border-gray-100">
@@ -755,27 +760,18 @@ function MonthlyTable({
               );
             })()}
 
-            {/* 수량 행 */}
+            {/* 수량 행 — 읽기 전용 표시 */}
             <tr className="border-b border-gray-100">
               <td className="px-3 py-2 text-gray-500 font-medium whitespace-nowrap">수량</td>
               {MONTHS.map((m) => {
                 const ms = sku.monthlySplit.find((x) => x.month === m)!;
                 const disabled = isDisabled(m);
                 return (
-                  <td key={m} className={`px-1 py-1.5 ${IS_NEXT_YEAR[m] ? 'bg-blue-50/30' : ''}`}>
-                    {disabled ? (
-                      <div className="text-center text-gray-300">–</div>
+                  <td key={m} className={`px-2 py-2 text-center tabular-nums ${IS_NEXT_YEAR[m] ? 'bg-blue-50/30' : ''}`}>
+                    {disabled || ms.quantity === 0 ? (
+                      <span className="text-gray-300">–</span>
                     ) : (
-                      <NumericInput
-                        value={ms.quantity}
-                        onChange={(val) => updateMonthlyQty(sku.id, m, val)}
-                        onBlur={() => persistSku(sku.id)}
-                        disabled={step1ReadOnly}
-                        placeholder="0"
-                        className={`w-full text-center rounded px-1 py-1 border border-gray-200 focus:outline-none focus:ring-1 focus:ring-indigo-400 ${
-                          step1ReadOnly ? 'bg-gray-50 text-gray-400 cursor-not-allowed' : 'bg-white'
-                        }`}
-                      />
+                      <span className="text-gray-700">{ms.quantity.toLocaleString()}</span>
                     )}
                   </td>
                 );
@@ -788,62 +784,45 @@ function MonthlyTable({
               </td>
             </tr>
 
-            {/* 비중 행 — 입력 가능, 비중 입력 시 수량 자동 계산 */}
+            {/* 비중 행 — 퍼센티지 입력, 수량은 위 행에 표시 */}
             <tr className="border-b border-gray-100">
-              <td className="px-3 py-2 text-gray-400 font-medium whitespace-nowrap text-[11px]">
-                <div>비중</div>
-                <div className="text-[10px] text-gray-300 leading-tight">→ 수량</div>
-              </td>
+              <td className="px-3 py-2 text-gray-400 font-medium whitespace-nowrap text-[11px]">비중</td>
               {MONTHS.map((m) => {
                 const ms = sku.monthlySplit.find((x) => x.month === m)!;
                 const disabled = isDisabled(m);
-                const derivedQty = sku.totalOrderQty > 0
-                  ? Math.round(sku.totalOrderQty * ms.ratio / 100)
-                  : 0;
                 return (
                   <td key={m} className={`px-1 py-1 ${IS_NEXT_YEAR[m] ? 'bg-blue-50/20' : ''}`}>
                     {disabled ? (
                       <div className="text-center text-gray-300">–</div>
                     ) : (
-                      <div className="flex flex-col gap-0.5">
-                        <div className="relative flex items-center">
-                          <NumericInput
-                            value={ms.ratio}
-                            onChange={(val) => updateMonthlySplit(sku.id, m, val)}
-                            onBlur={() => persistSku(sku.id)}
-                            disabled={step1ReadOnly}
-                            placeholder="0"
-                            className={`w-full text-center rounded px-1 py-1 border border-gray-200 focus:outline-none focus:ring-1 focus:ring-indigo-400 text-[11px] ${
-                              step1ReadOnly ? 'bg-gray-50 text-gray-400 cursor-not-allowed' : 'bg-white'
-                            }`}
-                          />
-                          <span className="absolute right-1.5 text-[10px] text-gray-400 pointer-events-none">%</span>
-                        </div>
-                        <div className="text-center text-[10px] text-indigo-500 tabular-nums">
-                          {derivedQty > 0 ? derivedQty.toLocaleString() : <span className="text-gray-300">–</span>}
-                        </div>
+                      <div className="relative flex items-center">
+                        <NumericInput
+                          value={ms.ratio}
+                          onChange={(val) => updateMonthlySplit(sku.id, m, val)}
+                          onBlur={() => persistSku(sku.id)}
+                          disabled={step1ReadOnly}
+                          placeholder="0"
+                          className={`w-full text-center rounded px-1 py-1 border border-gray-200 focus:outline-none focus:ring-1 focus:ring-indigo-400 text-[11px] ${
+                            step1ReadOnly ? 'bg-gray-50 text-gray-400 cursor-not-allowed' : 'bg-white'
+                          }`}
+                        />
+                        <span className="absolute right-1.5 text-[10px] text-gray-400 pointer-events-none">%</span>
                       </div>
                     )}
                   </td>
                 );
               })}
               <td className="px-2 py-2 text-center bg-indigo-50/50 tabular-nums whitespace-nowrap">
-                <div className="text-indigo-600 text-[11px]">
-                  {totalQty > 0 && fy26Qty > 0
-                    ? `${Math.round((fy26Qty / totalQty) * 100)}%`
-                    : <span className="text-gray-300">–</span>}
-                </div>
-                <div className="text-[10px] text-indigo-400">
-                  {fy26Qty > 0 ? fy26Qty.toLocaleString() : <span className="text-gray-300">–</span>}
-                </div>
+                {fy26RatioSum > 0
+                  ? <span className="text-indigo-600 text-[11px] font-semibold">{Math.round(fy26RatioSum)}%</span>
+                  : <span className="text-gray-300">–</span>}
               </td>
               <td className="px-2 py-2 text-center bg-gray-50 tabular-nums">
-                <div className="text-gray-400 text-[11px]">
-                  {totalQty > 0 ? '100%' : <span className="text-gray-300">–</span>}
-                </div>
-                <div className="text-[10px] text-gray-400">
-                  {totalQty > 0 ? totalQty.toLocaleString() : <span className="text-gray-300">–</span>}
-                </div>
+                {totalRatioSum > 0
+                  ? <span className={`text-[11px] font-semibold ${Math.round(totalRatioSum) === 100 ? 'text-gray-500' : 'text-amber-500'}`}>
+                      {Math.round(totalRatioSum)}%
+                    </span>
+                  : <span className="text-gray-300">–</span>}
               </td>
             </tr>
 
