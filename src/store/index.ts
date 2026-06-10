@@ -2,10 +2,11 @@ import { create } from 'zustand';
 import { v4 as uuidv4 } from 'uuid';
 import {
   collection, doc, setDoc, deleteDoc, onSnapshot, writeBatch, getDocs,
+  addDoc, serverTimestamp,
 } from 'firebase/firestore';
 import { fsdb } from '../lib/firebase';
-import type { AppState, Category, Month, SkuData, MonthlySplit, ColorEntry, ChannelMonthEntry } from '../types';
-import { MAX_SIZES, SIZE_LABELS, MONTHS, CHANNELS, BRANDS, DEFAULT_CHANNEL_RATIOS, getReleaseMonth, simPosition, type Brand, type Channel } from '../types';
+import type { AppState, Category, Month, SkuData, MonthlySplit, ColorEntry, ChannelMonthEntry, ChannelMonthQtyEntry, ChannelPricing } from '../types';
+import { MAX_SIZES, SIZE_LABELS, MONTHS, CHANNELS, BRANDS, DEFAULT_CHANNEL_RATIOS, DEFAULT_CHANNEL_COMMISSION, getReleaseMonth, simPosition, type Brand, type Channel } from '../types';
 import { recalcQuantities, revenueMultiplier, calcDynamicMultiplier } from '../utils/calc';
 
 const SKUS_COL = 'skus';
@@ -32,6 +33,7 @@ function buildEmptySku(category: Category): SkuData {
     releaseDate: '',
     price: 0,
     cost: 0,
+    regularPrice: 0,
     contributionMarginRate: 0,
     totalOrderQty: 0,
     sizeCount: 1,
@@ -50,11 +52,20 @@ function buildEmptySku(category: Category): SkuData {
     channelMonthlySplit: CHANNELS.flatMap((channel) =>
       MONTHS.map((month) => ({ channel, month, ratio: 0 })),
     ),
+    channelMonthQty: CHANNELS.flatMap((channel) =>
+      MONTHS.map((month) => ({ channel, month, qty: 0 })),
+    ),
+    channelPricing: CHANNELS.map((channel) => ({
+      channel, price: 0, commissionRate: DEFAULT_CHANNEL_COMMISSION[channel],
+    })),
     memo: '',
+    pricingOpts: {},
+    pricingUsdRate: 1400,
     comparisonSku: { name: '', price: 0, cost: 0, monthlyShipment: 0, annualShipment: 0 },
     monthlySplit: MONTHS.map((month) => ({
       month, ratio: 0, quantity: 0, revenue: 0, contributionProfit: 0,
     })),
+    isConfirmed: false,
   };
   return { ...base, isExpanded: true, _initialSnapshot: JSON.parse(JSON.stringify(base)) };
 }
@@ -68,9 +79,23 @@ function recalcMonthlySplit(sku: SkuData, overrideSplit?: MonthlySplit[]): Month
       releaseMonth !== null && simPosition(ms.month) < simPosition(releaseMonth);
     if (isDisabled) return { ...ms, quantity: 0, revenue: 0, contributionProfit: 0 };
     const quantity = Math.round(sku.totalOrderQty * ms.ratio / 100);
-    const revenue = Math.round(quantity * sku.price * multiplier);
+    const revenue = Math.round(quantity * sku.price / 1.1 * multiplier);
     const contributionProfit = Math.round(revenue * sku.contributionMarginRate / 100);
     return { ...ms, quantity, revenue, contributionProfit };
+  });
+}
+
+/** Product Dashboard 전용: 수량은 Firestore 저장값 그대로, revenue/profit만 재계산 */
+function recalcRevenueFromQty(sku: SkuData): MonthlySplit[] {
+  const releaseMonth = getReleaseMonth(sku.releaseDate);
+  const multiplier = calcDynamicMultiplier(sku.channelRatios) ?? revenueMultiplier(sku.category);
+  return sku.monthlySplit.map((ms) => {
+    const isDisabled =
+      releaseMonth !== null && simPosition(ms.month) < simPosition(releaseMonth);
+    if (isDisabled) return { ...ms, quantity: 0, revenue: 0, contributionProfit: 0 };
+    const revenue = Math.round(ms.quantity * sku.price / 1.1 * multiplier);
+    const contributionProfit = Math.round(revenue * sku.contributionMarginRate / 100);
+    return { ...ms, revenue, contributionProfit };
   });
 }
 
@@ -127,8 +152,18 @@ function applyMigration(raw: any): SkuData {
     colors: [],
     channelRatios: defaultChannelRatios,
     memo: '',
+    regularPrice: 0,
+    channelMonthQty: CHANNELS.flatMap((channel) =>
+      MONTHS.map((month) => ({ channel, month, qty: 0 } as ChannelMonthQtyEntry)),
+    ),
+    channelPricing: CHANNELS.map((channel) => ({
+      channel, price: 0, commissionRate: DEFAULT_CHANNEL_COMMISSION[channel],
+    } as ChannelPricing)),
     ...raw,
+    pricingOpts: raw.pricingOpts ?? {},
+    pricingUsdRate: raw.pricingUsdRate ?? 1400,
     isExpanded: false,
+    isConfirmed: raw.isConfirmed ?? false,
     _initialSnapshot: {
       hasColors: false,
       colors: [],
@@ -197,6 +232,10 @@ interface StoreActions {
   toggleExpanded: (id: string) => void;
   updateSku: (id: string, patch: Partial<SkuData>) => void;
   updateMonthlySplit: (id: string, month: Month, ratio: number) => void;
+  updateMonthlyQty: (id: string, month: Month, quantity: number) => void;
+  updateChannelMonthQty: (id: string, channel: Channel, month: Month, qty: number) => void;
+  batchInitChannelMonthQty: (id: string, entries: ChannelMonthQtyEntry[]) => void;
+  updateChannelPricing: (id: string, channel: Channel, patch: { price?: number; commissionRate?: number }) => void;
   updateChannelRatio: (id: string, channel: string, ratio: number) => void;
   resetChannelRatios: (id: string) => void;
   updateChannelMonthRatio: (id: string, channel: Channel, month: Month, ratio: number) => void;
@@ -204,7 +243,9 @@ interface StoreActions {
   applyChannelRatiosToFiltered: (sourceSkuId: string) => Promise<void>;
   importSkus: (skus: SkuData[]) => Promise<void>;
   replaceAllSkus: (skus: Omit<SkuData, '_initialSnapshot' | 'isExpanded'>[]) => Promise<void>;
+  updateStep2OptionQty: (id: string, qty: Record<string, number>) => void;
   persistSku: (id: string) => Promise<void>;
+  setSkuConfirmed: (id: string, confirmed: boolean, role: string) => Promise<void>;
 }
 
 export const useStore = create<AppState & StoreActions>((set, get) => ({
@@ -225,7 +266,7 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
         .map(applyMigration)
         .map((s) => ({
           ...s,
-          monthlySplit: recalcMonthlySplit(s),
+          monthlySplit: recalcRevenueFromQty(s),
           isExpanded: expandedMap.get(s.id) ?? false,
         }))
         .sort((a, b) => {
@@ -314,6 +355,57 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
       return updated;
     });
     set({ skus: next });
+  },
+
+  updateChannelMonthQty: (id, channel, month, qty) => {
+    const skus = get().skus;
+    const sku = skus.find((s) => s.id === id);
+    if (!sku) return;
+    const updated: SkuData = {
+      ...sku,
+      channelMonthQty: sku.channelMonthQty.map((e) =>
+        e.channel === channel && e.month === month ? { ...e, qty } : e,
+      ),
+    };
+    set({ skus: skus.map((s) => (s.id === id ? updated : s)) });
+  },
+
+  batchInitChannelMonthQty: (id, entries) => {
+    const skus = get().skus;
+    const sku = skus.find((s) => s.id === id);
+    if (!sku) return;
+    set({ skus: skus.map((s) => (s.id === id ? { ...s, channelMonthQty: entries } : s)) });
+  },
+
+  updateChannelPricing: (id, channel, patch) => {
+    const skus = get().skus;
+    const sku = skus.find((s) => s.id === id);
+    if (!sku) return;
+    const updated: SkuData = {
+      ...sku,
+      channelPricing: sku.channelPricing.map((cp) =>
+        cp.channel === channel ? { ...cp, ...patch } : cp,
+      ),
+    };
+    set({ skus: skus.map((s) => (s.id === id ? updated : s)) });
+  },
+
+  updateMonthlyQty: (id, month, quantity) => {
+    const skus = get().skus;
+    const sku = skus.find((s) => s.id === id);
+    if (!sku) return;
+    const multiplier = calcDynamicMultiplier(sku.channelRatios) ?? revenueMultiplier(sku.category);
+    const ratio = sku.totalOrderQty > 0 ? Math.round(quantity / sku.totalOrderQty * 100) : 0;
+    const revenue = Math.round(quantity * sku.price / 1.1 * multiplier);
+    const contributionProfit = Math.round(revenue * sku.contributionMarginRate / 100);
+    const patchedSplit = sku.monthlySplit.map((ms) =>
+      ms.month === month ? { ...ms, quantity, ratio, revenue, contributionProfit } : ms,
+    );
+    const updated = { ...sku, monthlySplit: patchedSplit };
+    if (isCMSEmpty(sku.channelMonthlySplit)) {
+      updated.channelMonthlySplit = deriveChannelMonthlySplit(updated);
+    }
+    set({ skus: skus.map((s) => (s.id === id ? updated : s)) });
   },
 
   updateMonthlySplit: (id, month, ratio) => {
@@ -443,6 +535,10 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
     set({ skus: full });
   },
 
+  updateStep2OptionQty: (id, qty) => {
+    set({ skus: get().skus.map((s) => (s.id === id ? { ...s, step2OptionQty: qty } : s)) });
+  },
+
   persistSku: async (id) => {
     const sku = get().skus.find((s) => s.id === id);
     if (sku) {
@@ -453,5 +549,20 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
         throw err; // 호출부에서 catch할 수 있도록 re-throw
       }
     }
+  },
+
+  setSkuConfirmed: async (id, confirmed, role) => {
+    const sku = get().skus.find((s) => s.id === id);
+    if (!sku) return;
+    const updated = { ...sku, isConfirmed: confirmed };
+    set({ skus: get().skus.map((s) => (s.id === id ? updated : s)) });
+    await setDoc(doc(fsdb, SKUS_COL, id), toFirestore(updated));
+    await addDoc(collection(fsdb, 'confirmLogs'), {
+      skuId: id,
+      skuName: sku.name || '(SKU명 미입력)',
+      action: confirmed ? '확정' : '확정취소',
+      role,
+      timestamp: serverTimestamp(),
+    });
   },
 }));

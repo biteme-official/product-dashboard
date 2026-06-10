@@ -151,8 +151,8 @@ export function MdViewSection() {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <KpiCard
             label="시뮬레이션 출고량"
-            value={`${grand.totalSimQty.toLocaleString()}장`}
-            sub={`발주량 ${grand.totalOrderQty.toLocaleString()}장 · SKU ${filteredSkus.length}개`}
+            value={grand.totalSimQty.toLocaleString()}
+            sub={`발주량 ${grand.totalOrderQty.toLocaleString()} · SKU ${filteredSkus.length}개`}
           />
           <KpiCard
             label="예상 총매출"

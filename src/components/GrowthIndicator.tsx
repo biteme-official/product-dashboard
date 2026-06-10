@@ -80,13 +80,11 @@ export function GrowthIndicator({
         label="월 출고량"
         newVal={newMonthlyQty}
         oldVal={oldMonthlyQty}
-        unit="장"
       />
       <GrowthMetric
         label="연간 총출고량"
         newVal={newAnnualQty}
         oldVal={oldAnnualQty}
-        unit="장"
       />
       <GrowthMetric
         label="판매가"

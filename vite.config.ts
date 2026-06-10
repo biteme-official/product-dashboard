@@ -5,7 +5,15 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   server: {
-    port: 5173,
-    strictPort: true, // 포트가 사용 중이면 에러 (자동 변경 방지)
+    port: 5174,
+    strictPort: true,
+    proxy: {
+      '/api/tableau': {
+        target: 'https://prod-apnortheast-a.online.tableau.com',
+        changeOrigin: true,
+        secure: false,
+        rewrite: (path) => path.replace(/^\/api\/tableau/, ''),
+      },
+    },
   },
 })

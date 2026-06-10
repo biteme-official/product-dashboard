@@ -63,7 +63,8 @@ export interface SizeRatio {
 }
 
 export interface ComparisonSku {
-  name: string;
+  name: string;              // 표시용 (단일이면 SKU명, 복수이면 "A, B, ...")
+  compareSkuNames?: string[]; // 다중 선택된 개별 SKU명 목록 (재수화용)
   price: number;
   cost: number;
   monthlyShipment: number;
@@ -75,6 +76,29 @@ export interface ChannelMonthEntry {
   month: Month;
   ratio: number; // 해당 채널×월에 총 발주량 대비 출고 비중(%)
 }
+
+export interface ChannelMonthQtyEntry {
+  channel: Channel;
+  month: Month;
+  qty: number;
+}
+
+export interface ChannelPricing {
+  channel: Channel;
+  price: number;          // 채널별 판매가 (기본: sku.price)
+  commissionRate: number; // 수수료% (0~100)
+}
+
+export const DEFAULT_CHANNEL_COMMISSION: Record<Channel, number> = {
+  '자사몰': 3,
+  '스스': 5.5,
+  '위탁': 25,
+  '쿠팡': 35,
+  'B2B': 0,
+  '사입및페어': 0,
+  '글로벌': 0,
+  '일본': 0,
+};
 
 export interface MonthlySplit {
   month: Month;
@@ -92,6 +116,7 @@ export interface SkuData {
   releaseDate: string;              // 'YYYY-MM-DD'
   price: number;
   cost: number;
+  regularPrice: number;
   contributionMarginRate: number;
   totalOrderQty: number;
   sizeCount: number;
@@ -103,10 +128,16 @@ export interface SkuData {
   colors: ColorEntry[];             // 컬러별 수량 목록
   channelRatios: ChannelRatio[];    // 채널별 판매 비중 (PM 탭용)
   channelMonthlySplit: ChannelMonthEntry[]; // 채널×월 직접 비중 (MD 탭용)
+  channelMonthQty: ChannelMonthQtyEntry[]; // 채널×월 직접 수량 (Product Dashboard용)
+  channelPricing: ChannelPricing[];        // 채널별 판매가·수수료 (프라이싱 탭용)
   memo: string;                     // 자유 메모 (HTML)
   imageUrl?: string;                // Firebase Storage 이미지 URL
+  pricingOpts: Record<string, string>; // STEP3 채널×월 판매가 시나리오 (key: "채널-월")
+  pricingUsdRate: number;              // STEP3 USD 환율
   comparisonSku: ComparisonSku;
   monthlySplit: MonthlySplit[];     // 길이 8 (7~12월 + 익년 1~2월)
+  step2OptionQty?: Record<string, number>;
+  isConfirmed?: boolean;
   isExpanded: boolean;
   _initialSnapshot: Omit<SkuData, 'isExpanded' | '_initialSnapshot'>;
 }

@@ -199,7 +199,7 @@ export function MonthlySalesSection() {
                   <div className="font-semibold text-indigo-700 whitespace-nowrap">
                     {formatWon(totalRevenue)}
                   </div>
-                  <div className="text-indigo-400 text-xs mt-0.5 whitespace-nowrap">
+                  <div className="text-emerald-600 text-xs mt-0.5 whitespace-nowrap">
                     {formatWon(totalProfit)}
                   </div>
                 </td>

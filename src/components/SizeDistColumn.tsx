@@ -61,7 +61,7 @@ export function SizeDistColumn({ sku, readOnly }: Props) {
     sku.targetSellThroughMonths > 0
       ? Math.round(sku.totalOrderQty / sku.targetSellThroughMonths)
       : 0;
-  const dailyTarget = Math.round(monthlyTarget / 30);
+  void Math.round(monthlyTarget / 30); // dailyTarget — not currently displayed
 
   function handleBlur() { persistSku(sku.id); }
 
@@ -185,12 +185,12 @@ export function SizeDistColumn({ sku, readOnly }: Props) {
       {/* ── 단색: 총 발주량 입력 ── */}
       {!sku.hasColors && (
         <div>
-          <label className="block text-xs text-gray-500 mb-1">총 발주량 (장)</label>
+          <label className="block text-xs text-gray-500 mb-1">총 발주량</label>
           <NumericInput
             value={sku.totalOrderQty}
             onChange={handleTotalQtyChange}
             onBlur={handleBlur}
-            disabled={readOnly}
+            disabled={readOnly || !!sku.isConfirmed}
             placeholder="0"
             className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed"
           />
@@ -205,7 +205,7 @@ export function SizeDistColumn({ sku, readOnly }: Props) {
             <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
               sku.totalOrderQty > 0 ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-400'
             }`}>
-              총 {sku.totalOrderQty.toLocaleString()}장
+              총 {sku.totalOrderQty.toLocaleString()}
             </span>
           </div>
           <div className="space-y-1">
@@ -228,14 +228,14 @@ export function SizeDistColumn({ sku, readOnly }: Props) {
                     value={color.quantity}
                     onChange={(v) => handleColorChange(color.id, { quantity: v })}
                     onBlur={handleBlur}
-                    disabled={readOnly}
+                    disabled={readOnly || !!sku.isConfirmed}
                     placeholder="수량"
                     className="w-20 px-2 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-400 text-right disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed"
                   />
                   <span className="w-9 text-right text-[11px] tabular-nums flex-shrink-0 text-indigo-400 font-medium">
                     {pct !== null ? `${pct}%` : ''}
                   </span>
-                  {!readOnly && (
+                  {!readOnly && !sku.isConfirmed && (
                     <button
                       onClick={() => removeColor(color.id)}
                       className="text-lg leading-none text-gray-300 hover:text-red-400 transition-colors flex-shrink-0"
@@ -247,7 +247,7 @@ export function SizeDistColumn({ sku, readOnly }: Props) {
               );
             })}
           </div>
-          {!readOnly && (
+          {!readOnly && !sku.isConfirmed && (
             <button
               onClick={addColor}
               className="w-full py-1.5 text-xs border border-dashed border-indigo-200 text-indigo-500 rounded-lg hover:bg-indigo-50 transition-colors"
@@ -341,21 +341,305 @@ export function SizeDistColumn({ sku, readOnly }: Props) {
         <ColorSizeResultTable sku={sku} sumRatios={sumRatios} />
       )}
 
-      {/* 목표 소진량 */}
-      <div className="p-3 bg-emerald-50 rounded-lg space-y-1 border border-emerald-100">
-        <div className="text-xs font-semibold text-emerald-700 mb-1.5">목표 소진량</div>
-        <div className="flex justify-between text-xs">
-          <span className="text-gray-500">월간 목표 소진량</span>
-          <span className="font-semibold text-emerald-700">
-            {monthlyTarget > 0 ? `${monthlyTarget.toLocaleString()}장 / 월` : '–'}
-          </span>
+      {/* ── STEP2 기준 옵션별 발주량 ── */}
+      <Step2OrderTable sku={sku} sumRatios={sumRatios} />
+    </div>
+  );
+}
+
+// ── STEP2 MD 수정 목표량 기준 옵션별 발주량 테이블 ──
+function Step2OrderTable({ sku, sumRatios }: { sku: SkuData; sumRatios: number }) {
+  const { updateStep2OptionQty, persistSku } = useStore();
+  // 부모 리렌더 지연 없이 channelMonthQty/step2OptionQty 변경 즉시 반영
+  const liveChannelMonthQty = useStore((s) => s.skus.find((x) => x.id === sku.id)?.channelMonthQty ?? sku.channelMonthQty);
+  const liveStep2OptionQty = useStore((s) => s.skus.find((x) => x.id === sku.id)?.step2OptionQty);
+  const [isEditing, setIsEditing] = useState(false);
+  const [draftQtys, setDraftQtys] = useState<Record<string, number>>({});
+  const [copyState, setCopyState] = useState<'idle' | 'ok' | 'err'>('idle');
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const step2Total = liveChannelMonthQty.reduce((s, e) => s + e.qty, 0);
+  const activeSizes = sku.sizes.filter((s) => s.isActive && s.ratio > 0);
+  const activeColors = sku.hasColors ? sku.colors.filter((c) => c.name || c.quantity > 0) : [];
+  const colorTotal = activeColors.reduce((s, c) => s + c.quantity, 0);
+  const hasColors = activeColors.length > 0 && colorTotal > 0;
+  const hasSizes = activeSizes.length > 0 && sumRatios > 0;
+
+  if (step2Total === 0 || (!hasColors && !hasSizes)) return null;
+
+  // Key builders
+  const csKey = (cid: string, sl: string) => `cs|${cid}|${sl}`;
+  const cKey = (cid: string) => `c|${cid}`;
+  const sKey = (sl: string) => `s|${sl}`;
+
+  // Computed fallbacks from STEP2 total
+  const compCS = (cQty: number, sRatio: number) =>
+    sumRatios === 0 || colorTotal === 0 ? 0 : Math.round(step2Total * (cQty / colorTotal) * (sRatio / sumRatios));
+  const compC = (cQty: number) => colorTotal === 0 ? 0 : Math.round(step2Total * (cQty / colorTotal));
+  const compS = (sRatio: number) => sumRatios === 0 ? 0 : Math.round(step2Total * (sRatio / sumRatios));
+
+  // Display values: stored manual overrides scaled by current/saved total ratio
+  const stored = liveStep2OptionQty ?? {};
+  const isManual = Object.keys(stored).some((k) => k !== '__total__');
+  // 저장 시점 total 대비 현재 total 비율로 스케일링 → STEP2 변경 시 자동 반영
+  const savedTotal = (stored['__total__'] as number | undefined) ?? 0;
+  const scale = isManual && savedTotal > 0 && step2Total > 0 ? step2Total / savedTotal : 1;
+  const dispCS = (cid: string, cQty: number, sl: string, sRatio: number) =>
+    isManual && stored[csKey(cid, sl)] !== undefined ? Math.round(stored[csKey(cid, sl)] * scale) : compCS(cQty, sRatio);
+  const dispC = (cid: string, cQty: number) =>
+    isManual && stored[cKey(cid)] !== undefined ? Math.round(stored[cKey(cid)] * scale) : compC(cQty);
+  const dispS = (sl: string, sRatio: number) =>
+    isManual && stored[sKey(sl)] !== undefined ? Math.round(stored[sKey(sl)] * scale) : compS(sRatio);
+
+  function startEdit() {
+    const draft: Record<string, number> = {};
+    if (hasColors && hasSizes) {
+      activeColors.forEach((c) => activeSizes.forEach((s) => {
+        draft[csKey(c.id, s.label)] = dispCS(c.id, c.quantity, s.label, s.ratio);
+      }));
+    } else if (hasColors) {
+      activeColors.forEach((c) => { draft[cKey(c.id)] = dispC(c.id, c.quantity); });
+    } else {
+      activeSizes.forEach((s) => { draft[sKey(s.label)] = dispS(s.label, s.ratio); });
+    }
+    setDraftQtys(draft);
+    setIsEditing(true);
+  }
+
+  function saveEdit() {
+    updateStep2OptionQty(sku.id, { ...draftQtys, __total__: step2Total });
+    persistSku(sku.id);
+    setIsEditing(false);
+  }
+
+  function resetToComputed() {
+    updateStep2OptionQty(sku.id, {});
+    persistSku(sku.id);
+    if (isEditing) setIsEditing(false);
+  }
+
+  async function handleCopy() {
+    if (copyState !== 'idle') return;
+    try {
+      let rows: (string | number)[][];
+      if (hasColors && hasSizes) {
+        rows = [
+          ['컬러 \\ 사이즈', ...activeSizes.map((s) => s.label)],
+          ...activeColors.map((c) => [c.name, ...activeSizes.map((s) => dispCS(c.id, c.quantity, s.label, s.ratio))]),
+        ];
+      } else if (hasColors) {
+        rows = [['컬러', '수량'], ...activeColors.map((c) => [c.name, dispC(c.id, c.quantity)])];
+      } else {
+        rows = [['사이즈', ...activeSizes.map((s) => s.label)], ['수량', ...activeSizes.map((s) => dispS(s.label, s.ratio))]];
+      }
+      const tsv = rows.map((row) => row.map((cell) => String(cell).replace(/\t/g, ' ')).join('\t')).join('\n');
+      await navigator.clipboard.writeText(tsv);
+      setCopyState('ok');
+    } catch {
+      setCopyState('err');
+    }
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => setCopyState('idle'), 1800);
+  }
+
+  const copyLabel = copyState === 'ok' ? '복사됨 ✓' : copyState === 'err' ? '실패' : '복사';
+  const copyBtnCls =
+    copyState === 'ok' ? 'text-indigo-600 border-indigo-200 bg-indigo-50' :
+    copyState === 'err' ? 'text-red-500 border-red-200 bg-red-50' :
+    'text-gray-500 border-gray-200 bg-gray-50 hover:bg-gray-100';
+
+  const setDraft = (key: string, val: number) => setDraftQtys((prev) => ({ ...prev, [key]: val }));
+
+  function editInput(key: string, initVal: number) {
+    return (
+      <input
+        type="text"
+        inputMode="numeric"
+        className="w-full text-center text-xs border border-indigo-300 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-indigo-400 tabular-nums bg-white"
+        value={draftQtys[key] ?? initVal}
+        onChange={(e) => setDraft(key, parseInt(e.target.value.replace(/\D/g, ''), 10) || 0)}
+      />
+    );
+  }
+
+  const tableHeader = (
+    <div className="flex items-center justify-between mb-1.5">
+      <label className="text-xs text-gray-500 font-medium">STEP2 MD 수정 목표량 기준 옵션별 발주량</label>
+      <div className="flex items-center gap-1">
+        <button
+          onClick={resetToComputed}
+          className="text-xs px-2 py-0.5 rounded-full border border-gray-200 bg-gray-50 hover:bg-gray-100 text-gray-500 transition-colors"
+        >
+          초기화
+        </button>
+        {isEditing ? (
+          <button
+            onClick={saveEdit}
+            className="text-xs px-2 py-0.5 rounded-full border border-indigo-300 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 transition-colors"
+          >
+            저장
+          </button>
+        ) : (
+          <button
+            onClick={startEdit}
+            className="text-xs px-2 py-0.5 rounded-full border border-gray-200 bg-gray-50 hover:bg-gray-100 text-gray-500 transition-colors"
+          >
+            수정
+          </button>
+        )}
+        <button onClick={handleCopy} className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border transition-colors ${copyBtnCls}`}>
+          {copyState === 'idle' && (
+            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2M16 8h2a2 2 0 012 2v8a2 2 0 01-2 2h-8a2 2 0 01-2-2v-2" />
+            </svg>
+          )}
+          {copyLabel}
+        </button>
+      </div>
+    </div>
+  );
+
+  if (hasColors && hasSizes) {
+    const getDraftCS = (cid: string, cQty: number, sl: string, sRatio: number) =>
+      isEditing ? (draftQtys[csKey(cid, sl)] ?? dispCS(cid, cQty, sl, sRatio)) : dispCS(cid, cQty, sl, sRatio);
+    const colTotals = activeSizes.map((s) =>
+      activeColors.reduce((sum, c) => sum + getDraftCS(c.id, c.quantity, s.label, s.ratio), 0),
+    );
+    const grandTotal = activeColors.reduce(
+      (sum, c) => sum + activeSizes.reduce((ss, s) => ss + getDraftCS(c.id, c.quantity, s.label, s.ratio), 0), 0,
+    );
+    return (
+      <div className="mt-3 pt-3 border-t border-gray-100">
+        {tableHeader}
+        <div className="overflow-x-auto rounded-lg border border-gray-200">
+          <table className="w-full text-xs border-collapse">
+            <thead>
+              <tr className="bg-gray-50 border-b border-gray-200">
+                <th className="px-2 py-1.5 text-left font-semibold text-gray-500 border-r border-gray-200 min-w-[60px]">컬러</th>
+                {activeSizes.map((s) => (
+                  <th key={s.label} className="px-2 py-1.5 text-center font-semibold text-indigo-600 border-r border-gray-200 last:border-r-0 min-w-[44px]">{s.label}</th>
+                ))}
+                <th className="px-2 py-1.5 text-center font-semibold text-gray-500 min-w-[52px]">합계</th>
+              </tr>
+            </thead>
+            <tbody>
+              {activeColors.map((color, rowIdx) => {
+                const rowTotal = activeSizes.reduce((sum, s) => sum + getDraftCS(color.id, color.quantity, s.label, s.ratio), 0);
+                return (
+                  <tr key={color.id} className={`border-b border-gray-100 last:border-b-0 ${rowIdx % 2 === 0 ? 'bg-white' : 'bg-gray-50/40'}`}>
+                    <td className="px-2 py-1.5 border-r border-gray-200 font-medium text-gray-700 truncate max-w-[60px]">
+                      {color.name || <span className="text-gray-300">(미입력)</span>}
+                    </td>
+                    {activeSizes.map((s) => {
+                      const key = csKey(color.id, s.label);
+                      const qty = getDraftCS(color.id, color.quantity, s.label, s.ratio);
+                      return (
+                        <td key={s.label} className="px-1 py-1 text-center text-gray-600 border-r border-gray-100 tabular-nums">
+                          {isEditing ? editInput(key, dispCS(color.id, color.quantity, s.label, s.ratio)) : (qty > 0 ? qty.toLocaleString() : <span className="text-gray-300">0</span>)}
+                        </td>
+                      );
+                    })}
+                    <td className="px-2 py-1.5 text-center font-semibold text-indigo-700 tabular-nums">
+                      {rowTotal > 0 ? rowTotal.toLocaleString() : <span className="text-gray-300">0</span>}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+            <tfoot>
+              <tr className="bg-indigo-50 border-t-2 border-indigo-200">
+                <td className="px-2 py-1.5 text-xs font-semibold text-indigo-700 border-r border-indigo-200">합계</td>
+                {colTotals.map((total, i) => (
+                  <td key={activeSizes[i].label} className="px-2 py-1.5 text-center text-xs font-semibold text-indigo-700 border-r border-indigo-100 tabular-nums">
+                    {total > 0 ? total.toLocaleString() : <span className="text-indigo-300">0</span>}
+                  </td>
+                ))}
+                <td className="px-2 py-1.5 text-center text-xs font-bold text-indigo-700 tabular-nums">{grandTotal.toLocaleString()}</td>
+              </tr>
+            </tfoot>
+          </table>
         </div>
-        <div className="flex justify-between text-xs">
-          <span className="text-gray-500">일간 목표 소진량</span>
-          <span className="font-semibold text-emerald-700">
-            {dailyTarget > 0 ? `${dailyTarget.toLocaleString()}장 / 일` : '–'}
-          </span>
+      </div>
+    );
+  }
+
+  if (hasColors) {
+    const getDraftC = (cid: string, cQty: number) =>
+      isEditing ? (draftQtys[cKey(cid)] ?? dispC(cid, cQty)) : dispC(cid, cQty);
+    const grandTotal = activeColors.reduce((sum, c) => sum + getDraftC(c.id, c.quantity), 0);
+    return (
+      <div className="mt-3 pt-3 border-t border-gray-100">
+        {tableHeader}
+        <div className="overflow-x-auto rounded-lg border border-gray-200">
+          <table className="w-full text-xs border-collapse">
+            <thead>
+              <tr className="bg-gray-50 border-b border-gray-200">
+                <th className="px-2 py-1.5 text-left font-semibold text-gray-500 border-r border-gray-200">컬러</th>
+                <th className="px-2 py-1.5 text-center font-semibold text-indigo-600">수량</th>
+              </tr>
+            </thead>
+            <tbody>
+              {activeColors.map((color, rowIdx) => {
+                const key = cKey(color.id);
+                const qty = getDraftC(color.id, color.quantity);
+                return (
+                  <tr key={color.id} className={`border-b border-gray-100 last:border-b-0 ${rowIdx % 2 === 0 ? 'bg-white' : 'bg-gray-50/40'}`}>
+                    <td className="px-2 py-1.5 border-r border-gray-200 font-medium text-gray-700">
+                      {color.name || <span className="text-gray-300">(미입력)</span>}
+                    </td>
+                    <td className="px-1 py-1 text-center text-gray-600 tabular-nums">
+                      {isEditing ? editInput(key, dispC(color.id, color.quantity)) : (qty > 0 ? qty.toLocaleString() : <span className="text-gray-300">0</span>)}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+            <tfoot>
+              <tr className="bg-indigo-50 border-t-2 border-indigo-200">
+                <td className="px-2 py-1.5 text-xs font-semibold text-indigo-700 border-r border-indigo-200">합계</td>
+                <td className="px-2 py-1.5 text-center text-xs font-bold text-indigo-700 tabular-nums">{grandTotal.toLocaleString()}</td>
+              </tr>
+            </tfoot>
+          </table>
         </div>
+      </div>
+    );
+  }
+
+  // size-only
+  const getDraftS = (sl: string, sRatio: number) =>
+    isEditing ? (draftQtys[sKey(sl)] ?? dispS(sl, sRatio)) : dispS(sl, sRatio);
+  const sizeGrandTotal = activeSizes.reduce((sum, s) => sum + getDraftS(s.label, s.ratio), 0);
+  return (
+    <div className="mt-3 pt-3 border-t border-gray-100">
+      {tableHeader}
+      <div className="overflow-x-auto rounded-lg border border-gray-200">
+        <table className="w-full text-xs border-collapse">
+          <thead>
+            <tr className="bg-gray-50 border-b border-gray-200">
+              <th className="px-2 py-1.5 text-left font-semibold text-gray-500 border-r border-gray-200 w-[52px]"></th>
+              {activeSizes.map((s) => (
+                <th key={s.label} className="px-2 py-1.5 text-center font-semibold text-indigo-600 border-r border-gray-200 last:border-r-0 min-w-[44px]">{s.label}</th>
+              ))}
+              <th className="px-2 py-1.5 text-center font-semibold text-gray-500 min-w-[52px]">합계</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr className="border-b border-gray-100">
+              <td className="px-2 py-1.5 border-r border-gray-200 font-medium text-gray-600">수량</td>
+              {activeSizes.map((s) => {
+                const key = sKey(s.label);
+                const qty = getDraftS(s.label, s.ratio);
+                return (
+                  <td key={s.label} className="px-1 py-1 text-center text-gray-600 border-r border-gray-100 tabular-nums">
+                    {isEditing ? editInput(key, dispS(s.label, s.ratio)) : (qty > 0 ? qty.toLocaleString() : <span className="text-gray-300">0</span>)}
+                  </td>
+                );
+              })}
+              <td className="px-2 py-1.5 text-center font-semibold text-indigo-700 tabular-nums">{sizeGrandTotal.toLocaleString()}</td>
+            </tr>
+          </tbody>
+        </table>
       </div>
     </div>
   );
@@ -384,15 +668,6 @@ function ColorSizeResultTable({ sku, sumRatios }: { sku: SkuData; sumRatios: num
         <label className="text-xs text-gray-500">컬러 × 사이즈 수량 결과</label>
         <div className="flex items-center gap-1.5">
           <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">자동 계산</span>
-          <button
-            onClick={() => exportSkuOrderXlsx(sku)}
-            className="flex items-center gap-1 text-xs text-emerald-600 hover:text-emerald-700 px-2 py-0.5 rounded-full border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 transition-colors"
-          >
-            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3" />
-            </svg>
-            발주표
-          </button>
           <CopyButton sku={sku} />
         </div>
       </div>

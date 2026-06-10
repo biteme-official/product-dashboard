@@ -1,17 +1,20 @@
 import { useStore } from '../store';
-import { BRANDS, type Brand } from '../types';
+import { BRANDS, type Brand, type Category } from '../types';
 
-export function BrandFilter() {
+interface Props {
+  categoryFilter?: Category | '전체';
+}
+
+export function BrandFilter({ categoryFilter }: Props = {}) {
   const skus = useStore((s) => s.skus);
   const activeCategory = useStore((s) => s.activeCategory);
   const activeBrand = useStore((s) => s.activeBrand);
   const setActiveBrand = useStore((s) => s.setActiveBrand);
 
-  // 현재 카테고리에 존재하는 브랜드만 추출
-  const categorySkus = skus.filter((s) => s.category === activeCategory);
+  const filterCat = categoryFilter ?? activeCategory;
+  const categorySkus = filterCat === '전체' ? skus : skus.filter((s) => s.category === filterCat);
   const presentBrands = BRANDS.filter((b) => categorySkus.some((s) => s.brand === b));
 
-  // 브랜드가 2종 이상일 때만 표시
   if (presentBrands.length < 2) return null;
 
   const buttons: (Brand | '전체')[] = ['전체', ...presentBrands];

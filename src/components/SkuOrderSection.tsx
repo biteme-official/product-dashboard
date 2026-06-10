@@ -367,7 +367,7 @@ function SkuGalleryCard({ sku, onClick }: { sku: SkuData; onClick: () => void })
           {sku.price > 0 ? `₩${sku.price.toLocaleString()}` : <span className="text-gray-300">–</span>}
         </p>
         <p className="text-[11px] text-gray-400">
-          {sku.totalOrderQty > 0 ? `${sku.totalOrderQty.toLocaleString()}장` : <span className="text-gray-300">–</span>}
+          {sku.totalOrderQty > 0 ? sku.totalOrderQty.toLocaleString() : <span className="text-gray-300">–</span>}
         </p>
       </div>
     </button>

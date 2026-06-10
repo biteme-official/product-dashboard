@@ -46,6 +46,7 @@ const paddingBase = {
   releaseDate: '2024-10-01',
   price: 79000,
   cost: 12000,
+  regularPrice: 0,
   contributionMarginRate: 35,
   totalOrderQty: 2000,
   sizeCount: 5,
@@ -65,6 +66,10 @@ const paddingBase = {
   channelRatios: buildChannelRatios(),
   channelMonthlySplit: buildChannelMonthlySplit(),
   monthlySplit: buildMonthlySplit(),
+  channelMonthQty: [],
+  channelPricing: [],
+  pricingOpts: {},
+  pricingUsdRate: 0,
   memo: '',
 };
 
@@ -76,6 +81,7 @@ const tshirtBase = {
   releaseDate: '2024-04-15',
   price: 32000,
   cost: 8000,
+  regularPrice: 0,
   contributionMarginRate: 30,
   totalOrderQty: 1000,
   sizeCount: 5,
@@ -95,6 +101,10 @@ const tshirtBase = {
   channelRatios: buildChannelRatios(),
   channelMonthlySplit: buildChannelMonthlySplit(),
   monthlySplit: buildMonthlySplit(),
+  channelMonthQty: [],
+  channelPricing: [],
+  pricingOpts: {},
+  pricingUsdRate: 0,
   memo: '',
 };
 

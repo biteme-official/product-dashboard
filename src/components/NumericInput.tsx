@@ -1,13 +1,16 @@
-import { useState, type FocusEvent, type ChangeEvent } from 'react';
+import { useState, type FocusEvent, type ChangeEvent, type KeyboardEvent } from 'react';
 
 interface Props {
   value: number;
   onChange: (value: number) => void;
   onBlur?: () => void;
+  onFocus?: () => void;
+  onKeyDown?: (e: KeyboardEvent<HTMLInputElement>) => void;
   placeholder?: string;
   className?: string;
   allowDecimal?: boolean;
   disabled?: boolean;
+  autoFocus?: boolean;
 }
 
 /**
@@ -21,10 +24,13 @@ export function NumericInput({
   value,
   onChange,
   onBlur,
+  onFocus,
+  onKeyDown,
   placeholder,
   className,
   allowDecimal = false,
   disabled = false,
+  autoFocus = false,
 }: Props) {
   const [editing, setEditing] = useState(false);
   const [rawStr, setRawStr] = useState('');
@@ -36,6 +42,7 @@ export function NumericInput({
     : value.toLocaleString('ko-KR');
 
   function handleFocus() {
+    onFocus?.();
     setRawStr(value === 0 ? '' : String(value));
     setEditing(true);
   }
@@ -73,9 +80,11 @@ export function NumericInput({
       onFocus={handleFocus}
       onChange={handleChange}
       onBlur={handleBlur}
+      onKeyDown={onKeyDown}
       placeholder={placeholder}
       className={className}
       disabled={disabled}
+      autoFocus={autoFocus}
     />
   );
 }
