@@ -581,6 +581,8 @@ function MonthlyTable({
   const { role } = useAuth();
   // STEP 1은 PM/master만 편집 가능
   const step1ReadOnly = readOnly || isMdRole(role);
+  // STEP 2는 MD 역할도 편집 가능 (채널/월별 목표량·판매가 설정)
+  const step2ReadOnly = isMdRole(role) ? false : readOnly;
 
   // STEP2 탭 진입 시, channelMonthQty가 미초기화 상태면 대응SKU 채널 비중으로 자동 세팅
   useEffect(() => {
@@ -679,7 +681,7 @@ function MonthlyTable({
       {activeTab === 'pricing' ? (
         <PricingChannelTable
           sku={sku}
-          readOnly={readOnly}
+          readOnly={step2ReadOnly}
           pricingOpts={pricingOpts}
           setPricingOpts={setPricingOpts}
           onTotalsChange={onStep3TotalsChange}
