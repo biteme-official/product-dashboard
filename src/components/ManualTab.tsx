@@ -299,11 +299,34 @@ export function ManualTab() {
         </table>
         <p className="mt-2 text-xs text-gray-400">* 쿠팡·B2B·사입및페어는 시나리오 미설정 시 'B2B 상시 운영' 자동 적용. 글로벌은 '글로벌 공급가', 일본은 '일본 공급가' 자동 적용.</p>
         <p className="mt-1 text-xs text-gray-400">* 글로벌·일본 공급가 선택 시 실 판매가 행에 KRW 금액 아래 외화 금액(USD $ / JPY ¥)이 보조 표시됩니다.</p>
+        <p className="mt-1 text-xs text-gray-400">* 실 판매가 행 라벨에 현재 적용 중인 환율($1,380 · ¥9.2 형식)이 표시됩니다. 라이브 환율 수신 시 인디고색, fallback 시 회색으로 표시됩니다.</p>
       </section>
 
-      {/* 9. UI 동작 */}
+      {/* 9. 환율 자동 갱신 */}
       <section>
-        <h2 className="text-base font-bold text-gray-900 mb-3 pb-1 border-b border-gray-200">9. UI 동작 — 페이지 상태 유지</h2>
+        <h2 className="text-base font-bold text-gray-900 mb-3 pb-1 border-b border-gray-200">9. 환율 자동 갱신</h2>
+        <table className="w-full border-collapse text-xs mb-2">
+          <thead>
+            <tr className="bg-gray-50">
+              <Th>항목</Th>
+              <Th>내용</Th>
+            </tr>
+          </thead>
+          <tbody>
+            <Tr><Td>데이터 출처</Td><Td>open.er-api.com (무료 · API 키 없음 · ECB 기반 집계)</Td></Tr>
+            <Tr><Td>갱신 주기</Td><Td>API 제공 기준 하루 1회 (UTC 기준). 주말·공휴일은 직전 영업일 환율 유지</Td></Tr>
+            <Tr><Td>캐싱 방식</Td><Td>브라우저 localStorage에 24시간 TTL로 저장. 캐시 유효 시 API 호출 없음</Td></Tr>
+            <Tr><Td>Fallback</Td><Td>API 실패 또는 캐시 만료 전 재요청 실패 시 USD 1,400 · JPY 9.0 고정값 사용</Td></Tr>
+            <Tr><Td>JPY/KRW 계산 방법</Td><Td>API에서 받은 USD/KRW와 USD/JPY를 교차 계산 → JPY/KRW = (USD/KRW) ÷ (USD/JPY)</Td></Tr>
+            <Tr><Td>적용 범위</Td><Td>STEP2 채널별 목표량 설정 — 글로벌 공급가(USD) · 일본 공급가(JPY) 시나리오 계산에 사용</Td></Tr>
+            <Tr><Td>UI 표시</Td><Td>실 판매가 행 라벨에 현재 환율 표시 (라이브: 인디고색 / fallback: 회색)</Td></Tr>
+          </tbody>
+        </table>
+      </section>
+
+      {/* 10. UI 동작 */}
+      <section>
+        <h2 className="text-base font-bold text-gray-900 mb-3 pb-1 border-b border-gray-200">10. UI 동작 — 페이지 상태 유지</h2>
         <p className="text-xs text-gray-600 mb-2">새로고침 후에도 직전 상태가 복원됩니다. sessionStorage 기반으로 브라우저 탭 단위로 유지되며, 탭을 닫으면 초기화됩니다.</p>
         <table className="w-full border-collapse text-xs">
           <thead>

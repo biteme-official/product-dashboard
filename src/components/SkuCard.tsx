@@ -9,6 +9,7 @@ import { fetchTeamCateData, calcVariableCostRatio, type TeamCateMap, type Channe
 import { SizeDistColumn } from './SizeDistColumn';
 import { ComparisonColumn } from './ComparisonColumn';
 import { NumericInput } from './NumericInput';
+import { useExchangeRates } from '../utils/useExchangeRates';
 
 const MONTH_LABELS: Record<Month, string> = {
   7: '7월', 8: '8월', 9: '9월', 10: '10월', 11: '11월', 12: '12월',
@@ -1206,6 +1207,7 @@ function PricingChannelTable({
   const [expandedChannels, setExpandedChannels] = useState<Set<Channel>>(new Set());
   // 채널별 일괄반영 선택값 (UI-only, 로컬)
   const [channelBulkOpt, setChannelBulkOpt] = useState<Partial<Record<Channel, string>>>({});
+  const { usdKrw, jpyKrw, isLive } = useExchangeRates();;
 
   const toggleChannel = (channel: Channel) => {
     setExpandedChannels((prev) => {
@@ -1253,8 +1255,7 @@ function PricingChannelTable({
   const calcScenarioPrice = (optId: string, base: number): number => {
     if (!optId) return base;
     const s = PRICING_SCENARIOS.find((x) => x.id === optId);
-    // TODO: pricingJpyRate를 SkuData에 추가한 뒤 세 번째 인자로 전달
-    return s ? s.calcKrwPrice(base, sku.pricingUsdRate) : base;
+    return s ? s.calcKrwPrice(base, usdKrw, jpyKrw) : base;
   };
 
   const getPricing = (channel: Channel): ChannelPricing => {
@@ -1541,6 +1542,9 @@ function PricingChannelTable({
                             <tr className="border-b-2 border-gray-200 bg-white">
                               <td className={labelCell}>
                                 <span className="text-[11px] font-semibold text-gray-500">실 판매가</span>
+                                <span className={`block text-[9px] mt-0.5 ${isLive ? 'text-indigo-300' : 'text-gray-300'}`}>
+                                  ${usdKrw.toLocaleString()} · ¥{jpyKrw.toFixed(1)}
+                                </span>
                               </td>
                               {MONTHS.map((m) => {
                                 const optId = getPricingOpt(channel, m);
