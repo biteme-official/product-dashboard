@@ -608,12 +608,14 @@ function MonthlyTable({
   // STEP2 탭 진입 시, channelMonthQty가 미초기화 상태면 대응SKU 채널 비중으로 자동 세팅
   useEffect(() => {
     if (activeTab !== 'pricing') return;
-    const isUninitialized = sku.channelMonthQty.every((e) => e.qty === 0);
+    // store 최신값으로 판단 — props sku가 stale할 수 있으므로
+    const latestSku = useStore.getState().skus.find((s) => s.id === sku.id) ?? sku;
+    const isUninitialized = latestSku.channelMonthQty.every((e) => e.qty === 0);
     if (!isUninitialized) return;
     // STEP1 합계 또는 totalOrderQty 중 하나라도 있어야 세팅 가능
-    const step1Total = sku.monthlySplit.reduce((s, ms) => s + ms.quantity, 0);
-    if (step1Total === 0 && sku.totalOrderQty === 0) return;
-    const entries = buildChannelMonthEntries(compChannelDist, sku);
+    const step1Total = latestSku.monthlySplit.reduce((s, ms) => s + ms.quantity, 0);
+    if (step1Total === 0 && latestSku.totalOrderQty === 0) return;
+    const entries = buildChannelMonthEntries(compChannelDist, latestSku);
     if (entries.every((e) => e.qty === 0)) return;
     batchInitChannelMonthQty(sku.id, entries);
     persistSku(sku.id);
@@ -732,7 +734,9 @@ function MonthlyTable({
             <button
               onClick={() => {
                 captureStep2Backup();
-                const entries = buildChannelMonthEntries(compChannelDist, sku);
+                // props sku 대신 store 최신값으로 STEP1 수량을 읽어 초기화
+                const latestSku = useStore.getState().skus.find((s) => s.id === sku.id) ?? sku;
+                const entries = buildChannelMonthEntries(compChannelDist, latestSku);
                 batchInitChannelMonthQty(sku.id, entries);
                 persistSku(sku.id);
                 // 초기화 후 기준값도 새 초기화 수량으로 갱신
