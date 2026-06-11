@@ -47,13 +47,11 @@ function buildMonthlyChartData(skus: SkuData[]): MonthChartPoint[] {
 
 function ChartTooltip({ active, payload, data }: {
   active?: boolean;
-  payload?: { name: string }[];
+  payload?: { payload: MonthChartPoint }[];
   data: MonthChartPoint[];
-  label?: string;
 }) {
   if (!active || !payload?.length) return null;
-  // recharts passes label as 2nd arg to content; we match by payload
-  const point = data.find((d) => d.label === (payload[0] as unknown as { payload: MonthChartPoint }).payload.label);
+  const point = data.find((d) => d.label === payload[0].payload.label);
   if (!point) return null;
 
   const channelRows = CHANNELS
@@ -133,7 +131,7 @@ function MonthlyChart({ skus }: { skus: SkuData[] }) {
             tickLine={false}
             width={44}
           />
-          <Tooltip content={(props) => <ChartTooltip {...(props as Parameters<typeof ChartTooltip>[0])} data={data} />} />
+          <Tooltip content={(props) => <ChartTooltip active={props.active} payload={props.payload as unknown as { payload: MonthChartPoint }[] | undefined} data={data} />} />
           <Bar yAxisId="rev" dataKey="revenue" name="순매출" fill="#818cf8" radius={[3, 3, 0, 0]} maxBarSize={40} />
           <Line
             yAxisId="profit"
