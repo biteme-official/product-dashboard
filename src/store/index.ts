@@ -244,7 +244,6 @@ interface StoreActions {
   toggleExpanded: (id: string) => void;
   updateSku: (id: string, patch: Partial<SkuData>) => void;
   updateMonthlySplit: (id: string, month: Month, ratio: number) => void;
-  updateMonthlyQty: (id: string, month: Month, quantity: number) => void;
   updateChannelMonthQty: (id: string, channel: Channel, month: Month, qty: number) => void;
   batchInitChannelMonthQty: (id: string, entries: ChannelMonthQtyEntry[]) => void;
   updateChannelPricing: (id: string, channel: Channel, patch: { price?: number; commissionRate?: number }) => void;
@@ -440,24 +439,6 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
         cp.channel === channel ? { ...cp, ...patch } : cp,
       ),
     };
-    set({ skus: skus.map((s) => (s.id === id ? updated : s)) });
-  },
-
-  updateMonthlyQty: (id, month, quantity) => {
-    const skus = get().skus;
-    const sku = skus.find((s) => s.id === id);
-    if (!sku) return;
-    const multiplier = calcDynamicMultiplier(sku.channelRatios) ?? revenueMultiplier(sku.category);
-    const ratio = sku.totalOrderQty > 0 ? Math.round(quantity / sku.totalOrderQty * 100) : 0;
-    const revenue = Math.round(quantity * sku.price / 1.1 * multiplier);
-    const contributionProfit = Math.round(revenue * sku.contributionMarginRate / 100);
-    const patchedSplit = sku.monthlySplit.map((ms) =>
-      ms.month === month ? { ...ms, quantity, ratio, revenue, contributionProfit } : ms,
-    );
-    const updated = { ...sku, monthlySplit: patchedSplit };
-    if (isCMSEmpty(sku.channelMonthlySplit)) {
-      updated.channelMonthlySplit = deriveChannelMonthlySplit(updated);
-    }
     set({ skus: skus.map((s) => (s.id === id ? updated : s)) });
   },
 

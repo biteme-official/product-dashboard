@@ -494,13 +494,19 @@ function BasicInfoColumn({ sku, readOnly }: { sku: SkuData; readOnly?: boolean }
 }
 
 // STEP2 초기화 로직: 대응SKU 있으면 그 채널비중 사용, 없으면 DEFAULT_CHANNEL_RATIO_PCT 사용.
-// 월별 배분은 항상 STEP1 monthlySplit 비율 기준 (없으면 균등 배분).
+// 기준 총량 = STEP1 월별 합계 (비중 합이 100% 초과 가능). STEP1 미입력 시 totalOrderQty 사용.
+// 월별 배분은 STEP1 monthlySplit 비율 기준 (없으면 균등 배분).
 function buildChannelMonthEntries(
   compChannelDist: Record<string, number> | null | undefined,
   sku: SkuData,
 ): ChannelMonthQtyEntry[] {
-  const totalOrderQty = sku.totalOrderQty;
-  if (totalOrderQty === 0) {
+  // STEP1 월별 수량 합산 — 비중 합이 100% 초과하면 totalOrderQty보다 클 수 있음
+  const monthQtys = MONTHS.map((m) => sku.monthlySplit.find((ms) => ms.month === m)?.quantity ?? 0);
+  const totalMonthly = monthQtys.reduce((s, q) => s + q, 0);
+
+  // STEP1 합계를 기준으로 사용, 미입력이면 totalOrderQty fallback
+  const baseQty = totalMonthly > 0 ? totalMonthly : sku.totalOrderQty;
+  if (baseQty === 0) {
     return CHANNELS.flatMap((channel) => MONTHS.map((month) => ({ channel, month, qty: 0 })));
   }
 
@@ -508,15 +514,11 @@ function buildChannelMonthEntries(
     ? Object.values(compChannelDist).reduce((s, q) => s + q, 0)
     : 0;
 
-  // STEP1 월별 수량 기반 배분 비율
-  const monthQtys = MONTHS.map((m) => sku.monthlySplit.find((ms) => ms.month === m)?.quantity ?? 0);
-  const totalMonthly = monthQtys.reduce((s, q) => s + q, 0);
-
   return CHANNELS.flatMap((channel) => {
     const channelRatio = compChannelDist && distTotal > 0
       ? (compChannelDist[channel] ?? 0) / distTotal
       : DEFAULT_CHANNEL_RATIO_PCT[channel] / 100;
-    const channelTotal = Math.round(totalOrderQty * channelRatio);
+    const channelTotal = Math.round(baseQty * channelRatio);
 
     return MONTHS.map((month, mi) => {
       // STEP1 미입력이면 균등 배분
@@ -605,7 +607,9 @@ function MonthlyTable({
     if (activeTab !== 'pricing') return;
     const isUninitialized = sku.channelMonthQty.every((e) => e.qty === 0);
     if (!isUninitialized) return;
-    if (sku.totalOrderQty === 0) return;
+    // STEP1 합계 또는 totalOrderQty 중 하나라도 있어야 세팅 가능
+    const step1Total = sku.monthlySplit.reduce((s, ms) => s + ms.quantity, 0);
+    if (step1Total === 0 && sku.totalOrderQty === 0) return;
     const entries = buildChannelMonthEntries(compChannelDist, sku);
     if (entries.every((e) => e.qty === 0)) return;
     batchInitChannelMonthQty(sku.id, entries);
@@ -691,8 +695,10 @@ function MonthlyTable({
             )}
             {(() => {
               const step2Total = sku.channelMonthQty.reduce((s, e) => s + e.qty, 0);
-              if (step2Total === 0 || sku.totalOrderQty === 0 || step2Total === sku.totalOrderQty) return null;
-              const isShort = step2Total < sku.totalOrderQty;
+              // 기준: STEP1 월별 합계, 미입력이면 totalOrderQty fallback
+              const step1Target = totalQty > 0 ? totalQty : sku.totalOrderQty;
+              if (step2Total === 0 || step1Target === 0 || step2Total === step1Target) return null;
+              const isShort = step2Total < step1Target;
               return (
                 <>
                   {isShort && (
@@ -708,14 +714,14 @@ function MonthlyTable({
                         ...e,
                         qty: (DISABLED_CHANNELS as readonly string[]).includes(e.channel)
                           ? 0
-                          : Math.round(e.qty * sku.totalOrderQty / total),
+                          : Math.round(e.qty * step1Target / total),
                       }));
                       batchInitChannelMonthQty(sku.id, scaled);
                       persistSku(sku.id);
                     }}
                     className="text-[11px] px-2.5 py-1 rounded-lg border border-violet-300 bg-violet-50 text-violet-700 hover:bg-violet-100 transition-colors whitespace-nowrap"
                   >
-                    비례반영 ({step2Total.toLocaleString()} → {sku.totalOrderQty.toLocaleString()})
+                    비례반영 ({step2Total.toLocaleString()} → {step1Target.toLocaleString()})
                   </button>
                 </>
               );
