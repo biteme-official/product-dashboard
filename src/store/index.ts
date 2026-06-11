@@ -66,6 +66,9 @@ function buildEmptySku(category: Category): SkuData {
       month, ratio: 0, quantity: 0, revenue: 0, contributionProfit: 0,
     })),
     isConfirmed: false,
+    platformConfirmed: false,
+    brandConfirmed: false,
+    globalConfirmed: false,
   };
   return { ...base, isExpanded: true, _initialSnapshot: JSON.parse(JSON.stringify(base)) };
 }
@@ -165,6 +168,9 @@ function applyMigration(raw: any): SkuData {
     isExpanded: false,
     isConfirmed: raw.isConfirmed ?? false,
     finalOrderConfirmedAt: raw.finalOrderConfirmedAt ?? null,
+    platformConfirmed: raw.platformConfirmed ?? false,
+    brandConfirmed: raw.brandConfirmed ?? false,
+    globalConfirmed: raw.globalConfirmed ?? false,
     _initialSnapshot: {
       hasColors: false,
       colors: [],
@@ -253,6 +259,7 @@ interface StoreActions {
   setFinalOrderConfirmed: (id: string, confirmed: boolean) => Promise<void>;
   persistSku: (id: string) => Promise<void>;
   setSkuConfirmed: (id: string, confirmed: boolean, role: string) => Promise<void>;
+  setChannelConfirmed: (id: string, field: 'platformConfirmed' | 'brandConfirmed' | 'globalConfirmed', value: boolean) => Promise<void>;
 }
 
 const readSession = <T>(key: string, fallback: T): T => {
@@ -616,5 +623,13 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
       role,
       timestamp: serverTimestamp(),
     });
+  },
+
+  setChannelConfirmed: async (id, field, value) => {
+    const sku = get().skus.find((s) => s.id === id);
+    if (!sku) return;
+    const updated = { ...sku, [field]: value };
+    set({ skus: get().skus.map((s) => (s.id === id ? updated : s)) });
+    await setDoc(doc(fsdb, SKUS_COL, id), toFirestore(updated));
   },
 }));

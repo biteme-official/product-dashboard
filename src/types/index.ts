@@ -142,6 +142,9 @@ export interface SkuData {
   isConfirmed?: boolean;
   finalOrderQty?: Record<string, number>;
   finalOrderConfirmedAt?: string | null;
+  platformConfirmed?: boolean;
+  brandConfirmed?: boolean;
+  globalConfirmed?: boolean;
   isExpanded: boolean;
   _initialSnapshot: Omit<SkuData, 'isExpanded' | '_initialSnapshot'>;
 }

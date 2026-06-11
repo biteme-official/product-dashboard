@@ -244,7 +244,7 @@ export function ManualTab() {
 
       {/* 7. STEP3 */}
       <section>
-        <h2 className="text-base font-bold text-gray-900 mb-3 pb-1 border-b border-gray-200">7. STEP 3 — 채널별 수량 확정</h2>
+        <h2 className="text-base font-bold text-gray-900 mb-3 pb-1 border-b border-gray-200">7. STEP 3 — 채널별 수량 확인</h2>
         <p className="text-xs text-gray-600 mb-3">채널×월별 수량과 상세 옵션(사이즈별, 컬러별 등)을 최종 확인하는 페이지입니다. 별도 재무 계산은 없습니다.</p>
         <table className="w-full border-collapse text-xs">
           <thead>

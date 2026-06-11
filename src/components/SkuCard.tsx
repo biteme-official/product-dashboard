@@ -94,7 +94,7 @@ export function SkuCard({ sku }: Props) {
   };
 
   const multiplier = calcDynamicMultiplier(sku.channelRatios) ?? revenueMultiplier(sku.category);
-  const expectedRevenue = Math.round(sku.totalOrderQty * sku.price / 1.1 * multiplier);
+  void multiplier; // 하위 컴포넌트(ComparisonColumn)에서 사용
 
   return (
     <div className="border border-gray-200 rounded-xl bg-white shadow-sm overflow-hidden">
@@ -172,8 +172,18 @@ export function SkuCard({ sku }: Props) {
             <span>₩{sku.price.toLocaleString()}</span>
             <span className="text-gray-300">·</span>
             <span>{sku.totalOrderQty.toLocaleString()}</span>
-            <span className="text-gray-300">·</span>
-            <span className="text-indigo-600 font-medium">₩{expectedRevenue.toLocaleString()}</span>
+          </div>
+          {/* 채널별 확정 뱃지 */}
+          <div className="flex items-center gap-1">
+            {sku.platformConfirmed && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded font-semibold bg-emerald-600 text-white">플랫폼 확정</span>
+            )}
+            {sku.brandConfirmed && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded font-semibold bg-amber-500 text-white">브랜드 확정</span>
+            )}
+            {sku.globalConfirmed && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded font-semibold bg-sky-600 text-white">글로벌 확정</span>
+            )}
           </div>
         </div>
       </div>
@@ -579,6 +589,7 @@ function MonthlyTable({
   const updateMonthlySplit = useStore((s) => s.updateMonthlySplit);
   const batchInitChannelMonthQty = useStore((s) => s.batchInitChannelMonthQty);
   const persistSku = useStore((s) => s.persistSku);
+  const setChannelConfirmed = useStore((s) => s.setChannelConfirmed);
   const { role } = useAuth();
   // STEP 1은 PM/master만 편집 가능
   const step1ReadOnly = readOnly || isMdRole(role);
@@ -620,7 +631,7 @@ function MonthlyTable({
         {([
           { key: 'monthly', step: 'STEP 1', label: '월별 계획', sub: 'PM · MOQ 기반 월별 수량 확인' },
           { key: 'pricing', step: 'STEP 2', label: '채널별 목표량 설정', sub: 'MD · 채널별 수량 · 프라이싱 검토' },
-          { key: 'channel', step: 'STEP 3', label: '채널별 수량 확정', sub: 'MD · 채널/월별 수량 최종' },
+          { key: 'channel', step: 'STEP 3', label: '채널별 수량 확인', sub: 'MD  월별/옵션별 최종 수량' },
         ] as { key: 'monthly' | 'channel' | 'pricing'; step: string; label: string; sub: string }[]).map(({ key, step, label, sub }) => {
           const isActive = activeTab === key;
           return (
@@ -684,6 +695,24 @@ function MonthlyTable({
             >
               초기화
             </button>
+            {(
+              [
+                { field: 'platformConfirmed', label: '플랫폼 확정', on: 'bg-emerald-600 text-white hover:bg-emerald-700', off: 'border border-emerald-400 bg-emerald-50 text-emerald-700 hover:bg-emerald-100' },
+                { field: 'brandConfirmed',    label: '브랜드 확정', on: 'bg-amber-500 text-white hover:bg-amber-600',   off: 'border border-amber-400 bg-amber-50 text-amber-700 hover:bg-amber-100'   },
+                { field: 'globalConfirmed',   label: '글로벌 확정', on: 'bg-sky-600 text-white hover:bg-sky-700',       off: 'border border-sky-400 bg-sky-50 text-sky-700 hover:bg-sky-100'           },
+              ] as { field: 'platformConfirmed' | 'brandConfirmed' | 'globalConfirmed'; label: string; on: string; off: string }[]
+            ).map(({ field, label, on, off }) => {
+              const isOn = !!sku[field];
+              return (
+                <button
+                  key={field}
+                  onClick={() => setChannelConfirmed(sku.id, field, !isOn)}
+                  className={`text-[11px] px-2.5 py-1 rounded-lg font-semibold transition-colors whitespace-nowrap ${isOn ? on : off}`}
+                >
+                  {label}
+                </button>
+              );
+            })}
           </div>
         </div>
       )}
@@ -955,21 +984,22 @@ function ChannelMonthTable({ sku, monthlySplit: _monthlySplit }: {
   const multiSize = activeSizes.length > 1;
   const multiColor = activeColors.length > 1 && colorTotal > 0;
 
-  const optionRows: { label: string; ratio: number }[] = (() => {
+  const optionRows: { label: string; ratio: number; displayRatio: number }[] = (() => {
     if (multiColor && multiSize) {
-      // 컬러 × 사이즈 조합
+      // 컬러 × 사이즈 조합: ratio는 전체 대비(수량 계산용), displayRatio는 컬러 내 사이즈 비중
       return activeColors.flatMap((c) =>
         activeSizes.map((s) => ({
           label: `${c.name} ${s.label}`,
           ratio: (c.quantity / colorTotal) * (s.ratio / 100),
+          displayRatio: s.ratio / 100,
         })),
       );
     }
     if (multiColor) {
-      return activeColors.map((c) => ({ label: c.name, ratio: c.quantity / colorTotal }));
+      return activeColors.map((c) => ({ label: c.name, ratio: c.quantity / colorTotal, displayRatio: c.quantity / colorTotal }));
     }
     if (multiSize) {
-      return activeSizes.map((s) => ({ label: s.label, ratio: s.ratio / 100 }));
+      return activeSizes.map((s) => ({ label: s.label, ratio: s.ratio / 100, displayRatio: s.ratio / 100 }));
     }
     return [];
   })();
@@ -1049,7 +1079,7 @@ function ChannelMonthTable({ sku, monthlySplit: _monthlySplit }: {
                 >
                   <td className="pl-6 pr-2 py-1 text-[10px] text-gray-600 whitespace-nowrap">
                     <span className="font-medium">{opt.label}</span>
-                    <span className="ml-1.5 text-gray-400">{Math.round(opt.ratio * 100)}%</span>
+                    <span className="ml-1.5 text-gray-400">{Math.round(opt.displayRatio * 100)}%</span>
                   </td>
                   <td className="px-2 py-1" />
                   {MONTHS.map((m) => {
@@ -1404,10 +1434,10 @@ function PricingChannelTable({
               const colorTotal = activeColors.reduce((s, c) => s + c.quantity, 0);
               const multiSize = activeSizes.length > 1;
               const multiColor = activeColors.length > 1 && colorTotal > 0;
-              const optionRows: { label: string; ratio: number }[] = multiColor && multiSize
-                ? activeColors.flatMap((c) => activeSizes.map((s) => ({ label: `${c.name} ${s.label}`, ratio: (c.quantity / colorTotal) * (s.ratio / 100) })))
-                : multiColor ? activeColors.map((c) => ({ label: c.name, ratio: c.quantity / colorTotal }))
-                : multiSize ? activeSizes.map((s) => ({ label: s.label, ratio: s.ratio / 100 }))
+              const optionRows: { label: string; ratio: number; displayRatio: number }[] = multiColor && multiSize
+                ? activeColors.flatMap((c) => activeSizes.map((s) => ({ label: `${c.name} ${s.label}`, ratio: (c.quantity / colorTotal) * (s.ratio / 100), displayRatio: s.ratio / 100 })))
+                : multiColor ? activeColors.map((c) => ({ label: c.name, ratio: c.quantity / colorTotal, displayRatio: c.quantity / colorTotal }))
+                : multiSize ? activeSizes.map((s) => ({ label: s.label, ratio: s.ratio / 100, displayRatio: s.ratio / 100 }))
                 : [];
               return (
                 <tr key={`${channel}-monthly`} className="border-b border-gray-200 bg-gray-50/60">
@@ -1726,7 +1756,7 @@ function PricingChannelTable({
                                       {opt.label}
                                     </td>
                                     <td className="px-2 py-1.5 text-center text-[10px] text-gray-400 border-r border-gray-200">
-                                      {Math.round(opt.ratio * 100)}%
+                                      {Math.round(opt.displayRatio * 100)}%
                                     </td>
                                     {MONTHS.map((m) => {
                                       const qty = Math.round(getMonthQty(channel, m) * opt.ratio);
