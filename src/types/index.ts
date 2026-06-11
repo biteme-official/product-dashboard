@@ -160,6 +160,8 @@ export interface MarketingBriefTargetProduct {
 
 export interface MarketingBrief {
   targetProducts: MarketingBriefTargetProduct[];
+  targetCustomer: string;
+  marketingProposal: string;
   psp: string;
   ksp: string;
   usp: string;
