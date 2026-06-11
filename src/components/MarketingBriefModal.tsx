@@ -183,7 +183,7 @@ export function MarketingBriefModal({ sku, onClose }: { sku: SkuData; onClose: (
                           </td>
                           <td className="px-3 py-1.5 text-center">
                             {comp ? (
-                              <div className="flex flex-col items-center gap-0.5">
+                              <div className="flex items-center justify-center gap-1.5">
                                 <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${comp.cls}`}>
                                   {comp.label}
                                 </span>
