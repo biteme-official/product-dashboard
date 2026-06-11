@@ -372,8 +372,17 @@ function ChannelBadge({ label, confirmed }: { label: string; confirmed: boolean 
 }
 
 function SkuListTable({ skus }: { skus: SkuData[] }) {
+  function discountRate(sku: SkuData) {
+    if (!sku.regularPrice || !sku.price) return null;
+    return Math.round((1 - sku.price / sku.regularPrice) * 1000) / 10;
+  }
+  function costRate(sku: SkuData) {
+    if (!sku.cost || !sku.price) return null;
+    return Math.round((sku.cost / sku.price) * 1000) / 10;
+  }
+
   return (
-    <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+    <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto">
       <table className="w-full text-[12px]">
         <thead>
           <tr className="bg-gray-50 border-b border-gray-200">
@@ -382,37 +391,63 @@ function SkuListTable({ skus }: { skus: SkuData[] }) {
             <th className="px-3 py-2.5 text-left font-semibold text-gray-600">SKU명</th>
             <th className="px-3 py-2.5 text-left font-semibold text-gray-600 whitespace-nowrap">오픈일</th>
             <th className="px-3 py-2.5 text-right font-semibold text-gray-600 whitespace-nowrap">총 발주량</th>
+            <th className="px-3 py-2.5 text-right font-semibold text-gray-600 whitespace-nowrap">원가</th>
+            <th className="px-3 py-2.5 text-right font-semibold text-gray-600 whitespace-nowrap">판매가</th>
+            <th className="px-3 py-2.5 text-right font-semibold text-gray-600 whitespace-nowrap">정가</th>
+            <th className="px-3 py-2.5 text-right font-semibold text-gray-600 whitespace-nowrap">상시할인율</th>
+            <th className="px-3 py-2.5 text-right font-semibold text-gray-600 whitespace-nowrap">원가율</th>
             <th className="px-3 py-2.5 text-left font-semibold text-gray-600 whitespace-nowrap">채널별 확정여부</th>
           </tr>
         </thead>
         <tbody>
-          {skus.map((sku, i) => (
-            <tr
-              key={sku.id}
-              className={`border-b border-gray-100 last:border-0 ${i % 2 === 1 ? 'bg-gray-50/50' : 'bg-white'} hover:bg-indigo-50/40 transition-colors`}
-            >
-              <td className="px-3 py-2 whitespace-nowrap">
-                <span className="px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 text-[11px] font-medium">{sku.category}</span>
-              </td>
-              <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{sku.brand}</td>
-              <td className="px-3 py-2 font-medium text-gray-800 max-w-[200px] truncate">
-                {sku.name || <span className="text-gray-300">(미입력)</span>}
-              </td>
-              <td className="px-3 py-2 text-gray-500 whitespace-nowrap tabular-nums">
-                {sku.releaseDate || <span className="text-gray-300">–</span>}
-              </td>
-              <td className="px-3 py-2 text-right tabular-nums font-medium text-gray-800">
-                {sku.totalOrderQty > 0 ? sku.totalOrderQty.toLocaleString() : <span className="text-gray-300">–</span>}
-              </td>
-              <td className="px-3 py-2">
-                <div className="flex gap-1 flex-wrap">
-                  <ChannelBadge label="플랫폼" confirmed={sku.platformConfirmed ?? false} />
-                  <ChannelBadge label="브랜드" confirmed={sku.brandConfirmed ?? false} />
-                  <ChannelBadge label="글로벌" confirmed={sku.globalConfirmed ?? false} />
-                </div>
-              </td>
-            </tr>
-          ))}
+          {skus.map((sku, i) => {
+            const dr = discountRate(sku);
+            const cr = costRate(sku);
+            return (
+              <tr
+                key={sku.id}
+                className={`border-b border-gray-100 last:border-0 ${i % 2 === 1 ? 'bg-gray-50/50' : 'bg-white'} hover:bg-indigo-50/40 transition-colors`}
+              >
+                <td className="px-3 py-2 whitespace-nowrap">
+                  <span className="px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 text-[11px] font-medium">{sku.category}</span>
+                </td>
+                <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{sku.brand}</td>
+                <td className="px-3 py-2 font-medium text-gray-800 max-w-[180px] truncate">
+                  {sku.name || <span className="text-gray-300">(미입력)</span>}
+                </td>
+                <td className="px-3 py-2 text-gray-500 whitespace-nowrap tabular-nums">
+                  {sku.releaseDate || <span className="text-gray-300">–</span>}
+                </td>
+                <td className="px-3 py-2 text-right tabular-nums font-medium text-gray-800">
+                  {sku.totalOrderQty > 0 ? sku.totalOrderQty.toLocaleString() : <span className="text-gray-300">–</span>}
+                </td>
+                <td className="px-3 py-2 text-right tabular-nums text-gray-700 whitespace-nowrap">
+                  {sku.cost > 0 ? `₩${sku.cost.toLocaleString()}` : <span className="text-gray-300">–</span>}
+                </td>
+                <td className="px-3 py-2 text-right tabular-nums text-gray-700 whitespace-nowrap">
+                  {sku.price > 0 ? `₩${sku.price.toLocaleString()}` : <span className="text-gray-300">–</span>}
+                </td>
+                <td className="px-3 py-2 text-right tabular-nums text-gray-700 whitespace-nowrap">
+                  {sku.regularPrice > 0 ? `₩${sku.regularPrice.toLocaleString()}` : <span className="text-gray-300">–</span>}
+                </td>
+                <td className="px-3 py-2 text-right tabular-nums whitespace-nowrap">
+                  {dr !== null
+                    ? <span className={dr > 0 ? 'text-rose-600 font-medium' : 'text-gray-500'}>{dr}%</span>
+                    : <span className="text-gray-300">–</span>}
+                </td>
+                <td className="px-3 py-2 text-right tabular-nums text-gray-700 whitespace-nowrap">
+                  {cr !== null ? `${cr}%` : <span className="text-gray-300">–</span>}
+                </td>
+                <td className="px-3 py-2">
+                  <div className="flex gap-1 flex-wrap">
+                    <ChannelBadge label="플랫폼" confirmed={sku.platformConfirmed ?? false} />
+                    <ChannelBadge label="브랜드" confirmed={sku.brandConfirmed ?? false} />
+                    <ChannelBadge label="글로벌" confirmed={sku.globalConfirmed ?? false} />
+                  </div>
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>

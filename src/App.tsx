@@ -1,19 +1,18 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useStore } from './store';
 import { useAuth } from './store/auth';
-import type { Category, SkuData } from './types';
+import type { SkuData } from './types';
 import { CategoryTabs } from './components/CategoryTabs';
 import { SkuOrderSection } from './components/SkuOrderSection';
 import { MdSummarySection } from './components/MdSummarySection';
 import { BrandFilter } from './components/BrandFilter';
-import { PricingListSection } from './components/PricingListSection';
 import { ManualTab } from './components/ManualTab';
 import { LoginScreen } from './components/LoginScreen';
 import { PinManager } from './components/PinManager';
 import { ConfirmLogModal } from './components/ConfirmLogModal';
 import { parseImportJson, type RawSkuInput } from './utils/importParser';
 
-type MainTab = 'pm' | 'md' | 'pricing' | 'manual';
+type MainTab = 'pm' | 'md' | 'manual';
 
 function useSessionState<T>(key: string, initial: T): [T, (val: T) => void] {
   const [state, setState] = useState<T>(() => {
@@ -55,7 +54,6 @@ function App() {
   const [showConfirmLog, setShowConfirmLog] = useState(false);
   const [backupState, setBackupState] = useState<'idle' | 'done' | 'error'>('idle');
   const [activeMainTab, setActiveMainTab] = useSessionState<MainTab>('app:mainTab', 'pm');
-  const [pricingCategory, setPricingCategory] = useSessionState<Category | '전체'>('app:pricingCat', '전체');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   function handleExport() {
@@ -228,12 +226,11 @@ function App() {
 
       {/* PM / MD 탭 + 카테고리 탭 + 브랜드 필터 (sticky) */}
       <div className="sticky top-0 z-10 bg-white shadow-sm">
-        {/* 최상단: PM / MD / 프라이싱 탭 */}
+        {/* 최상단: PM / MD 탭 */}
         <div className="flex items-center gap-1 px-3 pt-2 pb-0 border-b border-gray-100">
           {([
             { key: 'pm', label: 'SKU 리스트' },
             { key: 'md', label: '채널별 요약' },
-            { key: 'pricing', label: '프라이싱' },
           ] as { key: MainTab; label: string }[]).map(({ key, label }) => {
             const isActive = activeMainTab === key;
             return (
@@ -262,12 +259,7 @@ function App() {
             메뉴얼
           </button>
         </div>
-        {activeMainTab === 'manual' ? null : activeMainTab === 'pricing' ? (
-          <>
-            <CategoryTabs showAll value={pricingCategory} onChange={setPricingCategory} />
-            <BrandFilter categoryFilter={pricingCategory} />
-          </>
-        ) : (
+        {activeMainTab === 'manual' ? null : (
           <>
             <CategoryTabs />
             <BrandFilter />
@@ -279,8 +271,6 @@ function App() {
       <main className="max-w-screen-xl mx-auto">
         {activeMainTab === 'manual' ? (
           <ManualTab />
-        ) : activeMainTab === 'pricing' ? (
-          <PricingListSection pricingCategory={pricingCategory} />
         ) : activeMainTab === 'pm' ? (
           <>
             {/* Section A */}
