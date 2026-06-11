@@ -11,6 +11,7 @@ export function SkuOrderSection() {
   const skus = useStore((s) => s.skus);
   const activeCategory = useStore((s) => s.activeCategory);
   const activeBrand = useStore((s) => s.activeBrand);
+  const isListView = useStore((s) => s.isListView);
   const addSku = useStore((s) => s.addSku);
 
   const { role } = useAuth();
@@ -101,9 +102,20 @@ export function SkuOrderSection() {
       return a.releaseDate.localeCompare(b.releaseDate);
     });
 
+  // LIST VIEW: 카테고리 필터 없이 전체 SKU (브랜드 필터만 적용)
+  const allFilteredSkus = skus
+    .filter((s) => activeBrand === '전체' || s.brand === activeBrand)
+    .sort((a, b) => {
+      if (!a.releaseDate && !b.releaseDate) return 0;
+      if (!a.releaseDate) return 1;
+      if (!b.releaseDate) return -1;
+      return a.releaseDate.localeCompare(b.releaseDate);
+    });
+
+  const sourceSkus = isListView ? allFilteredSkus : filteredSkus;
   const displaySkus = searchQuery.trim()
-    ? filteredSkus.filter((s) => s.name.includes(searchQuery.trim()))
-    : filteredSkus;
+    ? sourceSkus.filter((s) => s.name.includes(searchQuery.trim()))
+    : sourceSkus;
 
   const isAtMax = categorySkus.length >= 15;
   const gallerySelectedSku = gallerySkuId ? skus.find((s) => s.id === gallerySkuId) ?? null : null;
@@ -115,7 +127,9 @@ export function SkuOrderSection() {
         <h2 className="text-sm font-semibold text-gray-700 flex-shrink-0">
           SKU 발주 입력
           <span className="ml-2 text-gray-400 font-normal">
-            {filteredSkus.length}{activeBrand !== '전체' ? ` (전체 ${categorySkus.length})` : ''} / 15
+            {isListView
+              ? `전체 ${allFilteredSkus.length}`
+              : `${filteredSkus.length}${activeBrand !== '전체' ? ` (전체 ${categorySkus.length})` : ''} / 15`}
           </span>
         </h2>
 
@@ -243,7 +257,7 @@ export function SkuOrderSection() {
       </div>
 
       {/* 본문 */}
-      {filteredSkus.length === 0 ? (
+      {!isListView && filteredSkus.length === 0 ? (
         <div className="border-2 border-dashed border-gray-200 rounded-xl p-12 text-center">
           <p className="text-gray-400 text-sm mb-3">
             [{activeCategory}] 카테고리에 등록된 SKU가 없습니다.
@@ -258,8 +272,11 @@ export function SkuOrderSection() {
         <>
           {displaySkus.length === 0 ? (
             <div className="border border-gray-200 rounded-xl p-8 text-center text-gray-400 text-sm">
-              "{searchQuery}"와 일치하는 SKU가 없습니다.
+              {searchQuery ? `"${searchQuery}"와 일치하는 SKU가 없습니다.` : '등록된 SKU가 없습니다.'}
             </div>
+          ) : isListView ? (
+            /* ── LIST VIEW 테이블 ── */
+            <SkuListTable skus={displaySkus} />
           ) : viewMode === 'gallery' ? (
             /* ── 갤러리 뷰 ── */
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
@@ -279,7 +296,7 @@ export function SkuOrderSection() {
             </div>
           )}
 
-          {canEdit && (
+          {!isListView && canEdit && (
             <button
               onClick={addSku}
               disabled={isAtMax}
@@ -332,6 +349,73 @@ export function SkuOrderSection() {
         </div>
       )}
     </section>
+  );
+}
+
+// ── LIST VIEW 테이블 ──────────────────────────────────────────────────────────
+function ChannelBadge({ label, confirmed }: { label: string; confirmed: boolean }) {
+  const confirmedCls: Record<string, string> = {
+    '플랫폼': 'bg-emerald-600 text-white',
+    '브랜드': 'bg-amber-500 text-white',
+    '글로벌': 'bg-sky-600 text-white',
+  };
+  const unconfirmedCls = 'bg-gray-100 text-gray-400';
+  return (
+    <span
+      className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium leading-none ${
+        confirmed ? (confirmedCls[label] ?? 'bg-indigo-600 text-white') : unconfirmedCls
+      }`}
+    >
+      {confirmed ? label : `${label} 미확정`}
+    </span>
+  );
+}
+
+function SkuListTable({ skus }: { skus: SkuData[] }) {
+  return (
+    <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+      <table className="w-full text-[12px]">
+        <thead>
+          <tr className="bg-gray-50 border-b border-gray-200">
+            <th className="px-3 py-2.5 text-left font-semibold text-gray-600 whitespace-nowrap">카테고리</th>
+            <th className="px-3 py-2.5 text-left font-semibold text-gray-600 whitespace-nowrap">브랜드</th>
+            <th className="px-3 py-2.5 text-left font-semibold text-gray-600">SKU명</th>
+            <th className="px-3 py-2.5 text-left font-semibold text-gray-600 whitespace-nowrap">오픈일</th>
+            <th className="px-3 py-2.5 text-right font-semibold text-gray-600 whitespace-nowrap">총 발주량</th>
+            <th className="px-3 py-2.5 text-left font-semibold text-gray-600 whitespace-nowrap">채널별 확정여부</th>
+          </tr>
+        </thead>
+        <tbody>
+          {skus.map((sku, i) => (
+            <tr
+              key={sku.id}
+              className={`border-b border-gray-100 last:border-0 ${i % 2 === 1 ? 'bg-gray-50/50' : 'bg-white'} hover:bg-indigo-50/40 transition-colors`}
+            >
+              <td className="px-3 py-2 whitespace-nowrap">
+                <span className="px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 text-[11px] font-medium">{sku.category}</span>
+              </td>
+              <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{sku.brand}</td>
+              <td className="px-3 py-2 font-medium text-gray-800 max-w-[200px] truncate">
+                {sku.name || <span className="text-gray-300">(미입력)</span>}
+              </td>
+              <td className="px-3 py-2 text-gray-500 whitespace-nowrap tabular-nums">
+                {sku.releaseDate || <span className="text-gray-300">–</span>}
+              </td>
+              <td className="px-3 py-2 text-right tabular-nums font-medium text-gray-800">
+                {sku.totalOrderQty > 0 ? sku.totalOrderQty.toLocaleString() : <span className="text-gray-300">–</span>}
+              </td>
+              <td className="px-3 py-2">
+                <div className="flex gap-1 flex-wrap">
+                  <ChannelBadge label="플랫폼" confirmed={sku.platformConfirmed ?? false} />
+                  <ChannelBadge label="브랜드" confirmed={sku.brandConfirmed ?? false} />
+                  <ChannelBadge label="글로벌" confirmed={sku.globalConfirmed ?? false} />
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 

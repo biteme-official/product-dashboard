@@ -235,6 +235,7 @@ function applyMigration(raw: any): SkuData {
 interface StoreActions {
   setActiveCategory: (category: Category) => void;
   setActiveBrand: (brand: Brand | '전체') => void;
+  setListView: (v: boolean) => void;
   loadSkus: () => () => void;
   addSku: () => void;
   duplicateSku: (id: string) => void;
@@ -275,16 +276,22 @@ const writeSession = (key: string, val: unknown) => {
 export const useStore = create<AppState & StoreActions>((set, get) => ({
   activeCategory: readSession<Category>('store:activeCategory', '의류'),
   activeBrand: readSession<Brand | '전체'>('store:activeBrand', '전체'),
+  isListView: readSession<boolean>('store:isListView', false),
   skus: [],
 
   setActiveCategory: (category) => {
     writeSession('store:activeCategory', category);
     writeSession('store:activeBrand', '전체');
-    set({ activeCategory: category, activeBrand: '전체' });
+    writeSession('store:isListView', false);
+    set({ activeCategory: category, activeBrand: '전체', isListView: false });
   },
   setActiveBrand: (brand) => {
     writeSession('store:activeBrand', brand);
     set({ activeBrand: brand });
+  },
+  setListView: (v) => {
+    writeSession('store:isListView', v);
+    set({ isListView: v });
   },
 
   // Firestore 실시간 리스너 — 반환값(unsubscribe)을 App.tsx useEffect cleanup으로 사용

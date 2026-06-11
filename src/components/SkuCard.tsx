@@ -493,8 +493,8 @@ function BasicInfoColumn({ sku, readOnly }: { sku: SkuData; readOnly?: boolean }
   );
 }
 
-// 대응SKU 채널 분포를 기반으로 channelMonthQty 초기화 (STEP2 자동 세팅용)
-// 채널 합계 = totalOrderQty × 채널비중, 월별 배분은 STEP1 비율 (없으면 균등)
+// STEP2 초기화 로직: 대응SKU 있으면 그 채널비중 사용, 없으면 DEFAULT_CHANNEL_RATIO_PCT 사용.
+// 월별 배분은 항상 STEP1 monthlySplit 비율 기준 (없으면 균등 배분).
 function buildChannelMonthEntries(
   compChannelDist: Record<string, number> | null | undefined,
   sku: SkuData,
@@ -1419,6 +1419,10 @@ function PricingChannelTable({
         const isExpanded = expandedChannels.has(channel);
         const channelMonthTotal = MONTHS.reduce((s, m) => s + getMonthQty(channel, m), 0);
         const displayQty = channelMonthTotal > 0 ? channelMonthTotal : qty;
+        const baselineChannelTotal = step2Baseline
+          ? MONTHS.reduce((s, m) => s + (step2Baseline.find((e) => e.channel === channel && e.month === m)?.qty ?? 0), 0)
+          : null;
+        const channelDiff = baselineChannelTotal !== null ? displayQty - baselineChannelTotal : null;
         return (
           <>
             <tr key={channel} className={`border-b border-gray-100 transition-colors ${isExpanded ? 'bg-indigo-50/60 border-l-2 border-l-indigo-400' : 'hover:bg-gray-50/40'}`}>
@@ -1439,9 +1443,23 @@ function PricingChannelTable({
                   ? `${Math.round((displayQty / totals.qty) * 100)}%`
                   : <span className="text-gray-300">–</span>}
               </td>
-              {/* 총수량 — 토글 입력값 합산 */}
-              <td className={`px-2 py-1.5 text-right tabular-nums text-[11px] truncate ${isExpanded ? 'font-bold text-indigo-700' : 'font-medium text-gray-700'}`}>
-                {displayQty > 0 ? displayQty.toLocaleString() : <span className="text-gray-300">–</span>}
+              {/* 총수량 — 토글 입력값 합산 + 기존 세팅값/차이 */}
+              <td className={`px-2 py-1.5 text-right tabular-nums text-[11px] ${isExpanded ? 'font-bold text-indigo-700' : 'font-medium text-gray-700'}`}>
+                {displayQty > 0 ? (
+                  <div className="inline-flex flex-col items-end gap-0.5">
+                    <span>{displayQty.toLocaleString()}</span>
+                    {baselineChannelTotal !== null && baselineChannelTotal > 0 && (
+                      <span className="text-[9px] font-normal text-gray-400 whitespace-nowrap">
+                        기존 {baselineChannelTotal.toLocaleString()}
+                        {channelDiff !== null && channelDiff !== 0 && (
+                          <span className={channelDiff > 0 ? 'text-emerald-600' : 'text-red-500'}>
+                            {' '}{channelDiff > 0 ? '+' : ''}{channelDiff.toLocaleString()}
+                          </span>
+                        )}
+                      </span>
+                    )}
+                  </div>
+                ) : <span className="text-gray-300">–</span>}
               </td>
               {/* 실매출단가 — 월별 시나리오 가중평균 */}
               <td className={`px-2 py-1.5 text-right tabular-nums text-[11px] truncate ${isExpanded ? 'font-semibold text-indigo-600' : 'text-gray-600'}`}>
