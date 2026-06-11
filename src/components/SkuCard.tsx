@@ -640,15 +640,20 @@ function MonthlyTable({
     // store 최신값으로 판단 — props sku가 stale할 수 있으므로
     const latestSku = useStore.getState().skus.find((s) => s.id === sku.id) ?? sku;
     const isUninitialized = latestSku.channelMonthQty.every((e) => e.qty === 0);
-    if (!isUninitialized) return;
-    // STEP1 합계 또는 totalOrderQty 중 하나라도 있어야 세팅 가능
-    const step1Total = latestSku.monthlySplit.reduce((s, ms) => s + ms.quantity, 0);
-    if (step1Total === 0 && latestSku.totalOrderQty === 0) return;
-    const entries = buildChannelMonthEntries(compChannelDist, latestSku);
-    if (entries.every((e) => e.qty === 0)) return;
-    batchInitChannelMonthQty(sku.id, entries);
-    setStep2InitBaseline(sku.id, entries);
-    persistSku(sku.id);
+    if (isUninitialized) {
+      // 신규 초기화: 대응SKU 채널 비중으로 자동 세팅
+      const step1Total = latestSku.monthlySplit.reduce((s, ms) => s + ms.quantity, 0);
+      if (step1Total === 0 && latestSku.totalOrderQty === 0) return;
+      const entries = buildChannelMonthEntries(compChannelDist, latestSku);
+      if (entries.every((e) => e.qty === 0)) return;
+      batchInitChannelMonthQty(sku.id, entries);
+      setStep2InitBaseline(sku.id, entries);
+      persistSku(sku.id);
+    } else if (!latestSku.step2InitBaselineQty || latestSku.step2InitBaselineQty.length === 0) {
+      // 기존 데이터가 있지만 baseline이 없는 경우: 현재 값을 기준값으로 캡처
+      setStep2InitBaseline(sku.id, latestSku.channelMonthQty);
+      persistSku(sku.id);
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, compChannelDist]);
 

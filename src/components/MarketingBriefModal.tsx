@@ -36,7 +36,7 @@ function competitiveness(skuPrice: number, targetPrice: number): {
   return { label: '하', diff, cls: 'bg-red-100 text-red-600' };
 }
 
-const inputCls = 'w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400';
+
 
 export function MarketingBriefModal({ sku, onClose }: { sku: SkuData; onClose: () => void }) {
   const updateSku = useStore((s) => s.updateSku);
