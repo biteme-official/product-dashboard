@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import type { SkuData, MarketingBrief, MarketingBriefTargetProduct } from '../types';
 import { useStore } from '../store';
 import { RichTextArea } from './RichTextArea';
@@ -49,24 +49,36 @@ export function MarketingBriefModal({ sku, onClose }: { sku: SkuData; onClose: (
       ? sku.marketingBrief.targetProducts
       : [],
   }));
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isFirstRender = useRef(true);
 
   const patch = useCallback((b: Partial<MarketingBrief>) => {
     setBrief((prev) => ({ ...prev, ...b }));
-    setSaved(false);
   }, []);
 
-  async function handleSave() {
-    setSaving(true);
-    updateSku(sku.id, { marketingBrief: brief });
-    try {
-      await persistSku(sku.id);
-      setSaved(true);
-    } finally {
-      setSaving(false);
+  // brief 변경 시 800ms 디바운스 자동 저장
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
     }
-  }
+    if (timerRef.current) clearTimeout(timerRef.current);
+    setSaveState('saving');
+    timerRef.current = setTimeout(async () => {
+      updateSku(sku.id, { marketingBrief: brief });
+      try {
+        await persistSku(sku.id);
+        setSaveState('saved');
+        setTimeout(() => setSaveState('idle'), 2000);
+      } catch {
+        setSaveState('idle');
+      }
+    }, 800);
+    return () => { if (timerRef.current) clearTimeout(timerRef.current); };
+  // brief 변경에만 반응 — sku.id/updateSku/persistSku는 안정적
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [brief]);
 
   // ── 타겟 제품 행 조작 ──
   function addTarget() {
@@ -299,23 +311,21 @@ export function MarketingBriefModal({ sku, onClose }: { sku: SkuData; onClose: (
           </section>
         </div>
 
-        {/* 푸터 저장 버튼 */}
-        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-200 bg-gray-50">
-          {saved && (
-            <span className="text-xs text-emerald-600 font-medium">✓ 저장되었습니다</span>
-          )}
+        {/* 푸터 */}
+        <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200 bg-gray-50">
+          <span className="text-xs tabular-nums">
+            {saveState === 'saving' && (
+              <span className="text-gray-400">저장 중…</span>
+            )}
+            {saveState === 'saved' && (
+              <span className="text-emerald-600 font-medium">✓ 저장됨</span>
+            )}
+          </span>
           <button
             onClick={onClose}
-            className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+            className="px-5 py-2 text-sm font-semibold bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
           >
             닫기
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="px-5 py-2 text-sm font-semibold bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors"
-          >
-            {saving ? '저장 중…' : '저장'}
           </button>
         </div>
       </div>
