@@ -58,8 +58,8 @@ export function ManualTab() {
             <Tr><Td>바잇미 자사몰</Td><Td>자사몰</Td><Td></Td></Tr>
             <Tr><Td>사입</Td><Td>사입및페어</Td><Td></Td></Tr>
             <Tr><Td>페어</Td><Td>사입및페어</Td><Td></Td></Tr>
-            <Tr><Td>해외</Td><Td>글로벌 · 일본</Td><Td>동일 수량을 두 채널 각각 100% 반영 (분배 아님)</Td></Tr>
-            <Tr><Td>협찬 · 기타 · CS · 공구 · 팝업</Td><Td>—</Td><Td>집계에서 제외</Td></Tr>
+            <Tr><Td>해외</Td><Td>글로벌 · 일본</Td><Td>글로벌 40% / 일본 60% 임의 분배</Td></Tr>
+            <Tr><Td>협찬 · 기타 · CS · 공구 · 팝업 · 쿠팡</Td><Td>—</Td><Td>집계에서 제외</Td></Tr>
           </tbody>
         </table>
 
