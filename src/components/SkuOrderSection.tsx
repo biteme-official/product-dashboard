@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useStore } from '../store';
 import { useAuth } from '../store/auth';
 import { SkuCard } from './SkuCard';
+import { NumericInput } from './NumericInput';
 import { exportBulkOrderXlsx } from '../utils/exportXlsx';
 import type { SkuData } from '../types';
 
@@ -371,7 +372,29 @@ function ChannelBadge({ label, confirmed }: { label: string; confirmed: boolean 
   );
 }
 
+type PriceField = 'cost' | 'price' | 'regularPrice';
+interface EditingCell { skuId: string; field: PriceField; originalValue: number }
+
 function SkuListTable({ skus }: { skus: SkuData[] }) {
+  const updateSku = useStore((s) => s.updateSku);
+  const persistSku = useStore((s) => s.persistSku);
+  const { role } = useAuth();
+  const canEdit = role === 'master';
+
+  const [editingCell, setEditingCell] = useState<EditingCell | null>(null);
+
+  function startEdit(skuId: string, field: PriceField, originalValue: number) {
+    setEditingCell({ skuId, field, originalValue });
+  }
+  function commitEdit(skuId: string) {
+    persistSku(skuId);
+    setEditingCell(null);
+  }
+  function cancelEdit(skuId: string, field: PriceField, originalValue: number) {
+    updateSku(skuId, { [field]: originalValue });
+    setEditingCell(null);
+  }
+
   function discountRate(sku: SkuData) {
     if (!sku.regularPrice || !sku.price) return null;
     return Math.round((1 - sku.price / sku.regularPrice) * 1000) / 10;
@@ -391,9 +414,15 @@ function SkuListTable({ skus }: { skus: SkuData[] }) {
             <th className="px-3 py-2.5 text-left font-semibold text-gray-600">SKU명</th>
             <th className="px-3 py-2.5 text-left font-semibold text-gray-600 whitespace-nowrap">오픈일</th>
             <th className="px-3 py-2.5 text-right font-semibold text-gray-600 whitespace-nowrap">총 발주량</th>
-            <th className="px-3 py-2.5 text-right font-semibold text-gray-600 whitespace-nowrap">원가</th>
-            <th className="px-3 py-2.5 text-right font-semibold text-gray-600 whitespace-nowrap">판매가</th>
-            <th className="px-3 py-2.5 text-right font-semibold text-gray-600 whitespace-nowrap">정가</th>
+            <th className="px-3 py-2.5 text-right font-semibold text-gray-600 whitespace-nowrap">
+              원가{canEdit && <span className="ml-1 text-[9px] font-normal text-indigo-400">편집</span>}
+            </th>
+            <th className="px-3 py-2.5 text-right font-semibold text-gray-600 whitespace-nowrap">
+              판매가{canEdit && <span className="ml-1 text-[9px] font-normal text-indigo-400">편집</span>}
+            </th>
+            <th className="px-3 py-2.5 text-right font-semibold text-gray-600 whitespace-nowrap">
+              정가{canEdit && <span className="ml-1 text-[9px] font-normal text-indigo-400">편집</span>}
+            </th>
             <th className="px-3 py-2.5 text-right font-semibold text-gray-600 whitespace-nowrap">상시할인율</th>
             <th className="px-3 py-2.5 text-right font-semibold text-gray-600 whitespace-nowrap">원가율</th>
             <th className="px-3 py-2.5 text-left font-semibold text-gray-600 whitespace-nowrap">채널별 확정여부</th>
@@ -418,17 +447,23 @@ function SkuListTable({ skus }: { skus: SkuData[] }) {
                 <td className="px-3 py-2 text-gray-500 whitespace-nowrap tabular-nums">
                   {sku.releaseDate || <span className="text-gray-300">–</span>}
                 </td>
-                <td className="px-3 py-2 text-right tabular-nums font-medium text-gray-800">
+                <td className="px-3 py-2 text-right tabular-nums font-medium text-gray-800 whitespace-nowrap">
                   {sku.totalOrderQty > 0 ? sku.totalOrderQty.toLocaleString() : <span className="text-gray-300">–</span>}
                 </td>
-                <td className="px-3 py-2 text-right tabular-nums text-gray-700 whitespace-nowrap">
-                  {sku.cost > 0 ? `₩${sku.cost.toLocaleString()}` : <span className="text-gray-300">–</span>}
+                <td className="px-2 py-1.5 text-right whitespace-nowrap">
+                  <ListPriceCell sku={sku} field="cost" editingCell={editingCell} canEdit={canEdit}
+                    onStartEdit={startEdit} onCommit={commitEdit} onCancel={cancelEdit}
+                    onUpdate={(v) => updateSku(sku.id, { cost: v })} />
                 </td>
-                <td className="px-3 py-2 text-right tabular-nums text-gray-700 whitespace-nowrap">
-                  {sku.price > 0 ? `₩${sku.price.toLocaleString()}` : <span className="text-gray-300">–</span>}
+                <td className="px-2 py-1.5 text-right whitespace-nowrap">
+                  <ListPriceCell sku={sku} field="price" editingCell={editingCell} canEdit={canEdit}
+                    onStartEdit={startEdit} onCommit={commitEdit} onCancel={cancelEdit}
+                    onUpdate={(v) => updateSku(sku.id, { price: v })} />
                 </td>
-                <td className="px-3 py-2 text-right tabular-nums text-gray-700 whitespace-nowrap">
-                  {sku.regularPrice > 0 ? `₩${sku.regularPrice.toLocaleString()}` : <span className="text-gray-300">–</span>}
+                <td className="px-2 py-1.5 text-right whitespace-nowrap">
+                  <ListPriceCell sku={sku} field="regularPrice" editingCell={editingCell} canEdit={canEdit}
+                    onStartEdit={startEdit} onCommit={commitEdit} onCancel={cancelEdit}
+                    onUpdate={(v) => updateSku(sku.id, { regularPrice: v })} />
                 </td>
                 <td className="px-3 py-2 text-right tabular-nums whitespace-nowrap">
                   {dr !== null
@@ -451,6 +486,47 @@ function SkuListTable({ skus }: { skus: SkuData[] }) {
         </tbody>
       </table>
     </div>
+  );
+}
+
+function ListPriceCell({ sku, field, editingCell, canEdit, onStartEdit, onCommit, onCancel, onUpdate }: {
+  sku: SkuData;
+  field: PriceField;
+  editingCell: EditingCell | null;
+  canEdit: boolean;
+  onStartEdit: (skuId: string, field: PriceField, originalValue: number) => void;
+  onCommit: (skuId: string) => void;
+  onCancel: (skuId: string, field: PriceField, originalValue: number) => void;
+  onUpdate: (v: number) => void;
+}) {
+  const isEditing = editingCell?.skuId === sku.id && editingCell?.field === field;
+  const value = sku[field] as number;
+
+  if (isEditing) {
+    return (
+      <NumericInput
+        value={value}
+        onChange={onUpdate}
+        onBlur={() => onCommit(sku.id)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') onCommit(sku.id);
+          if (e.key === 'Escape') onCancel(sku.id, field, editingCell!.originalValue);
+        }}
+        autoFocus
+        className="w-24 px-2 py-1 text-[12px] text-right border border-indigo-400 rounded focus:outline-none focus:ring-1 focus:ring-indigo-300 bg-white"
+      />
+    );
+  }
+
+  return (
+    <span
+      onClick={() => canEdit && onStartEdit(sku.id, field, value)}
+      className={`tabular-nums text-[12px] ${
+        canEdit ? 'cursor-pointer hover:text-indigo-600 hover:underline decoration-dashed underline-offset-2' : ''
+      } ${value === 0 ? 'text-gray-300' : 'text-gray-700'}`}
+    >
+      {value === 0 ? '–' : `₩${value.toLocaleString()}`}
+    </span>
   );
 }
 
