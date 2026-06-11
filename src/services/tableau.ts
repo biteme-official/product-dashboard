@@ -146,11 +146,6 @@ const TABLEAU_CHANNEL_NORMALIZE: Record<string, string | WeightedTarget> = {
 
 // 대시보드에서 사용하는 채널명 집합 (미지 채널 감지용)
 import { CHANNELS as APP_CHANNELS } from '../types';
-const KNOWN_CHANNELS = new Set<string>([
-  ...APP_CHANNELS,
-  ...Object.keys(TABLEAU_CHANNEL_NORMALIZE),
-  ...EXCLUDED_CHANNELS,
-]);
 
 // ── 채널별 데이터 타입 ───────────────────────────────────────────────────
 /** channel → year → month → qty */
