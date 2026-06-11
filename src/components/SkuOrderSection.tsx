@@ -93,25 +93,23 @@ export function SkuOrderSection() {
     setSelectedIds(new Set());
   }
 
+  function sortByDateThenName(a: SkuData, b: SkuData): number {
+    if (!a.releaseDate && !b.releaseDate) return a.name.localeCompare(b.name, 'ko');
+    if (!a.releaseDate) return 1;
+    if (!b.releaseDate) return -1;
+    const dateCmp = a.releaseDate.localeCompare(b.releaseDate);
+    return dateCmp !== 0 ? dateCmp : a.name.localeCompare(b.name, 'ko');
+  }
+
   const categorySkus = skus.filter((s) => s.category === activeCategory);
   const filteredSkus = categorySkus
     .filter((s) => activeBrand === '전체' || s.brand === activeBrand)
-    .sort((a, b) => {
-      if (!a.releaseDate && !b.releaseDate) return 0;
-      if (!a.releaseDate) return 1;
-      if (!b.releaseDate) return -1;
-      return a.releaseDate.localeCompare(b.releaseDate);
-    });
+    .sort(sortByDateThenName);
 
   // LIST VIEW: 카테고리 필터 없이 전체 SKU (브랜드 필터만 적용)
   const allFilteredSkus = skus
     .filter((s) => activeBrand === '전체' || s.brand === activeBrand)
-    .sort((a, b) => {
-      if (!a.releaseDate && !b.releaseDate) return 0;
-      if (!a.releaseDate) return 1;
-      if (!b.releaseDate) return -1;
-      return a.releaseDate.localeCompare(b.releaseDate);
-    });
+    .sort(sortByDateThenName);
 
   const sourceSkus = isListView ? allFilteredSkus : filteredSkus;
   const displaySkus = searchQuery.trim()

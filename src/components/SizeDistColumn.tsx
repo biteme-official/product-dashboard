@@ -870,12 +870,17 @@ function FinalOrderTable({ sku, sumRatios }: { sku: SkuData; sumRatios: number }
                 </button>
               </>
             ) : (
-              <button
-                onClick={startEdit}
-                className="text-xs px-2 py-0.5 rounded-full border border-gray-200 bg-gray-50 hover:bg-gray-100 text-gray-500 transition-colors"
-              >
-                수정
-              </button>
+              <>
+                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-pink-100 text-pink-600 border border-pink-200">
+                  확정 전
+                </span>
+                <button
+                  onClick={startEdit}
+                  className="text-xs px-2 py-0.5 rounded-full border border-gray-200 bg-gray-50 hover:bg-gray-100 text-gray-500 transition-colors"
+                >
+                  수정
+                </button>
+              </>
             )}
           </>
         )}
