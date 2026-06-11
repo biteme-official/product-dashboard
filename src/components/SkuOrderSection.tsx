@@ -161,8 +161,8 @@ export function SkuOrderSection() {
             </button>
           </div>
 
-          {/* 일괄 발주표 다운로드 */}
-          {filteredSkus.length > 0 && (
+          {/* 일괄 발주표 다운로드 — LIST VIEW에서는 숨김 */}
+          {!isListView && filteredSkus.length > 0 && (
             <div className="relative" ref={dropdownRef}>
               <button
                 onClick={() => setBulkOpen((o) => !o)}

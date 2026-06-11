@@ -114,9 +114,12 @@ export function SkuCard({ sku }: Props) {
             </svg>
           </button>
 
-          <span className="font-semibold text-gray-900 truncate flex-1 min-w-0 text-sm">
+          <button
+            onClick={() => toggleExpanded(sku.id)}
+            className="font-semibold text-gray-900 truncate flex-1 min-w-0 text-sm text-left hover:text-indigo-700 transition-colors"
+          >
             {sku.name || '(SKU명 미입력)'}
-          </span>
+          </button>
 
           {sku.isConfirmed && (
             <span className="flex-shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200">
