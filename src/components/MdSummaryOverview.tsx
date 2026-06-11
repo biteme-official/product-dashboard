@@ -1,8 +1,154 @@
-import type { SkuData } from '../types';
-import { BRANDS } from '../types';
 import {
-  calcSkuAllChannelTotals, addMetrics, formatWon, cmBadgeCls, ZERO_METRICS,
+  ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer,
+} from 'recharts';
+import type { SkuData, Channel, Month } from '../types';
+import { BRANDS, CHANNELS, MONTHS } from '../types';
+import {
+  calcSkuAllChannelTotals, calcChannelMonthMetrics, addMetrics,
+  formatWon, cmBadgeCls, ZERO_METRICS,
 } from '../utils/mdSummaryCalc';
+
+const CHANNEL_COLORS: Record<string, string> = {
+  '자사몰': '#6366f1', '스스': '#8b5cf6', '위탁': '#a78bfa',
+  '쿠팡': '#f97316', 'B2B': '#10b981', '사입및페어': '#6b7280',
+  '글로벌': '#0ea5e9', '일본': '#f59e0b',
+};
+
+type MonthChartPoint = {
+  label: string;
+  revenue: number;
+  profit: number;
+  channels: Record<string, { revenue: number; profit: number }>;
+};
+
+function buildMonthlyChartData(skus: SkuData[]): MonthChartPoint[] {
+  return MONTHS.map((m) => {
+    const channels: Record<string, { revenue: number; profit: number }> = {};
+    let totalRevenue = 0;
+    let totalProfit = 0;
+    for (const channel of CHANNELS) {
+      const metrics = skus.reduce(
+        (acc, sku) => addMetrics(acc, calcChannelMonthMetrics(sku, channel as Channel, m as Month)),
+        ZERO_METRICS,
+      );
+      channels[channel] = { revenue: metrics.revenue, profit: metrics.profit };
+      totalRevenue += metrics.revenue;
+      totalProfit += metrics.profit;
+    }
+    return {
+      label: m <= 2 ? `${m}월(익)` : `${m}월`,
+      revenue: totalRevenue,
+      profit: totalProfit,
+      channels,
+    };
+  });
+}
+
+function ChartTooltip({ active, payload, data }: {
+  active?: boolean;
+  payload?: { name: string }[];
+  data: MonthChartPoint[];
+  label?: string;
+}) {
+  if (!active || !payload?.length) return null;
+  // recharts passes label as 2nd arg to content; we match by payload
+  const point = data.find((d) => d.label === (payload[0] as unknown as { payload: MonthChartPoint }).payload.label);
+  if (!point) return null;
+
+  const channelRows = CHANNELS
+    .map((ch) => ({ ch, ...point.channels[ch] }))
+    .filter((e) => e.revenue > 0)
+    .sort((a, b) => b.revenue - a.revenue);
+
+  return (
+    <div className="bg-white border border-gray-200 rounded-xl shadow-lg p-3 text-xs min-w-[200px]">
+      <p className="font-semibold text-gray-700 mb-2">{point.label}</p>
+      <div className="flex gap-3 mb-2 pb-2 border-b border-gray-100">
+        <span className="text-indigo-600 font-medium">매출 {formatWon(point.revenue)}</span>
+        <span className={`font-medium ${point.profit >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+          공헌 {formatWon(point.profit)}
+        </span>
+      </div>
+      {channelRows.length > 0 && (
+        <div className="space-y-1">
+          {channelRows.map(({ ch, revenue, profit }) => (
+            <div key={ch} className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: CHANNEL_COLORS[ch] ?? '#9ca3af' }} />
+                <span className="text-gray-500">{ch}</span>
+              </div>
+              <div className="flex gap-2 tabular-nums">
+                <span className="text-gray-700">{formatWon(revenue)}</span>
+                <span className={profit >= 0 ? 'text-emerald-600' : 'text-red-500'}>{formatWon(profit)}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MonthlyChart({ skus }: { skus: SkuData[] }) {
+  const data = buildMonthlyChartData(skus);
+  if (data.every((d) => d.revenue === 0)) return null;
+
+  const fmtWon = (v: number) => (v === 0 ? '0' : formatWon(v));
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+      <div className="flex items-center gap-4 mb-3">
+        <h3 className="text-xs font-semibold text-gray-600">월별 예상 순매출 / 공헌이익</h3>
+        <div className="flex items-center gap-3 ml-auto">
+          <div className="flex items-center gap-1.5">
+            <span className="w-3 h-3 rounded-sm bg-indigo-400 inline-block" />
+            <span className="text-[11px] text-gray-500">순매출</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="w-5 h-0.5 bg-emerald-500 inline-block" />
+            <span className="text-[11px] text-gray-500">공헌이익</span>
+          </div>
+        </div>
+      </div>
+      <ResponsiveContainer width="100%" height={220}>
+        <ComposedChart data={data} margin={{ top: 4, right: 50, bottom: 0, left: 10 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
+          <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
+          <YAxis
+            yAxisId="rev"
+            orientation="left"
+            tickFormatter={fmtWon}
+            tick={{ fontSize: 10, fill: '#9ca3af' }}
+            axisLine={false}
+            tickLine={false}
+            width={44}
+          />
+          <YAxis
+            yAxisId="profit"
+            orientation="right"
+            tickFormatter={fmtWon}
+            tick={{ fontSize: 10, fill: '#9ca3af' }}
+            axisLine={false}
+            tickLine={false}
+            width={44}
+          />
+          <Tooltip content={(props) => <ChartTooltip {...(props as Parameters<typeof ChartTooltip>[0])} data={data} />} />
+          <Bar yAxisId="rev" dataKey="revenue" name="순매출" fill="#818cf8" radius={[3, 3, 0, 0]} maxBarSize={40} />
+          <Line
+            yAxisId="profit"
+            dataKey="profit"
+            name="공헌이익"
+            stroke="#10b981"
+            strokeWidth={2}
+            dot={{ fill: '#10b981', r: 3, strokeWidth: 0 }}
+            activeDot={{ r: 5 }}
+          />
+        </ComposedChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
 
 function KpiCard({ label, value, sub, warn }: { label: string; value: string; sub?: string; warn?: boolean }) {
   return (
@@ -68,6 +214,9 @@ export function MdSummaryOverview({ skus }: { skus: SkuData[] }) {
           sub={totalCm !== null ? `CM율 ${totalCm}%` : undefined}
         />
       </div>
+
+      {/* 월별 차트 */}
+      <MonthlyChart skus={skus} />
 
       {/* 브랜드별 요약 */}
       {brandRows.length > 1 && (
