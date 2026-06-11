@@ -684,99 +684,93 @@ function MonthlyTable({
             <p className="text-[11px] text-gray-400">쿠팡 - 신상 미등록으로 대응SKU 실적 및 비중에서 제외.</p>
             <p className="text-[11px] text-gray-400">태블로 해외 출고량은 글로벌 40% 인케어 60% 임의 분배.</p>
           </div>
-          <div className="flex items-center gap-1.5 flex-shrink-0 ml-3">
-            {step2UndoStack.length > 0 && (
-              <>
-                <span className="text-[11px] text-red-500 font-medium">* 카드 닫으면 되돌리기 불가!</span>
-                <button
-                  onClick={() => {
-                    const target = step2UndoStack[step2UndoStack.length - 1];
-                    batchInitChannelMonthQty(sku.id, target.channelMonthQty);
-                    setPricingOpts(target.pricingOpts);
-                    setStep2UndoStack((prev) => prev.slice(0, -1));
-                  }}
-                  className="text-[11px] px-2.5 py-1 rounded-lg border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 transition-colors"
-                >
-                  ↩ 되돌리기 ({step2UndoStack.length})
-                </button>
-              </>
-            )}
+          <div className="flex flex-col items-end gap-1 flex-shrink-0 ml-3">
+            {/* MOQ 미달 배지 — 버튼 행 위 우측 */}
             {(() => {
               const step2Total = sku.channelMonthQty.reduce((s, e) => s + e.qty, 0);
               const step1Target = totalQty > 0 ? totalQty : sku.totalOrderQty;
-              if (step2Total === 0 || step1Target === 0 || step2Total === step1Target) return null;
-              return (
-                <button
-                  onClick={() => {
-                    captureStep2Backup();
-                    const scaled = sku.channelMonthQty.map((e) => ({
-                      ...e,
-                      qty: (DISABLED_CHANNELS as readonly string[]).includes(e.channel)
-                        ? 0
-                        : Math.round(e.qty * step1Target / step2Total),
-                    }));
-                    batchInitChannelMonthQty(sku.id, scaled);
-                    persistSku(sku.id);
-                  }}
-                  className="text-[11px] px-2.5 py-1 rounded-lg border border-violet-300 bg-violet-50 text-violet-700 hover:bg-violet-100 transition-colors whitespace-nowrap"
-                >
-                  비례반영 ({step2Total.toLocaleString()} → {step1Target.toLocaleString()})
-                </button>
-              );
+              if (step2Total > 0 && step1Target > 0 && step2Total < step1Target) {
+                return (
+                  <span className="text-[10px] font-semibold text-white bg-red-500 px-2 py-0.5 rounded-full whitespace-nowrap">
+                    * MOQ 미달! 수정하세요
+                  </span>
+                );
+              }
+              return null;
             })()}
-            <button
-              onClick={() => {
-                captureStep2Backup();
-                // props sku 대신 store 최신값으로 STEP1 수량을 읽어 초기화
-                const latestSku = useStore.getState().skus.find((s) => s.id === sku.id) ?? sku;
-                const entries = buildChannelMonthEntries(compChannelDist, latestSku);
-                batchInitChannelMonthQty(sku.id, entries);
-                setStep2InitBaseline(sku.id, entries);
-                persistSku(sku.id);
-              }}
-              className="text-[11px] px-2.5 py-1 rounded-lg border border-gray-200 bg-gray-50 hover:bg-gray-100 text-gray-500 transition-colors"
-            >
-              초기화
-            </button>
-            {(
-              [
-                { field: 'platformConfirmed', label: '플랫폼 확정', on: 'bg-emerald-600 text-white hover:bg-emerald-700', off: 'border border-emerald-400 bg-emerald-50 text-emerald-700 hover:bg-emerald-100' },
-                { field: 'brandConfirmed',    label: '브랜드 확정', on: 'bg-amber-500 text-white hover:bg-amber-600',   off: 'border border-amber-400 bg-amber-50 text-amber-700 hover:bg-amber-100'   },
-              ] as { field: 'platformConfirmed' | 'brandConfirmed'; label: string; on: string; off: string }[]
-            ).map(({ field, label, on, off }) => {
-              const isOn = !!sku[field];
-              return (
-                <button
-                  key={field}
-                  onClick={() => setChannelConfirmed(sku.id, field, !isOn)}
-                  className={`text-[11px] px-2.5 py-1 rounded-lg font-semibold transition-colors whitespace-nowrap ${isOn ? on : off}`}
-                >
-                  {label}
-                </button>
-              );
-            })}
-            {/* 글로벌 확정 — MOQ 미달 배지를 위에 표시 */}
-            {(() => {
-              const step2Total = sku.channelMonthQty.reduce((s, e) => s + e.qty, 0);
-              const step1Target = totalQty > 0 ? totalQty : sku.totalOrderQty;
-              const isShort = step2Total > 0 && step1Target > 0 && step2Total < step1Target;
-              const isOn = !!sku.globalConfirmed;
-              return (
-                <div className="flex flex-col items-end gap-0.5">
-                  {isShort && (
-                    <span className="text-[10px] font-semibold text-white bg-red-500 px-2 py-0.5 rounded-full whitespace-nowrap">
-                      * MOQ 미달! 수정하세요
-                    </span>
-                  )}
+            {/* 버튼 행 */}
+            <div className="flex items-center gap-1.5">
+              {step2UndoStack.length > 0 && (
+                <>
+                  <span className="text-[11px] text-red-500 font-medium">* 카드 닫으면 되돌리기 불가!</span>
                   <button
-                    onClick={() => setChannelConfirmed(sku.id, 'globalConfirmed', !isOn)}
-                    className={`text-[11px] px-2.5 py-1 rounded-lg font-semibold transition-colors whitespace-nowrap ${isOn ? 'bg-sky-600 text-white hover:bg-sky-700' : 'border border-sky-400 bg-sky-50 text-sky-700 hover:bg-sky-100'}`}
+                    onClick={() => {
+                      const target = step2UndoStack[step2UndoStack.length - 1];
+                      batchInitChannelMonthQty(sku.id, target.channelMonthQty);
+                      setPricingOpts(target.pricingOpts);
+                      setStep2UndoStack((prev) => prev.slice(0, -1));
+                    }}
+                    className="text-[11px] px-2.5 py-1 rounded-lg border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 transition-colors"
                   >
-                    글로벌 확정
+                    ↩ 되돌리기 ({step2UndoStack.length})
                   </button>
-                </div>
-              );
-            })()}
+                </>
+              )}
+              {(() => {
+                const step2Total = sku.channelMonthQty.reduce((s, e) => s + e.qty, 0);
+                const step1Target = totalQty > 0 ? totalQty : sku.totalOrderQty;
+                if (step2Total === 0 || step1Target === 0 || step2Total === step1Target) return null;
+                return (
+                  <button
+                    onClick={() => {
+                      captureStep2Backup();
+                      const scaled = sku.channelMonthQty.map((e) => ({
+                        ...e,
+                        qty: (DISABLED_CHANNELS as readonly string[]).includes(e.channel)
+                          ? 0
+                          : Math.round(e.qty * step1Target / step2Total),
+                      }));
+                      batchInitChannelMonthQty(sku.id, scaled);
+                      persistSku(sku.id);
+                    }}
+                    className="text-[11px] px-2.5 py-1 rounded-lg border border-violet-300 bg-violet-50 text-violet-700 hover:bg-violet-100 transition-colors whitespace-nowrap"
+                  >
+                    비례반영 ({step2Total.toLocaleString()} → {step1Target.toLocaleString()})
+                  </button>
+                );
+              })()}
+              <button
+                onClick={() => {
+                  captureStep2Backup();
+                  const latestSku = useStore.getState().skus.find((s) => s.id === sku.id) ?? sku;
+                  const entries = buildChannelMonthEntries(compChannelDist, latestSku);
+                  batchInitChannelMonthQty(sku.id, entries);
+                  setStep2InitBaseline(sku.id, entries);
+                  persistSku(sku.id);
+                }}
+                className="text-[11px] px-2.5 py-1 rounded-lg border border-gray-200 bg-gray-50 hover:bg-gray-100 text-gray-500 transition-colors"
+              >
+                초기화
+              </button>
+              {(
+                [
+                  { field: 'platformConfirmed', label: '플랫폼 확정', on: 'bg-emerald-600 text-white hover:bg-emerald-700', off: 'border border-emerald-400 bg-emerald-50 text-emerald-700 hover:bg-emerald-100' },
+                  { field: 'brandConfirmed',    label: '브랜드 확정', on: 'bg-amber-500 text-white hover:bg-amber-600',     off: 'border border-amber-400 bg-amber-50 text-amber-700 hover:bg-amber-100'   },
+                  { field: 'globalConfirmed',   label: '글로벌 확정', on: 'bg-sky-600 text-white hover:bg-sky-700',         off: 'border border-sky-400 bg-sky-50 text-sky-700 hover:bg-sky-100'           },
+                ] as { field: 'platformConfirmed' | 'brandConfirmed' | 'globalConfirmed'; label: string; on: string; off: string }[]
+              ).map(({ field, label, on, off }) => {
+                const isOn = !!sku[field];
+                return (
+                  <button
+                    key={field}
+                    onClick={() => setChannelConfirmed(sku.id, field, !isOn)}
+                    className={`text-[11px] px-2.5 py-1 rounded-lg font-semibold transition-colors whitespace-nowrap ${isOn ? on : off}`}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
       )}
