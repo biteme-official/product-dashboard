@@ -691,11 +691,34 @@ function MonthlyTable({
             )}
             {(() => {
               const step2Total = sku.channelMonthQty.reduce((s, e) => s + e.qty, 0);
-              return sku.totalOrderQty > 0 && step2Total > 0 && step2Total < sku.totalOrderQty ? (
-                <span className="text-[11px] font-semibold text-white bg-red-500 px-2 py-0.5 rounded-full whitespace-nowrap">
-                  * MOQ 미달! 수정하세요
-                </span>
-              ) : null;
+              if (step2Total === 0 || sku.totalOrderQty === 0 || step2Total === sku.totalOrderQty) return null;
+              const isShort = step2Total < sku.totalOrderQty;
+              return (
+                <>
+                  {isShort && (
+                    <span className="text-[11px] font-semibold text-white bg-red-500 px-2 py-0.5 rounded-full whitespace-nowrap">
+                      * MOQ 미달! 수정하세요
+                    </span>
+                  )}
+                  <button
+                    onClick={() => {
+                      captureStep2Backup();
+                      const total = step2Total;
+                      const scaled = sku.channelMonthQty.map((e) => ({
+                        ...e,
+                        qty: (DISABLED_CHANNELS as readonly string[]).includes(e.channel)
+                          ? 0
+                          : Math.round(e.qty * sku.totalOrderQty / total),
+                      }));
+                      batchInitChannelMonthQty(sku.id, scaled);
+                      persistSku(sku.id);
+                    }}
+                    className="text-[11px] px-2.5 py-1 rounded-lg border border-violet-300 bg-violet-50 text-violet-700 hover:bg-violet-100 transition-colors whitespace-nowrap"
+                  >
+                    비례반영 ({step2Total.toLocaleString()} → {sku.totalOrderQty.toLocaleString()})
+                  </button>
+                </>
+              );
             })()}
             <button
               onClick={() => {
