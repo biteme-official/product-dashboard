@@ -224,39 +224,42 @@ export function MarketingBriefModal({ sku, onClose }: { sku: SkuData; onClose: (
             )}
           </section>
 
-          {/* ② 타겟 고객 / 마케팅 제안 */}
+          {/* ② 타겟 고객 */}
           <section className="bg-white rounded-xl border border-gray-200 overflow-hidden">
             <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
-              <h3 className="text-xs font-semibold text-gray-700">② 타겟 고객 &amp; 마케팅 제안</h3>
+              <h3 className="text-xs font-semibold text-gray-700">② 타겟 고객</h3>
             </div>
-            <div className="p-4 space-y-4">
-              <div>
-                <label className="block text-xs text-gray-500 mb-1.5">타겟 고객</label>
-                <input
-                  type="text"
-                  value={brief.targetCustomer}
-                  onChange={(e) => patch({ targetCustomer: e.target.value })}
-                  placeholder="예) 20~30대 반려동물 보호자"
-                  className={inputCls}
-                />
-              </div>
-              <div>
-                <label className="block text-xs text-gray-500 mb-1.5">마케팅 제안</label>
-                <input
-                  type="text"
-                  value={brief.marketingProposal}
-                  onChange={(e) => patch({ marketingProposal: e.target.value })}
-                  placeholder="예) SNS 체험단 + 자사몰 번들 프로모션"
-                  className={inputCls}
-                />
-              </div>
+            <div className="p-4">
+              <textarea
+                value={brief.targetCustomer}
+                onChange={(e) => patch({ targetCustomer: e.target.value })}
+                rows={3}
+                placeholder="타겟 고객 입력 (줄바꿈으로 구분)"
+                className={textareaCls}
+              />
             </div>
           </section>
 
-          {/* ③ PSP / KSP / USP */}
+          {/* ③ 마케팅 제안 */}
           <section className="bg-white rounded-xl border border-gray-200 overflow-hidden">
             <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
-              <h3 className="text-xs font-semibold text-gray-700">③ PSP / KSP / USP</h3>
+              <h3 className="text-xs font-semibold text-gray-700">③ 마케팅 제안</h3>
+            </div>
+            <div className="p-4">
+              <textarea
+                value={brief.marketingProposal}
+                onChange={(e) => patch({ marketingProposal: e.target.value })}
+                rows={3}
+                placeholder="마케팅 제안 입력 (줄바꿈으로 구분)"
+                className={textareaCls}
+              />
+            </div>
+          </section>
+
+          {/* ④ PSP / KSP / USP */}
+          <section className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
+              <h3 className="text-xs font-semibold text-gray-700">④ PSP / KSP / USP</h3>
             </div>
             <div className="p-4 grid grid-cols-1 gap-4">
               {(
@@ -286,7 +289,7 @@ export function MarketingBriefModal({ sku, onClose }: { sku: SkuData; onClose: (
           {/* ④ 비고 */}
           <section className="bg-white rounded-xl border border-gray-200 overflow-hidden">
             <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
-              <h3 className="text-xs font-semibold text-gray-700">④ 비고</h3>
+              <h3 className="text-xs font-semibold text-gray-700">⑤ 비고</h3>
             </div>
             <div className="p-4">
               <textarea
