@@ -202,7 +202,7 @@ export function SkuCard({ sku }: Props) {
               <span className="text-xs text-red-500">수량 수정 MD 협의 필요</span>
             </div>
           )}
-          <div className="grid gap-4 grid-cols-1 md:grid-cols-[1fr_2fr_1.2fr]">
+          <div className="grid gap-4 grid-cols-1 md:grid-cols-[1fr_1.8fr_1.4fr]">
             {/* 열 1: 기본정보 */}
             <BasicInfoColumn sku={sku} readOnly={!canEdit || isFinalized} />
             {/* 열 2: 사이즈 분배 */}
