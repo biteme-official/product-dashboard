@@ -13,14 +13,11 @@ const DROP_RES = new Set([
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export default async function handler(req: any, res: any): Promise<void> {
-  // catch-all [path] 세그먼트 → Tableau 경로 재구성
   const pathParts = req.query?.path;
   const pathStr: string = Array.isArray(pathParts)
     ? pathParts.join('/')
     : (pathParts ?? '');
 
-  // req.url에는 Vercel이 ?path=... 파라미터를 포함시키므로
-  // req.query에서 'path' 키를 제외한 나머지 파라미터만 query string으로 재구성
   const queryObj = req.query as Record<string, string | string[]> ?? {};
   const qParts = Object.entries(queryObj)
     .filter(([k]) => k !== 'path')
@@ -32,9 +29,7 @@ export default async function handler(req: any, res: any): Promise<void> {
   const qs = qParts.length > 0 ? `?${qParts.join('&')}` : '';
 
   const targetUrl = `${TARGET}/${pathStr}${qs}`;
-  console.log('[tableau-proxy]', req.method, targetUrl);
 
-  // Vercel 내부 헤더 제거 후 나머지 전달
   const headers: Record<string, string> = {};
   for (const [k, v] of Object.entries(req.headers ?? {})) {
     if (DROP_REQ.has(k.toLowerCase())) continue;
@@ -43,12 +38,27 @@ export default async function handler(req: any, res: any): Promise<void> {
 
   const init: RequestInit = { method: (req.method as string) ?? 'GET', headers };
 
-  // POST/PUT/PATCH body 전달
+  let bodyStr: string | undefined;
   if (req.method !== 'GET' && req.method !== 'HEAD' && req.body !== undefined) {
     const ct = (headers['content-type'] ?? '').toLowerCase();
-    init.body = ct.includes('application/json') && typeof req.body === 'object'
+    bodyStr = ct.includes('application/json') && typeof req.body === 'object'
       ? JSON.stringify(req.body)
-      : (req.body as BodyInit);
+      : String(req.body);
+    init.body = bodyStr;
+  }
+
+  // DEBUG: 실제 전달되는 값 확인
+  if (req.headers['x-debug-proxy'] === '1') {
+    res.statusCode = 200;
+    res.setHeader('content-type', 'application/json');
+    res.end(JSON.stringify({
+      targetUrl,
+      method: req.method,
+      queryObj,
+      bodyStr,
+      headers: Object.fromEntries(Object.entries(headers).filter(([k]) => !k.toLowerCase().includes('secret'))),
+    }, null, 2));
+    return;
   }
 
   try {
