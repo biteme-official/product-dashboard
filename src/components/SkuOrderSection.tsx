@@ -376,7 +376,17 @@ interface EditingCell { skuId: string; field: PriceField; originalValue: number 
 function SkuListTable({ skus }: { skus: SkuData[] }) {
   const updateSku = useStore((s) => s.updateSku);
   const persistSku = useStore((s) => s.persistSku);
+  const setListView = useStore((s) => s.setListView);
+  const setActiveCategory = useStore((s) => s.setActiveCategory);
+  const toggleExpanded = useStore((s) => s.toggleExpanded);
   const { role } = useAuth();
+
+  function navigateToSku(sku: SkuData) {
+    setActiveCategory(sku.category);
+    setListView(false);
+    // 카테고리 전환 후 해당 SKU 펼치기 (setTimeout으로 렌더 후 실행)
+    setTimeout(() => toggleExpanded(sku.id), 0);
+  }
   const canEdit = role === 'master';
 
   const [editingCell, setEditingCell] = useState<EditingCell | null>(null);
@@ -439,8 +449,14 @@ function SkuListTable({ skus }: { skus: SkuData[] }) {
                   <span className="px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 text-[11px] font-medium">{sku.category}</span>
                 </td>
                 <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{sku.brand}</td>
-                <td className="px-3 py-2 font-medium text-gray-800 max-w-[180px] truncate">
-                  {sku.name || <span className="text-gray-300">(미입력)</span>}
+                <td className="px-3 py-2 max-w-[180px]">
+                  <button
+                    onClick={() => navigateToSku(sku)}
+                    className="font-medium text-gray-800 truncate block w-full text-left hover:text-indigo-600 hover:underline underline-offset-2 transition-colors"
+                    title={sku.name || undefined}
+                  >
+                    {sku.name || <span className="text-gray-300">(미입력)</span>}
+                  </button>
                 </td>
                 <td className="px-3 py-2 text-gray-500 whitespace-nowrap tabular-nums">
                   {sku.releaseDate || <span className="text-gray-300">–</span>}
