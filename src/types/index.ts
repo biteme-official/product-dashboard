@@ -139,6 +139,7 @@ export interface SkuData {
   comparisonSku: ComparisonSku;
   monthlySplit: MonthlySplit[];     // 길이 8 (7~12월 + 익년 1~2월)
   step2OptionQty?: Record<string, number>;
+  marketingBrief?: MarketingBrief;
   step2InitBaselineQty?: ChannelMonthQtyEntry[]; // 초기화 시 계산된 수량 (비교 기준값, 영구 보존)
   isConfirmed?: boolean;
   finalOrderQty?: Record<string, number>;
@@ -148,6 +149,21 @@ export interface SkuData {
   globalConfirmed?: boolean;
   isExpanded: boolean;
   _initialSnapshot: Omit<SkuData, 'isExpanded' | '_initialSnapshot'>;
+}
+
+export interface MarketingBriefTargetProduct {
+  id: string;
+  productName: string;
+  price: number;
+  weeklyEstimatedSales: number;
+}
+
+export interface MarketingBrief {
+  targetProducts: MarketingBriefTargetProduct[];
+  psp: string;
+  ksp: string;
+  usp: string;
+  note: string;
 }
 
 export interface AppState {
