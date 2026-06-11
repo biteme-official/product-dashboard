@@ -513,15 +513,23 @@ function buildChannelMonthEntries(
     return CHANNELS.flatMap((channel) => MONTHS.map((month) => ({ channel, month, qty: 0 })));
   }
 
-  // CHANNELS 내 채널만 합산 — compChannelDist에 미지 채널명이 섞이면 distTotal이 부풀어 비율이 줄어드는 버그 방지
+  const isDisabledCh = (ch: string) => (DISABLED_CHANNELS as readonly string[]).includes(ch);
+  const activeChannels = CHANNELS.filter((ch) => !isDisabledCh(ch));
+
+  // 비활성 채널(쿠팡) 제외 후 합산 — 포함하면 해당 비중만큼 합계가 줄어드는 버그 방지
   const distTotal = compChannelDist
-    ? CHANNELS.reduce((s, ch) => s + (compChannelDist[ch] ?? 0), 0)
+    ? activeChannels.reduce((s, ch) => s + (compChannelDist[ch] ?? 0), 0)
     : 0;
+  // 기본값도 비활성 채널 제외 후 정규화
+  const activeDefaultSum = activeChannels.reduce((s, ch) => s + DEFAULT_CHANNEL_RATIO_PCT[ch], 0);
 
   return CHANNELS.flatMap((channel) => {
+    if (isDisabledCh(channel)) {
+      return MONTHS.map((month) => ({ channel, month, qty: 0 }));
+    }
     const channelRatio = compChannelDist && distTotal > 0
       ? (compChannelDist[channel] ?? 0) / distTotal
-      : DEFAULT_CHANNEL_RATIO_PCT[channel] / 100;
+      : DEFAULT_CHANNEL_RATIO_PCT[channel] / activeDefaultSum;
     const channelTotal = Math.round(baseQty * channelRatio);
 
     return MONTHS.map((month, mi) => {
@@ -695,35 +703,25 @@ function MonthlyTable({
             )}
             {(() => {
               const step2Total = sku.channelMonthQty.reduce((s, e) => s + e.qty, 0);
-              // 기준: STEP1 월별 합계, 미입력이면 totalOrderQty fallback
               const step1Target = totalQty > 0 ? totalQty : sku.totalOrderQty;
               if (step2Total === 0 || step1Target === 0 || step2Total === step1Target) return null;
-              const isShort = step2Total < step1Target;
               return (
-                <>
-                  {isShort && (
-                    <span className="text-[11px] font-semibold text-white bg-red-500 px-2 py-0.5 rounded-full whitespace-nowrap">
-                      * MOQ 미달! 수정하세요
-                    </span>
-                  )}
-                  <button
-                    onClick={() => {
-                      captureStep2Backup();
-                      const total = step2Total;
-                      const scaled = sku.channelMonthQty.map((e) => ({
-                        ...e,
-                        qty: (DISABLED_CHANNELS as readonly string[]).includes(e.channel)
-                          ? 0
-                          : Math.round(e.qty * step1Target / total),
-                      }));
-                      batchInitChannelMonthQty(sku.id, scaled);
-                      persistSku(sku.id);
-                    }}
-                    className="text-[11px] px-2.5 py-1 rounded-lg border border-violet-300 bg-violet-50 text-violet-700 hover:bg-violet-100 transition-colors whitespace-nowrap"
-                  >
-                    비례반영 ({step2Total.toLocaleString()} → {step1Target.toLocaleString()})
-                  </button>
-                </>
+                <button
+                  onClick={() => {
+                    captureStep2Backup();
+                    const scaled = sku.channelMonthQty.map((e) => ({
+                      ...e,
+                      qty: (DISABLED_CHANNELS as readonly string[]).includes(e.channel)
+                        ? 0
+                        : Math.round(e.qty * step1Target / step2Total),
+                    }));
+                    batchInitChannelMonthQty(sku.id, scaled);
+                    persistSku(sku.id);
+                  }}
+                  className="text-[11px] px-2.5 py-1 rounded-lg border border-violet-300 bg-violet-50 text-violet-700 hover:bg-violet-100 transition-colors whitespace-nowrap"
+                >
+                  비례반영 ({step2Total.toLocaleString()} → {step1Target.toLocaleString()})
+                </button>
               );
             })()}
             <button
@@ -744,8 +742,7 @@ function MonthlyTable({
               [
                 { field: 'platformConfirmed', label: '플랫폼 확정', on: 'bg-emerald-600 text-white hover:bg-emerald-700', off: 'border border-emerald-400 bg-emerald-50 text-emerald-700 hover:bg-emerald-100' },
                 { field: 'brandConfirmed',    label: '브랜드 확정', on: 'bg-amber-500 text-white hover:bg-amber-600',   off: 'border border-amber-400 bg-amber-50 text-amber-700 hover:bg-amber-100'   },
-                { field: 'globalConfirmed',   label: '글로벌 확정', on: 'bg-sky-600 text-white hover:bg-sky-700',       off: 'border border-sky-400 bg-sky-50 text-sky-700 hover:bg-sky-100'           },
-              ] as { field: 'platformConfirmed' | 'brandConfirmed' | 'globalConfirmed'; label: string; on: string; off: string }[]
+              ] as { field: 'platformConfirmed' | 'brandConfirmed'; label: string; on: string; off: string }[]
             ).map(({ field, label, on, off }) => {
               const isOn = !!sku[field];
               return (
@@ -758,6 +755,28 @@ function MonthlyTable({
                 </button>
               );
             })}
+            {/* 글로벌 확정 — MOQ 미달 배지를 위에 표시 */}
+            {(() => {
+              const step2Total = sku.channelMonthQty.reduce((s, e) => s + e.qty, 0);
+              const step1Target = totalQty > 0 ? totalQty : sku.totalOrderQty;
+              const isShort = step2Total > 0 && step1Target > 0 && step2Total < step1Target;
+              const isOn = !!sku.globalConfirmed;
+              return (
+                <div className="flex flex-col items-end gap-0.5">
+                  {isShort && (
+                    <span className="text-[10px] font-semibold text-white bg-red-500 px-2 py-0.5 rounded-full whitespace-nowrap">
+                      * MOQ 미달! 수정하세요
+                    </span>
+                  )}
+                  <button
+                    onClick={() => setChannelConfirmed(sku.id, 'globalConfirmed', !isOn)}
+                    className={`text-[11px] px-2.5 py-1 rounded-lg font-semibold transition-colors whitespace-nowrap ${isOn ? 'bg-sky-600 text-white hover:bg-sky-700' : 'border border-sky-400 bg-sky-50 text-sky-700 hover:bg-sky-100'}`}
+                  >
+                    글로벌 확정
+                  </button>
+                </div>
+              );
+            })()}
           </div>
         </div>
       )}
