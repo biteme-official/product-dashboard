@@ -559,9 +559,7 @@ function MonthlyTable({
   const [activeTab, setActiveTab] = useState<'monthly' | 'channel' | 'pricing'>('monthly');
   type Step2Snapshot = { channelMonthQty: SkuData['channelMonthQty']; pricingOpts: Record<string, string> };
   const [step2UndoStack, setStep2UndoStack] = useState<Step2Snapshot[]>([]);
-  // STEP2 탭 첫 진입 시 기준값 스냅샷 (편집 전 초기 세팅 수량 표시용)
-  const [step2Baseline, setStep2Baseline] = useState<SkuData['channelMonthQty'] | null>(null);
-  const step2BaselineCaptured = useRef(false);
+  // step2InitBaselineQty: store(Firestore) 영구 보존값 — React state 불필요
 
   // 팀카테 변동비 데이터 로드
   const [teamCateMap, setTeamCateMap] = useState<TeamCateMap | null>(null);
@@ -597,6 +595,7 @@ function MonthlyTable({
   }
   const updateMonthlySplit = useStore((s) => s.updateMonthlySplit);
   const batchInitChannelMonthQty = useStore((s) => s.batchInitChannelMonthQty);
+  const setStep2InitBaseline = useStore((s) => s.setStep2InitBaseline);
   const persistSku = useStore((s) => s.persistSku);
   const setChannelConfirmed = useStore((s) => s.setChannelConfirmed);
   const { role } = useAuth();
@@ -619,19 +618,10 @@ function MonthlyTable({
     const entries = buildChannelMonthEntries(compChannelDist, latestSku);
     if (entries.every((e) => e.qty === 0)) return;
     batchInitChannelMonthQty(sku.id, entries);
+    setStep2InitBaseline(sku.id, entries);
     persistSku(sku.id);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, compChannelDist]);
-
-  // STEP2 탭 첫 진입 후 초기 수량이 확정되면 기준값으로 캡처 (편집 전 비교용)
-  useEffect(() => {
-    if (activeTab !== 'pricing') return;
-    if (step2BaselineCaptured.current) return;
-    if (sku.channelMonthQty.every((e) => e.qty === 0)) return; // 아직 자동세팅 전
-    step2BaselineCaptured.current = true;
-    setStep2Baseline([...sku.channelMonthQty]);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, sku.channelMonthQty]);
 
   const releaseMonth = getReleaseMonth(sku.releaseDate);
   const isDisabled = (m: Month) =>
@@ -743,10 +733,8 @@ function MonthlyTable({
                 const latestSku = useStore.getState().skus.find((s) => s.id === sku.id) ?? sku;
                 const entries = buildChannelMonthEntries(compChannelDist, latestSku);
                 batchInitChannelMonthQty(sku.id, entries);
+                setStep2InitBaseline(sku.id, entries);
                 persistSku(sku.id);
-                // 초기화 후 기준값도 새 초기화 수량으로 갱신
-                step2BaselineCaptured.current = false;
-                setStep2Baseline(null);
               }}
               className="text-[11px] px-2.5 py-1 rounded-lg border border-gray-200 bg-gray-50 hover:bg-gray-100 text-gray-500 transition-colors"
             >
@@ -786,7 +774,7 @@ function MonthlyTable({
           compChannelYM={compChannelYM}
           compMode={compMode}
           compModeLabel={compModeLabel}
-          step2Baseline={step2Baseline}
+          step2Baseline={sku.step2InitBaselineQty ?? null}
         />
       ) : activeTab === 'channel' ? (
         <>

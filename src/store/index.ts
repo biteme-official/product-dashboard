@@ -246,6 +246,7 @@ interface StoreActions {
   updateMonthlySplit: (id: string, month: Month, ratio: number) => void;
   updateChannelMonthQty: (id: string, channel: Channel, month: Month, qty: number) => void;
   batchInitChannelMonthQty: (id: string, entries: ChannelMonthQtyEntry[]) => void;
+  setStep2InitBaseline: (id: string, entries: ChannelMonthQtyEntry[]) => void;
   updateChannelPricing: (id: string, channel: Channel, patch: { price?: number; commissionRate?: number }) => void;
   updateChannelRatio: (id: string, channel: string, ratio: number) => void;
   resetChannelRatios: (id: string) => void;
@@ -427,6 +428,15 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
       (DISABLED_CHANNELS as readonly string[]).includes(e.channel) ? { ...e, qty: 0 } : e,
     );
     set({ skus: skus.map((s) => (s.id === id ? { ...s, channelMonthQty: safe } : s)) });
+  },
+
+  setStep2InitBaseline: (id, entries) => {
+    const skus = get().skus;
+    if (!skus.find((s) => s.id === id)) return;
+    const safe = entries.map((e) =>
+      (DISABLED_CHANNELS as readonly string[]).includes(e.channel) ? { ...e, qty: 0 } : e,
+    );
+    set({ skus: skus.map((s) => (s.id === id ? { ...s, step2InitBaselineQty: safe } : s)) });
   },
 
   updateChannelPricing: (id, channel, patch) => {
