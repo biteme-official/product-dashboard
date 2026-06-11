@@ -12,6 +12,7 @@ import { NumericInput } from './NumericInput';
 import { useExchangeRates } from '../utils/useExchangeRates';
 import { isMdRole } from '../utils/pin';
 import { MarketingBriefModal } from './MarketingBriefModal';
+import { exportSimulationXlsx } from '../utils/exportXlsx';
 
 const MONTH_LABELS: Record<Month, string> = {
   7: '7월', 8: '8월', 9: '9월', 10: '10월', 11: '11월', 12: '12월',
@@ -605,6 +606,8 @@ function MonthlyTable({
     return result;
   }, [teamCateMap, sku.category, sku.releaseDate, compMode, releaseYear]);
 
+  const { usdKrw: mtUsdKrw, jpyKrw: mtJpyKrw } = useExchangeRates();
+
   function captureStep2Backup() {
     // useStore.getState()로 React 렌더 지연 없이 최신 Zustand 값을 읽음
     const latestSku = useStore.getState().skus.find((s) => s.id === sku.id);
@@ -777,6 +780,20 @@ function MonthlyTable({
                 className="text-[11px] px-2.5 py-1 rounded-lg border border-gray-200 bg-gray-50 hover:bg-gray-100 text-gray-500 transition-colors"
               >
                 초기화
+              </button>
+              <button
+                onClick={() => exportSimulationXlsx({
+                  sku,
+                  pricingOpts,
+                  compMonthlyData,
+                  compChannelDist,
+                  varCostByChannel,
+                  usdKrw: mtUsdKrw,
+                  jpyKrw: mtJpyKrw,
+                })}
+                className="text-[11px] px-2.5 py-1 rounded-lg border border-teal-300 bg-teal-50 hover:bg-teal-100 text-teal-700 transition-colors whitespace-nowrap"
+              >
+                ↓ 시뮬레이션 엑셀
               </button>
               {(
                 [
