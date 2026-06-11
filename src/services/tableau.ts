@@ -49,30 +49,33 @@ async function getAuthToken(): Promise<string> {
   // 만료된 토큰 제거
   authToken = null;
   authPromise = (async () => {
-    const patName = import.meta.env.VITE_TABLEAU_PAT_NAME as string;
-    const patSecret = import.meta.env.VITE_TABLEAU_PAT_SECRET as string;
-    const res = await fetchWithTimeout(`${BASE}/api/3.21/auth/signin`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-      body: JSON.stringify({
-        credentials: {
-          personalAccessTokenName: patName,
-          personalAccessTokenSecret: patSecret,
-          site: { contentUrl: 'biteme01' },
-        },
-      }),
-    }, 15_000);
-    if (!res.ok) {
+    try {
+      const patName = import.meta.env.VITE_TABLEAU_PAT_NAME as string;
+      const patSecret = import.meta.env.VITE_TABLEAU_PAT_SECRET as string;
+      const res = await fetchWithTimeout(`${BASE}/api/3.21/auth/signin`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({
+          credentials: {
+            personalAccessTokenName: patName,
+            personalAccessTokenSecret: patSecret,
+            site: { contentUrl: 'biteme01' },
+          },
+        }),
+      }, 15_000);
+      if (!res.ok) {
+        const body = await res.text().catch(() => '');
+        console.error('[Tableau] 인증 실패', res.status, body.slice(0, 200));
+        throw new Error(`Tableau auth failed: ${res.status}`);
+      }
+      const json = await res.json();
+      authToken = json.credentials.token as string;
+      authTokenExpiresAt = Date.now() + TOKEN_TTL;
+      return authToken;
+    } finally {
+      // 성공/실패/네트워크에러 어떤 경우에도 반드시 해제 (아니면 rejected Promise를 재사용해 영구 불능)
       authPromise = null;
-      const body = await res.text().catch(() => '');
-      console.error('[Tableau] 인증 실패', res.status, body.slice(0, 200));
-      throw new Error(`Tableau auth failed: ${res.status}`);
     }
-    const json = await res.json();
-    authToken = json.credentials.token as string;
-    authTokenExpiresAt = Date.now() + TOKEN_TTL;
-    authPromise = null;
-    return authToken;
   })();
   return authPromise;
 }
