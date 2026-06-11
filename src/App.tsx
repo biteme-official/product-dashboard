@@ -46,6 +46,7 @@ function App() {
   const importSkus = useStore((s) => s.importSkus);
   const replaceAllSkus = useStore((s) => s.replaceAllSkus);
   const skus = useStore((s) => s.skus);
+  const setListView = useStore((s) => s.setListView);
   const { role, logout } = useAuth();
 
   const [pending, setPending] = useState<PendingImport | null>(null);
@@ -236,7 +237,7 @@ function App() {
             return (
               <button
                 key={key}
-                onClick={() => setActiveMainTab(key)}
+                onClick={() => { setActiveMainTab(key); if (key === 'md') setListView(false); }}
                 className={`px-4 py-1.5 text-sm font-semibold rounded-t-lg border-b-2 transition-all ${
                   isActive
                     ? 'border-indigo-600 text-indigo-700 bg-indigo-50/60'
@@ -261,7 +262,7 @@ function App() {
         </div>
         {activeMainTab === 'manual' ? null : (
           <>
-            <CategoryTabs />
+            <CategoryTabs hideListView={activeMainTab === 'md'} />
             <BrandFilter />
           </>
         )}

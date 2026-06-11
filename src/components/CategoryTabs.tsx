@@ -1,11 +1,11 @@
 import { CATEGORIES, type Category } from '../types';
 import { useStore } from '../store';
 
-type UncontrolledProps = { showAll?: false; value?: never; onChange?: never };
-type ControlledProps = { showAll: true; value: Category | '전체'; onChange: (c: Category | '전체') => void };
+type UncontrolledProps = { showAll?: false; value?: never; onChange?: never; hideListView?: boolean };
+type ControlledProps = { showAll: true; value: Category | '전체'; onChange: (c: Category | '전체') => void; hideListView?: boolean };
 type Props = UncontrolledProps | ControlledProps;
 
-export function CategoryTabs({ showAll, value, onChange }: Props = {}) {
+export function CategoryTabs({ showAll, value, onChange, hideListView = false }: Props = {}) {
   const activeCategory = useStore((s) => s.activeCategory);
   const setActiveCategory = useStore((s) => s.setActiveCategory);
   const isListView = useStore((s) => s.isListView);
@@ -26,8 +26,8 @@ export function CategoryTabs({ showAll, value, onChange }: Props = {}) {
 
   return (
     <div className="flex gap-1 p-3 bg-white border-b border-gray-200 overflow-x-auto scrollbar-none">
-      {/* LIST VIEW 버튼 — uncontrolled 모드(PM 탭)에서만 표시 */}
-      {!isControlled && (
+      {/* LIST VIEW 버튼 — uncontrolled 모드(PM 탭)에서만, 채널별 요약 탭에서는 숨김 */}
+      {!isControlled && !hideListView && (
         <button
           onClick={() => setListView(!isListView)}
           className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all flex-shrink-0 flex items-center gap-1.5 ${
