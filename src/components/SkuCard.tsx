@@ -513,8 +513,9 @@ function buildChannelMonthEntries(
     return CHANNELS.flatMap((channel) => MONTHS.map((month) => ({ channel, month, qty: 0 })));
   }
 
+  // CHANNELS 내 채널만 합산 — compChannelDist에 미지 채널명이 섞이면 distTotal이 부풀어 비율이 줄어드는 버그 방지
   const distTotal = compChannelDist
-    ? Object.values(compChannelDist).reduce((s, q) => s + q, 0)
+    ? CHANNELS.reduce((s, ch) => s + (compChannelDist[ch] ?? 0), 0)
     : 0;
 
   return CHANNELS.flatMap((channel) => {
