@@ -681,7 +681,11 @@ function MonthlyTable({
       )}
       {activeTab === 'pricing' && (
         <div className="flex items-center justify-between mb-2">
-          <p className="text-[11px] text-gray-400">대응 SKU의 채널 비중으로 초기 세팅됩니다. 전략에 맞추어 월별 목표량을 수정해주세요.</p>
+          <div className="flex flex-col gap-0.5">
+            <p className="text-[11px] text-gray-400">대응 SKU의 채널 비중으로 초기 세팅됩니다. 전략에 맞추어 월별 목표량을 수정해주세요.</p>
+            <p className="text-[11px] text-gray-400">쿠팡 - 신상 미등록으로 대응SKU 실적 및 비중에서 제외.</p>
+            <p className="text-[11px] text-gray-400">태블로 해외 출고량은 글로벌 40% 인케어 60% 임의 분배.</p>
+          </div>
           <div className="flex items-center gap-1.5 flex-shrink-0 ml-3">
             {step2UndoStack.length > 0 && (
               <>
