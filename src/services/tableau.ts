@@ -130,15 +130,27 @@ function parseCSV(csv: string): Array<{ skuName: string; monthNum: number; year:
 // 채널 차트·집계에서 제외할 채널
 const EXCLUDED_CHANNELS = new Set(['협찬', '기타', 'CS', '공구', '팝업']);
 
-// Tableau 채널명 → 앱 채널명 정규화 (string[] = 복수 채널에 동일 수량 각각 반영)
-const TABLEAU_CHANNEL_NORMALIZE: Record<string, string | string[]> = {
+// 가중 분배: { channel, ratio } 배열 → 수량을 비중대로 나눔
+type WeightedTarget = { channel: string; ratio: number }[];
+
+// Tableau 채널명 → 앱 채널명 정규화
+// string: 1:1 매핑 / WeightedTarget: 비중 분할
+const TABLEAU_CHANNEL_NORMALIZE: Record<string, string | WeightedTarget> = {
   'SSFW 스스':    '스스',
   'SSFW 자사몰':  '스스',
   '바잇미 자사몰': '자사몰',
   '사입':         '사입및페어',
   '페어':         '사입및페어',
-  '해외':         ['글로벌', '일본'],
+  '해외':         [{ channel: '글로벌', ratio: 0.4 }, { channel: '일본', ratio: 0.6 }],
 };
+
+// 대시보드에서 사용하는 채널명 집합 (미지 채널 감지용)
+import { CHANNELS as APP_CHANNELS } from '../types';
+const KNOWN_CHANNELS = new Set<string>([
+  ...APP_CHANNELS,
+  ...Object.keys(TABLEAU_CHANNEL_NORMALIZE),
+  ...EXCLUDED_CHANNELS,
+]);
 
 // ── 채널별 데이터 타입 ───────────────────────────────────────────────────
 /** channel → year → month → qty */
@@ -209,17 +221,38 @@ async function loadChannelData(retry = true): Promise<ChannelDataMap> {
 
   const rows = parseChannelCSV(await res.text());
   const map: ChannelDataMap = new Map();
+  const unknownChannels = new Set<string>();
+
   for (const r of rows) {
-    const normalized = TABLEAU_CHANNEL_NORMALIZE[r.channel] ?? r.channel;
-    const targets = Array.isArray(normalized) ? normalized : [normalized];
+    const rule = TABLEAU_CHANNEL_NORMALIZE[r.channel];
+
+    // 미지 채널 감지: 정규화 규칙도 없고, 앱 채널도 아니고, 제외 목록도 아닌 경우
+    if (!rule && !APP_CHANNELS.includes(r.channel as typeof APP_CHANNELS[number]) && !EXCLUDED_CHANNELS.has(r.channel)) {
+      unknownChannels.add(r.channel);
+    }
+
     if (!map.has(r.skuName)) map.set(r.skuName, {});
     const byCh = map.get(r.skuName)!;
-    for (const ch of targets) {
+
+    if (Array.isArray(rule)) {
+      // 가중 분배: 각 채널에 qty × ratio 적용
+      for (const { channel, ratio } of rule) {
+        if (!byCh[channel]) byCh[channel] = {};
+        if (!byCh[channel][r.year]) byCh[channel][r.year] = {};
+        byCh[channel][r.year][r.monthNum] = (byCh[channel][r.year][r.monthNum] ?? 0) + Math.round(r.qty * ratio);
+      }
+    } else {
+      const ch = rule ?? r.channel;
       if (!byCh[ch]) byCh[ch] = {};
       if (!byCh[ch][r.year]) byCh[ch][r.year] = {};
       byCh[ch][r.year][r.monthNum] = (byCh[ch][r.year][r.monthNum] ?? 0) + r.qty;
     }
   }
+
+  if (unknownChannels.size > 0) {
+    console.warn('[Tableau] 미매핑 채널명 (TABLEAU_CHANNEL_NORMALIZE에 추가 필요):', [...unknownChannels].sort());
+  }
+
   return map;
 }
 
