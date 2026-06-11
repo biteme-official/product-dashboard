@@ -553,6 +553,9 @@ function MonthlyTable({
   const [activeTab, setActiveTab] = useState<'monthly' | 'channel' | 'pricing'>('monthly');
   type Step2Snapshot = { channelMonthQty: SkuData['channelMonthQty']; pricingOpts: Record<string, string> };
   const [step2UndoStack, setStep2UndoStack] = useState<Step2Snapshot[]>([]);
+  // STEP2 탭 첫 진입 시 기준값 스냅샷 (편집 전 초기 세팅 수량 표시용)
+  const [step2Baseline, setStep2Baseline] = useState<SkuData['channelMonthQty'] | null>(null);
+  const step2BaselineCaptured = useRef(false);
 
   // 팀카테 변동비 데이터 로드
   const [teamCateMap, setTeamCateMap] = useState<TeamCateMap | null>(null);
@@ -609,6 +612,16 @@ function MonthlyTable({
     persistSku(sku.id);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, compChannelDist]);
+
+  // STEP2 탭 첫 진입 후 초기 수량이 확정되면 기준값으로 캡처 (편집 전 비교용)
+  useEffect(() => {
+    if (activeTab !== 'pricing') return;
+    if (step2BaselineCaptured.current) return;
+    if (sku.channelMonthQty.every((e) => e.qty === 0)) return; // 아직 자동세팅 전
+    step2BaselineCaptured.current = true;
+    setStep2Baseline([...sku.channelMonthQty]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, sku.channelMonthQty]);
 
   const releaseMonth = getReleaseMonth(sku.releaseDate);
   const isDisabled = (m: Month) =>
@@ -690,6 +703,9 @@ function MonthlyTable({
                 const entries = buildChannelMonthEntries(compChannelDist, sku);
                 batchInitChannelMonthQty(sku.id, entries);
                 persistSku(sku.id);
+                // 초기화 후 기준값도 새 초기화 수량으로 갱신
+                step2BaselineCaptured.current = false;
+                setStep2Baseline(null);
               }}
               className="text-[11px] px-2.5 py-1 rounded-lg border border-gray-200 bg-gray-50 hover:bg-gray-100 text-gray-500 transition-colors"
             >
@@ -729,6 +745,7 @@ function MonthlyTable({
           compChannelYM={compChannelYM}
           compMode={compMode}
           compModeLabel={compModeLabel}
+          step2Baseline={step2Baseline}
         />
       ) : activeTab === 'channel' ? (
         <>
@@ -1233,6 +1250,7 @@ function PricingChannelTable({
   compChannelYM,
   compMode,
   compModeLabel,
+  step2Baseline,
 }: {
   sku: SkuData;
   readOnly: boolean;
@@ -1244,6 +1262,7 @@ function PricingChannelTable({
   compChannelYM?: ChannelByYearMonth | null;
   compMode?: 'rolling12' | 'samePeriod';
   compModeLabel?: string;
+  step2Baseline?: SkuData['channelMonthQty'] | null;
 }) {
   const updateChannelMonthQty = useStore((s) => s.updateChannelMonthQty);
   const persistSku = useStore((s) => s.persistSku);
@@ -1534,25 +1553,40 @@ function PricingChannelTable({
                                 const growthRate = compQty && compQty > 0
                                   ? ((monthQtyVal - compQty) / compQty * 100)
                                   : null;
+                                const baseQty = step2Baseline?.find(e => e.channel === channel && e.month === m)?.qty ?? null;
+                                const diff = baseQty !== null ? monthQtyVal - baseQty : null;
                                 return (
                                   <td key={m} className={`px-1 py-1 ${yearBorder(m)} ${IS_NEXT_YEAR[m] ? 'bg-gray-50/60' : ''}`}>
-                                    <div className="flex items-center gap-0.5">
-                                      <NumericInput
-                                        value={monthQtyVal}
-                                        onChange={(val) => updateChannelMonthQty(sku.id, channel, m, val)}
-                                        onBlur={() => persistSku(sku.id)}
-                                        onFocus={() => onBeforeEdit?.()}
-                                        disabled={readOnly || (DISABLED_CHANNELS as readonly string[]).includes(channel)}
-                                        placeholder="0"
-                                        className={`text-right rounded-md px-1 py-1 text-[11px] border focus:outline-none focus:ring-1 focus:ring-gray-400 ${
-                                          readOnly || (DISABLED_CHANNELS as readonly string[]).includes(channel) ? 'bg-gray-50 text-gray-400 cursor-not-allowed border-gray-200' : 'bg-white text-gray-700 border-gray-200 hover:border-gray-400'
-                                        }`}
-                                        style={{ width: '52px' }}
-                                      />
-                                      {growthRate !== null && (
-                                        <span className={`text-[9px] font-semibold leading-none whitespace-nowrap ${growthRate > 0 ? 'text-emerald-600' : growthRate < 0 ? 'text-red-500' : 'text-gray-400'}`}>
-                                          {growthRate > 0 ? '+' : ''}{growthRate.toFixed(1)}%
-                                        </span>
+                                    <div className="flex flex-col items-center gap-0">
+                                      <div className="flex items-center gap-0.5">
+                                        <NumericInput
+                                          value={monthQtyVal}
+                                          onChange={(val) => updateChannelMonthQty(sku.id, channel, m, val)}
+                                          onBlur={() => persistSku(sku.id)}
+                                          onFocus={() => onBeforeEdit?.()}
+                                          disabled={readOnly || (DISABLED_CHANNELS as readonly string[]).includes(channel)}
+                                          placeholder="0"
+                                          className={`text-right rounded-md px-1 py-1 text-[11px] border focus:outline-none focus:ring-1 focus:ring-gray-400 ${
+                                            readOnly || (DISABLED_CHANNELS as readonly string[]).includes(channel) ? 'bg-gray-50 text-gray-400 cursor-not-allowed border-gray-200' : 'bg-white text-gray-700 border-gray-200 hover:border-gray-400'
+                                          }`}
+                                          style={{ width: '52px' }}
+                                        />
+                                        {growthRate !== null && (
+                                          <span className={`text-[9px] font-semibold leading-none whitespace-nowrap ${growthRate > 0 ? 'text-emerald-600' : growthRate < 0 ? 'text-red-500' : 'text-gray-400'}`}>
+                                            {growthRate > 0 ? '+' : ''}{growthRate.toFixed(1)}%
+                                          </span>
+                                        )}
+                                      </div>
+                                      {/* 기준값 + 차이 */}
+                                      {baseQty !== null && (baseQty > 0 || monthQtyVal > 0) && (
+                                        <div className="text-[8px] tabular-nums leading-none text-center mt-0.5 whitespace-nowrap">
+                                          <span className="text-gray-300">{baseQty.toLocaleString()}</span>
+                                          {diff !== null && diff !== 0 && (
+                                            <span className={diff > 0 ? ' text-emerald-500' : ' text-red-400'}>
+                                              {' '}{diff > 0 ? '+' : ''}{diff.toLocaleString()}
+                                            </span>
+                                          )}
+                                        </div>
                                       )}
                                     </div>
                                   </td>

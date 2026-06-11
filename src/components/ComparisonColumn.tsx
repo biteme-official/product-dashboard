@@ -8,6 +8,7 @@ import { revenueMultiplier, calcDynamicMultiplier } from '../utils/calc';
 import {
   fetchSkuShipments,
   fetchChannelShipments,
+  invalidateCache,
   searchSkus,
   calcRolling12,
   calcSamePeriod,
@@ -73,6 +74,7 @@ export function ComparisonColumn({ sku, readOnly, onComparisonDataChange, onChan
   const [allSkus, setAllSkus] = useState<SkuShipmentInfo[]>([]);
   const [loadError, setLoadError] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [retryTick, setRetryTick] = useState(0);
 
   // 채널별 데이터
   const [channelMap, setChannelMap] = useState<ChannelDataMap | null>(null);
@@ -105,18 +107,18 @@ export function ComparisonColumn({ sku, readOnly, onComparisonDataChange, onChan
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sku.id]);
 
-  // Tableau 전체 데이터 로드
+  // Tableau 전체 데이터 로드 (retryTick 변경 시 재시도)
   useEffect(() => {
-    if (allSkus.length > 0 || loading) return;
     setLoading(true);
+    setAllSkus([]);
     fetchSkuShipments()
       .then((data) => { setAllSkus(data); setLoadError(false); })
       .catch(() => setLoadError(true))
       .finally(() => setLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [retryTick]);
 
-  // 채널 데이터 로드 (VIEW_ID 설정된 경우만)
+  // 채널 데이터 로드 (VIEW_ID 설정된 경우만, retryTick 변경 시 재시도)
   useEffect(() => {
     fetchChannelShipments()
       .then((map) => {
@@ -124,7 +126,8 @@ export function ComparisonColumn({ sku, readOnly, onComparisonDataChange, onChan
         setChannelMap(map);
       })
       .catch((err) => { console.error('[채널 데이터 로드 실패]', err); setChannelConfigured(false); });
-  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [retryTick]);
 
   // allSkus 로드 후 저장된 선택 SKU 자동 복원
   // 의류·잡화는 동기간으로 복원 + store 값도 갱신 (일괄반영)
@@ -301,7 +304,17 @@ export function ComparisonColumn({ sku, readOnly, onComparisonDataChange, onChan
         <div className="flex items-center justify-between mb-1">
           <label className="text-xs text-gray-500">기존 SKU명 검색</label>
           {loading && <span className="text-[10px] text-indigo-400 animate-pulse">로딩 중…</span>}
-          {loadError && !loading && <span className="text-[10px] text-red-400">연결 실패</span>}
+          {loadError && !loading && (
+            <span className="flex items-center gap-1.5">
+              <span className="text-[10px] text-red-400">연결 실패</span>
+              <button
+                onClick={() => { invalidateCache(); setRetryTick(t => t + 1); }}
+                className="text-[10px] px-1.5 py-0.5 rounded bg-red-50 border border-red-200 text-red-500 hover:bg-red-100 transition-colors"
+              >
+                재시도
+              </button>
+            </span>
+          )}
           {!loading && !loadError && allSkus.length > 0 && selectedSkus.length === 0 && (
             <span className="text-[10px] text-gray-300">{allSkus.length}개 SKU</span>
           )}

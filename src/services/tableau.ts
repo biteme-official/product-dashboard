@@ -19,18 +19,39 @@ export interface SkuShipmentInfo {
 }
 
 let authToken: string | null = null;
+let authTokenExpiresAt = 0;          // PAT 토큰 만료 시각 (ms)
 let authPromise: Promise<string> | null = null;
 let shipmentCache: SkuShipmentInfo[] | null = null;
+let shipmentCacheAt = 0;
 let fetchPromise: Promise<SkuShipmentInfo[]> | null = null;
 
+/** 캐시 유효 시간: 55분 (Tableau maxAge=60 보다 약간 짧게) */
+const CACHE_TTL = 55 * 60 * 1000;
+/** PAT 토큰 선제 만료 시간: 3.5시간 (Tableau 기본 4시간보다 30분 여유) */
+const TOKEN_TTL = 210 * 60 * 1000;
+
+/** fetch + AbortController 타임아웃 (기본 20초) */
+async function fetchWithTimeout(url: string, opts: RequestInit, ms = 20_000): Promise<Response> {
+  const ctrl = new AbortController();
+  const id = setTimeout(() => ctrl.abort(), ms);
+  try {
+    return await fetch(url, { ...opts, signal: ctrl.signal });
+  } finally {
+    clearTimeout(id);
+  }
+}
+
 async function getAuthToken(): Promise<string> {
-  if (authToken) return authToken;
-  // 동시 요청이 여러 개여도 PAT 로그인은 한 번만 실행
+  // 토큰이 유효하면 그대로 사용
+  if (authToken && Date.now() < authTokenExpiresAt) return authToken;
+  // 동시 요청이 있으면 그 Promise를 공유
   if (authPromise) return authPromise;
+  // 만료된 토큰 제거
+  authToken = null;
   authPromise = (async () => {
     const patName = import.meta.env.VITE_TABLEAU_PAT_NAME as string;
     const patSecret = import.meta.env.VITE_TABLEAU_PAT_SECRET as string;
-    const res = await fetch(`${BASE}/api/3.21/auth/signin`, {
+    const res = await fetchWithTimeout(`${BASE}/api/3.21/auth/signin`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
       body: JSON.stringify({
@@ -40,7 +61,7 @@ async function getAuthToken(): Promise<string> {
           site: { contentUrl: 'biteme01' },
         },
       }),
-    });
+    }, 15_000);
     if (!res.ok) {
       authPromise = null;
       const body = await res.text().catch(() => '');
@@ -49,6 +70,7 @@ async function getAuthToken(): Promise<string> {
     }
     const json = await res.json();
     authToken = json.credentials.token as string;
+    authTokenExpiresAt = Date.now() + TOKEN_TTL;
     authPromise = null;
     return authToken;
   })();
@@ -122,6 +144,7 @@ export type ChannelByYearMonth = Record<string, Record<number, Record<number, nu
 export type ChannelDataMap = Map<string, ChannelByYearMonth>;
 
 let channelDataCache: ChannelDataMap | null = null;
+let channelCacheAt = 0;
 let channelFetchPromise: Promise<ChannelDataMap> | null = null;
 
 /**
@@ -162,14 +185,18 @@ function parseChannelCSV(csv: string): Array<{ channel: string; skuName: string;
 
 async function loadChannelData(retry = true): Promise<ChannelDataMap> {
   const token = await getAuthToken();
-  const res = await fetch(
+  const res = await fetchWithTimeout(
     `${BASE}/api/3.21/sites/${SITE_ID}/views/${CHANNEL_VIEW_ID}/data?maxAge=60`,
     { headers: { 'X-Tableau-Auth': token } },
   );
   if (res.status === 401 && retry) {
-    // 토큰 만료 → 재인증 후 1회 재시도
     authToken = null;
+    authTokenExpiresAt = 0;
     authPromise = null;
+    return loadChannelData(false);
+  }
+  if ((res.status === 502 || res.status === 503 || res.status === 504) && retry) {
+    await new Promise(r => setTimeout(r, 1500));
     return loadChannelData(false);
   }
   if (!res.ok) {
@@ -195,10 +222,10 @@ async function loadChannelData(retry = true): Promise<ChannelDataMap> {
 
 export async function fetchChannelShipments(): Promise<ChannelDataMap | null> {
   if (!CHANNEL_VIEW_ID) return null;
-  if (channelDataCache) return channelDataCache;
+  if (channelDataCache && Date.now() - channelCacheAt < CACHE_TTL) return channelDataCache;
   if (channelFetchPromise) return channelFetchPromise;
   channelFetchPromise = loadChannelData()
-    .then(data => { channelDataCache = data; channelFetchPromise = null; return data; })
+    .then(data => { channelDataCache = data; channelCacheAt = Date.now(); channelFetchPromise = null; return data; })
     .catch(err => { channelFetchPromise = null; throw err; });
   return channelFetchPromise;
 }
@@ -292,14 +319,18 @@ export function calcSamePeriod(
 
 async function loadSkuData(retry = true): Promise<SkuShipmentInfo[]> {
   const token = await getAuthToken();
-  const res = await fetch(
+  const res = await fetchWithTimeout(
     `${BASE}/api/3.21/sites/${SITE_ID}/views/${VIEW_ID}/data?maxAge=60`,
     { headers: { 'X-Tableau-Auth': token } },
   );
   if (res.status === 401 && retry) {
-    // 토큰 만료 → 재인증 후 1회 재시도
     authToken = null;
+    authTokenExpiresAt = 0;
     authPromise = null;
+    return loadSkuData(false);
+  }
+  if ((res.status === 502 || res.status === 503 || res.status === 504) && retry) {
+    await new Promise(r => setTimeout(r, 1500));
     return loadSkuData(false);
   }
   if (!res.ok) {
@@ -330,10 +361,10 @@ async function loadSkuData(retry = true): Promise<SkuShipmentInfo[]> {
 }
 
 export async function fetchSkuShipments(): Promise<SkuShipmentInfo[]> {
-  if (shipmentCache) return shipmentCache;
+  if (shipmentCache && Date.now() - shipmentCacheAt < CACHE_TTL) return shipmentCache;
   if (fetchPromise) return fetchPromise;
   fetchPromise = loadSkuData()
-    .then((data) => { shipmentCache = data; fetchPromise = null; return data; })
+    .then((data) => { shipmentCache = data; shipmentCacheAt = Date.now(); fetchPromise = null; return data; })
     .catch((err) => { fetchPromise = null; throw err; });
   return fetchPromise;
 }
@@ -390,6 +421,7 @@ interface TeamCateAgg { revenue: number; cost: number; contribution: number; }
 export type TeamCateMap = Map<string, TeamCateAgg>;
 
 let teamCateCache: TeamCateMap | null = null;
+let teamCateCacheAt = 0;
 let teamCateFetchPromise: Promise<TeamCateMap> | null = null;
 
 function tcKey(ch: string, cate: string, year: number, month: number): string {
@@ -442,14 +474,19 @@ function parseRevenueCostCSV(csv: string, map: TeamCateMap): void {
 async function loadTeamCateData(retry = true): Promise<TeamCateMap> {
   const token = await getAuthToken();
   const [profitRes, revenueRes] = await Promise.all([
-    fetch(`${BASE}/api/3.21/sites/${SITE_ID}/views/${TEAM_CATE_PROFIT_VIEW_ID}/data?maxAge=60`,
+    fetchWithTimeout(`${BASE}/api/3.21/sites/${SITE_ID}/views/${TEAM_CATE_PROFIT_VIEW_ID}/data?maxAge=60`,
       { headers: { 'X-Tableau-Auth': token } }),
-    fetch(`${BASE}/api/3.21/sites/${SITE_ID}/views/${TEAM_CATE_REVENUE_VIEW_ID}/data?maxAge=60`,
+    fetchWithTimeout(`${BASE}/api/3.21/sites/${SITE_ID}/views/${TEAM_CATE_REVENUE_VIEW_ID}/data?maxAge=60`,
       { headers: { 'X-Tableau-Auth': token } }),
   ]);
   if ((profitRes.status === 401 || revenueRes.status === 401) && retry) {
     authToken = null;
+    authTokenExpiresAt = 0;
     authPromise = null;
+    return loadTeamCateData(false);
+  }
+  if ((profitRes.status === 502 || profitRes.status === 503 || revenueRes.status === 502 || revenueRes.status === 503) && retry) {
+    await new Promise(r => setTimeout(r, 1500));
     return loadTeamCateData(false);
   }
   if (!profitRes.ok || !revenueRes.ok) {
@@ -463,10 +500,10 @@ async function loadTeamCateData(retry = true): Promise<TeamCateMap> {
 }
 
 export async function fetchTeamCateData(): Promise<TeamCateMap> {
-  if (teamCateCache) return teamCateCache;
+  if (teamCateCache && Date.now() - teamCateCacheAt < CACHE_TTL) return teamCateCache;
   if (teamCateFetchPromise) return teamCateFetchPromise;
   teamCateFetchPromise = loadTeamCateData()
-    .then(data => { teamCateCache = data; teamCateFetchPromise = null; return data; })
+    .then(data => { teamCateCache = data; teamCateCacheAt = Date.now(); teamCateFetchPromise = null; return data; })
     .catch(err  => { teamCateFetchPromise = null; throw err; });
   return teamCateFetchPromise;
 }
@@ -516,11 +553,15 @@ export function calcVariableCostRatio(
 
 export function invalidateCache(): void {
   shipmentCache = null;
+  shipmentCacheAt = 0;
   channelDataCache = null;
+  channelCacheAt = 0;
   teamCateCache = null;
+  teamCateCacheAt = 0;
   fetchPromise = null;
   channelFetchPromise = null;
   teamCateFetchPromise = null;
   authToken = null;
+  authTokenExpiresAt = 0;
   authPromise = null;
 }
