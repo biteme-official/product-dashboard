@@ -483,7 +483,7 @@ function Step2OrderTable({ sku, sumRatios }: { sku: SkuData; sumRatios: number }
                 {activeSizes.map((s) => (
                   <th key={s.label} className="px-2 py-1 text-center font-medium text-gray-400 border-r border-gray-200 last:border-r-0 min-w-[44px]">{s.label}</th>
                 ))}
-                <th className="px-2 py-1 text-center font-medium text-gray-400 min-w-[52px]">합계</th>
+                <th className="px-2 py-1 text-center font-medium text-gray-400 min-w-[42px]">합계</th>
               </tr>
             </thead>
             <tbody>
@@ -585,7 +585,7 @@ function Step2OrderTable({ sku, sumRatios }: { sku: SkuData; sumRatios: number }
               {activeSizes.map((s) => (
                 <th key={s.label} className="px-2 py-1 text-center font-medium text-gray-400 border-r border-gray-200 last:border-r-0 min-w-[44px]">{s.label}</th>
               ))}
-              <th className="px-2 py-1 text-center font-medium text-gray-400 min-w-[52px]">합계</th>
+              <th className="px-2 py-1 text-center font-medium text-gray-400 min-w-[42px]">합계</th>
             </tr>
           </thead>
           <tbody>
@@ -644,7 +644,7 @@ function ColorSizeResultTable({ sku, sumRatios }: { sku: SkuData; sumRatios: num
                   {s.label}
                 </th>
               ))}
-              <th className="px-2 py-1 text-center font-medium text-gray-400 min-w-[52px]">
+              <th className="px-2 py-1 text-center font-medium text-gray-400 min-w-[42px]">
                 합계
               </th>
             </tr>
@@ -915,8 +915,8 @@ function FinalOrderTable({ sku, sumRatios }: { sku: SkuData; sumRatios: number }
                 {activeSizes.map((s) => (
                   <th key={s.label} className="px-2 py-1 text-center font-semibold text-indigo-600 border-r border-gray-200 last:border-r-0 min-w-[44px]">{s.label}</th>
                 ))}
-                <th className="px-2 py-1 text-center font-semibold text-gray-500 border-r border-gray-200 min-w-[52px]">합계</th>
-                <th className="px-2 py-1 text-center font-semibold text-gray-400 min-w-[44px]">비중%</th>
+                <th className="px-2 py-1 text-center font-semibold text-gray-500 border-r border-gray-200 min-w-[42px]">합계</th>
+                <th className="px-2 py-1 text-center font-semibold text-gray-400 min-w-[35px]">비중%</th>
               </tr>
             </thead>
             <tbody>
@@ -1039,8 +1039,8 @@ function FinalOrderTable({ sku, sumRatios }: { sku: SkuData; sumRatios: number }
               {activeSizes.map((s) => (
                 <th key={s.label} className="px-2 py-1 text-center font-semibold text-indigo-600 border-r border-gray-200 last:border-r-0 min-w-[44px]">{s.label}</th>
               ))}
-              <th className="px-2 py-1 text-center font-semibold text-gray-500 border-r border-gray-200 min-w-[52px]">합계</th>
-              <th className="px-2 py-1 text-center font-semibold text-gray-400 min-w-[44px]">비중%</th>
+              <th className="px-2 py-1 text-center font-semibold text-gray-500 border-r border-gray-200 min-w-[42px]">합계</th>
+              <th className="px-2 py-1 text-center font-semibold text-gray-400 min-w-[35px]">비중%</th>
             </tr>
           </thead>
           <tbody>
