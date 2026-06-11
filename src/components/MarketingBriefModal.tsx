@@ -14,6 +14,13 @@ function newTarget(): MarketingBriefTargetProduct {
   return { id: crypto.randomUUID(), productName: '', price: 0, weeklyEstimatedSales: 0 };
 }
 
+function fmt(n: number): string {
+  return n > 0 ? n.toLocaleString('ko-KR') : '';
+}
+function parseNum(s: string): number {
+  return parseInt(s.replace(/,/g, ''), 10) || 0;
+}
+
 function competitiveness(skuPrice: number, targetPrice: number): {
   label: '고' | '중' | '하';
   diff: number;
@@ -154,18 +161,20 @@ export function MarketingBriefModal({ sku, onClose }: { sku: SkuData; onClose: (
                           </td>
                           <td className="px-2 py-1.5">
                             <input
-                              type="number"
-                              value={t.price || ''}
-                              onChange={(e) => updateTarget(t.id, 'price', Number(e.target.value))}
+                              type="text"
+                              inputMode="numeric"
+                              value={fmt(t.price)}
+                              onChange={(e) => updateTarget(t.id, 'price', parseNum(e.target.value))}
                               placeholder="0"
                               className="w-full px-2 py-1 text-xs text-right border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-400"
                             />
                           </td>
                           <td className="px-2 py-1.5">
                             <input
-                              type="number"
-                              value={t.weeklyEstimatedSales || ''}
-                              onChange={(e) => updateTarget(t.id, 'weeklyEstimatedSales', Number(e.target.value))}
+                              type="text"
+                              inputMode="numeric"
+                              value={fmt(t.weeklyEstimatedSales)}
+                              onChange={(e) => updateTarget(t.id, 'weeklyEstimatedSales', parseNum(e.target.value))}
                               placeholder="0"
                               className="w-full px-2 py-1 text-xs text-right border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-400"
                             />
