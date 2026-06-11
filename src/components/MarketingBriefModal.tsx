@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import type { SkuData, MarketingBrief, MarketingBriefTargetProduct } from '../types';
 import { useStore } from '../store';
+import { RichTextArea } from './RichTextArea';
 
 const EMPTY_BRIEF: MarketingBrief = {
   targetProducts: [],
@@ -36,7 +37,6 @@ function competitiveness(skuPrice: number, targetPrice: number): {
 }
 
 const inputCls = 'w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400';
-const textareaCls = `${inputCls} resize-none`;
 
 export function MarketingBriefModal({ sku, onClose }: { sku: SkuData; onClose: () => void }) {
   const updateSku = useStore((s) => s.updateSku);
@@ -230,12 +230,11 @@ export function MarketingBriefModal({ sku, onClose }: { sku: SkuData; onClose: (
               <h3 className="text-xs font-semibold text-gray-700">② 타겟 고객</h3>
             </div>
             <div className="p-4">
-              <textarea
+              <RichTextArea
                 value={brief.targetCustomer}
-                onChange={(e) => patch({ targetCustomer: e.target.value })}
+                onChange={(html) => patch({ targetCustomer: html })}
+                placeholder="타겟 고객 입력"
                 rows={3}
-                placeholder="타겟 고객 입력 (줄바꿈으로 구분)"
-                className={textareaCls}
               />
             </div>
           </section>
@@ -246,12 +245,11 @@ export function MarketingBriefModal({ sku, onClose }: { sku: SkuData; onClose: (
               <h3 className="text-xs font-semibold text-gray-700">③ 마케팅 제안</h3>
             </div>
             <div className="p-4">
-              <textarea
+              <RichTextArea
                 value={brief.marketingProposal}
-                onChange={(e) => patch({ marketingProposal: e.target.value })}
+                onChange={(html) => patch({ marketingProposal: html })}
+                placeholder="마케팅 제안 입력"
                 rows={3}
-                placeholder="마케팅 제안 입력 (줄바꿈으로 구분)"
-                className={textareaCls}
               />
             </div>
           </section>
@@ -274,30 +272,28 @@ export function MarketingBriefModal({ sku, onClose }: { sku: SkuData; onClose: (
                     <span className={`font-bold ${color}`}>{label}</span>
                     <span className="text-gray-400">{sub}</span>
                   </label>
-                  <textarea
+                  <RichTextArea
                     value={brief[key]}
-                    onChange={(e) => patch({ [key]: e.target.value })}
+                    onChange={(html) => patch({ [key]: html })}
+                    placeholder={`${label} 입력`}
                     rows={3}
-                    placeholder={`${label} 입력 (줄바꿈으로 bullet 구분)`}
-                    className={textareaCls}
                   />
                 </div>
               ))}
             </div>
           </section>
 
-          {/* ④ 비고 */}
+          {/* ⑤ 비고 */}
           <section className="bg-white rounded-xl border border-gray-200 overflow-hidden">
             <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
               <h3 className="text-xs font-semibold text-gray-700">⑤ 비고</h3>
             </div>
             <div className="p-4">
-              <textarea
+              <RichTextArea
                 value={brief.note}
-                onChange={(e) => patch({ note: e.target.value })}
-                rows={4}
+                onChange={(html) => patch({ note: html })}
                 placeholder="자유 입력"
-                className={textareaCls}
+                rows={4}
               />
             </div>
           </section>
