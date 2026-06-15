@@ -57,12 +57,11 @@ export function SkuCard({ sku }: Props) {
   const updateSku = useStore((s) => s.updateSku);
   const persistSku = useStore((s) => s.persistSku);
   const skus = useStore((s) => s.skus);
-  const activeCategory = useStore((s) => s.activeCategory);
   const { role } = useAuth();
   const canEdit = role === 'master' || role === 'pm';
   const isFinalized = !!sku.finalOrderConfirmedAt;
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const isAtMax = skus.filter((s) => s.category === activeCategory).length >= 15;
+  const isAtMax = skus.filter((s) => s.category === sku.category).length >= 15;
 
   // 대응SKU 월별 실적 (ComparisonColumn → MonthlyTable 브릿지)
   const [compMonthlyData, setCompMonthlyData] = useState<Partial<Record<number, number>>>({});
