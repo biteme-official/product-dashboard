@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useStore } from '../store';
 import { useAuth } from '../store/auth';
 import { SkuCard } from './SkuCard';
+import { PricingModal } from './PricingModal';
 import { NumericInput } from './NumericInput';
 import { exportBulkOrderXlsx } from '../utils/exportXlsx';
 import type { SkuData } from '../types';
@@ -384,7 +385,7 @@ function ChannelBadge({ label, confirmed }: { label: string; confirmed: boolean 
         confirmed ? (confirmedCls[label] ?? 'bg-indigo-600 text-white') : unconfirmedCls
       }`}
     >
-      {confirmed ? label : `${label} 미확정`}
+      {confirmed ? `${label} Y` : `${label} N`}
     </span>
   );
 }
@@ -409,6 +410,8 @@ function SkuListTable({ skus }: { skus: SkuData[] }) {
   const canEdit = role === 'master';
 
   const [editingCell, setEditingCell] = useState<EditingCell | null>(null);
+  const [pricingSkuId, setPricingSkuId] = useState<string | null>(null);
+  const pricingSku = pricingSkuId ? skus.find((s) => s.id === pricingSkuId) ?? null : null;
 
   function startEdit(skuId: string, field: PriceField, originalValue: number) {
     setEditingCell({ skuId, field, originalValue });
@@ -432,6 +435,8 @@ function SkuListTable({ skus }: { skus: SkuData[] }) {
   }
 
   return (
+    <>
+      {pricingSku && <PricingModal sku={pricingSku} onClose={() => setPricingSkuId(null)} />}
     <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto">
       <table className="w-full text-[12px]">
         <thead>
@@ -441,6 +446,7 @@ function SkuListTable({ skus }: { skus: SkuData[] }) {
             <th className="px-3 py-2.5 text-left font-semibold text-gray-600">SKU명</th>
             <th className="px-3 py-2.5 text-left font-semibold text-gray-600 whitespace-nowrap">오픈일</th>
             <th className="px-3 py-2.5 text-right font-semibold text-gray-600 whitespace-nowrap">총 발주량</th>
+            <th className="px-3 py-2.5 text-center font-semibold text-gray-600 whitespace-nowrap">프라이싱</th>
             <th className="px-3 py-2.5 text-right font-semibold text-gray-600 whitespace-nowrap">
               원가{canEdit && <span className="ml-1 text-[9px] font-normal text-indigo-400">편집</span>}
             </th>
@@ -452,7 +458,7 @@ function SkuListTable({ skus }: { skus: SkuData[] }) {
             </th>
             <th className="px-3 py-2.5 text-right font-semibold text-gray-600 whitespace-nowrap">상시할인율</th>
             <th className="px-3 py-2.5 text-right font-semibold text-gray-600 whitespace-nowrap">원가율</th>
-            <th className="px-3 py-2.5 text-left font-semibold text-gray-600 whitespace-nowrap">채널별 확정여부</th>
+            <th className="px-3 py-2.5 text-left font-semibold text-gray-600 whitespace-nowrap">채널 목표량 확정</th>
           </tr>
         </thead>
         <tbody>
@@ -482,6 +488,14 @@ function SkuListTable({ skus }: { skus: SkuData[] }) {
                 </td>
                 <td className="px-3 py-2 text-right tabular-nums font-medium text-gray-800 whitespace-nowrap">
                   {sku.totalOrderQty > 0 ? sku.totalOrderQty.toLocaleString() : <span className="text-gray-300">–</span>}
+                </td>
+                <td className="px-2 py-1.5 text-center">
+                  <button
+                    onClick={() => setPricingSkuId(sku.id)}
+                    className="px-2 py-1 text-[11px] font-medium rounded-md border border-indigo-200 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 hover:border-indigo-300 transition-colors whitespace-nowrap"
+                  >
+                    프라이싱
+                  </button>
                 </td>
                 <td className="px-2 py-1.5 text-right whitespace-nowrap">
                   <ListPriceCell sku={sku} field="cost" editingCell={editingCell} canEdit={canEdit}
@@ -519,6 +533,7 @@ function SkuListTable({ skus }: { skus: SkuData[] }) {
         </tbody>
       </table>
     </div>
+    </>
   );
 }
 

@@ -13,6 +13,8 @@ import { useExchangeRates } from '../utils/useExchangeRates';
 import { isMdRole } from '../utils/pin';
 import { MarketingBriefModal } from './MarketingBriefModal';
 import { exportSimulationXlsx } from '../utils/exportXlsx';
+import { floor10, calcOpenSpecialPrice, PRICING_SCENARIOS, PRICING_DEFAULT_OPT } from '../utils/pricingScenarios';
+import type { PricingScenario } from '../utils/pricingScenarios';
 
 const MONTH_LABELS: Record<Month, string> = {
   7: '7월', 8: '8월', 9: '9월', 10: '10월', 11: '11월', 12: '12월',
@@ -1306,54 +1308,7 @@ function ChannelMonthTable({ sku, monthlySplit: _monthlySplit }: {
   );
 }
 
-// ── STEP 2 판매가 시나리오 정의 ──────────────────────────────────────────
-interface PricingScenario {
-  id: string;
-  label: string;
-  /** 드롭다운 괄호 힌트. 지정 시 % 계산 대신 이 텍스트를 표시 */
-  hint?: string;
-  /** 채널 판매가(base)와 환율을 받아 KRW 시나리오 가격 반환 */
-  calcKrwPrice: (base: number, usdRate?: number, jpyRate?: number) => number;
-  /** 외화 보조 표시: 원화 환산 전 외화 금액 반환 */
-  foreignAmt?: (base: number, usdRate?: number, jpyRate?: number) => { symbol: string; amount: number; decimals: number } | null;
-}
-
-/** 비율 계산 결과를 10원 단위 버림 */
-const floor10 = (x: number) => Math.floor(x / 10) * 10;
-
-/**
- * 오픈특가: 판매가 기준 상시 운영(20% 할인)보다 저렴하며 900원 단위로 끝나는 가격
- * 예) 20% 할인가 9,520 → 8,900
- */
-const calcOpenSpecialPrice = (base: number): number => {
-  const twentyOff = floor10(base * 0.80);
-  return Math.floor((twentyOff - 901) / 1000) * 1000 + 900;
-};
-
-const PRICING_SCENARIOS: PricingScenario[] = [
-  { id: '오픈특가',        label: '오픈특가',        hint: '특가최대-900단위',  calcKrwPrice: (b) => calcOpenSpecialPrice(b) },
-  { id: '신상위크',        label: '신상위크',        hint: '오픈특가-천원',     calcKrwPrice: (b) => Math.max(0, calcOpenSpecialPrice(b) - 1000) },
-  { id: '신상위크 라이브', label: '신상위크 라이브', hint: '신상위크-천원',     calcKrwPrice: (b) => Math.max(0, calcOpenSpecialPrice(b) - 2000) },
-  { id: '선단독',          label: '선단독',          hint: '오픈특가-천원',     calcKrwPrice: (b) => Math.max(0, calcOpenSpecialPrice(b) - 1000) },
-  { id: '상시 최대할인율', label: '상시 최대할인율',                            calcKrwPrice: (b) => floor10(b * 0.85) },
-  { id: '특가 최대할인율', label: '특가 최대할인율',                            calcKrwPrice: (b) => floor10(b * 0.80) },
-  { id: '시즌오프(의류전용)', label: '시즌오프(의류전용)',                       calcKrwPrice: (b) => floor10(b * 0.75) },
-  { id: 'B2B 오픈 할인',   label: 'B2B 오픈 할인',                             calcKrwPrice: (b) => floor10(b * 0.65 * 0.90) },
-  { id: 'B2B 상시 운영',   label: 'B2B 상시 운영',                             calcKrwPrice: (b) => floor10(b * 0.65) },
-  { id: '사입 공급가',     label: '사입 공급가',                               calcKrwPrice: (b) => floor10(b * 0.50) },
-  {
-    id: '글로벌 공급가', label: '글로벌 공급가', hint: 'USD 공급가',
-    // (판매가 / 1250 * 1.6) / 2 * USDKRW — sku.pricingUsdRate 사용
-    calcKrwPrice: (b, usdRate = 1400) => floor10((b / 1250 * 1.6) / 2 * usdRate),
-    foreignAmt: (b) => ({ symbol: 'USD $', amount: Math.round((b / 1250 * 1.6) / 2 * 100) / 100, decimals: 2 }),
-  },
-  {
-    id: '일본 공급가', label: '일본 공급가', hint: 'JPY 공급가',
-    // JPY공급가 = (판매가 / jpyKrw * 1.3) / 2  →  KRW환산 = JPY공급가 * jpyKrw = 판매가 * 0.65
-    calcKrwPrice: (b, _usd, jpyRate = 9.0) => floor10((b / jpyRate * 1.3) / 2 * jpyRate),
-    foreignAmt: (b, _usd, jpyRate = 9.0) => ({ symbol: 'JPY ¥', amount: Math.round((b / jpyRate * 1.3) / 2), decimals: 0 }),
-  },
-];
+// ── STEP 2 판매가 시나리오 정의 (공유 상수는 utils/pricingScenarios.ts 참조) ──
 
 // ── STEP 2 채널별 목표량 테이블 ──────────────────────────────────────────
 function PricingChannelTable({
@@ -1396,16 +1351,8 @@ function PricingChannelTable({
     });
   };
 
-  const DEFAULT_OPT: Partial<Record<Channel, string>> = {
-    '쿠팡': 'B2B 상시 운영',
-    'B2B': 'B2B 상시 운영',
-    '사입및페어': 'B2B 상시 운영',
-    '글로벌': '글로벌 공급가',
-    '일본': '일본 공급가',
-  };
-
   const getPricingOpt = (channel: Channel, month: Month) =>
-    pricingOpts[`${channel}-${month}`] ?? DEFAULT_OPT[channel] ?? '';
+    pricingOpts[`${channel}-${month}`] ?? PRICING_DEFAULT_OPT[channel] ?? '';
 
   const setPricingOpt = (channel: Channel, month: Month, optId: string) =>
     setPricingOpts((prev) => ({ ...prev, [`${channel}-${month}`]: optId }));
