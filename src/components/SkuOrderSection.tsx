@@ -603,6 +603,7 @@ function SkuListTable({ skus }: { skus: SkuData[] }) {
   const setListView = useStore((s) => s.setListView);
   const setActiveCategory = useStore((s) => s.setActiveCategory);
   const expandOnly = useStore((s) => s.expandOnly);
+  const setPriceConfirmed = useStore((s) => s.setPriceConfirmed);
   const { role } = useAuth();
 
   function navigateToSku(sku: SkuData) {
@@ -705,14 +706,17 @@ function SkuListTable({ skus }: { skus: SkuData[] }) {
               <th className="px-3 py-2.5 text-left font-semibold text-gray-600 whitespace-nowrap">오픈일</th>
               <th className="px-3 py-2.5 text-right font-semibold text-gray-600 whitespace-nowrap">총 발주량</th>
               <th className="px-3 py-2.5 text-center font-semibold text-gray-600 whitespace-nowrap">프라이싱</th>
+              <th className="px-3 py-2.5 text-center font-semibold text-gray-600 whitespace-nowrap">가격확정</th>
               <th className="px-3 py-2.5 text-right font-semibold text-gray-600 whitespace-nowrap">
                 원가{canEdit && <span className="ml-1 text-[9px] font-normal text-indigo-400">편집</span>}
               </th>
               <th className="px-3 py-2.5 text-right font-semibold text-gray-600 whitespace-nowrap">
-                판매가{canEdit && <span className="ml-1 text-[9px] font-normal text-indigo-400">편집</span>}
+                판매가
+                {canEdit && <span className="ml-1 text-[9px] font-normal text-indigo-400">편집</span>}
               </th>
               <th className="px-3 py-2.5 text-right font-semibold text-gray-600 whitespace-nowrap">
-                정가{canEdit && <span className="ml-1 text-[9px] font-normal text-indigo-400">편집</span>}
+                정가
+                {canEdit && <span className="ml-1 text-[9px] font-normal text-indigo-400">편집</span>}
               </th>
               <th className="px-3 py-2.5 text-right font-semibold text-gray-600 whitespace-nowrap">상시할인율</th>
               <th className="px-3 py-2.5 text-right font-semibold text-gray-600 whitespace-nowrap">원가율</th>
@@ -774,18 +778,43 @@ function SkuListTable({ skus }: { skus: SkuData[] }) {
                       프라이싱
                     </button>
                   </td>
+                  {/* 가격확정 */}
+                  <td className="px-2 py-1.5 text-center">
+                    {canEdit ? (
+                      <button
+                        onClick={() => setPriceConfirmed(sku.id, !(sku.isPriceConfirmed ?? false))}
+                        className={`px-2 py-0.5 text-[11px] font-semibold rounded-full border transition-colors whitespace-nowrap ${
+                          sku.isPriceConfirmed
+                            ? 'bg-amber-100 text-amber-700 border-amber-300 hover:bg-amber-200'
+                            : 'bg-gray-100 text-gray-500 border-gray-200 hover:bg-gray-200'
+                        }`}
+                      >
+                        {sku.isPriceConfirmed ? '🔒 확정' : '미확정'}
+                      </button>
+                    ) : (
+                      <span className={`px-2 py-0.5 text-[11px] font-semibold rounded-full border whitespace-nowrap ${
+                        sku.isPriceConfirmed
+                          ? 'bg-amber-100 text-amber-700 border-amber-300'
+                          : 'bg-gray-100 text-gray-400 border-gray-200'
+                      }`}>
+                        {sku.isPriceConfirmed ? '🔒 확정' : '미확정'}
+                      </span>
+                    )}
+                  </td>
                   <td className="px-2 py-1.5 text-right whitespace-nowrap">
                     <ListPriceCell sku={sku} field="cost" editingCell={editingCell} canEdit={canEdit}
                       onStartEdit={startEdit} onCommit={commitEdit} onCancel={cancelEdit}
                       onUpdate={(v) => updateSku(sku.id, { cost: v })} />
                   </td>
                   <td className="px-2 py-1.5 text-right whitespace-nowrap">
-                    <ListPriceCell sku={sku} field="price" editingCell={editingCell} canEdit={canEdit}
+                    <ListPriceCell sku={sku} field="price" editingCell={editingCell}
+                      canEdit={canEdit && !(sku.isPriceConfirmed ?? false)}
                       onStartEdit={startEdit} onCommit={commitEdit} onCancel={cancelEdit}
                       onUpdate={(v) => updateSku(sku.id, { price: v })} />
                   </td>
                   <td className="px-2 py-1.5 text-right whitespace-nowrap">
-                    <ListPriceCell sku={sku} field="regularPrice" editingCell={editingCell} canEdit={canEdit}
+                    <ListPriceCell sku={sku} field="regularPrice" editingCell={editingCell}
+                      canEdit={canEdit && !(sku.isPriceConfirmed ?? false)}
                       onStartEdit={startEdit} onCommit={commitEdit} onCancel={cancelEdit}
                       onUpdate={(v) => updateSku(sku.id, { regularPrice: v })} />
                   </td>

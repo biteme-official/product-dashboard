@@ -263,6 +263,7 @@ interface StoreActions {
   persistSku: (id: string) => Promise<void>;
   setSkuConfirmed: (id: string, confirmed: boolean, role: string) => Promise<void>;
   setChannelConfirmed: (id: string, field: 'platformConfirmed' | 'brandConfirmed' | 'globalConfirmed', value: boolean) => Promise<void>;
+  setPriceConfirmed: (id: string, confirmed: boolean) => Promise<void>;
 }
 
 const readSession = <T>(key: string, fallback: T): T => {
@@ -650,6 +651,14 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
     const sku = get().skus.find((s) => s.id === id);
     if (!sku) return;
     const updated = { ...sku, [field]: value };
+    set({ skus: get().skus.map((s) => (s.id === id ? updated : s)) });
+    await setDoc(doc(fsdb, SKUS_COL, id), toFirestore(updated));
+  },
+
+  setPriceConfirmed: async (id, confirmed) => {
+    const sku = get().skus.find((s) => s.id === id);
+    if (!sku) return;
+    const updated = { ...sku, isPriceConfirmed: confirmed };
     set({ skus: get().skus.map((s) => (s.id === id ? updated : s)) });
     await setDoc(doc(fsdb, SKUS_COL, id), toFirestore(updated));
   },

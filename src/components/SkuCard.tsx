@@ -467,6 +467,11 @@ function BasicInfoColumn({ sku, readOnly }: { sku: SkuData; readOnly?: boolean }
       <div className="flex items-center gap-2 pt-1">
         <span className="text-[11px] font-semibold text-gray-400 tracking-wide uppercase whitespace-nowrap">프라이싱</span>
         <div className="flex-1 h-px bg-gray-200" />
+        {sku.isPriceConfirmed && (
+          <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100 border border-amber-300 text-amber-700 text-[10px] font-bold whitespace-nowrap">
+            🔒 가격 확정됨
+          </span>
+        )}
       </div>
 
       <button
@@ -489,7 +494,7 @@ function BasicInfoColumn({ sku, readOnly }: { sku: SkuData; readOnly?: boolean }
             value={sku.price}
             onChange={(v) => handleChange({ price: v })}
             onBlur={handleBlur}
-            disabled={readOnly}
+            disabled={readOnly || !!sku.isPriceConfirmed}
             placeholder="0"
             className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed"
           />
@@ -514,7 +519,7 @@ function BasicInfoColumn({ sku, readOnly }: { sku: SkuData; readOnly?: boolean }
             value={sku.regularPrice}
             onChange={(v) => handleChange({ regularPrice: v })}
             onBlur={handleBlur}
-            disabled={readOnly}
+            disabled={readOnly || !!sku.isPriceConfirmed}
             placeholder="0"
             className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed"
           />

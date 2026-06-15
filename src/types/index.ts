@@ -141,6 +141,7 @@ export interface SkuData {
   step2OptionQty?: Record<string, number>;
   marketingBrief?: MarketingBrief;
   marketingMonthQty?: { [month: number]: number }; // 마케팅 채널 월별 수량 (원가×수량 = 비용)
+  isPriceConfirmed?: boolean;                       // 가격 확정 여부 (master만 변경 가능)
   step2InitBaselineQty?: ChannelMonthQtyEntry[]; // 초기화 시 계산된 수량 (비교 기준값, 영구 보존)
   isConfirmed?: boolean;
   finalOrderQty?: Record<string, number>;
