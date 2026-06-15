@@ -470,6 +470,12 @@ function BasicInfoColumn({ sku, readOnly }: { sku: SkuData; readOnly?: boolean }
         />
       </div>
 
+      {/* ── 프라이싱 구분 ── */}
+      <div className="flex items-center gap-2 pt-1">
+        <span className="text-[11px] font-semibold text-gray-400 tracking-wide uppercase whitespace-nowrap">프라이싱</span>
+        <div className="flex-1 h-px bg-gray-200" />
+      </div>
+
       <button
         onClick={() => setPricingModalOpen(true)}
         className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold rounded-lg border transition-colors border-gray-200 bg-white text-gray-500 hover:bg-gray-50 hover:text-gray-700"
