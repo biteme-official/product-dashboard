@@ -13,8 +13,7 @@ import { useExchangeRates } from '../utils/useExchangeRates';
 import { isMdRole } from '../utils/pin';
 import { MarketingBriefModal } from './MarketingBriefModal';
 import { exportSimulationXlsx } from '../utils/exportXlsx';
-import { floor10, calcOpenSpecialPrice, PRICING_SCENARIOS, PRICING_DEFAULT_OPT } from '../utils/pricingScenarios';
-import type { PricingScenario } from '../utils/pricingScenarios';
+import { PRICING_SCENARIOS, PRICING_DEFAULT_OPT } from '../utils/pricingScenarios';
 
 const MONTH_LABELS: Record<Month, string> = {
   7: '7월', 8: '8월', 9: '9월', 10: '10월', 11: '11월', 12: '12월',
