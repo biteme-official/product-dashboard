@@ -340,8 +340,7 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
   },
 
   duplicateSku: (id) => {
-    const { skus, activeCategory } = get();
-    if (skus.filter((s) => s.category === activeCategory).length >= 15) return;
+    const skus = get().skus;
     const source = skus.find((s) => s.id === id);
     if (!source) return;
     const newId = uuidv4();

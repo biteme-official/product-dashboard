@@ -56,12 +56,11 @@ export function SkuCard({ sku }: Props) {
   const duplicateSku = useStore((s) => s.duplicateSku);
   const updateSku = useStore((s) => s.updateSku);
   const persistSku = useStore((s) => s.persistSku);
-  const skus = useStore((s) => s.skus);
   const { role } = useAuth();
   const canEdit = role === 'master' || role === 'pm';
   const isFinalized = !!sku.finalOrderConfirmedAt;
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const isAtMax = skus.filter((s) => s.category === sku.category).length >= 15;
+
 
   // 대응SKU 월별 실적 (ComparisonColumn → MonthlyTable 브릿지)
   const [compMonthlyData, setCompMonthlyData] = useState<Partial<Record<number, number>>>({});
@@ -140,13 +139,8 @@ export function SkuCard({ sku }: Props) {
               </button>
               <button
                 onClick={() => duplicateSku(sku.id)}
-                disabled={isAtMax}
-                title={isAtMax ? '최대 15개 도달' : '이 SKU를 복사합니다'}
-                className={`text-xs px-2 py-1 rounded-lg border transition-colors ${
-                  isAtMax
-                    ? 'border-gray-200 text-gray-300 bg-gray-50 cursor-not-allowed'
-                    : 'border-sky-300 text-sky-700 bg-sky-50 hover:bg-sky-100'
-                }`}
+                title="이 SKU를 복사합니다"
+                className="text-xs px-2 py-1 rounded-lg border border-sky-300 text-sky-700 bg-sky-50 hover:bg-sky-100 transition-colors"
               >
                 복사
               </button>
