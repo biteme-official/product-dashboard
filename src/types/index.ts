@@ -140,6 +140,7 @@ export interface SkuData {
   monthlySplit: MonthlySplit[];     // 길이 8 (7~12월 + 익년 1~2월)
   step2OptionQty?: Record<string, number>;
   marketingBrief?: MarketingBrief;
+  marketingMonthQty?: { [month: number]: number }; // 마케팅 채널 월별 수량 (원가×수량 = 비용)
   step2InitBaselineQty?: ChannelMonthQtyEntry[]; // 초기화 시 계산된 수량 (비교 기준값, 영구 보존)
   isConfirmed?: boolean;
   finalOrderQty?: Record<string, number>;

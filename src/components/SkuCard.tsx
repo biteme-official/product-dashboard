@@ -1118,11 +1118,14 @@ function ChannelMonthTable({ sku, monthlySplit: _monthlySplit }: {
   const getQty = (channel: Channel, month: Month) =>
     sku.channelMonthQty.find((e) => e.channel === channel && e.month === month)?.qty ?? 0;
 
+  const getMktQty = (month: Month) =>
+    (sku.marketingMonthQty ?? {})[month] ?? 0;
+
   const channelTotal = (channel: Channel) =>
     MONTHS.reduce((sum, m) => sum + getQty(channel, m), 0);
 
   const monthTotal = (month: Month) =>
-    CHANNELS.reduce((sum, ch) => sum + getQty(ch, month), 0);
+    CHANNELS.reduce((sum, ch) => sum + getQty(ch, month), 0) + getMktQty(month);
 
   const channel26Total = (channel: Channel) =>
     MONTHS.filter((m) => !IS_NEXT_YEAR[m]).reduce((sum, m) => sum + getQty(channel, m), 0);
@@ -1292,6 +1295,46 @@ function ChannelMonthTable({ sku, monthlySplit: _monthlySplit }: {
             </td>
           </tr>
           {B2C_CHANNELS.map((ch) => renderChannelRow(ch, 'hover:bg-sky-50/30'))}
+          {/* 마케팅 그룹 */}
+          <tr className="bg-pink-50/60 border-b border-pink-200">
+            <td colSpan={2 + MONTHS.length + 2} className="px-3 py-0.5">
+              <span className="text-[10px] font-bold text-pink-600 tracking-wide">마케팅</span>
+            </td>
+          </tr>
+          <tr className="border-b border-gray-100 hover:bg-pink-50/30">
+            <td className="px-2 py-1.5 font-medium text-gray-700 whitespace-nowrap text-[11px]">
+              <div className="flex items-center gap-1.5">
+                <span className="w-2.5 flex-shrink-0" />
+                <span className="inline-block w-2 h-2 rounded-full flex-shrink-0 bg-pink-400" />
+                <span>마케팅</span>
+              </div>
+            </td>
+            <td className="px-2 py-1.5 text-center text-gray-300 text-[11px]">–</td>
+            {MONTHS.map((m) => {
+              const qty = getMktQty(m);
+              return (
+                <td key={m} className={`px-2 py-1.5 text-center tabular-nums text-[11px] ${IS_NEXT_YEAR[m] ? 'bg-blue-50/40' : ''}`}>
+                  {qty > 0
+                    ? <span className="text-pink-600 font-medium">{qty.toLocaleString()}</span>
+                    : <span className="text-gray-300">–</span>}
+                </td>
+              );
+            })}
+            {(() => {
+              const t26 = MONTHS.filter((m) => !IS_NEXT_YEAR[m]).reduce((s, m) => s + getMktQty(m), 0);
+              const tAll = MONTHS.reduce((s, m) => s + getMktQty(m), 0);
+              return (
+                <>
+                  <td className="px-2 py-1.5 text-center font-semibold tabular-nums text-pink-600 bg-indigo-50/50 whitespace-nowrap text-[11px]">
+                    {t26 > 0 ? t26.toLocaleString() : <span className="text-gray-300">–</span>}
+                  </td>
+                  <td className="px-2 py-1.5 text-center font-semibold tabular-nums text-pink-500 bg-gray-50 whitespace-nowrap text-[11px]">
+                    {tAll > 0 ? tAll.toLocaleString() : <span className="text-gray-300">–</span>}
+                  </td>
+                </>
+              );
+            })()}
+          </tr>
           {/* B2B 그룹 */}
           <tr className="bg-violet-50/60 border-b border-violet-200">
             <td colSpan={2 + MONTHS.length + 2} className="px-3 py-0.5">
@@ -1357,8 +1400,10 @@ function PricingChannelTable({
   step2Baseline?: SkuData['channelMonthQty'] | null;
 }) {
   const updateChannelMonthQty = useStore((s) => s.updateChannelMonthQty);
+  const updateMarketingMonthQty = useStore((s) => s.updateMarketingMonthQty);
   const persistSku = useStore((s) => s.persistSku);
   const [expandedChannels, setExpandedChannels] = useState<Set<Channel>>(new Set());
+  const [marketingExpanded, setMarketingExpanded] = useState(false);
   // 채널별 일괄반영 선택값 (UI-only, 로컬)
   const [channelBulkOpt, setChannelBulkOpt] = useState<Partial<Record<Channel, string>>>({});
   const { usdKrw, jpyKrw, isLive } = useExchangeRates();;
@@ -1415,6 +1460,11 @@ function PricingChannelTable({
   const getChannelQty = (channel: Channel) =>
     MONTHS.reduce((sum, m) => sum + getMonthQty(channel, m), 0);
 
+  const getMarketingQty = (month: Month) =>
+    (sku.marketingMonthQty ?? {})[month] ?? 0;
+  const marketingTotalQty = MONTHS.reduce((s, m) => s + getMarketingQty(m), 0);
+  const marketingCost = sku.cost * marketingTotalQty;
+
   const calcRow = (channel: Channel) => {
     const cp = getPricing(channel);
     const effectivePrice = cp.price > 0 ? cp.price : sku.price;
@@ -1453,12 +1503,15 @@ function PricingChannelTable({
     },
     { qty: 0, revenue: 0, profit: 0 },
   );
-  const totalCm = totals.revenue > 0 ? Math.round((totals.profit / totals.revenue) * 1000) / 10 : null;
+  // 마케팅 비용 차감 후 실질 순매출/공헌이익
+  const adjustedRevenue = totals.revenue - marketingCost;
+  const adjustedProfit = totals.profit - marketingCost;
+  const totalCm = adjustedRevenue > 0 ? Math.round((adjustedProfit / adjustedRevenue) * 1000) / 10 : null;
 
   useEffect(() => {
-    onTotalsChange?.({ revenue: totals.revenue, profit: totals.profit });
+    onTotalsChange?.({ revenue: adjustedRevenue, profit: adjustedProfit });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [totals.revenue, totals.profit]);
+  }, [adjustedRevenue, adjustedProfit]);
 
   const weightedAvgPrice = totals.qty > 0
     ? Math.round(allChannelRows.reduce((acc, ch) => {
@@ -1968,6 +2021,123 @@ function PricingChannelTable({
         </thead>
         <tbody>
           {renderGroup(B2C_CHANNELS, 'B2C', 'bg-sky-50/60 border-sky-200 text-sky-600')}
+          {/* 마케팅 그룹 */}
+          <tr className="bg-pink-50/60 border-b border-pink-200">
+            <td colSpan={8} className="px-3 py-0.5">
+              <span className="text-[10px] font-bold text-pink-600 tracking-wide">마케팅</span>
+            </td>
+          </tr>
+          {/* 마케팅 채널 행 */}
+          <tr className={`border-b border-gray-100 transition-colors ${marketingExpanded ? 'bg-pink-50/60 border-l-2 border-l-pink-400' : 'hover:bg-gray-50/40'}`}>
+            <td className="px-2 py-1.5">
+              <button
+                onClick={() => setMarketingExpanded((v) => !v)}
+                className="flex items-center gap-1.5 w-full text-left group"
+              >
+                <span className={`text-[10px] transition-transform duration-150 ${marketingExpanded ? 'rotate-90 text-pink-500' : 'text-gray-400'}`}>▶</span>
+                <span className="inline-block w-2 h-2 rounded-full flex-shrink-0 bg-pink-400" />
+                <span className={`text-[11px] truncate ${marketingExpanded ? 'font-bold text-pink-700' : 'font-medium text-gray-700 group-hover:text-pink-600'}`}>마케팅</span>
+              </button>
+            </td>
+            <td className="px-2 py-1.5 text-center text-gray-300 text-[11px]">–</td>
+            <td className={`px-2 py-1.5 text-right tabular-nums text-[11px] ${marketingExpanded ? 'font-bold text-pink-700' : 'font-medium text-gray-700'}`}>
+              {marketingTotalQty > 0 ? marketingTotalQty.toLocaleString() : <span className="text-gray-300">–</span>}
+            </td>
+            <td className="px-2 py-1.5 text-center text-gray-300 text-[11px]">–</td>
+            <td className={`px-2 py-1.5 text-right tabular-nums text-[11px] font-semibold text-red-500`}>
+              {marketingCost > 0 ? <span>-{formatWon(marketingCost)}</span> : <span className="text-gray-300">–</span>}
+            </td>
+            <td className="px-2 py-1.5 text-center text-gray-300 text-[11px]">–</td>
+            <td className="px-2 py-1.5 text-center text-gray-300 text-[11px]">–</td>
+            <td className="px-2 py-1.5 text-center text-gray-300 text-[11px]">–</td>
+          </tr>
+          {/* 마케팅 월별 상세 (펼침) */}
+          {marketingExpanded && (() => {
+            const FY26 = MONTHS.filter((m) => !IS_NEXT_YEAR[m]);
+            const FY27 = MONTHS.filter((m) => IS_NEXT_YEAR[m]);
+            const yearBorder = (m: Month) => IS_NEXT_YEAR[m] && !IS_NEXT_YEAR[MONTHS[MONTHS.indexOf(m) - 1] as Month] ? 'border-l-2 border-gray-400' : '';
+            const labelCell = 'px-3 py-2 border-r border-gray-200 bg-gray-100 whitespace-nowrap';
+            const totalCell = 'px-3 py-2 text-right tabular-nums text-[11px] font-bold whitespace-nowrap border-l border-gray-200 bg-gray-100';
+            return (
+              <tr className="border-b border-gray-200 bg-gray-50/60">
+                <td colSpan={8} className="px-4 py-3">
+                  <div className="rounded-xl border border-pink-200 overflow-hidden shadow-sm">
+                    <div className="overflow-x-auto">
+                      <table className="text-xs w-full">
+                        <thead>
+                          <tr className="bg-pink-50 border-b-2 border-pink-200">
+                            <th className="px-3 py-2 text-left text-[11px] font-bold text-pink-500 whitespace-nowrap border-r border-pink-200" style={{ minWidth: '80px' }}>구분</th>
+                            {MONTHS.map((m) => (
+                              <th key={m} className={`px-2 py-2 text-center font-bold whitespace-nowrap ${yearBorder(m)} ${IS_NEXT_YEAR[m] ? 'text-gray-500 bg-pink-100/50' : 'text-pink-600'}`} style={{ minWidth: '76px' }}>
+                                <div className="text-[13px]">{MONTH_LABELS[m]}</div>
+                                {IS_NEXT_YEAR[m] && <div className="text-[9px] text-gray-400 font-normal">27년</div>}
+                              </th>
+                            ))}
+                            <th className="px-3 py-2 text-center text-[11px] font-bold text-gray-500 whitespace-nowrap border-l-2 border-pink-200 bg-pink-100/50" style={{ minWidth: '72px' }}>26년<br/>합계</th>
+                            <th className="px-3 py-2 text-center text-[11px] font-bold text-gray-400 whitespace-nowrap border-l border-pink-100 bg-pink-100/50" style={{ minWidth: '72px' }}>27년<br/>합계</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {/* 수량 행 */}
+                          <tr className="border-b border-pink-100 bg-white">
+                            <td className={labelCell}>
+                              <span className="text-[11px] font-bold text-gray-600">수량</span>
+                            </td>
+                            {MONTHS.map((m) => {
+                              const mQty = getMarketingQty(m);
+                              return (
+                                <td key={m} className={`px-1 py-1 ${yearBorder(m)} ${IS_NEXT_YEAR[m] ? 'bg-gray-50/60' : ''}`}>
+                                  <NumericInput
+                                    value={mQty}
+                                    onChange={(val) => updateMarketingMonthQty(sku.id, m, val)}
+                                    onBlur={() => persistSku(sku.id)}
+                                    onFocus={() => onBeforeEdit?.()}
+                                    disabled={readOnly}
+                                    placeholder="0"
+                                    className={`text-right rounded-md px-1 py-1 text-[11px] border focus:outline-none focus:ring-1 focus:ring-pink-400 ${
+                                      readOnly ? 'bg-gray-50 text-gray-400 cursor-not-allowed border-gray-200' : 'bg-white text-gray-700 border-pink-200 hover:border-pink-400'
+                                    }`}
+                                    style={{ width: '52px' }}
+                                  />
+                                </td>
+                              );
+                            })}
+                            <td className={`${totalCell} border-l-2 border-gray-300 text-gray-700`}>
+                              {(() => { const t = FY26.reduce((s, m) => s + getMarketingQty(m), 0); return t > 0 ? t.toLocaleString() : <span className="text-gray-300">–</span>; })()}
+                            </td>
+                            <td className={`${totalCell} text-gray-500`}>
+                              {(() => { const t = FY27.reduce((s, m) => s + getMarketingQty(m), 0); return t > 0 ? t.toLocaleString() : <span className="text-gray-300">–</span>; })()}
+                            </td>
+                          </tr>
+                          {/* 예상 순매출(비용) 행 */}
+                          <tr className="bg-red-50/50">
+                            <td className="px-3 py-2 border-r border-red-200 bg-red-100/70 whitespace-nowrap">
+                              <span className="text-[11px] font-bold text-red-600">예상 순매출</span>
+                              <span className="block text-[9px] text-red-400 mt-0.5">원가 × 수량</span>
+                            </td>
+                            {MONTHS.map((m) => {
+                              const mCost = sku.cost * getMarketingQty(m);
+                              return (
+                                <td key={m} className={`px-2 py-2 text-right tabular-nums text-[11px] font-semibold text-red-600 ${yearBorder(m)} ${IS_NEXT_YEAR[m] ? 'bg-red-50/40' : ''}`}>
+                                  {mCost > 0 ? <span>-{formatWon(mCost)}</span> : <span className="text-red-200">–</span>}
+                                </td>
+                              );
+                            })}
+                            <td className="px-3 py-2 text-right tabular-nums text-[11px] font-bold text-red-600 border-l-2 border-red-300 bg-red-100/70 whitespace-nowrap">
+                              {(() => { const t = FY26.reduce((s, m) => s + sku.cost * getMarketingQty(m), 0); return t > 0 ? <span>-{formatWon(t)}</span> : <span className="text-red-200">–</span>; })()}
+                            </td>
+                            <td className="px-3 py-2 text-right tabular-nums text-[11px] font-bold text-red-500 border-l border-red-200 bg-red-100/70 whitespace-nowrap">
+                              {(() => { const t = FY27.reduce((s, m) => s + sku.cost * getMarketingQty(m), 0); return t > 0 ? <span>-{formatWon(t)}</span> : <span className="text-red-200">–</span>; })()}
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+            );
+          })()}
           {renderGroup(B2B_CHANNELS, 'B2B', 'bg-violet-50/60 border-violet-200 text-violet-600')}
         </tbody>
         <tfoot>
@@ -1981,10 +2151,10 @@ function PricingChannelTable({
               {weightedAvgPrice ? `avg ₩${weightedAvgPrice.toLocaleString()}` : '–'}
             </td>
             <td className="px-2 py-2 text-right font-semibold tabular-nums text-indigo-700 text-[11px] whitespace-nowrap">
-              {totals.revenue > 0 ? formatWon(totals.revenue) : '–'}
+              {adjustedRevenue !== 0 ? (adjustedRevenue > 0 ? formatWon(adjustedRevenue) : <span className="text-red-500">-{formatWon(Math.abs(adjustedRevenue))}</span>) : '–'}
             </td>
             <td className="px-2 py-2 text-right font-semibold tabular-nums text-emerald-700 text-[11px] whitespace-nowrap">
-              {totals.profit > 0 ? formatWon(totals.profit) : '–'}
+              {adjustedProfit !== 0 ? (adjustedProfit > 0 ? formatWon(adjustedProfit) : <span className="text-red-500">-{formatWon(Math.abs(adjustedProfit))}</span>) : '–'}
             </td>
             <td className="px-2 py-2 text-center text-gray-300 text-[11px]">–</td>
             <td className="px-2 py-2 text-right whitespace-nowrap">

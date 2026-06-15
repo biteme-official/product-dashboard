@@ -256,6 +256,7 @@ interface StoreActions {
   applyChannelRatiosToFiltered: (sourceSkuId: string) => Promise<void>;
   importSkus: (skus: SkuData[]) => Promise<void>;
   replaceAllSkus: (skus: Omit<SkuData, '_initialSnapshot' | 'isExpanded'>[]) => Promise<void>;
+  updateMarketingMonthQty: (id: string, month: Month, qty: number) => void;
   updateStep2OptionQty: (id: string, qty: Record<string, number>) => void;
   updateFinalOrderQty: (id: string, qty: Record<string, number>) => void;
   setFinalOrderConfirmed: (id: string, confirmed: boolean) => Promise<void>;
@@ -590,6 +591,16 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
     full.forEach((sku) => insertBatch.set(doc(fsdb, SKUS_COL, sku.id), toFirestore(sku)));
     await insertBatch.commit();
     set({ skus: full });
+  },
+
+  updateMarketingMonthQty: (id, month, qty) => {
+    set({
+      skus: get().skus.map((s) =>
+        s.id === id
+          ? { ...s, marketingMonthQty: { ...(s.marketingMonthQty ?? {}), [month]: qty } }
+          : s,
+      ),
+    });
   },
 
   updateStep2OptionQty: (id, qty) => {

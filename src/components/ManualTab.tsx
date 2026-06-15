@@ -264,17 +264,17 @@ export function ManualTab() {
           </thead>
           <tbody>
             <Tr><Td>채널</Td><Td>채널명 + 토글 버튼 (클릭 시 상세 펼침)</Td></Tr>
-            <Tr><Td>비중</Td><Td>전체 목표량 대비 해당 채널 수량 비율 (%)</Td></Tr>
+            <Tr><Td>비중</Td><Td>전체 목표량 대비 해당 채널 수량 비율 (%). 마케팅 행은 판매 채널이 아니므로 –</Td></Tr>
             <Tr><Td>총수량</Td><Td>해당 채널의 월별 수량 합산. 기준 대비 변화량(Δ) 표시</Td></Tr>
-            <Tr><Td>실매출단가</Td><Td>∑(월별 수량 × 시나리오 가격) ÷ 총 수량 (부가세 제외)</Td></Tr>
-            <Tr><Td>순매출</Td><Td>실매출단가 × 수량 합산</Td></Tr>
-            <Tr><Td>공헌이익</Td><Td>순매출 × (1 − 변동비율) − 원가 × 수량</Td></Tr>
-            <Tr><Td>변동비율</Td><Td>Tableau 팀카테 기준 역산값 (%). ~ 표시: 근사값</Td></Tr>
-            <Tr><Td>CM%</Td><Td>공헌이익 ÷ 순매출 × 100 (≥40% 초록 / ≥30% 노랑 / &lt;30% 빨강)</Td></Tr>
+            <Tr><Td>실매출단가</Td><Td>∑(월별 수량 × 시나리오 가격) ÷ 총 수량 (부가세 제외). 마케팅 행은 –</Td></Tr>
+            <Tr><Td>순매출</Td><Td>실매출단가 × 수량 합산. 마케팅 행은 –(원가 × 수량)으로 표시</Td></Tr>
+            <Tr><Td>공헌이익</Td><Td>순매출 × (1 − 변동비율) − 원가 × 수량. 마케팅 행은 –</Td></Tr>
+            <Tr><Td>변동비율</Td><Td>Tableau 팀카테 기준 역산값 (%). ~ 표시: 근사값. 마케팅 행은 –</Td></Tr>
+            <Tr><Td>CM%</Td><Td>공헌이익 ÷ 순매출 × 100 (≥40% 초록 / ≥30% 노랑 / &lt;30% 빨강). 합계 행은 마케팅 비용 차감 후 기준</Td></Tr>
           </tbody>
         </table>
 
-        <p className="text-xs font-semibold text-gray-600 mb-2">채널 상세 테이블 (토글 열린 상태)</p>
+        <p className="text-xs font-semibold text-gray-600 mb-2">채널 상세 테이블 (토글 열린 상태 — B2C·B2B 채널)</p>
         <table className="w-full border-collapse text-xs mb-3">
           <thead>
             <tr className="bg-gray-50">
@@ -309,7 +309,29 @@ export function ManualTab() {
             </Tr>
           </tbody>
         </table>
-        <p className="text-xs text-gray-400">* 변동비율은 수수료를 포함한 Tableau 실적 데이터 기반 역산값입니다. 데이터 없을 시 기본값 25% fallback.</p>
+        <p className="text-xs text-gray-400 mb-4">* 변동비율은 수수료를 포함한 Tableau 실적 데이터 기반 역산값입니다. 데이터 없을 시 기본값 25% fallback.</p>
+
+        <p className="text-xs font-semibold text-gray-600 mb-2">마케팅 채널 (B2C 하단 별도 섹션)</p>
+        <p className="text-xs text-gray-500 mb-2">
+          마케팅 협찬·샘플 등 판매 외 목적으로 사용되는 수량을 기록하는 비용 채널입니다. B2C·B2B 판매 채널과 달리 판매가/수수료 개념이 없으며, 수량 입력 시 발생하는 비용이 SKU의 순매출과 공헌이익에서 차감됩니다.
+        </p>
+        <table className="w-full border-collapse text-xs mb-3">
+          <thead>
+            <tr className="bg-gray-50">
+              <Th>항목</Th>
+              <Th>수식 / 설명</Th>
+            </tr>
+          </thead>
+          <tbody>
+            <Tr><Td>월별 수량 입력</Td><Td>토글 열면 월별 입력칸 표시 (master·PM·MD 편집 가능)</Td></Tr>
+            <Tr><Td>예상 순매출 (빨간색)</Td><Td>–(원가 × 월 수량). 협찬·샘플 비용으로 처리되므로 음수로 표시</Td></Tr>
+            <Tr><Td>STEP2 합계 행 순매출</Td><Td>(B2C + B2B 순매출 합산) – (원가 × 마케팅 총수량)</Td></Tr>
+            <Tr><Td>STEP2 합계 행 공헌이익</Td><Td>(B2C + B2B 공헌이익 합산) – (원가 × 마케팅 총수량)</Td></Tr>
+            <Tr><Td>CM% (합계 행)</Td><Td>마케팅 비용 차감 후 공헌이익 ÷ 마케팅 비용 차감 후 순매출 × 100</Td></Tr>
+            <Tr><Td>SKU 카드 상단 스코어카드</Td><Td>마케팅 비용 차감 후 순매출·공헌이익이 '예상 순매출 / 공헌이익' 스코어카드에 반영 (STEP3 기준 표시)</Td></Tr>
+          </tbody>
+        </table>
+        <p className="text-xs text-gray-400">* 마케팅 채널 수량은 Firestore에 저장되며 새로고침 후에도 유지됩니다.</p>
       </section>
 
       {/* 9. STEP 3 */}
@@ -324,10 +346,11 @@ export function ManualTab() {
             </tr>
           </thead>
           <tbody>
-            <Tr><Td>채널별 수량</Td><Td>채널×월 조합의 목표 수량</Td></Tr>
-            <Tr><Td>옵션별 수량</Td><Td>채널 월별 수량 × 컬러 비중 × 사이즈 비중으로 자동 분배</Td></Tr>
-            <Tr><Td>FY26 합계</Td><Td>7~12월 수량 합산</Td></Tr>
-            <Tr><Td>전체 합계</Td><Td>7월~익년 2월 전체 수량 합산</Td></Tr>
+            <Tr><Td>채널별 수량</Td><Td>채널×월 조합의 목표 수량 (B2C, 마케팅, B2B 순으로 표시)</Td></Tr>
+            <Tr><Td>마케팅 행 (분홍색)</Td><Td>STEP2에서 입력한 마케팅 수량 읽기 전용 표시. 비중(%)은 전체 합계 기준으로 산출</Td></Tr>
+            <Tr><Td>옵션별 수량</Td><Td>채널 월별 수량 × 컬러 비중 × 사이즈 비중으로 자동 분배 (B2C·B2B 채널만 해당)</Td></Tr>
+            <Tr><Td>FY26 합계</Td><Td>7~12월 수량 합산 (B2C + 마케팅 + B2B 포함)</Td></Tr>
+            <Tr><Td>전체 합계 (하단 합계 행)</Td><Td>7월~익년 2월 전체 수량 합산. 마케팅 수량 포함</Td></Tr>
           </tbody>
         </table>
       </section>
