@@ -1,9 +1,93 @@
+import {
+  ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer,
+} from 'recharts';
 import type { SkuData, Channel, Month } from '../types';
 import { MONTHS } from '../types';
 import {
   calcChannelMonthMetrics, calcSkuChannelTotals, addMetrics,
   formatWon, cmBadgeCls, isMonthActive, ZERO_METRICS,
 } from '../utils/mdSummaryCalc';
+
+type MonthChartPoint = { label: string; revenue: number; profit: number };
+
+function ChannelMonthlyChart({ data }: { data: MonthChartPoint[] }) {
+  if (data.every((d) => d.revenue === 0)) return null;
+  const fmtWon = (v: number) => (v === 0 ? '0' : formatWon(v));
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+      <div className="flex items-center gap-4 mb-3">
+        <h3 className="text-xs font-semibold text-gray-600">월별 예상 순매출 / 공헌이익</h3>
+        <div className="flex items-center gap-3 ml-auto">
+          <div className="flex items-center gap-1.5">
+            <span className="w-3 h-3 rounded-sm bg-indigo-400 inline-block" />
+            <span className="text-[11px] text-gray-500">순매출</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="w-5 h-0.5 bg-emerald-500 inline-block" />
+            <span className="text-[11px] text-gray-500">공헌이익</span>
+          </div>
+        </div>
+      </div>
+      <ResponsiveContainer width="100%" height={220}>
+        <ComposedChart data={data} margin={{ top: 4, right: 50, bottom: 0, left: 10 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
+          <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
+          <YAxis
+            yAxisId="rev"
+            orientation="left"
+            tickFormatter={fmtWon}
+            tick={{ fontSize: 10, fill: '#9ca3af' }}
+            axisLine={false}
+            tickLine={false}
+            width={44}
+          />
+          <YAxis
+            yAxisId="profit"
+            orientation="right"
+            tickFormatter={fmtWon}
+            tick={{ fontSize: 10, fill: '#9ca3af' }}
+            axisLine={false}
+            tickLine={false}
+            width={44}
+          />
+          <Tooltip
+            content={({ active, payload }) => {
+              if (!active || !payload?.length) return null;
+              const d = payload[0].payload as MonthChartPoint;
+              return (
+                <div className="bg-white border border-gray-200 rounded-xl shadow-lg p-3 text-xs min-w-[160px]">
+                  <p className="font-semibold text-gray-700 mb-2">{d.label}</p>
+                  <div className="space-y-1">
+                    <div className="flex justify-between gap-4">
+                      <span className="text-gray-400">순매출</span>
+                      <span className="text-indigo-600 font-medium tabular-nums">{formatWon(d.revenue)}</span>
+                    </div>
+                    <div className="flex justify-between gap-4">
+                      <span className="text-gray-400">공헌이익</span>
+                      <span className={`font-medium tabular-nums ${d.profit >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>{formatWon(d.profit)}</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            }}
+          />
+          <Bar yAxisId="rev" dataKey="revenue" name="순매출" fill="#818cf8" radius={[3, 3, 0, 0]} maxBarSize={40} />
+          <Line
+            yAxisId="profit"
+            dataKey="profit"
+            name="공헌이익"
+            stroke="#10b981"
+            strokeWidth={2}
+            dot={{ fill: '#10b981', r: 3, strokeWidth: 0 }}
+            activeDot={{ r: 5 }}
+          />
+        </ComposedChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
 
 export function MdChannelDetail({ skus, channel }: { skus: SkuData[]; channel: Channel }) {
   const channelTotal = skus.reduce(
@@ -23,6 +107,12 @@ export function MdChannelDetail({ skus, channel }: { skus: SkuData[]; channel: C
       monthTotals[m] = addMetrics(monthTotals[m], calcChannelMonthMetrics(sku, channel, m));
     });
   });
+
+  const chartData: MonthChartPoint[] = MONTHS.map((m) => ({
+    label: m <= 2 ? `${m}월(익)` : `${m}월`,
+    revenue: monthTotals[m].revenue,
+    profit: monthTotals[m].profit,
+  }));
 
   const skuRows = skus
     .map((sku) => {
@@ -56,6 +146,9 @@ export function MdChannelDetail({ skus, channel }: { skus: SkuData[]; channel: C
           )}
         </div>
       </div>
+
+      {/* 월별 차트 */}
+      <ChannelMonthlyChart data={chartData} />
 
       {/* SKU × 월 테이블 */}
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">

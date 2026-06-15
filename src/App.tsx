@@ -11,6 +11,7 @@ import { LoginScreen } from './components/LoginScreen';
 import { PinManager } from './components/PinManager';
 import { ConfirmLogModal } from './components/ConfirmLogModal';
 import { parseImportJson, type RawSkuInput } from './utils/importParser';
+import { BulkImportModal } from './components/BulkImportModal';
 
 type MainTab = 'pm' | 'md' | 'manual';
 
@@ -53,6 +54,7 @@ function App() {
   const [importState, setImportState] = useState<'idle' | 'done' | 'error'>('idle');
   const [showPinManager, setShowPinManager] = useState(false);
   const [showConfirmLog, setShowConfirmLog] = useState(false);
+  const [showBulkImport, setShowBulkImport] = useState(false);
   const [backupState, setBackupState] = useState<'idle' | 'done' | 'error'>('idle');
   const [activeMainTab, setActiveMainTab] = useSessionState<MainTab>('app:mainTab', 'pm');
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -128,6 +130,7 @@ function App() {
     <div className="min-h-screen bg-gray-50">
       {showPinManager && <PinManager onClose={() => setShowPinManager(false)} />}
       {showConfirmLog && <ConfirmLogModal onClose={() => setShowConfirmLog(false)} />}
+      {showBulkImport && <BulkImportModal onClose={() => setShowBulkImport(false)} />}
       {/* 헤더 */}
       <header className="bg-white border-b border-gray-200 px-3 sm:px-6 py-3 flex items-center gap-2 flex-wrap">
         <div>
@@ -140,6 +143,17 @@ function App() {
           <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${ROLE_META[role].color}`}>
             {ROLE_META[role].label}
           </span>
+
+          {/* 일괄 추가 (master·pm) */}
+          {(role === 'master' || role === 'pm') && (
+            <button
+              onClick={() => setShowBulkImport(true)}
+              title="CSV로 SKU 일괄 추가"
+              className="text-xs px-2.5 py-1 rounded-lg border border-indigo-300 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors font-medium"
+            >
+              + 일괄 추가
+            </button>
+          )}
 
           {/* 내보내기 */}
           <button

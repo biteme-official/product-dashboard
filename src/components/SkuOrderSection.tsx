@@ -101,6 +101,25 @@ export function SkuOrderSection() {
     return dateCmp !== 0 ? dateCmp : a.name.localeCompare(b.name, 'ko');
   }
 
+  function sortForListView(a: SkuData, b: SkuData): number {
+    // 1) 오픈일 오름차순 (미설정은 맨 뒤)
+    if (!a.releaseDate && !b.releaseDate) { /* fall through */ }
+    else if (!a.releaseDate) return 1;
+    else if (!b.releaseDate) return -1;
+    else {
+      const dateCmp = a.releaseDate.localeCompare(b.releaseDate);
+      if (dateCmp !== 0) return dateCmp;
+    }
+    // 2) 브랜드 오름차순
+    const brandCmp = a.brand.localeCompare(b.brand, 'ko');
+    if (brandCmp !== 0) return brandCmp;
+    // 3) 카테고리 오름차순
+    const catCmp = a.category.localeCompare(b.category, 'ko');
+    if (catCmp !== 0) return catCmp;
+    // 4) SKU명 오름차순
+    return a.name.localeCompare(b.name, 'ko');
+  }
+
   const categorySkus = skus.filter((s) => s.category === activeCategory);
   const filteredSkus = categorySkus
     .filter((s) => activeBrand === '전체' || s.brand === activeBrand)
@@ -109,7 +128,7 @@ export function SkuOrderSection() {
   // LIST VIEW: 카테고리 필터 없이 전체 SKU (브랜드 필터만 적용)
   const allFilteredSkus = skus
     .filter((s) => activeBrand === '전체' || s.brand === activeBrand)
-    .sort(sortByDateThenName);
+    .sort(sortForListView);
 
   const sourceSkus = isListView ? allFilteredSkus : filteredSkus;
   const displaySkus = searchQuery.trim()
