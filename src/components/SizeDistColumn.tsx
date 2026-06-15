@@ -931,8 +931,7 @@ function FinalOrderTable({ sku, sumRatios }: { sku: SkuData; sumRatios: number }
                     {activeSizes.map((s) => {
                       const key = csKey(color.id, s.label);
                       const qty = getDraftCS(color.id, color.quantity, s.label, s.ratio);
-                      const colTotal = colTotals[activeSizes.indexOf(s)];
-                      const cellPct = colTotal > 0 ? (qty / colTotal * 100).toFixed(1) : '0.0';
+                      const cellPct = rowTotal > 0 ? (qty / rowTotal * 100).toFixed(1) : '0.0';
                       return (
                         <td key={s.label} className="px-1 py-1 text-center border-r border-gray-100 tabular-nums">
                           {isEditing ? (

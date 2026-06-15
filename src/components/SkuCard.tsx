@@ -596,15 +596,44 @@ function MonthlyTable({
   useEffect(() => { fetchTeamCateData().then(setTeamCateMap).catch(() => {}); }, []);
 
   const releaseYear = sku.releaseDate ? parseInt(sku.releaseDate.split('-')[0], 10) : null;
-  const varCostByChannel = useMemo<Record<string, number>>(() => {
+
+  // 대응SKU 출고 데이터에서 직전12개월 기간 추출 (변동비 비중 기간 동기화용)
+  const rolling12Periods = useMemo<{ year: number; month: number }[]>(() => {
+    if (!compChannelYM || compMode !== 'rolling12') return [];
+    const ymSet = new Set<string>();
+    for (const byYM of Object.values(compChannelYM)) {
+      for (const [yearNum, months] of Object.entries(byYM)) {
+        for (const [monthNum, qty] of Object.entries(months as Record<string, number>)) {
+          if (qty > 0) ymSet.add(`${yearNum}|${monthNum}`);
+        }
+      }
+    }
+    return [...ymSet]
+      .map(s => { const [y, m] = s.split('|').map(Number); return { year: y, month: m }; })
+      .sort((a, b) => a.year !== b.year ? b.year - a.year : b.month - a.month)
+      .slice(0, 12);
+  }, [compChannelYM, compMode]);
+
+  const varCostResults = useMemo<Record<string, { ratio: number; isFallback: boolean }>>(() => {
     if (!teamCateMap) return {};
-    const result: Record<string, number> = {};
+    const result: Record<string, { ratio: number; isFallback: boolean }> = {};
     for (const ch of [...B2C_CHANNELS, ...B2B_CHANNELS]) {
-      const r = calcVariableCostRatio(teamCateMap, sku.category, ch, compMode, getReleaseMonth(sku.releaseDate), releaseYear);
+      const r = calcVariableCostRatio(
+        teamCateMap, sku.category, ch, compMode,
+        getReleaseMonth(sku.releaseDate), releaseYear,
+        rolling12Periods.length > 0 ? rolling12Periods : undefined,
+      );
       if (r !== null) result[ch] = r;
     }
     return result;
-  }, [teamCateMap, sku.category, sku.releaseDate, compMode, releaseYear]);
+  }, [teamCateMap, sku.category, sku.releaseDate, compMode, releaseYear, rolling12Periods]);
+
+  // 계산용: ratio만 추출 (공헌이익 계산, 엑셀 내보내기 등에서 사용)
+  const varCostByChannel = useMemo<Record<string, number>>(() => {
+    const out: Record<string, number> = {};
+    for (const [ch, r] of Object.entries(varCostResults)) out[ch] = r.ratio;
+    return out;
+  }, [varCostResults]);
 
   const { usdKrw: mtUsdKrw, jpyKrw: mtJpyKrw } = useExchangeRates();
 
@@ -827,6 +856,7 @@ function MonthlyTable({
           onTotalsChange={onStep3TotalsChange}
           onBeforeEdit={captureStep2Backup}
           varCostByChannel={varCostByChannel}
+          varCostResults={varCostResults}
           compChannelYM={compChannelYM}
           compMode={compMode}
           compModeLabel={compModeLabel}
@@ -1332,6 +1362,7 @@ function PricingChannelTable({
   onTotalsChange,
   onBeforeEdit,
   varCostByChannel = {},
+  varCostResults = {},
   compChannelYM,
   compMode,
   compModeLabel,
@@ -1344,6 +1375,7 @@ function PricingChannelTable({
   onTotalsChange?: (totals: { revenue: number; profit: number }) => void;
   onBeforeEdit?: () => void;
   varCostByChannel?: Record<string, number>;
+  varCostResults?: Record<string, { ratio: number; isFallback: boolean }>;
   compChannelYM?: ChannelByYearMonth | null;
   compMode?: 'rolling12' | 'samePeriod';
   compModeLabel?: string;
@@ -1471,7 +1503,7 @@ function PricingChannelTable({
   const renderGroup = (channels: readonly Channel[], groupLabel: string, groupColor: string) => (
     <>
       <tr className={`border-b ${groupColor}`}>
-        <td colSpan={7} className="px-3 py-0.5">
+        <td colSpan={8} className="px-3 py-0.5">
           <span className="text-[10px] font-bold tracking-wide uppercase" style={{ color: 'inherit' }}>{groupLabel}</span>
         </td>
       </tr>
@@ -1535,6 +1567,17 @@ function PricingChannelTable({
               <td className={`px-2 py-1.5 text-right tabular-nums text-[11px] truncate ${isExpanded ? 'font-bold' : 'font-medium'} text-emerald-700`}>
                 {profit > 0 ? formatWon(profit) : profit < 0 ? <span className="text-red-500">{formatWon(Math.abs(profit))}</span> : <span className="text-gray-300">–</span>}
               </td>
+              {/* 변동비율 */}
+              <td className="px-2 py-1.5 text-center tabular-nums text-[11px] truncate">
+                {(() => {
+                  const r = varCostResults[channel];
+                  if (!r) return <span className="text-gray-400 font-semibold">25.0%</span>;
+                  const pct = (r.ratio * 100).toFixed(1);
+                  return r.isFallback
+                    ? <span className="text-orange-400 font-semibold" title="지정 기간 데이터 없음 — 가용 최신 데이터로 근사">~{pct}%</span>
+                    : <span className="text-orange-600 font-semibold">{pct}%</span>;
+                })()}
+              </td>
               {/* CM% */}
               <td className="px-2 py-1.5 text-right truncate">
                 {cm !== null ? (
@@ -1563,7 +1606,7 @@ function PricingChannelTable({
                 : [];
               return (
                 <tr key={`${channel}-monthly`} className="border-b border-gray-200 bg-gray-50/60">
-                  <td colSpan={7} className="px-4 py-3">
+                  <td colSpan={8} className="px-4 py-3">
                     {/* 일괄 적용 툴바 */}
                     <div className="flex items-center gap-2 mb-2.5">
                       <span className="text-[11px] font-semibold text-gray-500 whitespace-nowrap">판매가 일괄 설정</span>
@@ -1932,12 +1975,13 @@ function PricingChannelTable({
     <div className="rounded-lg border border-gray-200 overflow-x-auto">
       <table className="w-full text-xs" style={{ tableLayout: 'fixed' }}>
         <colgroup>
-          <col style={{ width: '20%' }} />
-          <col style={{ width: '9%' }} />
+          <col style={{ width: '18%' }} />
+          <col style={{ width: '8%' }} />
+          <col style={{ width: '11%' }} />
+          <col style={{ width: '13%' }} />
+          <col style={{ width: '14%' }} />
+          <col style={{ width: '14%' }} />
           <col style={{ width: '12%' }} />
-          <col style={{ width: '15%' }} />
-          <col style={{ width: '17%' }} />
-          <col style={{ width: '17%' }} />
           <col style={{ width: '10%' }} />
         </colgroup>
         <thead>
@@ -1951,6 +1995,7 @@ function PricingChannelTable({
               공헌이익
               <div className="text-[9px] text-indigo-400 font-normal">변동비(Tableau)</div>
             </th>
+            <th className="px-2 py-2 text-center text-orange-500 font-semibold truncate">변동비율</th>
             <th className="px-2 py-2 text-center text-indigo-600 font-semibold truncate">CM%</th>
           </tr>
         </thead>
@@ -1974,6 +2019,7 @@ function PricingChannelTable({
             <td className="px-2 py-2 text-right font-semibold tabular-nums text-emerald-700 text-[11px] whitespace-nowrap">
               {totals.profit > 0 ? formatWon(totals.profit) : '–'}
             </td>
+            <td className="px-2 py-2 text-center text-gray-300 text-[11px]">–</td>
             <td className="px-2 py-2 text-right whitespace-nowrap">
               {totalCm !== null ? (
                 <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold ${cmBadgeCls(totalCm)}`}>{totalCm}%</span>
@@ -1981,7 +2027,7 @@ function PricingChannelTable({
             </td>
           </tr>
           <tr className="border-t border-gray-100">
-            <td colSpan={7} className="px-3 py-1.5 text-[10px] text-gray-400">
+            <td colSpan={8} className="px-3 py-1.5 text-[10px] text-gray-400">
               실매출단가 = ∑(월수량×시나리오가격) ÷ 총수량 &nbsp;·&nbsp; 공헌이익 = 순매출 − 변동비 − 원가×수량 &nbsp;*변동비는 해당 카테고리의 대응SKU 동기간 평균 변동비 비중으로 계산됩니다. 대응SKU 없을 시 25%로 임의계산됩니다.
             </td>
           </tr>

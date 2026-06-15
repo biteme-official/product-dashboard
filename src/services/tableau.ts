@@ -543,6 +543,19 @@ export async function fetchTeamCateData(): Promise<TeamCateMap> {
  * 변동비 비중 = (순매출 - 원가 - 공헌이익) / 순매출
  * null 반환 시 호출부에서 0.25 fallback 사용.
  */
+/** 데이터셋 전체에서 가장 최근 n개월 추출 */
+function getDatasetRecentPeriods(map: TeamCateMap, n: number): { year: number; month: number }[] {
+  const ymSet = new Set<string>();
+  for (const k of map.keys()) {
+    const p = k.split('|');
+    if (p.length === 4) ymSet.add(`${p[2]}|${p[3]}`);
+  }
+  return [...ymSet]
+    .map(s => { const [y, m] = s.split('|').map(Number); return { year: y, month: m }; })
+    .sort((a, b) => a.year !== b.year ? b.year - a.year : b.month - a.month)
+    .slice(0, n);
+}
+
 export function calcVariableCostRatio(
   map: TeamCateMap,
   appCategory: string,
@@ -550,36 +563,48 @@ export function calcVariableCostRatio(
   mode: 'rolling12' | 'samePeriod',
   releaseMonth: number | null,
   releaseYear: number | null,
-): number | null {
+  // 대응SKU 출고 데이터에서 추출한 직전12개월 명시 기간 (rolling12 모드 동기화용)
+  explicitRolling12?: { year: number; month: number }[],
+): { ratio: number; isFallback: boolean } | null {
   const tableauCate = CATEGORY_TO_TABLEAU[appCategory];
   const tableauCh   = CHANNEL_TO_TABLEAU[appChannel];
   if (!tableauCate || !tableauCh) return null;
 
   let periodPairs: { year: number; month: number }[];
+  let isExactPeriod = true;
+
   if (mode === 'samePeriod' && releaseMonth !== null && releaseYear !== null) {
     const prevYear = releaseYear - 1;
     periodPairs = [];
     for (let m = releaseMonth; m <= 12; m++) periodPairs.push({ year: prevYear, month: m });
+  } else if (mode === 'rolling12' && explicitRolling12 && explicitRolling12.length > 0) {
+    periodPairs = explicitRolling12;
   } else {
-    // 데이터셋 내 가장 최근 12개월
-    const ymSet = new Set<string>();
-    for (const k of map.keys()) {
-      const p = k.split('|');
-      if (p.length === 4) ymSet.add(`${p[2]}|${p[3]}`);
-    }
-    periodPairs = [...ymSet]
-      .map(s => { const [y, m] = s.split('|').map(Number); return { year: y, month: m }; })
-      .sort((a, b) => a.year !== b.year ? b.year - a.year : b.month - a.month)
-      .slice(0, 12);
+    periodPairs = getDatasetRecentPeriods(map, 12);
+    isExactPeriod = false;
   }
 
-  let totalRevenue = 0, totalCost = 0, totalContrib = 0;
-  for (const { year, month } of periodPairs) {
-    const e = map.get(tcKey(tableauCh, tableauCate, year, month));
-    if (e) { totalRevenue += e.revenue; totalCost += e.cost; totalContrib += e.contribution; }
+  function sumPeriod(pairs: { year: number; month: number }[]) {
+    let rev = 0, cost = 0, contrib = 0;
+    for (const { year, month } of pairs) {
+      const e = map.get(tcKey(tableauCh, tableauCate, year, month));
+      if (e) { rev += e.revenue; cost += e.cost; contrib += e.contribution; }
+    }
+    return { rev, cost, contrib };
   }
-  if (totalRevenue <= 0) return null;
-  return (totalRevenue - totalCost - totalContrib) / totalRevenue;
+
+  let { rev, cost, contrib } = sumPeriod(periodPairs);
+
+  // 지정 기간에 데이터 없으면 가용 최신 데이터로 폴백
+  if (rev <= 0 && isExactPeriod) {
+    const fallbackPairs = getDatasetRecentPeriods(map, 12);
+    ({ rev, cost, contrib } = sumPeriod(fallbackPairs));
+    if (rev <= 0) return null;
+    return { ratio: (rev - cost - contrib) / rev, isFallback: true };
+  }
+
+  if (rev <= 0) return null;
+  return { ratio: (rev - cost - contrib) / rev, isFallback: false };
 }
 
 export function invalidateCache(): void {
