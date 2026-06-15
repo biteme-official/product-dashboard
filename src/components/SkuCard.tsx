@@ -1502,8 +1502,8 @@ function PricingChannelTable({
     },
     { qty: 0, revenue: 0, profit: 0 },
   );
-  // 마케팅 비용 차감 후 실질 순매출/공헌이익
-  const adjustedRevenue = totals.revenue - marketingCost;
+  // 마케팅은 매출 0 처리, 공헌이익에서만 원가×수량 차감
+  const adjustedRevenue = totals.revenue;
   const adjustedProfit = totals.profit - marketingCost;
   const totalCm = adjustedRevenue > 0 ? Math.round((adjustedProfit / adjustedRevenue) * 1000) / 10 : null;
 
@@ -2043,10 +2043,10 @@ function PricingChannelTable({
               {marketingTotalQty > 0 ? marketingTotalQty.toLocaleString() : <span className="text-gray-300">–</span>}
             </td>
             <td className="px-2 py-1.5 text-center text-gray-300 text-[11px]">–</td>
-            <td className={`px-2 py-1.5 text-right tabular-nums text-[11px] font-semibold text-red-500`}>
+            <td className="px-2 py-1.5 text-center text-gray-300 text-[11px]">–</td>
+            <td className="px-2 py-1.5 text-right tabular-nums text-[11px] font-semibold text-red-500">
               {marketingCost > 0 ? <span>-{formatWon(marketingCost)}</span> : <span className="text-gray-300">–</span>}
             </td>
-            <td className="px-2 py-1.5 text-center text-gray-300 text-[11px]">–</td>
             <td className="px-2 py-1.5 text-center text-gray-300 text-[11px]">–</td>
             <td className="px-2 py-1.5 text-center text-gray-300 text-[11px]">–</td>
           </tr>
@@ -2108,11 +2108,11 @@ function PricingChannelTable({
                               {(() => { const t = FY27.reduce((s, m) => s + getMarketingQty(m), 0); return t > 0 ? t.toLocaleString() : <span className="text-gray-300">–</span>; })()}
                             </td>
                           </tr>
-                          {/* 예상 순매출(비용) 행 */}
+                          {/* 예상 비용 (공헌이익 차감) 행 */}
                           <tr className="bg-red-50/50">
                             <td className="px-3 py-2 border-r border-red-200 bg-red-100/70 whitespace-nowrap">
-                              <span className="text-[11px] font-bold text-red-600">예상 순매출</span>
-                              <span className="block text-[9px] text-red-400 mt-0.5">원가 × 수량</span>
+                              <span className="text-[11px] font-bold text-red-600">예상 비용</span>
+                              <span className="block text-[9px] text-red-400 mt-0.5">공헌이익 차감</span>
                             </td>
                             {MONTHS.map((m) => {
                               const mCost = sku.cost * getMarketingQty(m);
@@ -2150,10 +2150,14 @@ function PricingChannelTable({
               {weightedAvgPrice ? `avg ₩${weightedAvgPrice.toLocaleString()}` : '–'}
             </td>
             <td className="px-2 py-2 text-right font-semibold tabular-nums text-indigo-700 text-[11px] whitespace-nowrap">
-              {adjustedRevenue !== 0 ? (adjustedRevenue > 0 ? formatWon(adjustedRevenue) : <span className="text-red-500">-{formatWon(Math.abs(adjustedRevenue))}</span>) : '–'}
+              {totals.revenue > 0 ? formatWon(totals.revenue) : '–'}
             </td>
-            <td className="px-2 py-2 text-right font-semibold tabular-nums text-emerald-700 text-[11px] whitespace-nowrap">
-              {adjustedProfit !== 0 ? (adjustedProfit > 0 ? formatWon(adjustedProfit) : <span className="text-red-500">-{formatWon(Math.abs(adjustedProfit))}</span>) : '–'}
+            <td className="px-2 py-2 text-right font-semibold tabular-nums text-[11px] whitespace-nowrap">
+              {adjustedProfit > 0
+                ? <span className="text-emerald-700">{formatWon(adjustedProfit)}</span>
+                : adjustedProfit < 0
+                  ? <span className="text-red-500">-{formatWon(Math.abs(adjustedProfit))}</span>
+                  : '–'}
             </td>
             <td className="px-2 py-2 text-center text-gray-300 text-[11px]">–</td>
             <td className="px-2 py-2 text-right whitespace-nowrap">
