@@ -12,6 +12,7 @@ import { NumericInput } from './NumericInput';
 import { useExchangeRates } from '../utils/useExchangeRates';
 import { isMdRole } from '../utils/pin';
 import { MarketingBriefModal } from './MarketingBriefModal';
+import { PricingModal } from './PricingModal';
 import { exportSimulationXlsx } from '../utils/exportXlsx';
 import { PRICING_SCENARIOS, PRICING_DEFAULT_OPT } from '../utils/pricingScenarios';
 
@@ -357,6 +358,7 @@ function BasicInfoColumn({ sku, readOnly }: { sku: SkuData; readOnly?: boolean }
   const updateSku = useStore((s) => s.updateSku);
   const persistSku = useStore((s) => s.persistSku);
   const [briefOpen, setBriefOpen] = useState(false);
+  const [pricingModalOpen, setPricingModalOpen] = useState(false);
 
   const inputCls = `w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed`;
   const selectCls = `w-full px-2 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed`;
@@ -467,6 +469,19 @@ function BasicInfoColumn({ sku, readOnly }: { sku: SkuData; readOnly?: boolean }
           className={inputCls}
         />
       </div>
+
+      <button
+        onClick={() => setPricingModalOpen(true)}
+        className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold rounded-lg border transition-colors border-gray-200 bg-white text-gray-500 hover:bg-gray-50 hover:text-gray-700"
+      >
+        <span className="flex items-center gap-1.5">
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a2 2 0 012-2z" />
+          </svg>
+          프라이싱 시나리오
+        </span>
+      </button>
+      {pricingModalOpen && <PricingModal sku={sku} onClose={() => setPricingModalOpen(false)} />}
 
       <div className="grid grid-cols-2 gap-2">
         <div>
