@@ -242,6 +242,7 @@ interface StoreActions {
   deleteSku: (id: string) => void;
   resetSku: (id: string) => void;
   toggleExpanded: (id: string) => void;
+  expandOnly: (id: string) => void;
   updateSku: (id: string, patch: Partial<SkuData>) => void;
   updateMonthlySplit: (id: string, month: Month, ratio: number) => void;
   updateChannelMonthQty: (id: string, channel: Channel, month: Month, qty: number) => void;
@@ -377,6 +378,18 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
   toggleExpanded: (id) => {
     set({
       skus: get().skus.map((s) => (s.id === id ? { ...s, isExpanded: !s.isExpanded } : s)),
+    });
+  },
+
+  expandOnly: (id) => {
+    const target = get().skus.find((s) => s.id === id);
+    if (!target) return;
+    set({
+      skus: get().skus.map((s) =>
+        s.category === target.category
+          ? { ...s, isExpanded: s.id === id }
+          : s,
+      ),
     });
   },
 

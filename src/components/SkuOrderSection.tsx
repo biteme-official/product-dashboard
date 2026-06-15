@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { useStore } from '../store';
 import { useAuth } from '../store/auth';
 import { SkuCard } from './SkuCard';
@@ -8,6 +8,58 @@ import { exportBulkOrderXlsx } from '../utils/exportXlsx';
 import type { SkuData } from '../types';
 
 type ViewMode = 'list' | 'gallery';
+
+// ── 카테고리 배지 색상 ─────────────────────────────────────────────────────────
+const CATEGORY_COLORS: Record<string, string> = {
+  '의류': 'bg-violet-100 text-violet-700',
+  '잡화': 'bg-amber-100 text-amber-700',
+  '식품': 'bg-emerald-100 text-emerald-700',
+  '장난감': 'bg-rose-100 text-rose-700',
+  '용품': 'bg-sky-100 text-sky-700',
+};
+function catCls(cat: string): string {
+  return CATEGORY_COLORS[cat] ?? 'bg-gray-100 text-gray-600';
+}
+
+// ── 날짜 포맷: "M/D (요일)" ────────────────────────────────────────────────────
+function formatReleaseDate(dateStr: string | undefined | null): string | null {
+  if (!dateStr) return null;
+  const date = new Date(dateStr + 'T00:00:00');
+  if (isNaN(date.getTime())) return null;
+  const m = date.getMonth() + 1;
+  const d = date.getDate();
+  const days = ['일', '월', '화', '수', '목', '금', '토'];
+  return `${m}/${d} (${days[date.getDay()]})`;
+}
+
+function formatYearMonth(ym: string): string {
+  const [year, month] = ym.split('-');
+  return `${year.slice(2)}년 ${parseInt(month)}월`;
+}
+
+// ── 정렬 함수 (컴포넌트 외부로 분리하여 useMemo 안전 사용) ─────────────────────
+function sortByDateThenName(a: SkuData, b: SkuData): number {
+  if (!a.releaseDate && !b.releaseDate) return a.name.localeCompare(b.name, 'ko');
+  if (!a.releaseDate) return 1;
+  if (!b.releaseDate) return -1;
+  const dateCmp = a.releaseDate.localeCompare(b.releaseDate);
+  return dateCmp !== 0 ? dateCmp : a.name.localeCompare(b.name, 'ko');
+}
+
+function sortForListView(a: SkuData, b: SkuData): number {
+  if (!a.releaseDate && !b.releaseDate) { /* fall through */ }
+  else if (!a.releaseDate) return 1;
+  else if (!b.releaseDate) return -1;
+  else {
+    const dateCmp = a.releaseDate.localeCompare(b.releaseDate);
+    if (dateCmp !== 0) return dateCmp;
+  }
+  const brandCmp = a.brand.localeCompare(b.brand, 'ko');
+  if (brandCmp !== 0) return brandCmp;
+  const catCmp = a.category.localeCompare(b.category, 'ko');
+  if (catCmp !== 0) return catCmp;
+  return a.name.localeCompare(b.name, 'ko');
+}
 
 export function SkuOrderSection() {
   const skus = useStore((s) => s.skus);
@@ -23,11 +75,15 @@ export function SkuOrderSection() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const dropdownRef = useRef<HTMLDivElement>(null);
 
+  // LIST VIEW 로컬 필터
+  const [listCatFilter, setListCatFilter] = useState<Set<string>>(new Set());
+  const [listBrandFilter, setListBrandFilter] = useState<Set<string>>(new Set());
+  const [listMonthFilter, setListMonthFilter] = useState<Set<string>>(new Set());
+
   // 뷰 모드: 목록 / 갤러리 (localStorage에 유지)
   const [viewMode, setViewMode] = useState<ViewMode>(
     () => (localStorage.getItem('sku-view-mode') as ViewMode) ?? 'list',
   );
-  // 갤러리 모달에서 열려있는 SKU id
   const [gallerySkuId, setGallerySkuId] = useState<string | null>(null);
 
   function switchView(mode: ViewMode) {
@@ -35,20 +91,38 @@ export function SkuOrderSection() {
     localStorage.setItem('sku-view-mode', mode);
   }
 
-  function openModal(skuId: string) {
-    setGallerySkuId(skuId);
+  function closeModal() { setGallerySkuId(null); }
+
+  // LIST VIEW 필터 옵션 (전체 SKU 기준 자동 생성)
+  const availableCategories = useMemo(
+    () => [...new Set(skus.map((s) => s.category))].filter(Boolean).sort((a, b) => a.localeCompare(b, 'ko')),
+    [skus],
+  );
+  const availableBrands = useMemo(
+    () => [...new Set(skus.map((s) => s.brand))].filter(Boolean).sort((a, b) => a.localeCompare(b, 'ko')),
+    [skus],
+  );
+  const availableMonths = useMemo(
+    () => [...new Set(skus.filter((s) => s.releaseDate).map((s) => s.releaseDate!.substring(0, 7)))].sort(),
+    [skus],
+  );
+
+  function toggleFilterItem(set: Set<string>, val: string): Set<string> {
+    const next = new Set(set);
+    if (next.has(val)) next.delete(val);
+    else next.add(val);
+    return next;
   }
 
-  function closeModal() {
-    setGallerySkuId(null);
-  }
+  const hasListFilter = listCatFilter.size > 0 || listBrandFilter.size > 0 || listMonthFilter.size > 0;
+
+  const [monthDropdownOpen, setMonthDropdownOpen] = useState(false);
+  const monthDropdownRef = useRef<HTMLDivElement>(null);
 
   // Esc 키로 모달 닫기
   useEffect(() => {
     if (!gallerySkuId) return;
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') closeModal();
-    }
+    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') closeModal(); }
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
   }, [gallerySkuId]);
@@ -71,12 +145,20 @@ export function SkuOrderSection() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [bulkOpen]);
 
-  function toggleAll() {
-    if (selectedIds.size === filteredSkus.length) {
-      setSelectedIds(new Set());
-    } else {
-      setSelectedIds(new Set(filteredSkus.map((s) => s.id)));
+  useEffect(() => {
+    if (!monthDropdownOpen) return;
+    function handleOutside(e: MouseEvent) {
+      if (monthDropdownRef.current && !monthDropdownRef.current.contains(e.target as Node)) {
+        setMonthDropdownOpen(false);
+      }
     }
+    document.addEventListener('mousedown', handleOutside);
+    return () => document.removeEventListener('mousedown', handleOutside);
+  }, [monthDropdownOpen]);
+
+  function toggleAll() {
+    if (selectedIds.size === filteredSkus.length) setSelectedIds(new Set());
+    else setSelectedIds(new Set(filteredSkus.map((s) => s.id)));
   }
 
   function toggleOne(id: string) {
@@ -94,42 +176,27 @@ export function SkuOrderSection() {
     setSelectedIds(new Set());
   }
 
-  function sortByDateThenName(a: SkuData, b: SkuData): number {
-    if (!a.releaseDate && !b.releaseDate) return a.name.localeCompare(b.name, 'ko');
-    if (!a.releaseDate) return 1;
-    if (!b.releaseDate) return -1;
-    const dateCmp = a.releaseDate.localeCompare(b.releaseDate);
-    return dateCmp !== 0 ? dateCmp : a.name.localeCompare(b.name, 'ko');
-  }
-
-  function sortForListView(a: SkuData, b: SkuData): number {
-    // 1) 오픈일 오름차순 (미설정은 맨 뒤)
-    if (!a.releaseDate && !b.releaseDate) { /* fall through */ }
-    else if (!a.releaseDate) return 1;
-    else if (!b.releaseDate) return -1;
-    else {
-      const dateCmp = a.releaseDate.localeCompare(b.releaseDate);
-      if (dateCmp !== 0) return dateCmp;
-    }
-    // 2) 브랜드 오름차순
-    const brandCmp = a.brand.localeCompare(b.brand, 'ko');
-    if (brandCmp !== 0) return brandCmp;
-    // 3) 카테고리 오름차순
-    const catCmp = a.category.localeCompare(b.category, 'ko');
-    if (catCmp !== 0) return catCmp;
-    // 4) SKU명 오름차순
-    return a.name.localeCompare(b.name, 'ko');
-  }
-
   const categorySkus = skus.filter((s) => s.category === activeCategory);
   const filteredSkus = categorySkus
     .filter((s) => activeBrand === '전체' || s.brand === activeBrand)
     .sort(sortByDateThenName);
 
-  // LIST VIEW: 카테고리 필터 없이 전체 SKU (브랜드 필터만 적용)
-  const allFilteredSkus = skus
-    .filter((s) => activeBrand === '전체' || s.brand === activeBrand)
-    .sort(sortForListView);
+  // LIST VIEW: 로컬 필터 적용 (카테고리·브랜드·오픈월 조합 필터링)
+  const allFilteredSkus = useMemo(
+    () =>
+      skus
+        .filter((s) => {
+          if (listCatFilter.size > 0 && !listCatFilter.has(s.category)) return false;
+          if (listBrandFilter.size > 0 && !listBrandFilter.has(s.brand)) return false;
+          if (listMonthFilter.size > 0) {
+            if (!s.releaseDate) return false;
+            if (!listMonthFilter.has(s.releaseDate.substring(0, 7))) return false;
+          }
+          return true;
+        })
+        .sort(sortForListView),
+    [skus, listCatFilter, listBrandFilter, listMonthFilter],
+  );
 
   const sourceSkus = isListView ? allFilteredSkus : filteredSkus;
   const displaySkus = searchQuery.trim()
@@ -143,14 +210,18 @@ export function SkuOrderSection() {
     <section className="p-4 space-y-3">
       {/* 헤더 */}
       <div className="flex items-center justify-between gap-2 flex-wrap">
-        <h2 className="text-sm font-semibold text-gray-700 flex-shrink-0">
-          SKU 발주 입력
-          <span className="ml-2 text-gray-400 font-normal">
-            {isListView
-              ? `전체 ${allFilteredSkus.length}`
-              : `${filteredSkus.length}${activeBrand !== '전체' ? ` (전체 ${categorySkus.length})` : ''} / 15`}
+        {isListView ? (
+          <span className="text-sm text-gray-400 font-normal flex-shrink-0">
+            전체 {allFilteredSkus.length}{hasListFilter ? ' (필터 적용)' : ''}
           </span>
-        </h2>
+        ) : (
+          <h2 className="text-sm font-semibold text-gray-700 flex-shrink-0">
+            SKU 발주 입력
+            <span className="ml-2 text-gray-400 font-normal">
+              {filteredSkus.length}{activeBrand !== '전체' ? ` (전체 ${categorySkus.length})` : ''} / 15
+            </span>
+          </h2>
+        )}
 
         <div className="flex items-center gap-2 flex-wrap justify-end">
           {/* 뷰 모드 토글 */}
@@ -248,32 +319,136 @@ export function SkuOrderSection() {
             </div>
           )}
 
-          {/* SKU 검색 */}
-          <div className="relative">
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="SKU명 검색"
-              className="pl-7 pr-3 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 w-32 sm:w-44"
-            />
-            <svg
-              className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none"
-              fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
-            </svg>
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery('')}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500 text-sm leading-none"
-              >
-                ✕
-              </button>
-            )}
-          </div>
+          {/* SKU 검색 — LIST VIEW에서는 필터 바 내부로 이동 */}
+          {!isListView && (
+            <SearchInput value={searchQuery} onChange={setSearchQuery} />
+          )}
         </div>
       </div>
+
+      {/* ── LIST VIEW 필터 바 ── */}
+      {isListView && (
+        <div className="bg-white border border-gray-200 rounded-xl px-3 py-2.5">
+          <div className="flex items-center gap-x-2 gap-y-1.5 flex-wrap">
+            {/* 카테고리 */}
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-[11px] text-gray-400 font-semibold shrink-0 w-14">카테고리</span>
+              {availableCategories.map((cat) => (
+                <button
+                  key={cat}
+                  onClick={() => setListCatFilter(toggleFilterItem(listCatFilter, cat))}
+                  className={`px-2.5 py-0.5 rounded-full text-[11px] font-medium border transition-colors ${
+                    listCatFilter.has(cat)
+                      ? catCls(cat) + ' border-transparent'
+                      : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+
+            <div className="w-px h-4 bg-gray-200 shrink-0" />
+
+            {/* 브랜드 */}
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-[11px] text-gray-400 font-semibold shrink-0 w-[30px]">브랜드</span>
+              {availableBrands.map((brand) => (
+                <button
+                  key={brand}
+                  onClick={() => setListBrandFilter(toggleFilterItem(listBrandFilter, brand))}
+                  className={`px-2.5 py-0.5 rounded-full text-[11px] font-medium border transition-colors ${
+                    listBrandFilter.has(brand)
+                      ? 'bg-gray-700 text-white border-gray-700'
+                      : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  {brand}
+                </button>
+              ))}
+            </div>
+
+            {/* 우측: 필터 초기화 + 오픈월 드롭다운 + SKU 검색 */}
+            <div className="ml-auto flex items-center gap-2 shrink-0">
+              {hasListFilter && (
+                <button
+                  onClick={() => {
+                    setListCatFilter(new Set());
+                    setListBrandFilter(new Set());
+                    setListMonthFilter(new Set());
+                  }}
+                  className="text-[11px] text-gray-400 hover:text-rose-500 transition-colors whitespace-nowrap"
+                >
+                  초기화
+                </button>
+              )}
+
+              {/* 오픈월 드롭다운 */}
+              {availableMonths.length > 0 && (
+                <div className="relative" ref={monthDropdownRef}>
+                  <button
+                    onClick={() => setMonthDropdownOpen((o) => !o)}
+                    className={`flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-lg border transition-colors ${
+                      listMonthFilter.size > 0
+                        ? 'bg-indigo-50 border-indigo-300 text-indigo-700 font-medium'
+                        : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300'
+                    }`}
+                  >
+                    오픈월
+                    {listMonthFilter.size > 0 && (
+                      <span className="px-1.5 py-0.5 rounded-full bg-indigo-600 text-white text-[9px] font-bold leading-none">
+                        {listMonthFilter.size}
+                      </span>
+                    )}
+                    <svg
+                      className={`w-3 h-3 transition-transform ${monthDropdownOpen ? 'rotate-180' : ''}`}
+                      fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+
+                  {monthDropdownOpen && (
+                    <div className="absolute right-0 top-full mt-1.5 min-w-[140px] bg-white border border-gray-200 rounded-xl shadow-lg z-50 overflow-hidden">
+                      <div className="px-2 py-1.5 border-b border-gray-100 flex items-center justify-between">
+                        <span className="text-[11px] font-semibold text-gray-500">오픈월 선택</span>
+                        {listMonthFilter.size > 0 && (
+                          <button
+                            onClick={() => setListMonthFilter(new Set())}
+                            className="text-[10px] text-gray-400 hover:text-rose-500 transition-colors"
+                          >
+                            초기화
+                          </button>
+                        )}
+                      </div>
+                      <div className="py-1">
+                        {availableMonths.map((ym) => (
+                          <label
+                            key={ym}
+                            className="flex items-center gap-2 px-3 py-1.5 cursor-pointer hover:bg-gray-50 transition-colors"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={listMonthFilter.has(ym)}
+                              onChange={() => setListMonthFilter(toggleFilterItem(listMonthFilter, ym))}
+                              className="w-3.5 h-3.5 accent-indigo-600 shrink-0"
+                            />
+                            <span className={`text-[12px] ${listMonthFilter.has(ym) ? 'text-indigo-700 font-medium' : 'text-gray-600'}`}>
+                              {formatYearMonth(ym)}
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <SearchInput value={searchQuery} onChange={setSearchQuery} />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 본문 */}
       {!isListView && filteredSkus.length === 0 ? (
@@ -291,7 +466,9 @@ export function SkuOrderSection() {
         <>
           {displaySkus.length === 0 ? (
             <div className="border border-gray-200 rounded-xl p-8 text-center text-gray-400 text-sm">
-              {searchQuery ? `"${searchQuery}"와 일치하는 SKU가 없습니다.` : '등록된 SKU가 없습니다.'}
+              {searchQuery || hasListFilter
+                ? '조건에 일치하는 SKU가 없습니다.'
+                : '등록된 SKU가 없습니다.'}
             </div>
           ) : isListView ? (
             /* ── LIST VIEW 테이블 ── */
@@ -300,17 +477,16 @@ export function SkuOrderSection() {
             /* ── 갤러리 뷰 ── */
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
               {displaySkus.map((sku) => (
-                <SkuGalleryCard key={sku.id} sku={sku} onClick={() => openModal(sku.id)} />
+                <SkuGalleryCard key={sku.id} sku={sku} onClick={() => setGallerySkuId(sku.id)} />
               ))}
             </div>
           ) : (
             /* ── 목록 뷰 ── */
             <div className="space-y-2">
               {displaySkus.map((sku) => (
-                <SkuCard
-                  key={sku.id}
-                  sku={searchQuery.trim() ? { ...sku, isExpanded: true } : sku}
-                />
+                <div key={sku.id} id={`sku-card-${sku.id}`}>
+                  <SkuCard sku={searchQuery.trim() ? { ...sku, isExpanded: true } : sku} />
+                </div>
               ))}
             </div>
           )}
@@ -341,13 +517,12 @@ export function SkuOrderSection() {
             className="bg-white w-full sm:max-w-5xl sm:rounded-2xl rounded-t-2xl max-h-[92vh] sm:max-h-[88vh] overflow-y-auto shadow-2xl flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* 모달 헤더 */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 flex-shrink-0 bg-white sticky top-0 rounded-t-2xl sm:rounded-t-2xl">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-semibold text-gray-800 truncate">
                   {gallerySelectedSku.name || '(SKU명 미입력)'}
                 </span>
-                <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700">
+                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${catCls(gallerySelectedSku.category)}`}>
                   {gallerySelectedSku.category}
                 </span>
               </div>
@@ -360,7 +535,6 @@ export function SkuOrderSection() {
                 </svg>
               </button>
             </div>
-            {/* SKU 카드 (항상 펼침) */}
             <div className="overflow-y-auto">
               <SkuCard sku={{ ...gallerySelectedSku, isExpanded: true }} />
             </div>
@@ -368,6 +542,35 @@ export function SkuOrderSection() {
         </div>
       )}
     </section>
+  );
+}
+
+// ── 공용 검색 인풋 ─────────────────────────────────────────────────────────────
+function SearchInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <div className="relative">
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="SKU명 검색"
+        className="pl-7 pr-3 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 w-32 sm:w-44"
+      />
+      <svg
+        className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none"
+        fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+      >
+        <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
+      </svg>
+      {value && (
+        <button
+          onClick={() => onChange('')}
+          className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500 text-sm leading-none"
+        >
+          ✕
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -392,26 +595,72 @@ function ChannelBadge({ label, confirmed }: { label: string; confirmed: boolean 
 
 type PriceField = 'cost' | 'price' | 'regularPrice';
 interface EditingCell { skuId: string; field: PriceField; originalValue: number }
+interface CalendarState { skuId: string; selectedDate: string; top: number; left: number }
 
 function SkuListTable({ skus }: { skus: SkuData[] }) {
   const updateSku = useStore((s) => s.updateSku);
   const persistSku = useStore((s) => s.persistSku);
   const setListView = useStore((s) => s.setListView);
   const setActiveCategory = useStore((s) => s.setActiveCategory);
-  const toggleExpanded = useStore((s) => s.toggleExpanded);
+  const expandOnly = useStore((s) => s.expandOnly);
   const { role } = useAuth();
 
   function navigateToSku(sku: SkuData) {
     setActiveCategory(sku.category);
     setListView(false);
-    // 카테고리 전환 후 해당 SKU 펼치기 (setTimeout으로 렌더 후 실행)
-    setTimeout(() => toggleExpanded(sku.id), 0);
+    // 카테고리 전환 후: 해당 카테고리의 다른 카드 모두 닫고 이 카드만 열기
+    setTimeout(() => {
+      expandOnly(sku.id);
+      // 카드가 렌더된 후 해당 위치로 스크롤
+      setTimeout(() => {
+        document.getElementById(`sku-card-${sku.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 50);
+    }, 0);
   }
   const canEdit = role === 'master';
+  const canEditDate = role === 'master' || role === 'pm';
 
   const [editingCell, setEditingCell] = useState<EditingCell | null>(null);
   const [pricingSkuId, setPricingSkuId] = useState<string | null>(null);
   const pricingSku = pricingSkuId ? skus.find((s) => s.id === pricingSkuId) ?? null : null;
+
+  const [calendarState, setCalendarState] = useState<CalendarState | null>(null);
+  const calendarRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!calendarState) return;
+    function handleOutside(e: MouseEvent) {
+      if (calendarRef.current && !calendarRef.current.contains(e.target as Node)) {
+        setCalendarState(null);
+      }
+    }
+    function handleEsc(e: KeyboardEvent) {
+      if (e.key === 'Escape') setCalendarState(null);
+    }
+    document.addEventListener('mousedown', handleOutside);
+    document.addEventListener('keydown', handleEsc);
+    return () => {
+      document.removeEventListener('mousedown', handleOutside);
+      document.removeEventListener('keydown', handleEsc);
+    };
+  }, [calendarState]);
+
+  function openDateCalendar(sku: SkuData, e: React.MouseEvent) {
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    setCalendarState({
+      skuId: sku.id,
+      selectedDate: sku.releaseDate ?? '',
+      top: rect.bottom + 6,
+      left: rect.left,
+    });
+  }
+
+  function handleDateSelect(dateStr: string) {
+    if (!calendarState) return;
+    updateSku(calendarState.skuId, { releaseDate: dateStr });
+    persistSku(calendarState.skuId);
+    setCalendarState(null);
+  }
 
   function startEdit(skuId: string, field: PriceField, originalValue: number) {
     setEditingCell({ skuId, field, originalValue });
@@ -437,102 +686,130 @@ function SkuListTable({ skus }: { skus: SkuData[] }) {
   return (
     <>
       {pricingSku && <PricingModal sku={pricingSku} onClose={() => setPricingSkuId(null)} />}
-    <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto">
-      <table className="w-full text-[12px]">
-        <thead>
-          <tr className="bg-gray-50 border-b border-gray-200">
-            <th className="px-3 py-2.5 text-left font-semibold text-gray-600 whitespace-nowrap">카테고리</th>
-            <th className="px-3 py-2.5 text-left font-semibold text-gray-600 whitespace-nowrap">브랜드</th>
-            <th className="px-3 py-2.5 text-left font-semibold text-gray-600">SKU명</th>
-            <th className="px-3 py-2.5 text-left font-semibold text-gray-600 whitespace-nowrap">오픈일</th>
-            <th className="px-3 py-2.5 text-right font-semibold text-gray-600 whitespace-nowrap">총 발주량</th>
-            <th className="px-3 py-2.5 text-center font-semibold text-gray-600 whitespace-nowrap">프라이싱</th>
-            <th className="px-3 py-2.5 text-right font-semibold text-gray-600 whitespace-nowrap">
-              원가{canEdit && <span className="ml-1 text-[9px] font-normal text-indigo-400">편집</span>}
-            </th>
-            <th className="px-3 py-2.5 text-right font-semibold text-gray-600 whitespace-nowrap">
-              판매가{canEdit && <span className="ml-1 text-[9px] font-normal text-indigo-400">편집</span>}
-            </th>
-            <th className="px-3 py-2.5 text-right font-semibold text-gray-600 whitespace-nowrap">
-              정가{canEdit && <span className="ml-1 text-[9px] font-normal text-indigo-400">편집</span>}
-            </th>
-            <th className="px-3 py-2.5 text-right font-semibold text-gray-600 whitespace-nowrap">상시할인율</th>
-            <th className="px-3 py-2.5 text-right font-semibold text-gray-600 whitespace-nowrap">원가율</th>
-            <th className="px-3 py-2.5 text-left font-semibold text-gray-600 whitespace-nowrap">채널 목표량 확정</th>
-          </tr>
-        </thead>
-        <tbody>
-          {skus.map((sku, i) => {
-            const dr = discountRate(sku);
-            const cr = costRate(sku);
-            return (
-              <tr
-                key={sku.id}
-                className={`border-b border-gray-100 last:border-0 ${i % 2 === 1 ? 'bg-gray-50/50' : 'bg-white'} hover:bg-indigo-50/40 transition-colors`}
-              >
-                <td className="px-3 py-2 whitespace-nowrap">
-                  <span className="px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 text-[11px] font-medium">{sku.category}</span>
-                </td>
-                <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{sku.brand}</td>
-                <td className="px-3 py-2 max-w-[180px]">
-                  <button
-                    onClick={() => navigateToSku(sku)}
-                    className="font-medium text-gray-800 truncate block w-full text-left hover:text-indigo-600 hover:underline underline-offset-2 transition-colors"
-                    title={sku.name || undefined}
-                  >
-                    {sku.name || <span className="text-gray-300">(미입력)</span>}
-                  </button>
-                </td>
-                <td className="px-3 py-2 text-gray-500 whitespace-nowrap tabular-nums">
-                  {sku.releaseDate || <span className="text-gray-300">–</span>}
-                </td>
-                <td className="px-3 py-2 text-right tabular-nums font-medium text-gray-800 whitespace-nowrap">
-                  {sku.totalOrderQty > 0 ? sku.totalOrderQty.toLocaleString() : <span className="text-gray-300">–</span>}
-                </td>
-                <td className="px-2 py-1.5 text-center">
-                  <button
-                    onClick={() => setPricingSkuId(sku.id)}
-                    className="px-2 py-1 text-[11px] font-medium rounded-md border border-indigo-200 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 hover:border-indigo-300 transition-colors whitespace-nowrap"
-                  >
-                    프라이싱
-                  </button>
-                </td>
-                <td className="px-2 py-1.5 text-right whitespace-nowrap">
-                  <ListPriceCell sku={sku} field="cost" editingCell={editingCell} canEdit={canEdit}
-                    onStartEdit={startEdit} onCommit={commitEdit} onCancel={cancelEdit}
-                    onUpdate={(v) => updateSku(sku.id, { cost: v })} />
-                </td>
-                <td className="px-2 py-1.5 text-right whitespace-nowrap">
-                  <ListPriceCell sku={sku} field="price" editingCell={editingCell} canEdit={canEdit}
-                    onStartEdit={startEdit} onCommit={commitEdit} onCancel={cancelEdit}
-                    onUpdate={(v) => updateSku(sku.id, { price: v })} />
-                </td>
-                <td className="px-2 py-1.5 text-right whitespace-nowrap">
-                  <ListPriceCell sku={sku} field="regularPrice" editingCell={editingCell} canEdit={canEdit}
-                    onStartEdit={startEdit} onCommit={commitEdit} onCancel={cancelEdit}
-                    onUpdate={(v) => updateSku(sku.id, { regularPrice: v })} />
-                </td>
-                <td className="px-3 py-2 text-right tabular-nums whitespace-nowrap">
-                  {dr !== null
-                    ? <span className={dr > 0 ? 'text-rose-600 font-medium' : 'text-gray-500'}>{dr}%</span>
-                    : <span className="text-gray-300">–</span>}
-                </td>
-                <td className="px-3 py-2 text-right tabular-nums text-gray-700 whitespace-nowrap">
-                  {cr !== null ? `${cr}%` : <span className="text-gray-300">–</span>}
-                </td>
-                <td className="px-3 py-2">
-                  <div className="flex gap-1 flex-wrap">
-                    <ChannelBadge label="플랫폼" confirmed={sku.platformConfirmed ?? false} />
-                    <ChannelBadge label="브랜드" confirmed={sku.brandConfirmed ?? false} />
-                    <ChannelBadge label="글로벌" confirmed={sku.globalConfirmed ?? false} />
-                  </div>
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
+      {calendarState && (
+        <CalendarPopup
+          selectedDate={calendarState.selectedDate}
+          top={calendarState.top}
+          left={calendarState.left}
+          containerRef={calendarRef}
+          onSelect={handleDateSelect}
+        />
+      )}
+      <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto">
+        <table className="w-full text-[12px]">
+          <thead>
+            <tr className="bg-gray-50 border-b border-gray-200">
+              <th className="px-3 py-2.5 text-left font-semibold text-gray-600 whitespace-nowrap">카테고리</th>
+              <th className="px-3 py-2.5 text-left font-semibold text-gray-600 whitespace-nowrap">브랜드</th>
+              <th className="px-3 py-2.5 text-left font-semibold text-gray-600">SKU명</th>
+              <th className="px-3 py-2.5 text-left font-semibold text-gray-600 whitespace-nowrap">오픈일</th>
+              <th className="px-3 py-2.5 text-right font-semibold text-gray-600 whitespace-nowrap">총 발주량</th>
+              <th className="px-3 py-2.5 text-center font-semibold text-gray-600 whitespace-nowrap">프라이싱</th>
+              <th className="px-3 py-2.5 text-right font-semibold text-gray-600 whitespace-nowrap">
+                원가{canEdit && <span className="ml-1 text-[9px] font-normal text-indigo-400">편집</span>}
+              </th>
+              <th className="px-3 py-2.5 text-right font-semibold text-gray-600 whitespace-nowrap">
+                판매가{canEdit && <span className="ml-1 text-[9px] font-normal text-indigo-400">편집</span>}
+              </th>
+              <th className="px-3 py-2.5 text-right font-semibold text-gray-600 whitespace-nowrap">
+                정가{canEdit && <span className="ml-1 text-[9px] font-normal text-indigo-400">편집</span>}
+              </th>
+              <th className="px-3 py-2.5 text-right font-semibold text-gray-600 whitespace-nowrap">상시할인율</th>
+              <th className="px-3 py-2.5 text-right font-semibold text-gray-600 whitespace-nowrap">원가율</th>
+              <th className="px-3 py-2.5 text-left font-semibold text-gray-600 whitespace-nowrap">채널 목표량 확정</th>
+            </tr>
+          </thead>
+          <tbody>
+            {skus.map((sku, i) => {
+              const dr = discountRate(sku);
+              const cr = costRate(sku);
+              const formattedDate = formatReleaseDate(sku.releaseDate);
+              return (
+                <tr
+                  key={sku.id}
+                  className={`border-b border-gray-100 last:border-0 ${i % 2 === 1 ? 'bg-gray-50/50' : 'bg-white'} hover:bg-indigo-50/40 transition-colors`}
+                >
+                  {/* 카테고리 — 고정 컬러 배지 */}
+                  <td className="px-3 py-2 whitespace-nowrap">
+                    <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${catCls(sku.category)}`}>
+                      {sku.category}
+                    </span>
+                  </td>
+                  <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{sku.brand}</td>
+                  <td className="px-3 py-2 max-w-[180px]">
+                    <button
+                      onClick={() => navigateToSku(sku)}
+                      className="font-medium text-gray-800 truncate block w-full text-left hover:text-indigo-600 hover:underline underline-offset-2 transition-colors"
+                      title={sku.name || undefined}
+                    >
+                      {sku.name || <span className="text-gray-300">(미입력)</span>}
+                    </button>
+                  </td>
+                  {/* 오픈일 — M/D (요일) 형식, master/pm 클릭 시 캘린더 팝업 */}
+                  <td className="px-3 py-2 whitespace-nowrap">
+                    {canEditDate ? (
+                      <button
+                        onClick={(e) => openDateCalendar(sku, e)}
+                        className={`text-[12px] tabular-nums transition-colors hover:text-indigo-600 hover:underline underline-offset-2 decoration-dashed ${
+                          formattedDate ? 'text-gray-600' : 'text-gray-300'
+                        }`}
+                        title="클릭하여 날짜 변경"
+                      >
+                        {formattedDate ?? '날짜 설정'}
+                      </button>
+                    ) : (
+                      <span className="text-[12px] tabular-nums text-gray-500">
+                        {formattedDate ?? <span className="text-gray-300">–</span>}
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-3 py-2 text-right tabular-nums font-medium text-gray-800 whitespace-nowrap">
+                    {sku.totalOrderQty > 0 ? sku.totalOrderQty.toLocaleString() : <span className="text-gray-300">–</span>}
+                  </td>
+                  <td className="px-2 py-1.5 text-center">
+                    <button
+                      onClick={() => setPricingSkuId(sku.id)}
+                      className="px-2 py-1 text-[11px] font-medium rounded-md border border-indigo-200 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 hover:border-indigo-300 transition-colors whitespace-nowrap"
+                    >
+                      프라이싱
+                    </button>
+                  </td>
+                  <td className="px-2 py-1.5 text-right whitespace-nowrap">
+                    <ListPriceCell sku={sku} field="cost" editingCell={editingCell} canEdit={canEdit}
+                      onStartEdit={startEdit} onCommit={commitEdit} onCancel={cancelEdit}
+                      onUpdate={(v) => updateSku(sku.id, { cost: v })} />
+                  </td>
+                  <td className="px-2 py-1.5 text-right whitespace-nowrap">
+                    <ListPriceCell sku={sku} field="price" editingCell={editingCell} canEdit={canEdit}
+                      onStartEdit={startEdit} onCommit={commitEdit} onCancel={cancelEdit}
+                      onUpdate={(v) => updateSku(sku.id, { price: v })} />
+                  </td>
+                  <td className="px-2 py-1.5 text-right whitespace-nowrap">
+                    <ListPriceCell sku={sku} field="regularPrice" editingCell={editingCell} canEdit={canEdit}
+                      onStartEdit={startEdit} onCommit={commitEdit} onCancel={cancelEdit}
+                      onUpdate={(v) => updateSku(sku.id, { regularPrice: v })} />
+                  </td>
+                  <td className="px-3 py-2 text-right tabular-nums whitespace-nowrap">
+                    {dr !== null
+                      ? <span className={dr > 0 ? 'text-rose-600 font-medium' : 'text-gray-500'}>{dr}%</span>
+                      : <span className="text-gray-300">–</span>}
+                  </td>
+                  <td className="px-3 py-2 text-right tabular-nums text-gray-700 whitespace-nowrap">
+                    {cr !== null ? `${cr}%` : <span className="text-gray-300">–</span>}
+                  </td>
+                  <td className="px-3 py-2">
+                    <div className="flex gap-1 flex-wrap">
+                      <ChannelBadge label="플랫폼" confirmed={sku.platformConfirmed ?? false} />
+                      <ChannelBadge label="브랜드" confirmed={sku.brandConfirmed ?? false} />
+                      <ChannelBadge label="글로벌" confirmed={sku.globalConfirmed ?? false} />
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </>
   );
 }
@@ -585,7 +862,6 @@ function SkuGalleryCard({ sku, onClick }: { sku: SkuData; onClick: () => void })
       onClick={onClick}
       className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm hover:shadow-md hover:border-indigo-300 transition-all text-left group w-full"
     >
-      {/* 썸네일 */}
       <div className="aspect-square w-full bg-gray-100 overflow-hidden">
         {sku.imageUrl ? (
           <img
@@ -601,7 +877,6 @@ function SkuGalleryCard({ sku, onClick }: { sku: SkuData; onClick: () => void })
           </div>
         )}
       </div>
-      {/* 정보 */}
       <div className="p-2.5 space-y-0.5">
         <p className="text-xs font-semibold text-gray-800 truncate leading-tight">
           {sku.name || <span className="text-gray-300">(미입력)</span>}
@@ -614,5 +889,144 @@ function SkuGalleryCard({ sku, onClick }: { sku: SkuData; onClick: () => void })
         </p>
       </div>
     </button>
+  );
+}
+
+// ── 캘린더 팝업 ──────────────────────────────────────────────────────────────
+const WEEK_DAYS = ['일', '월', '화', '수', '목', '금', '토'];
+
+interface CalendarPopupProps {
+  selectedDate: string;
+  top: number;
+  left: number;
+  containerRef: React.RefObject<HTMLDivElement | null>;
+  onSelect: (dateStr: string) => void;
+}
+
+function CalendarPopup({ selectedDate, top, left, containerRef, onSelect }: CalendarPopupProps) {
+  const initDate = selectedDate ? new Date(selectedDate + 'T00:00:00') : new Date();
+  const [viewYear, setViewYear] = useState(initDate.getFullYear());
+  const [viewMonth, setViewMonth] = useState(initDate.getMonth());
+
+  function prevMonth() {
+    if (viewMonth === 0) { setViewYear((y) => y - 1); setViewMonth(11); }
+    else setViewMonth((m) => m - 1);
+  }
+  function nextMonth() {
+    if (viewMonth === 11) { setViewYear((y) => y + 1); setViewMonth(0); }
+    else setViewMonth((m) => m + 1);
+  }
+
+  const firstDayOfMonth = new Date(viewYear, viewMonth, 1).getDay();
+  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+  const cells: (number | null)[] = [
+    ...Array<null>(firstDayOfMonth).fill(null),
+    ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
+  ];
+  while (cells.length % 7 !== 0) cells.push(null);
+
+  const selYear = selectedDate ? parseInt(selectedDate.slice(0, 4)) : -1;
+  const selMonth = selectedDate ? parseInt(selectedDate.slice(5, 7)) - 1 : -1;
+  const selDay = selectedDate ? parseInt(selectedDate.slice(8, 10)) : -1;
+
+  const today = new Date();
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+  function handleDayClick(day: number) {
+    const mm = String(viewMonth + 1).padStart(2, '0');
+    const dd = String(day).padStart(2, '0');
+    onSelect(`${viewYear}-${mm}-${dd}`);
+  }
+
+  const CAL_W = 252;
+  const CAL_H = 300;
+  const adjLeft = Math.max(8, Math.min(left, window.innerWidth - CAL_W - 8));
+  const adjTop = top + CAL_H > window.innerHeight - 8 ? Math.max(8, top - CAL_H - 44) : top;
+
+  return (
+    <div
+      ref={containerRef}
+      style={{ position: 'fixed', top: adjTop, left: adjLeft, zIndex: 200, width: `${CAL_W}px` }}
+      className="bg-white border border-gray-200 rounded-2xl shadow-2xl p-3 select-none"
+    >
+      {/* 월 네비게이션 */}
+      <div className="flex items-center justify-between mb-2">
+        <button
+          onClick={prevMonth}
+          className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors text-gray-500"
+        >
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+          </svg>
+        </button>
+        <span className="text-[13px] font-semibold text-gray-700">
+          {viewYear}년 {viewMonth + 1}월
+        </span>
+        <button
+          onClick={nextMonth}
+          className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors text-gray-500"
+        >
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+          </svg>
+        </button>
+      </div>
+
+      {/* 요일 헤더 */}
+      <div className="grid grid-cols-7 mb-1">
+        {WEEK_DAYS.map((d, i) => (
+          <div
+            key={d}
+            className={`text-center text-[10px] font-semibold py-1 ${
+              i === 0 ? 'text-rose-400' : i === 6 ? 'text-blue-400' : 'text-gray-400'
+            }`}
+          >
+            {d}
+          </div>
+        ))}
+      </div>
+
+      {/* 날짜 그리드 */}
+      <div className="grid grid-cols-7 gap-y-0.5">
+        {cells.map((day, idx) => {
+          if (day === null) return <div key={`e-${idx}`} />;
+          const isSelected = day === selDay && viewMonth === selMonth && viewYear === selYear;
+          const thisDateStr = `${viewYear}-${String(viewMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+          const isToday = thisDateStr === todayStr;
+          const dow = idx % 7;
+          return (
+            <button
+              key={`d-${idx}`}
+              onClick={() => handleDayClick(day)}
+              className={`text-center text-[12px] py-1.5 rounded-lg transition-colors font-medium leading-none ${
+                isSelected
+                  ? 'bg-indigo-600 text-white'
+                  : isToday
+                  ? 'bg-indigo-50 text-indigo-600 ring-1 ring-indigo-300'
+                  : dow === 0
+                  ? 'text-rose-500 hover:bg-rose-50'
+                  : dow === 6
+                  ? 'text-blue-500 hover:bg-blue-50'
+                  : 'text-gray-700 hover:bg-gray-100'
+              }`}
+            >
+              {day}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* 날짜 초기화 */}
+      {selectedDate && (
+        <div className="mt-2 pt-2 border-t border-gray-100 text-center">
+          <button
+            onClick={() => onSelect('')}
+            className="text-[11px] text-gray-400 hover:text-rose-500 transition-colors"
+          >
+            날짜 초기화
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
