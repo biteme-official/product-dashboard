@@ -4,6 +4,7 @@ import { setPin, ALL_ROLES, type Role } from '../utils/pin';
 const ROLE_LABELS: Record<Role, string> = {
   master:      'MASTER',
   pm:          'PM',
+  marketing:   '마케팅',
   platform_md: '플랫폼MD',
   brand_md:    '브랜드MD',
   global:      '글로벌',
@@ -12,6 +13,7 @@ const ROLE_LABELS: Record<Role, string> = {
 const ROLE_COLORS: Record<Role, string> = {
   master:      'text-indigo-700 bg-indigo-50',
   pm:          'text-violet-700 bg-violet-50',
+  marketing:   'text-pink-700 bg-pink-50',
   platform_md: 'text-emerald-700 bg-emerald-50',
   brand_md:    'text-amber-700 bg-amber-50',
   global:      'text-sky-700 bg-sky-50',

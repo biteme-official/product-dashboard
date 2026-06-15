@@ -1,9 +1,9 @@
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { fsdb } from '../lib/firebase';
 
-export type Role = 'master' | 'pm' | 'platform_md' | 'brand_md' | 'global';
+export type Role = 'master' | 'pm' | 'marketing' | 'platform_md' | 'brand_md' | 'global';
 
-export const ALL_ROLES: readonly Role[] = ['master', 'pm', 'platform_md', 'brand_md', 'global'] as const;
+export const ALL_ROLES: readonly Role[] = ['master', 'pm', 'marketing', 'platform_md', 'brand_md', 'global'] as const;
 export const MD_ROLES: readonly Role[] = ['platform_md', 'brand_md', 'global'] as const;
 
 /** platform_md / brand_md / global 여부 확인 */

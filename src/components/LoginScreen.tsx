@@ -12,6 +12,7 @@ const ROLE_META: Record<Role, {
 }> = {
   master:      { label: 'MASTER',   desc: '모든 권한',     color: 'bg-indigo-600 text-white',  ring: 'ring-indigo-400',  badge: 'bg-indigo-100 text-indigo-700',  dot: 'bg-indigo-500' },
   pm:          { label: 'PM',       desc: 'SKU 편집',      color: 'bg-violet-600 text-white',  ring: 'ring-violet-400',  badge: 'bg-violet-100 text-violet-700',  dot: 'bg-violet-500' },
+  marketing:   { label: '마케팅',   desc: '뷰어',          color: 'bg-pink-500 text-white',    ring: 'ring-pink-400',    badge: 'bg-pink-100 text-pink-700',      dot: 'bg-pink-500' },
   platform_md: { label: '플랫폼MD', desc: '플랫폼 채널',   color: 'bg-emerald-600 text-white', ring: 'ring-emerald-400', badge: 'bg-emerald-100 text-emerald-700', dot: 'bg-emerald-500' },
   brand_md:    { label: '브랜드MD', desc: '브랜드·B2B',    color: 'bg-amber-500 text-white',   ring: 'ring-amber-400',   badge: 'bg-amber-100 text-amber-700',    dot: 'bg-amber-500' },
   global:      { label: '글로벌',   desc: '글로벌·일본',   color: 'bg-sky-600 text-white',     ring: 'ring-sky-400',     badge: 'bg-sky-100 text-sky-700',        dot: 'bg-sky-500' },
@@ -124,9 +125,9 @@ function SetupScreen({ onDone }: { onDone: () => void }) {
 
         {/* 스텝 인디케이터 */}
         <div className="space-y-2">
-          {/* 상단 2개 (master, pm) */}
+          {/* 상단 3개 (master, pm, marketing) */}
           <div className="flex gap-2 justify-center">
-            {ALL_ROLES.slice(0, 2).map((r, i) => {
+            {ALL_ROLES.slice(0, 3).map((r, i) => {
               const done = i < step;
               const current = i === step;
               const m = ROLE_META[r];
@@ -146,8 +147,8 @@ function SetupScreen({ onDone }: { onDone: () => void }) {
           </div>
           {/* 하단 3개 (platform_md, brand_md, global) */}
           <div className="flex gap-2 justify-center">
-            {ALL_ROLES.slice(2).map((r, idx) => {
-              const i = idx + 2;
+            {ALL_ROLES.slice(3).map((r, idx) => {
+              const i = idx + 3;
               const done = i < step;
               const current = i === step;
               const m = ROLE_META[r];
@@ -240,7 +241,7 @@ export function LoginScreen() {
     setError('');
   }
 
-  const topRoles: Role[] = ['master', 'pm'];
+  const topRoles: Role[] = ['master', 'pm', 'marketing'];
   const mdRoles: Role[] = ['platform_md', 'brand_md', 'global'];
 
   return (
@@ -260,8 +261,8 @@ export function LoginScreen() {
 
         {/* 역할 선택 */}
         <div className="space-y-2">
-          {/* MASTER / PM */}
-          <div className="grid grid-cols-2 gap-2">
+          {/* MASTER / PM / 마케팅 */}
+          <div className="grid grid-cols-3 gap-2">
             {topRoles.map((role) => {
               const m = ROLE_META[role];
               const isSelected = selectedRole === role;
