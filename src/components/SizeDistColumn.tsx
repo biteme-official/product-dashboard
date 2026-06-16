@@ -778,26 +778,27 @@ function FinalOrderTable({ sku, sumRatios }: { sku: SkuData; sumRatios: number }
   }
 
   async function handleConfirm() {
-    // 확정 시 현재 표시값을 스냅샷으로 저장 (편집 여부와 무관하게 항상 고정)
-    const snapshot: Record<string, number> = {};
-    if (hasColors && hasSizes) {
-      activeColors.forEach((c) => activeSizes.forEach((s) => {
-        const key = csKey(c.id, s.label);
-        snapshot[key] = isEditing ? (draftQtys[key] ?? dispCS(c.id, c.quantity, s.label, s.ratio)) : dispCS(c.id, c.quantity, s.label, s.ratio);
-      }));
-    } else if (hasColors) {
-      activeColors.forEach((c) => {
-        const key = cKey(c.id);
-        snapshot[key] = isEditing ? (draftQtys[key] ?? dispC(c.id, c.quantity)) : dispC(c.id, c.quantity);
-      });
+    if (isEditing) {
+      // 수기 편집 후 확정: draft 값 저장
+      updateFinalOrderQty(sku.id, { ...draftQtys, __confirmedStep2Total__: step2Total });
+      setIsEditing(false);
+    } else if (!isFinalManual) {
+      // 기존 breakdown 없음: 현재 표시값 스냅샷으로 고정
+      const snapshot: Record<string, number> = {};
+      if (hasColors && hasSizes) {
+        activeColors.forEach((c) => activeSizes.forEach((s) => {
+          snapshot[csKey(c.id, s.label)] = dispCS(c.id, c.quantity, s.label, s.ratio);
+        }));
+      } else if (hasColors) {
+        activeColors.forEach((c) => { snapshot[cKey(c.id)] = dispC(c.id, c.quantity); });
+      } else {
+        activeSizes.forEach((s) => { snapshot[sKey(s.label)] = dispS(s.label, s.ratio); });
+      }
+      updateFinalOrderQty(sku.id, { ...snapshot, __confirmedStep2Total__: step2Total });
     } else {
-      activeSizes.forEach((s) => {
-        const key = sKey(s.label);
-        snapshot[key] = isEditing ? (draftQtys[key] ?? dispS(s.label, s.ratio)) : dispS(s.label, s.ratio);
-      });
+      // 기존 수기 breakdown 보존, __confirmedStep2Total__만 갱신
+      updateFinalOrderQty(sku.id, { ...(liveFinalOrderQty ?? {}), __confirmedStep2Total__: step2Total });
     }
-    updateFinalOrderQty(sku.id, { ...snapshot, __confirmedStep2Total__: step2Total });
-    setIsEditing(false);
     await setFinalOrderConfirmed(sku.id, true);
   }
 
