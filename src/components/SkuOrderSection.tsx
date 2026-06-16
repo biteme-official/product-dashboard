@@ -832,7 +832,7 @@ function SkuListTable({ skus, onSwitchToSkuList }: { skus: SkuData[]; onSwitchTo
                     <span className="inline-flex items-center gap-1.5 justify-end">
                       {sku.totalOrderQty > 0 ? sku.totalOrderQty.toLocaleString() : <span className="text-gray-300">–</span>}
                       {sku.finalOrderConfirmedAt && (
-                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-500 text-white whitespace-nowrap">PM확정</span>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-pink-300 text-white whitespace-nowrap">PM확정</span>
                       )}
                     </span>
                   </td>
