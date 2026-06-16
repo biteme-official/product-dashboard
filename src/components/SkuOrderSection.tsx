@@ -326,183 +326,194 @@ export function SkuOrderSection() {
         </div>
       </div>
 
-      {/* ── LIST VIEW 필터 바 ── */}
-      {isListView && (
-        <div className="bg-white border border-gray-200 rounded-xl px-3 py-2.5">
-          <div className="flex items-center gap-x-2 gap-y-1.5 flex-wrap">
-            {/* 카테고리 */}
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <span className="text-[11px] text-gray-400 font-semibold shrink-0 w-14">카테고리</span>
-              {availableCategories.map((cat) => (
-                <button
-                  key={cat}
-                  onClick={() => setListCatFilter(toggleFilterItem(listCatFilter, cat))}
-                  className={`px-2.5 py-0.5 rounded-full text-[11px] font-medium border transition-colors ${
-                    listCatFilter.has(cat)
-                      ? catCls(cat) + ' border-transparent'
-                      : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'
-                  }`}
-                >
-                  {cat}
-                </button>
-              ))}
-            </div>
-
-            <div className="w-px h-4 bg-gray-200 shrink-0" />
-
-            {/* 브랜드 */}
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <span className="text-[11px] text-gray-400 font-semibold shrink-0 w-[30px]">브랜드</span>
-              {availableBrands.map((brand) => (
-                <button
-                  key={brand}
-                  onClick={() => setListBrandFilter(toggleFilterItem(listBrandFilter, brand))}
-                  className={`px-2.5 py-0.5 rounded-full text-[11px] font-medium border transition-colors ${
-                    listBrandFilter.has(brand)
-                      ? 'bg-gray-700 text-white border-gray-700'
-                      : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'
-                  }`}
-                >
-                  {brand}
-                </button>
-              ))}
-            </div>
-
-            {/* 우측: 필터 초기화 + 오픈월 드롭다운 + SKU 검색 */}
-            <div className="ml-auto flex items-center gap-2 shrink-0">
-              {hasListFilter && (
-                <button
-                  onClick={() => {
-                    setListCatFilter(new Set());
-                    setListBrandFilter(new Set());
-                    setListMonthFilter(new Set());
-                  }}
-                  className="text-[11px] text-gray-400 hover:text-rose-500 transition-colors whitespace-nowrap"
-                >
-                  초기화
-                </button>
-              )}
-
-              {/* 오픈월 드롭다운 */}
-              {availableMonths.length > 0 && (
-                <div className="relative" ref={monthDropdownRef}>
+      {isListView ? (
+        /* ── LIST VIEW: 필터바 + 테이블을 하나의 고정 높이 컨테이너로 묶어 스크롤 처리 ── */
+        <div className="flex flex-col gap-2" style={{ height: 'calc(100vh - 185px)' }}>
+          {/* 필터 바 (고정) */}
+          <div className="flex-shrink-0 bg-white border border-gray-200 rounded-xl px-3 py-2.5">
+            <div className="flex items-center gap-x-2 gap-y-1.5 flex-wrap">
+              {/* 카테고리 */}
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-[11px] text-gray-400 font-semibold shrink-0 w-14">카테고리</span>
+                {availableCategories.map((cat) => (
                   <button
-                    onClick={() => setMonthDropdownOpen((o) => !o)}
-                    className={`flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-lg border transition-colors ${
-                      listMonthFilter.size > 0
-                        ? 'bg-indigo-50 border-indigo-300 text-indigo-700 font-medium'
-                        : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300'
+                    key={cat}
+                    onClick={() => setListCatFilter(toggleFilterItem(listCatFilter, cat))}
+                    className={`px-2.5 py-0.5 rounded-full text-[11px] font-medium border transition-colors ${
+                      listCatFilter.has(cat)
+                        ? catCls(cat) + ' border-transparent'
+                        : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'
                     }`}
                   >
-                    오픈월
-                    {listMonthFilter.size > 0 && (
-                      <span className="px-1.5 py-0.5 rounded-full bg-indigo-600 text-white text-[9px] font-bold leading-none">
-                        {listMonthFilter.size}
-                      </span>
-                    )}
-                    <svg
-                      className={`w-3 h-3 transition-transform ${monthDropdownOpen ? 'rotate-180' : ''}`}
-                      fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                    </svg>
+                    {cat}
                   </button>
+                ))}
+              </div>
 
-                  {monthDropdownOpen && (
-                    <div className="absolute right-0 top-full mt-1.5 min-w-[140px] bg-white border border-gray-200 rounded-xl shadow-lg z-50 overflow-hidden">
-                      <div className="px-2 py-1.5 border-b border-gray-100 flex items-center justify-between">
-                        <span className="text-[11px] font-semibold text-gray-500">오픈월 선택</span>
-                        {listMonthFilter.size > 0 && (
-                          <button
-                            onClick={() => setListMonthFilter(new Set())}
-                            className="text-[10px] text-gray-400 hover:text-rose-500 transition-colors"
-                          >
-                            초기화
-                          </button>
-                        )}
-                      </div>
-                      <div className="py-1">
-                        {availableMonths.map((ym) => (
-                          <label
-                            key={ym}
-                            className="flex items-center gap-2 px-3 py-1.5 cursor-pointer hover:bg-gray-50 transition-colors"
-                          >
-                            <input
-                              type="checkbox"
-                              checked={listMonthFilter.has(ym)}
-                              onChange={() => setListMonthFilter(toggleFilterItem(listMonthFilter, ym))}
-                              className="w-3.5 h-3.5 accent-indigo-600 shrink-0"
-                            />
-                            <span className={`text-[12px] ${listMonthFilter.has(ym) ? 'text-indigo-700 font-medium' : 'text-gray-600'}`}>
-                              {formatYearMonth(ym)}
-                            </span>
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
+              <div className="w-px h-4 bg-gray-200 shrink-0" />
 
-              <SearchInput value={searchQuery} onChange={setSearchQuery} />
+              {/* 브랜드 */}
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-[11px] text-gray-400 font-semibold shrink-0 w-[30px]">브랜드</span>
+                {availableBrands.map((brand) => (
+                  <button
+                    key={brand}
+                    onClick={() => setListBrandFilter(toggleFilterItem(listBrandFilter, brand))}
+                    className={`px-2.5 py-0.5 rounded-full text-[11px] font-medium border transition-colors ${
+                      listBrandFilter.has(brand)
+                        ? 'bg-gray-700 text-white border-gray-700'
+                        : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    {brand}
+                  </button>
+                ))}
+              </div>
+
+              {/* 우측: 필터 초기화 + 오픈월 드롭다운 + SKU 검색 */}
+              <div className="ml-auto flex items-center gap-2 shrink-0">
+                {hasListFilter && (
+                  <button
+                    onClick={() => {
+                      setListCatFilter(new Set());
+                      setListBrandFilter(new Set());
+                      setListMonthFilter(new Set());
+                    }}
+                    className="text-[11px] text-gray-400 hover:text-rose-500 transition-colors whitespace-nowrap"
+                  >
+                    초기화
+                  </button>
+                )}
+
+                {/* 오픈월 드롭다운 */}
+                {availableMonths.length > 0 && (
+                  <div className="relative" ref={monthDropdownRef}>
+                    <button
+                      onClick={() => setMonthDropdownOpen((o) => !o)}
+                      className={`flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-lg border transition-colors ${
+                        listMonthFilter.size > 0
+                          ? 'bg-indigo-50 border-indigo-300 text-indigo-700 font-medium'
+                          : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300'
+                      }`}
+                    >
+                      오픈월
+                      {listMonthFilter.size > 0 && (
+                        <span className="px-1.5 py-0.5 rounded-full bg-indigo-600 text-white text-[9px] font-bold leading-none">
+                          {listMonthFilter.size}
+                        </span>
+                      )}
+                      <svg
+                        className={`w-3 h-3 transition-transform ${monthDropdownOpen ? 'rotate-180' : ''}`}
+                        fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+
+                    {monthDropdownOpen && (
+                      <div className="absolute right-0 top-full mt-1.5 min-w-[140px] bg-white border border-gray-200 rounded-xl shadow-lg z-50 overflow-hidden">
+                        <div className="px-2 py-1.5 border-b border-gray-100 flex items-center justify-between">
+                          <span className="text-[11px] font-semibold text-gray-500">오픈월 선택</span>
+                          {listMonthFilter.size > 0 && (
+                            <button
+                              onClick={() => setListMonthFilter(new Set())}
+                              className="text-[10px] text-gray-400 hover:text-rose-500 transition-colors"
+                            >
+                              초기화
+                            </button>
+                          )}
+                        </div>
+                        <div className="py-1">
+                          {availableMonths.map((ym) => (
+                            <label
+                              key={ym}
+                              className="flex items-center gap-2 px-3 py-1.5 cursor-pointer hover:bg-gray-50 transition-colors"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={listMonthFilter.has(ym)}
+                                onChange={() => setListMonthFilter(toggleFilterItem(listMonthFilter, ym))}
+                                className="w-3.5 h-3.5 accent-indigo-600 shrink-0"
+                              />
+                              <span className={`text-[12px] ${listMonthFilter.has(ym) ? 'text-indigo-700 font-medium' : 'text-gray-600'}`}>
+                                {formatYearMonth(ym)}
+                              </span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <SearchInput value={searchQuery} onChange={setSearchQuery} />
+              </div>
             </div>
           </div>
-        </div>
-      )}
 
-      {/* 본문 */}
-      {!isListView && filteredSkus.length === 0 ? (
-        <div className="border-2 border-dashed border-gray-200 rounded-xl p-12 text-center">
-          <p className="text-gray-400 text-sm mb-3">
-            [{activeCategory}] 카테고리에 등록된 SKU가 없습니다.
-          </p>
-          {canEdit && (
-            <button onClick={addSku} className="px-4 py-2 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 transition-colors">
-              + 첫 SKU 추가
-            </button>
+          {/* 테이블 영역 (스크롤) */}
+          {displaySkus.length === 0 ? (
+            <div className="border border-gray-200 rounded-xl p-8 text-center text-gray-400 text-sm">
+              {searchQuery || hasListFilter ? '조건에 일치하는 SKU가 없습니다.' : '등록된 SKU가 없습니다.'}
+            </div>
+          ) : (
+            <div className="flex-1 min-h-0">
+              <SkuListTable skus={displaySkus} />
+            </div>
           )}
         </div>
       ) : (
+        /* ── CARD / GALLERY VIEW ── */
         <>
-          {displaySkus.length === 0 ? (
-            <div className="border border-gray-200 rounded-xl p-8 text-center text-gray-400 text-sm">
-              {searchQuery || hasListFilter
-                ? '조건에 일치하는 SKU가 없습니다.'
-                : '등록된 SKU가 없습니다.'}
-            </div>
-          ) : isListView ? (
-            /* ── LIST VIEW 테이블 ── */
-            <SkuListTable skus={displaySkus} />
-          ) : viewMode === 'gallery' ? (
-            /* ── 갤러리 뷰 ── */
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-              {displaySkus.map((sku) => (
-                <SkuGalleryCard key={sku.id} sku={sku} onClick={() => setGallerySkuId(sku.id)} />
-              ))}
+          {filteredSkus.length === 0 ? (
+            <div className="border-2 border-dashed border-gray-200 rounded-xl p-12 text-center">
+              <p className="text-gray-400 text-sm mb-3">
+                [{activeCategory}] 카테고리에 등록된 SKU가 없습니다.
+              </p>
+              {canEdit && (
+                <button onClick={addSku} className="px-4 py-2 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 transition-colors">
+                  + 첫 SKU 추가
+                </button>
+              )}
             </div>
           ) : (
-            /* ── 목록 뷰 ── */
-            <div className="space-y-2">
-              {displaySkus.map((sku) => (
-                <div key={sku.id} id={`sku-card-${sku.id}`}>
-                  <SkuCard sku={searchQuery.trim() ? { ...sku, isExpanded: true } : sku} />
+            <>
+              {displaySkus.length === 0 ? (
+                <div className="border border-gray-200 rounded-xl p-8 text-center text-gray-400 text-sm">
+                  {searchQuery ? '조건에 일치하는 SKU가 없습니다.' : '등록된 SKU가 없습니다.'}
                 </div>
-              ))}
-            </div>
-          )}
+              ) : viewMode === 'gallery' ? (
+                /* ── 갤러리 뷰 ── */
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                  {displaySkus.map((sku) => (
+                    <SkuGalleryCard key={sku.id} sku={sku} onClick={() => setGallerySkuId(sku.id)} />
+                  ))}
+                </div>
+              ) : (
+                /* ── 목록 뷰 ── */
+                <div className="space-y-2">
+                  {displaySkus.map((sku) => (
+                    <div key={sku.id} id={`sku-card-${sku.id}`}>
+                      <SkuCard sku={searchQuery.trim() ? { ...sku, isExpanded: true } : sku} />
+                    </div>
+                  ))}
+                </div>
+              )}
 
-          {!isListView && canEdit && (
-            <button
-              onClick={addSku}
-              disabled={isAtMax}
-              className={`w-full py-2.5 rounded-xl border-2 border-dashed text-sm font-medium transition-colors ${
-                isAtMax
-                  ? 'border-gray-200 text-gray-300 cursor-not-allowed'
-                  : 'border-indigo-300 text-indigo-600 hover:border-indigo-400 hover:bg-indigo-50'
-              }`}
-            >
-              {isAtMax ? '최대 15개 도달' : '+ SKU 추가'}
-            </button>
+              {canEdit && (
+                <button
+                  onClick={addSku}
+                  disabled={isAtMax}
+                  className={`w-full py-2.5 rounded-xl border-2 border-dashed text-sm font-medium transition-colors ${
+                    isAtMax
+                      ? 'border-gray-200 text-gray-300 cursor-not-allowed'
+                      : 'border-indigo-300 text-indigo-600 hover:border-indigo-400 hover:bg-indigo-50'
+                  }`}
+                >
+                  {isAtMax ? '최대 15개 도달' : '+ SKU 추가'}
+                </button>
+              )}
+            </>
           )}
         </>
       )}
@@ -696,10 +707,10 @@ function SkuListTable({ skus }: { skus: SkuData[] }) {
           onSelect={handleDateSelect}
         />
       )}
-      <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto">
+      <div className="bg-white border border-gray-200 rounded-xl overflow-auto h-full">
         <table className="w-full text-[12px]">
-          <thead>
-            <tr className="bg-gray-50 border-b border-gray-200">
+          <thead className="sticky top-0 z-10 bg-gray-50">
+            <tr className="border-b border-gray-200">
               <th className="px-3 py-2.5 text-left font-semibold text-gray-600 whitespace-nowrap">카테고리</th>
               <th className="px-3 py-2.5 text-left font-semibold text-gray-600 whitespace-nowrap">브랜드</th>
               <th className="px-3 py-2.5 text-left font-semibold text-gray-600">SKU명</th>
@@ -879,7 +890,7 @@ function ListPriceCell({ sku, field, editingCell, canEdit, onStartEdit, onCommit
         canEdit ? 'cursor-pointer hover:text-indigo-600 hover:underline decoration-dashed underline-offset-2' : ''
       } ${value === 0 ? 'text-gray-300' : 'text-gray-700'}`}
     >
-      {value === 0 ? '–' : `₩${value.toLocaleString()}`}
+      {value === 0 ? '–' : value.toLocaleString()}
     </span>
   );
 }
