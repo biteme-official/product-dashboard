@@ -46,12 +46,6 @@ const CHANNEL_CONFIRM_GROUP: Partial<Record<string, { field: 'platformConfirmed'
   '글로벌': { field: 'globalConfirmed',   label: '글로벌' },
 };
 
-/** 해당 채널이 속한 그룹이 확정됐는지 */
-function isChannelLocked(sku: SkuData, channel: string): boolean {
-  const group = CHANNEL_CONFIRM_GROUP[channel];
-  return !!(group && sku[group.field]);
-}
-
 /** 확정된 그룹 레이블 목록 반환 (빈 배열이면 모두 미확정) */
 function lockedGroupLabels(sku: SkuData, channels: readonly string[]): string[] {
   return [...new Set(
@@ -1562,6 +1556,20 @@ function PricingChannelTable({
   const [channelBulkOpt, setChannelBulkOpt] = useState<Partial<Record<Channel, string>>>({});
   const { usdKrw, jpyKrw, isLive } = useExchangeRates();;
 
+  // prop 드릴링 대신 스토어에서 확정 상태를 직접 구독 — 버튼 클릭 즉시 인풋이 비활성화됨
+  const liveConfirmKey = useStore((s) => {
+    const found = s.skus.find((sk) => sk.id === sku.id);
+    return `${found?.platformConfirmed ?? false}|${found?.brandConfirmed ?? false}|${found?.globalConfirmed ?? false}`;
+  });
+  const [livePlatform, liveBrand, liveGlobal] = liveConfirmKey.split('|').map((v) => v === 'true');
+  const isChannelLockedLive = (channel: string): boolean => {
+    const group = CHANNEL_CONFIRM_GROUP[channel];
+    if (!group) return false;
+    if (group.field === 'platformConfirmed') return livePlatform;
+    if (group.field === 'brandConfirmed') return liveBrand;
+    return liveGlobal;
+  };
+
   const toggleChannel = (channel: Channel) => {
     setExpandedChannels((prev) => {
       const next = new Set(prev);
@@ -1884,10 +1892,10 @@ function PricingChannelTable({
                                           onChange={(val) => updateChannelMonthQty(sku.id, channel, m, val)}
                                           onBlur={() => persistSku(sku.id)}
                                           onFocus={() => onBeforeEdit?.()}
-                                          disabled={readOnly || (DISABLED_CHANNELS as readonly string[]).includes(channel) || isChannelLocked(sku, channel)}
+                                          disabled={readOnly || (DISABLED_CHANNELS as readonly string[]).includes(channel) || isChannelLockedLive(channel)}
                                           placeholder="0"
                                           className={`text-right rounded-md px-1 py-1 text-[11px] border focus:outline-none focus:ring-1 focus:ring-gray-400 ${
-                                            readOnly || (DISABLED_CHANNELS as readonly string[]).includes(channel) || isChannelLocked(sku, channel) ? 'bg-gray-50 text-gray-400 cursor-not-allowed border-gray-200' : 'bg-white text-gray-700 border-gray-200 hover:border-gray-400'
+                                            readOnly || (DISABLED_CHANNELS as readonly string[]).includes(channel) || isChannelLockedLive(channel) ? 'bg-gray-50 text-gray-400 cursor-not-allowed border-gray-200' : 'bg-white text-gray-700 border-gray-200 hover:border-gray-400'
                                           }`}
                                           style={{ width: '52px' }}
                                         />
