@@ -706,7 +706,7 @@ function formatConfirmedAt(iso: string): string {
 }
 
 function FinalOrderTable({ sku, sumRatios }: { sku: SkuData; sumRatios: number }) {
-  const { updateFinalOrderQty, setFinalOrderConfirmed } = useStore();
+  const { setFinalOrderConfirmed } = useStore();
   const { role } = useAuth();
   const canEdit = role === 'master' || role === 'pm';
 
@@ -778,9 +778,10 @@ function FinalOrderTable({ sku, sumRatios }: { sku: SkuData; sumRatios: number }
   }
 
   async function handleConfirm() {
+    let newFinalOrderQty: Record<string, number>;
     if (isEditing) {
       // 수기 편집 후 확정: draft 값 저장
-      updateFinalOrderQty(sku.id, { ...draftQtys, __confirmedStep2Total__: step2Total });
+      newFinalOrderQty = { ...draftQtys, __confirmedStep2Total__: step2Total };
       setIsEditing(false);
     } else if (!isFinalManual) {
       // 기존 breakdown 없음: 현재 표시값 스냅샷으로 고정
@@ -794,12 +795,14 @@ function FinalOrderTable({ sku, sumRatios }: { sku: SkuData; sumRatios: number }
       } else {
         activeSizes.forEach((s) => { snapshot[sKey(s.label)] = dispS(s.label, s.ratio); });
       }
-      updateFinalOrderQty(sku.id, { ...snapshot, __confirmedStep2Total__: step2Total });
+      newFinalOrderQty = { ...snapshot, __confirmedStep2Total__: step2Total };
     } else {
       // 기존 수기 breakdown 보존, __confirmedStep2Total__만 갱신
-      updateFinalOrderQty(sku.id, { ...(liveFinalOrderQty ?? {}), __confirmedStep2Total__: step2Total });
+      newFinalOrderQty = { ...(liveFinalOrderQty ?? {}), __confirmedStep2Total__: step2Total };
     }
-    await setFinalOrderConfirmed(sku.id, true);
+    // finalOrderQty를 setFinalOrderConfirmed에 직접 전달 → 단일 Firestore write로 원자적 저장
+    // (updateFinalOrderQty separate call을 제거해 두 write 사이 race condition 방지)
+    await setFinalOrderConfirmed(sku.id, true, newFinalOrderQty);
   }
 
   async function handleCancelConfirm() {

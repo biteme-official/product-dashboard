@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { v4 as uuidv4 } from 'uuid';
 import {
-  collection, doc, setDoc, deleteDoc, onSnapshot, writeBatch, getDocs,
+  collection, doc, setDoc, getDoc, deleteDoc, onSnapshot, writeBatch, getDocs,
   addDoc, serverTimestamp,
 } from 'firebase/firestore';
 import { fsdb } from '../lib/firebase';
@@ -11,17 +11,38 @@ import { recalcQuantities, revenueMultiplier, calcDynamicMultiplier } from '../u
 
 const SKUS_COL = 'skus';
 
-// Firestore에 저장할 때 isExpanded는 제외 (UI 전용 상태)
-type FirestoreSkuData = Omit<SkuData, 'isExpanded'>;
+// 세션 내 확정 캐시: onSnapshot race & persistSku 덮어쓰기로부터 finalOrderConfirmedAt을 복구
+// null = 사용자가 명시적으로 취소, { ... } = 확정 완료, undefined = 모름(캐시 없음)
+const confirmCache = new Map<string, { confirmedAt: string; qty: Record<string, number> } | null>();
 
-function toFirestore(sku: SkuData): FirestoreSkuData {
+// Firestore는 __ 로 시작하고 끝나는 필드명을 금지함
+// → finalOrderQty.__confirmedStep2Total__ / step2OptionQty.__total__ 를 최상위 필드로 분리
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function toFirestore(sku: SkuData): Record<string, any> {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { isExpanded: _, ...data } = sku;
-  // _initialSnapshot에서 imageUrl을 제거해 문서 크기 절감 +
-  // 로드 시 applyMigration에서 본 데이터의 imageUrl을 동기화하므로 여기선 불필요
+  const { isExpanded: _, finalOrderQty, step2OptionQty, ...data } = sku;
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { imageUrl: _img, ...snapshotWithoutImage } = (data._initialSnapshot ?? {}) as SkuData;
-  return { ...data, _initialSnapshot: snapshotWithoutImage as SkuData['_initialSnapshot'] };
+
+  const result: Record<string, unknown> = { ...data, _initialSnapshot: snapshotWithoutImage };
+
+  // finalOrderQty: __confirmedStep2Total__ 분리 → finalOrderStep2Total 최상위 필드
+  if (finalOrderQty !== undefined) {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { __confirmedStep2Total__: step2Total, ...qtyClean } = finalOrderQty as Record<string, number>;
+    result.finalOrderQty = qtyClean;
+    if (step2Total !== undefined) result.finalOrderStep2Total = step2Total;
+  }
+
+  // step2OptionQty: __total__ 분리 → step2OptionTotal 최상위 필드
+  if (step2OptionQty !== undefined) {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { __total__: optTotal, ...optQtyClean } = step2OptionQty as Record<string, number>;
+    result.step2OptionQty = optQtyClean;
+    if (optTotal !== undefined) result.step2OptionTotal = optTotal;
+  }
+
+  return result;
 }
 
 function buildEmptySku(category: Category): SkuData {
@@ -168,6 +189,15 @@ function applyMigration(raw: any): SkuData {
     isExpanded: false,
     isConfirmed: raw.isConfirmed ?? false,
     finalOrderConfirmedAt: raw.finalOrderConfirmedAt ?? null,
+    // toFirestore에서 분리 저장한 메타 키 복원
+    // finalOrderStep2Total → finalOrderQty.__confirmedStep2Total__
+    ...(raw.finalOrderQty !== undefined && raw.finalOrderStep2Total !== undefined
+      ? { finalOrderQty: { ...raw.finalOrderQty, __confirmedStep2Total__: raw.finalOrderStep2Total } }
+      : {}),
+    // step2OptionTotal → step2OptionQty.__total__
+    ...(raw.step2OptionQty !== undefined && raw.step2OptionTotal !== undefined
+      ? { step2OptionQty: { ...raw.step2OptionQty, __total__: raw.step2OptionTotal } }
+      : {}),
     platformConfirmed: raw.platformConfirmed ?? false,
     brandConfirmed: raw.brandConfirmed ?? false,
     globalConfirmed: raw.globalConfirmed ?? false,
@@ -259,7 +289,7 @@ interface StoreActions {
   updateMarketingMonthQty: (id: string, month: Month, qty: number) => void;
   updateStep2OptionQty: (id: string, qty: Record<string, number>) => void;
   updateFinalOrderQty: (id: string, qty: Record<string, number>) => void;
-  setFinalOrderConfirmed: (id: string, confirmed: boolean) => Promise<void>;
+  setFinalOrderConfirmed: (id: string, confirmed: boolean, finalOrderQty?: Record<string, number>) => Promise<void>;
   persistSku: (id: string) => Promise<void>;
   setSkuConfirmed: (id: string, confirmed: boolean, role: string) => Promise<void>;
   setChannelConfirmed: (id: string, field: 'platformConfirmed' | 'brandConfirmed' | 'globalConfirmed', value: boolean) => Promise<void>;
@@ -301,7 +331,8 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
   loadSkus: () => {
     const q = collection(fsdb, SKUS_COL);
     const unsub = onSnapshot(q, (snapshot) => {
-      const expandedMap = new Map(get().skus.map((s) => [s.id, s.isExpanded]));
+      const currentSkus = get().skus;
+      const expandedMap = new Map(currentSkus.map((s) => [s.id, s.isExpanded]));
       const raw: any[] = snapshot.docs.map((d) => ({ ...d.data(), id: d.id }));
       const processed = raw
         .map(applyMigration)
@@ -316,9 +347,23 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
           if (!b.releaseDate) return -1;
           return a.releaseDate.localeCompare(b.releaseDate);
         });
-      set({ skus: processed });
+      // confirmCache에 확정 기록이 있는데 Firestore snapshot이 그걸 모르면 복원
+      // (race condition & persistSku 덮어쓰기 양쪽 방어)
+      const merged = processed.map((s) => {
+        const cached = confirmCache.get(s.id);
+        if (cached !== undefined && cached !== null && !s.finalOrderConfirmedAt) {
+          console.warn('[onSnapshot] confirmCache로 복원', { id: s.id, cachedAt: cached.confirmedAt });
+          return { ...s, finalOrderConfirmedAt: cached.confirmedAt, finalOrderQty: cached.qty };
+        }
+        if (s.finalOrderConfirmedAt) {
+          console.log('[onSnapshot] 확정 상태 수신', { id: s.id, finalOrderConfirmedAt: s.finalOrderConfirmedAt });
+        }
+        return s;
+      });
+      set({ skus: merged });
       // 비활성 채널에 잔존하는 qty > 0 이면 Firestore에도 0으로 저장 (1회성 마이그레이션)
-      const toMigrate = processed.filter((s) =>
+      // merged를 사용해 보존된 finalOrderConfirmedAt을 같이 write
+      const toMigrate = merged.filter((s) =>
         (raw.find((r: any) => r.id === s.id)?.channelMonthQty ?? []).some(
           (e: any) => (DISABLED_CHANNELS as readonly string[]).includes(e.channel) && e.qty > 0,
         ),
@@ -611,24 +656,50 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
     set({ skus: get().skus.map((s) => (s.id === id ? { ...s, finalOrderQty: qty } : s)) });
   },
 
-  setFinalOrderConfirmed: async (id, confirmed) => {
+  setFinalOrderConfirmed: async (id, confirmed, finalOrderQty?: Record<string, number>) => {
     const sku = get().skus.find((s) => s.id === id);
     if (!sku) return;
     const ts = confirmed ? new Date().toISOString() : null;
-    const updated = { ...sku, finalOrderConfirmedAt: ts };
+    const updated = {
+      ...sku,
+      finalOrderConfirmedAt: ts,
+      ...(finalOrderQty !== undefined ? { finalOrderQty } : {}),
+    };
+    // 세션 캐시 등록 — confirmed=false이면 null(명시적 취소)으로 기록
+    if (confirmed) {
+      confirmCache.set(id, { confirmedAt: ts!, qty: finalOrderQty ?? sku.finalOrderQty ?? {} });
+    } else {
+      confirmCache.set(id, null);
+    }
     set({ skus: get().skus.map((s) => (s.id === id ? updated : s)) });
-    await setDoc(doc(fsdb, SKUS_COL, id), toFirestore(updated));
+    const firestorePayload = toFirestore(updated);
+    console.log('[확정] Firestore write 시작', { id, finalOrderConfirmedAt: firestorePayload.finalOrderConfirmedAt, hasQty: !!firestorePayload.finalOrderQty });
+    await setDoc(doc(fsdb, SKUS_COL, id), firestorePayload);
+    // write 완료 후 실제 Firestore 상태 검증
+    const verify = await getDoc(doc(fsdb, SKUS_COL, id));
+    console.log('[확정] Firestore 검증', { finalOrderConfirmedAt: verify.data()?.finalOrderConfirmedAt, hasQty: !!verify.data()?.finalOrderQty });
+    // setDoc 완료 후 재적용: write 중 onSnapshot race로 임시 삭제된 경우 복원
+    const patch: Partial<SkuData> = {
+      finalOrderConfirmedAt: ts,
+      ...(finalOrderQty !== undefined ? { finalOrderQty } : {}),
+    };
+    set({ skus: get().skus.map((s) => (s.id === id ? { ...s, ...patch } : s)) });
   },
 
   persistSku: async (id) => {
     const sku = get().skus.find((s) => s.id === id);
-    if (sku) {
-      try {
-        await setDoc(doc(fsdb, SKUS_COL, id), toFirestore(sku));
-      } catch (err) {
-        console.error('[persistSku] Firestore 저장 실패:', id, err);
-        throw err; // 호출부에서 catch할 수 있도록 re-throw
-      }
+    if (!sku) return;
+    // finalOrderConfirmedAt / finalOrderQty는 setFinalOrderConfirmed만 write
+    // persistSku가 로컬 state를 그대로 write하면 onSnapshot race로 null이 된
+    // 로컬 값이 Firestore에도 덮여써져 새로고침 후 데이터 유실 발생
+    // → 두 필드를 제외하고 merge:true로 write → Firestore의 기존 확정 데이터 보존
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { finalOrderConfirmedAt: _fca, finalOrderQty: _foq, finalOrderStep2Total: _fst, ...firestoreBody } = toFirestore(sku);
+    try {
+      await setDoc(doc(fsdb, SKUS_COL, id), firestoreBody, { merge: true });
+    } catch (err) {
+      console.error('[persistSku] Firestore 저장 실패:', id, err);
+      throw err;
     }
   },
 
