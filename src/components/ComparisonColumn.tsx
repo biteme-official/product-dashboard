@@ -80,6 +80,9 @@ export function ComparisonColumn({ sku, readOnly, onComparisonDataChange, onChan
   const [channelMap, setChannelMap] = useState<ChannelDataMap | null>(null);
   const [channelConfigured, setChannelConfigured] = useState(true); // VIEW_ID 설정 여부
   const [channelPeriodQty, setChannelPeriodQty] = useState<Record<string, number> | null>(null);
+  // 채널별 실제 출고 월수 기준 월평균 (rolling12: last12.length, samePeriod: monthsWithData)
+  const [channelMonthly, setChannelMonthly] = useState<Record<string, number> | null>(null);
+  const [totalMonthly, setTotalMonthly] = useState<number | null>(null);
 
   // 의류·잡화는 동기간이 기본값
   const defaultMode: CompareMode = (sku.category === '의류' || sku.category === '잡화') ? 'samePeriod' : 'rolling12';
@@ -102,6 +105,8 @@ export function ComparisonColumn({ sku, readOnly, onComparisonDataChange, onChan
     setQuery('');
     setCompareMode(defaultMode);
     setSelectedSkus([]);
+    setChannelMonthly(null);
+    setTotalMonthly(null);
     onComparisonDataChange?.({}, defaultMode, defaultMode === 'samePeriod' ? '동기간' : '직전 12개월');
     onChannelDistChange?.(null);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -147,6 +152,8 @@ export function ComparisonColumn({ sku, readOnly, onComparisonDataChange, onChan
   useEffect(() => {
     if (!channelMap || selectedSkus.length === 0) {
       setChannelPeriodQty(null);
+      setChannelMonthly(null);
+      setTotalMonthly(null);
       onChannelDistChange?.(null);
       onChannelYMDataChange?.(null);
       return;
@@ -156,8 +163,36 @@ export function ComparisonColumn({ sku, readOnly, onComparisonDataChange, onChan
     const skuNames = selectedSkus.map(s => s.name);
     const aggregated = aggregateChannelByYearMonth(skuNames, channelMap);
     const qty = calcChannelPeriodQty(aggregated, compareMode, rm, ry);
+
+    // 채널별 실제 출고 월수 기준 월평균 (calcRolling12: last12.length, calcSamePeriod: monthsWithData)
+    const monthly: Record<string, number> = {};
+    const totalByYM: Record<number, Record<number, number>> = {};
+    for (const channel of Object.keys(qty)) {
+      const byYM = aggregated[channel];
+      if (!byYM) continue;
+      monthly[channel] = compareMode === 'samePeriod' && rm && ry
+        ? calcSamePeriod(byYM, rm, ry).monthly
+        : calcRolling12(byYM).monthly;
+      // 전체 합산용 byYM 누적 (제외 채널은 qty에 없으므로 자동 필터됨)
+      for (const [ys, months] of Object.entries(byYM)) {
+        const y = Number(ys);
+        if (!totalByYM[y]) totalByYM[y] = {};
+        for (const [ms, q] of Object.entries(months as Record<string, number>)) {
+          const m = Number(ms);
+          totalByYM[y][m] = (totalByYM[y][m] ?? 0) + q;
+        }
+      }
+    }
+    const totalMon = Object.keys(totalByYM).length > 0
+      ? (compareMode === 'samePeriod' && rm && ry
+          ? calcSamePeriod(totalByYM, rm, ry).monthly
+          : calcRolling12(totalByYM).monthly)
+      : null;
+
     const dist = Object.keys(qty).length > 0 ? qty : null;
     setChannelPeriodQty(dist);
+    setChannelMonthly(Object.keys(monthly).length > 0 ? monthly : null);
+    setTotalMonthly(totalMon);
     onChannelDistChange?.(dist);
     onChannelYMDataChange?.(Object.keys(aggregated).length > 0 ? aggregated : null);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -490,6 +525,8 @@ export function ComparisonColumn({ sku, readOnly, onComparisonDataChange, onChan
       {selectedSkus.length > 0 && (
         <ChannelDistChart
           channelQty={channelPeriodQty}
+          channelMonthly={channelMonthly}
+          totalMonthly={totalMonthly}
           configured={channelConfigured}
           compareMode={compareMode}
           samePeriodLabel={samePeriodLabel}
@@ -604,16 +641,19 @@ const CH_COLORS: Record<string, string> = {
 };
 
 function ChannelDistChart({
-  channelQty, configured, compareMode, samePeriodLabel, releaseMonth, releaseYear: _releaseYear,
+  channelQty, channelMonthly, totalMonthly, configured, compareMode, samePeriodLabel, releaseMonth, releaseYear: _releaseYear,
 }: {
   channelQty: Record<string, number> | null;
+  channelMonthly: Record<string, number> | null;
+  totalMonthly: number | null;
   configured: boolean;
   compareMode: 'rolling12' | 'samePeriod';
   samePeriodLabel: string | null;
   releaseMonth: number | null;
   releaseYear: number | null;
 }) {
-  const periodMonths = compareMode === 'samePeriod' && releaseMonth
+  // samePeriod fallback: 시즌 개월수 기준 (데이터 없는 월도 포함한 의도적 나눗수)
+  const periodMonthsFallback = compareMode === 'samePeriod' && releaseMonth
     ? 12 - releaseMonth + 1
     : 12;
   const periodLabel = compareMode === 'samePeriod' ? samePeriodLabel : '직전 12개월';
@@ -637,7 +677,12 @@ function ChannelDistChart({
       ) : (() => {
         const total = Object.values(channelQty).reduce((s, q) => s + q, 0);
         const sorted = Object.entries(channelQty)
-          .map(([ch, qty]) => ({ ch, qty, avgMonthly: Math.round(qty / periodMonths) }))
+          .map(([ch, qty]) => ({
+            ch,
+            qty,
+            // 실제 출고 데이터가 있는 월 수로 나눈 월평균 사용 (없으면 fallback)
+            avgMonthly: channelMonthly?.[ch] ?? Math.round(qty / periodMonthsFallback),
+          }))
           .filter(({ avgMonthly }) => avgMonthly >= 10)
           .sort((a, b) => b.qty - a.qty);
         return (
@@ -659,7 +704,7 @@ function ChannelDistChart({
             <div className="flex items-center justify-between pt-1 border-t border-gray-100 mt-1">
               <span className="text-[10px] text-gray-400">합계</span>
               <span className="text-[10px] font-semibold text-gray-600">
-                월평균 {Math.round(total / periodMonths).toLocaleString()} · 연 {total.toLocaleString()}
+                월평균 {(totalMonthly ?? Math.round(total / periodMonthsFallback)).toLocaleString()} · 연 {total.toLocaleString()}
               </span>
             </div>
           </div>
