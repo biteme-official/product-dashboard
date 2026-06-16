@@ -937,13 +937,14 @@ function toDateObj(dateStr: string | null | undefined): Date | null {
 function getPreOpenStatus(
   sku: SkuData,
   getVal: (sku: SkuData, ch: ScheduleChannel) => string | null | undefined,
-): 'none' | 'simultaneous' | { channel: ScheduleChannel; date: string }[] {
+): 'none' | 'simultaneous' | 'kitta-first' | { channel: ScheduleChannel; date: string }[] {
   const baseDate = sku.releaseDate;
   const baseObj = toDateObj(baseDate);
   if (!baseObj) return 'none';
 
   let hasActiveChannel = false;
   const earlyChannels: { channel: ScheduleChannel; date: string }[] = [];
+  let hasLateChannel = false;
 
   for (const ch of SCHEDULE_CHANNELS) {
     const val = getVal(sku, ch);
@@ -951,27 +952,32 @@ function getPreOpenStatus(
     hasActiveChannel = true;
     const effectiveDateStr = (val !== null && val !== undefined) ? val : baseDate;
     const effectiveObj = toDateObj(effectiveDateStr);
-    if (effectiveObj && effectiveObj < baseObj) {
+    if (!effectiveObj) continue;
+    if (effectiveObj < baseObj) {
       earlyChannels.push({ channel: ch, date: effectiveDateStr });
+    } else if (effectiveObj > baseObj) {
+      hasLateChannel = true;
     }
   }
 
   if (!hasActiveChannel) return 'none';
-  if (earlyChannels.length === 0) return 'simultaneous';
-  earlyChannels.sort((a, b) => {
-    const da = toDateObj(a.date), db = toDateObj(b.date);
-    if (!da || !db) return 0;
-    return da.getTime() - db.getTime();
-  });
-  return earlyChannels;
+  if (earlyChannels.length > 0) {
+    // 기본 오픈일보다 이른 채널 존재 → 선오픈 배지
+    earlyChannels.sort((a, b) => {
+      const da = toDateObj(a.date), db = toDateObj(b.date);
+      if (!da || !db) return 0;
+      return da.getTime() - db.getTime();
+    });
+    return earlyChannels;
+  }
+  if (hasLateChannel) return 'kitta-first'; // 모든 채널이 기본 오픈일보다 늦음 → 기타가 최초 오픈
+  return 'simultaneous';
 }
 
 function toMD(dateStr: string | null | undefined): string {
   if (!dateStr || dateStr === NONE) return '';
   const dt = new Date(dateStr + 'T00:00:00');
-  if (isNaN(dt.getTime())) return '';
-  const yy = String(dt.getFullYear()).slice(2);
-  return `${yy}.${dt.getMonth() + 1}.${dt.getDate()}`;
+  return isNaN(dt.getTime()) ? '' : `${dt.getMonth() + 1}/${dt.getDate()}`;
 }
 
 interface ScheduleCal { skuId: string; channel: ScheduleChannel; date: string; top: number; left: number }
@@ -1104,6 +1110,13 @@ function ChannelScheduleTable({ skus, onSwitchToSkuList }: { skus: SkuData[]; on
                       return (
                         <span className="text-[11px] font-medium px-2 py-0.5 rounded-full border bg-gray-100 text-gray-600 border-gray-200">
                           동시오픈
+                        </span>
+                      );
+                    }
+                    if (status === 'kitta-first') {
+                      return (
+                        <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full border ${SCHEDULE_CH_CLS['기타']}`}>
+                          기타
                         </span>
                       );
                     }
