@@ -346,6 +346,94 @@ function ThumbnailSection({ skuId, imageUrl, readOnly }: { skuId: string; imageU
   );
 }
 
+// ── 날짜 입력 (yy.M.D 형식, 빈 칸에 포맷 힌트 없음) ─────────────────────────
+function DateInputCompact({ value, onChange, onBlur, disabled }: {
+  value: string;
+  onChange: (v: string) => void;
+  onBlur: () => void;
+  disabled?: boolean;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [text, setText] = useState('');
+
+  function fmt(d: string): string {
+    if (!d) return '';
+    const dt = new Date(d + 'T00:00:00');
+    if (isNaN(dt.getTime())) return '';
+    return `${String(dt.getFullYear()).slice(2)}.${dt.getMonth() + 1}.${dt.getDate()}`;
+  }
+
+  function parse(s: string): string | null {
+    const t = s.trim();
+    const m2 = t.match(/^(\d{2})[./](\d{1,2})[./](\d{1,2})$/);
+    if (m2) {
+      const y = 2000 + parseInt(m2[1], 10);
+      return `${y}-${String(parseInt(m2[2], 10)).padStart(2, '0')}-${String(parseInt(m2[3], 10)).padStart(2, '0')}`;
+    }
+    const m1 = t.match(/^(\d{1,2})[./](\d{1,2})$/);
+    if (m1) {
+      const mon = parseInt(m1[1], 10);
+      const y = mon >= 7 ? 2025 : 2026;
+      return `${y}-${String(mon).padStart(2, '0')}-${String(parseInt(m1[2], 10)).padStart(2, '0')}`;
+    }
+    return null;
+  }
+
+  function commit() {
+    if (!text.trim()) { onChange(''); } else { const p = parse(text); if (p) onChange(p); }
+    setEditing(false);
+    onBlur();
+  }
+
+  const baseCls = 'flex-1 px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed';
+
+  return (
+    <div className="flex items-center gap-1">
+      {editing ? (
+        <input
+          type="text"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') setEditing(false); }}
+          placeholder="yy.M.D"
+          autoFocus
+          className={`${baseCls} border-indigo-400 focus:ring-indigo-400`}
+        />
+      ) : (
+        <button
+          type="button"
+          onClick={() => { if (!disabled) { setText(fmt(value)); setEditing(true); } }}
+          disabled={disabled}
+          className={`${baseCls} border-gray-200 text-left ${value ? 'text-gray-700' : 'text-gray-300'} hover:border-gray-300`}
+        >
+          {fmt(value) || '—'}
+        </button>
+      )}
+      {!disabled && (
+        <div className="relative flex-shrink-0">
+          <button
+            type="button"
+            className="p-2 border border-gray-200 rounded-lg text-gray-400 hover:text-indigo-600 hover:border-indigo-300 transition-colors"
+            tabIndex={-1}
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+          </button>
+          <input
+            type="date"
+            value={value}
+            onChange={(e) => { onChange(e.target.value); onBlur(); }}
+            className="absolute inset-0 opacity-0 cursor-pointer w-full"
+            tabIndex={-1}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── 기본 정보 컬럼 ────────────────────────────────────────────────────────
 function BasicInfoColumn({ sku, readOnly }: { sku: SkuData; readOnly?: boolean }) {
   const updateSku = useStore((s) => s.updateSku);
@@ -461,6 +549,27 @@ function BasicInfoColumn({ sku, readOnly }: { sku: SkuData; readOnly?: boolean }
           disabled={readOnly}
           className={inputCls}
         />
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <label className="block text-xs text-gray-500 mb-1">입고예정일</label>
+          <DateInputCompact
+            value={sku.arrivalDate ?? ''}
+            onChange={(v) => handleChange({ arrivalDate: v })}
+            onBlur={handleBlur}
+            disabled={readOnly}
+          />
+        </div>
+        <div>
+          <label className="block text-xs text-gray-500 mb-1">촬영예정일</label>
+          <DateInputCompact
+            value={sku.shootingDate ?? ''}
+            onChange={(v) => handleChange({ shootingDate: v })}
+            onBlur={handleBlur}
+            disabled={readOnly}
+          />
+        </div>
       </div>
 
       {/* ── 프라이싱 구분 ── */}

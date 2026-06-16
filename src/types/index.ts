@@ -116,6 +116,8 @@ export interface SkuData {
   name: string;
   skuType: SkuType;
   releaseDate: string;              // 'YYYY-MM-DD'
+  arrivalDate?: string;             // 입고예정일
+  shootingDate?: string;            // 촬영예정일
   price: number;
   cost: number;
   regularPrice: number;

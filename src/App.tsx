@@ -309,7 +309,7 @@ function App() {
       </div>
 
       {/* 메인 콘텐츠 */}
-      <main className="max-w-screen-xl mx-auto">
+      <main className={activeMainTab === 'projection' ? '' : 'max-w-screen-xl mx-auto'}>
         {activeMainTab === 'manual' ? (
           <ManualTab />
         ) : activeMainTab === 'pm' ? (

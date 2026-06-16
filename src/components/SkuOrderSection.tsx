@@ -575,7 +575,7 @@ function ChannelBadge({ label, confirmed }: { label: string; confirmed: boolean 
 
 type PriceField = 'cost' | 'price' | 'regularPrice';
 interface EditingCell { skuId: string; field: PriceField; originalValue: number }
-interface CalendarState { skuId: string; selectedDate: string; top: number; left: number }
+interface CalendarState { skuId: string; field: 'releaseDate' | 'arrivalDate'; selectedDate: string; top: number; left: number }
 
 function SkuListTable({ skus, onSwitchToSkuList }: { skus: SkuData[]; onSwitchToSkuList?: () => void }) {
   const updateSku = useStore((s) => s.updateSku);
@@ -625,11 +625,12 @@ function SkuListTable({ skus, onSwitchToSkuList }: { skus: SkuData[]; onSwitchTo
     };
   }, [calendarState]);
 
-  function openDateCalendar(sku: SkuData, e: React.MouseEvent) {
+  function openDateCalendar(sku: SkuData, field: 'releaseDate' | 'arrivalDate', e: React.MouseEvent) {
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     setCalendarState({
       skuId: sku.id,
-      selectedDate: sku.releaseDate ?? '',
+      field,
+      selectedDate: (field === 'releaseDate' ? sku.releaseDate : sku.arrivalDate) ?? '',
       top: rect.bottom + 6,
       left: rect.left,
     });
@@ -637,7 +638,7 @@ function SkuListTable({ skus, onSwitchToSkuList }: { skus: SkuData[]; onSwitchTo
 
   function handleDateSelect(dateStr: string) {
     if (!calendarState) return;
-    updateSku(calendarState.skuId, { releaseDate: dateStr });
+    updateSku(calendarState.skuId, { [calendarState.field]: dateStr });
     persistSku(calendarState.skuId);
     setCalendarState(null);
   }
@@ -683,6 +684,7 @@ function SkuListTable({ skus, onSwitchToSkuList }: { skus: SkuData[]; onSwitchTo
               <th className="px-3 py-2.5 text-left font-semibold text-gray-600 whitespace-nowrap">브랜드</th>
               <th className="px-3 py-2.5 text-left font-semibold text-gray-600">SKU명</th>
               <th className="px-3 py-2.5 text-left font-semibold text-gray-600 whitespace-nowrap">오픈일</th>
+              <th className="px-3 py-2.5 text-left font-semibold text-gray-600 whitespace-nowrap">입고예정일</th>
               <th className="px-3 py-2.5 text-right font-semibold text-gray-600 whitespace-nowrap">총 발주량</th>
               <th className="px-3 py-2.5 text-center font-semibold text-gray-600 whitespace-nowrap">프라이싱</th>
               <th className="px-3 py-2.5 text-center font-semibold text-gray-600 whitespace-nowrap">가격확정</th>
@@ -732,7 +734,7 @@ function SkuListTable({ skus, onSwitchToSkuList }: { skus: SkuData[]; onSwitchTo
                   <td className="px-3 py-2 whitespace-nowrap">
                     {canEditDate ? (
                       <button
-                        onClick={(e) => openDateCalendar(sku, e)}
+                        onClick={(e) => openDateCalendar(sku, 'releaseDate', e)}
                         className={`text-[12px] tabular-nums transition-colors hover:text-indigo-600 hover:underline underline-offset-2 decoration-dashed ${
                           formattedDate ? 'text-gray-600' : 'text-gray-300'
                         }`}
@@ -743,6 +745,24 @@ function SkuListTable({ skus, onSwitchToSkuList }: { skus: SkuData[]; onSwitchTo
                     ) : (
                       <span className="text-[12px] tabular-nums text-gray-500">
                         {formattedDate ?? <span className="text-gray-300">–</span>}
+                      </span>
+                    )}
+                  </td>
+                  {/* 입고예정일 — master/pm 클릭 시 캘린더 팝업 */}
+                  <td className="px-3 py-2 whitespace-nowrap">
+                    {canEditDate ? (
+                      <button
+                        onClick={(e) => openDateCalendar(sku, 'arrivalDate', e)}
+                        className={`text-[12px] tabular-nums transition-colors hover:text-indigo-600 hover:underline underline-offset-2 decoration-dashed ${
+                          formatReleaseDate(sku.arrivalDate) ? 'text-gray-600' : 'text-gray-300'
+                        }`}
+                        title="클릭하여 날짜 변경"
+                      >
+                        {formatReleaseDate(sku.arrivalDate) ?? '날짜 설정'}
+                      </button>
+                    ) : (
+                      <span className="text-[12px] tabular-nums text-gray-500">
+                        {formatReleaseDate(sku.arrivalDate) ?? <span className="text-gray-300">–</span>}
                       </span>
                     )}
                   </td>
