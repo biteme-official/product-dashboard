@@ -870,6 +870,17 @@ function MonthlyTable({
             <p className="text-[11px] text-gray-400">대응 SKU의 채널 비중으로 초기 세팅됩니다. 전략에 맞추어 월별 목표량을 수정해주세요.</p>
             <p className="text-[11px] text-gray-400">쿠팡 - 신상 미등록으로 대응SKU 실적 및 비중에서 제외.</p>
             <p className="text-[11px] text-gray-400">태블로 해외 출고량은 글로벌 40% 인케어 60% 임의 분배.</p>
+            {(() => {
+              if (!sku.finalOrderConfirmedAt) return null;
+              const confirmedTotal = (sku.finalOrderQty as Record<string, number> | undefined)?.__confirmedStep2Total__;
+              const step2Total = sku.channelMonthQty.reduce((s, e) => s + e.qty, 0);
+              if (confirmedTotal === undefined || step2Total === confirmedTotal) return null;
+              return (
+                <p className="text-[11px] font-medium text-amber-600 mt-0.5">
+                  ⚠ 발주량 변경됨 — 확정 {confirmedTotal.toLocaleString()}개 → 현재 {step2Total.toLocaleString()}개
+                </p>
+              );
+            })()}
           </div>
           <div className="flex flex-col items-end gap-1 flex-shrink-0 ml-3">
             {/* MOQ 미달 배지 — 버튼 행 위 우측 */}

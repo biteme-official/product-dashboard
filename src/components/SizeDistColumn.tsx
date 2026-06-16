@@ -832,9 +832,6 @@ function FinalOrderTable({ sku, sumRatios }: { sku: SkuData; sumRatios: number }
     );
   }
 
-  const confirmedStep2Total = (liveFinalOrderQty as Record<string, number> | undefined)?.__confirmedStep2Total__ as number | undefined;
-  const step2TotalChanged = liveConfirmedAt && confirmedStep2Total !== undefined && step2Total !== confirmedStep2Total;
-
   const tableHeader = (
     <div className="flex items-center justify-between mb-1">
       <div className="flex items-center gap-2 flex-wrap">
@@ -842,11 +839,6 @@ function FinalOrderTable({ sku, sumRatios }: { sku: SkuData; sumRatios: number }
         {liveConfirmedAt && (
           <span className="text-xs text-red-500 font-medium">
             [발주량 최종 확정 {formatConfirmedAt(liveConfirmedAt)}]
-          </span>
-        )}
-        {step2TotalChanged && (
-          <span className="text-xs font-medium text-amber-600 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5">
-            발주량 변경됨 {confirmedStep2Total!.toLocaleString()} → {step2Total.toLocaleString()}
           </span>
         )}
       </div>
