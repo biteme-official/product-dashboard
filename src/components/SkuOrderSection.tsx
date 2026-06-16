@@ -919,18 +919,6 @@ const CH_KEY: Record<ScheduleChannel, keyof ChannelOpenScheduleEntry> = {
 
 const NONE = 'NONE'; // 미판매 센티넬
 
-function parseMDInput(input: string): string | null {
-  const t = input.trim();
-  if (t === '0' || t === 'x' || t === 'X' || t === '미판매') return NONE;
-  const match = t.match(/^(\d{1,2})\/(\d{1,2})$/);
-  if (!match) return null;
-  const m = parseInt(match[1], 10);
-  const d = parseInt(match[2], 10);
-  if (m < 1 || m > 12 || d < 1 || d > 31) return null;
-  const year = m >= 7 ? 2025 : 2026;
-  return `${year}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-}
-
 function toMD(dateStr: string | null | undefined): string {
   if (!dateStr || dateStr === NONE) return '';
   const dt = new Date(dateStr + 'T00:00:00');
