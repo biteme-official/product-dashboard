@@ -1011,7 +1011,7 @@ function ChannelScheduleTable({ skus, onSwitchToSkuList }: { skus: SkuData[]; on
               {(['플랫폼', '스스', '위탁', 'B2B', '글로벌'] as const).map((ch) => (
                 <th key={ch} className="px-3 py-2.5 text-center font-semibold text-gray-600 whitespace-nowrap">{ch}</th>
               ))}
-              <th className="px-3 py-2.5 text-center font-semibold text-gray-600 whitespace-nowrap min-w-[180px]">기타</th>
+              <th className="px-3 py-2.5 text-center font-semibold text-gray-600 whitespace-nowrap">기타</th>
               <th className="px-3 py-2.5 text-left font-semibold text-gray-600 whitespace-nowrap min-w-[200px]">메모</th>
             </tr>
           </thead>
@@ -1066,10 +1066,10 @@ function ChannelScheduleTable({ skus, onSwitchToSkuList }: { skus: SkuData[]; on
                         onChange={(e) => updateSku(sku.id, { channelOpenSchedule: { ...sku.channelOpenSchedule, 기타Label: e.target.value } })}
                         onBlur={() => saveLabelOnly(sku.id, sku.channelOpenSchedule?.기타Label ?? '')}
                         placeholder="채널명"
-                        className="w-[72px] text-[11px] px-1.5 py-0.5 border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-indigo-300 text-gray-700 placeholder:text-gray-300"
+                        className="w-[60px] text-[11px] px-1.5 py-0.5 border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-indigo-300 text-gray-700 placeholder:text-gray-300"
                       />
                     ) : (
-                      <span className="w-[72px] text-[11px] text-gray-500 px-1 truncate">{sku.channelOpenSchedule?.기타Label || <span className="text-gray-300">채널명</span>}</span>
+                      <span className="w-[60px] text-[11px] text-gray-500 px-1 truncate">{sku.channelOpenSchedule?.기타Label || <span className="text-gray-300">채널명</span>}</span>
                     )}
                     <ScheduleDateCell
                       sku={sku} channel="기타" canEdit={canEdit}
