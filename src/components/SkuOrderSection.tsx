@@ -575,7 +575,7 @@ function ChannelBadge({ label, confirmed }: { label: string; confirmed: boolean 
 
 type PriceField = 'cost' | 'price' | 'regularPrice';
 interface EditingCell { skuId: string; field: PriceField; originalValue: number }
-interface CalendarState { skuId: string; field: 'releaseDate' | 'arrivalDate'; selectedDate: string; top: number; left: number }
+interface CalendarState { skuId: string; field: 'releaseDate' | 'arrivalDate' | 'shootingDate'; selectedDate: string; top: number; left: number }
 
 function SkuListTable({ skus, onSwitchToSkuList }: { skus: SkuData[]; onSwitchToSkuList?: () => void }) {
   const updateSku = useStore((s) => s.updateSku);
@@ -625,15 +625,10 @@ function SkuListTable({ skus, onSwitchToSkuList }: { skus: SkuData[]; onSwitchTo
     };
   }, [calendarState]);
 
-  function openDateCalendar(sku: SkuData, field: 'releaseDate' | 'arrivalDate', e: React.MouseEvent) {
+  function openDateCalendar(sku: SkuData, field: 'releaseDate' | 'arrivalDate' | 'shootingDate', e: React.MouseEvent) {
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    setCalendarState({
-      skuId: sku.id,
-      field,
-      selectedDate: (field === 'releaseDate' ? sku.releaseDate : sku.arrivalDate) ?? '',
-      top: rect.bottom + 6,
-      left: rect.left,
-    });
+    const dateVal = field === 'releaseDate' ? sku.releaseDate : field === 'arrivalDate' ? sku.arrivalDate : sku.shootingDate;
+    setCalendarState({ skuId: sku.id, field, selectedDate: dateVal ?? '', top: rect.bottom + 6, left: rect.left });
   }
 
   function handleDateSelect(dateStr: string) {
@@ -685,7 +680,7 @@ function SkuListTable({ skus, onSwitchToSkuList }: { skus: SkuData[]; onSwitchTo
               <th className="px-3 py-2.5 text-left font-semibold text-gray-600">SKU명</th>
               <th className="px-3 py-2.5 text-left font-semibold text-gray-600 whitespace-nowrap">오픈일</th>
               <th className="px-3 py-2.5 text-left font-semibold text-gray-600 whitespace-nowrap">입고예정일</th>
-              <th className="px-3 py-2.5 text-right font-semibold text-gray-600 whitespace-nowrap">총 발주량</th>
+              <th className="px-3 py-2.5 text-left font-semibold text-gray-600 whitespace-nowrap">촬영예정일</th>
               <th className="px-3 py-2.5 text-center font-semibold text-gray-600 whitespace-nowrap">프라이싱</th>
               <th className="px-3 py-2.5 text-center font-semibold text-gray-600 whitespace-nowrap">가격확정</th>
               <th className="px-3 py-2.5 text-right font-semibold text-gray-600 whitespace-nowrap">
@@ -701,6 +696,7 @@ function SkuListTable({ skus, onSwitchToSkuList }: { skus: SkuData[]; onSwitchTo
               </th>
               <th className="px-3 py-2.5 text-right font-semibold text-gray-600 whitespace-nowrap">상시할인율</th>
               <th className="px-3 py-2.5 text-right font-semibold text-gray-600 whitespace-nowrap">원가율</th>
+              <th className="px-3 py-2.5 text-right font-semibold text-gray-600 whitespace-nowrap">총 발주량</th>
               <th className="px-3 py-2.5 text-left font-semibold text-gray-600 whitespace-nowrap">채널 목표량 확정</th>
             </tr>
           </thead>
@@ -766,8 +762,23 @@ function SkuListTable({ skus, onSwitchToSkuList }: { skus: SkuData[]; onSwitchTo
                       </span>
                     )}
                   </td>
-                  <td className="px-3 py-2 text-right tabular-nums font-medium text-gray-800 whitespace-nowrap">
-                    {sku.totalOrderQty > 0 ? sku.totalOrderQty.toLocaleString() : <span className="text-gray-300">–</span>}
+                  {/* 촬영예정일 — master/pm 클릭 시 캘린더 팝업 */}
+                  <td className="px-3 py-2 whitespace-nowrap">
+                    {canEditDate ? (
+                      <button
+                        onClick={(e) => openDateCalendar(sku, 'shootingDate', e)}
+                        className={`text-[12px] tabular-nums transition-colors hover:text-indigo-600 hover:underline underline-offset-2 decoration-dashed ${
+                          formatReleaseDate(sku.shootingDate) ? 'text-gray-600' : 'text-gray-300'
+                        }`}
+                        title="클릭하여 날짜 변경"
+                      >
+                        {formatReleaseDate(sku.shootingDate) ?? '날짜 설정'}
+                      </button>
+                    ) : (
+                      <span className="text-[12px] tabular-nums text-gray-500">
+                        {formatReleaseDate(sku.shootingDate) ?? <span className="text-gray-300">–</span>}
+                      </span>
+                    )}
                   </td>
                   <td className="px-2 py-1.5 text-center">
                     <button
@@ -824,6 +835,9 @@ function SkuListTable({ skus, onSwitchToSkuList }: { skus: SkuData[]; onSwitchTo
                   </td>
                   <td className="px-3 py-2 text-right tabular-nums text-gray-700 whitespace-nowrap">
                     {cr !== null ? `${cr}%` : <span className="text-gray-300">–</span>}
+                  </td>
+                  <td className="px-3 py-2 text-right tabular-nums font-medium text-gray-800 whitespace-nowrap">
+                    {sku.totalOrderQty > 0 ? sku.totalOrderQty.toLocaleString() : <span className="text-gray-300">–</span>}
                   </td>
                   <td className="px-3 py-2">
                     <div className="flex gap-1 flex-wrap">
@@ -1006,6 +1020,8 @@ function ChannelScheduleTable({ skus, onSwitchToSkuList }: { skus: SkuData[]; on
               <th className="px-3 py-2.5 text-left font-semibold text-gray-600 whitespace-nowrap">카테고리</th>
               <th className="px-3 py-2.5 text-left font-semibold text-gray-600 whitespace-nowrap">브랜드</th>
               <th className="px-3 py-2.5 text-left font-semibold text-gray-600">SKU명</th>
+              <th className="px-3 py-2.5 text-center font-semibold text-gray-600 whitespace-nowrap">입고예정일</th>
+              <th className="px-3 py-2.5 text-center font-semibold text-gray-600 whitespace-nowrap">촬영예정일</th>
               <th className="px-3 py-2.5 text-center font-semibold text-gray-600 whitespace-nowrap">기본 오픈일</th>
               {(['플랫폼', '스스', '위탁', 'B2B', '글로벌'] as const).map((ch) => (
                 <th key={ch} className="px-3 py-2.5 text-center font-semibold text-gray-600 whitespace-nowrap">{ch}</th>
@@ -1032,6 +1048,13 @@ function ChannelScheduleTable({ skus, onSwitchToSkuList }: { skus: SkuData[]; on
                   >
                     {sku.name || <span className="text-gray-300">(미입력)</span>}
                   </button>
+                </td>
+                {/* 입고예정일 / 촬영예정일 — 읽기 전용 */}
+                <td className="px-3 py-2 text-center whitespace-nowrap tabular-nums text-gray-500">
+                  {toMD(sku.arrivalDate) || <span className="text-gray-300">–</span>}
+                </td>
+                <td className="px-3 py-2 text-center whitespace-nowrap tabular-nums text-gray-500">
+                  {toMD(sku.shootingDate) || <span className="text-gray-300">–</span>}
                 </td>
                 {/* 기본 오픈일 */}
                 <td className="px-3 py-2 text-center whitespace-nowrap tabular-nums text-gray-500">
