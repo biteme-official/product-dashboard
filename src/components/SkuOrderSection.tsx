@@ -37,6 +37,13 @@ function formatYearMonth(ym: string): string {
   return `${year.slice(2)}년 ${parseInt(month)}월`;
 }
 
+function isPast(dateStr: string | null | undefined): boolean {
+  if (!dateStr) return false;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return new Date(dateStr + 'T00:00:00') < today;
+}
+
 // ── 정렬 함수 (컴포넌트 외부로 분리하여 useMemo 안전 사용) ─────────────────────
 function sortByDateThenName(a: SkuData, b: SkuData): number {
   if (!a.releaseDate && !b.releaseDate) return a.name.localeCompare(b.name, 'ko');
@@ -750,14 +757,16 @@ function SkuListTable({ skus, onSwitchToSkuList }: { skus: SkuData[]; onSwitchTo
                       <button
                         onClick={(e) => openDateCalendar(sku, 'arrivalDate', e)}
                         className={`text-[12px] tabular-nums transition-colors hover:text-indigo-600 hover:underline underline-offset-2 decoration-dashed ${
-                          formatReleaseDate(sku.arrivalDate) ? 'text-gray-600' : 'text-gray-300'
+                          formatReleaseDate(sku.arrivalDate)
+                            ? isPast(sku.arrivalDate) ? 'text-gray-400' : 'text-gray-600'
+                            : 'text-gray-300'
                         }`}
                         title="클릭하여 날짜 변경"
                       >
                         {formatReleaseDate(sku.arrivalDate) ?? '날짜 설정'}
                       </button>
                     ) : (
-                      <span className="text-[12px] tabular-nums text-gray-500">
+                      <span className={`text-[12px] tabular-nums ${isPast(sku.arrivalDate) ? 'text-gray-400' : 'text-gray-500'}`}>
                         {formatReleaseDate(sku.arrivalDate) ?? <span className="text-gray-300">–</span>}
                       </span>
                     )}
@@ -768,14 +777,16 @@ function SkuListTable({ skus, onSwitchToSkuList }: { skus: SkuData[]; onSwitchTo
                       <button
                         onClick={(e) => openDateCalendar(sku, 'shootingDate', e)}
                         className={`text-[12px] tabular-nums transition-colors hover:text-indigo-600 hover:underline underline-offset-2 decoration-dashed ${
-                          formatReleaseDate(sku.shootingDate) ? 'text-gray-600' : 'text-gray-300'
+                          formatReleaseDate(sku.shootingDate)
+                            ? isPast(sku.shootingDate) ? 'text-gray-400' : 'text-gray-600'
+                            : 'text-gray-300'
                         }`}
                         title="클릭하여 날짜 변경"
                       >
                         {formatReleaseDate(sku.shootingDate) ?? '날짜 설정'}
                       </button>
                     ) : (
-                      <span className="text-[12px] tabular-nums text-gray-500">
+                      <span className={`text-[12px] tabular-nums ${isPast(sku.shootingDate) ? 'text-gray-400' : 'text-gray-500'}`}>
                         {formatReleaseDate(sku.shootingDate) ?? <span className="text-gray-300">–</span>}
                       </span>
                     )}
@@ -1050,10 +1061,10 @@ function ChannelScheduleTable({ skus, onSwitchToSkuList }: { skus: SkuData[]; on
                   </button>
                 </td>
                 {/* 입고예정일 / 촬영예정일 — 읽기 전용 */}
-                <td className="px-3 py-2 text-center whitespace-nowrap tabular-nums text-gray-500">
+                <td className={`px-3 py-2 text-center whitespace-nowrap tabular-nums ${isPast(sku.arrivalDate) ? 'text-gray-400' : 'text-gray-500'}`}>
                   {toMD(sku.arrivalDate) || <span className="text-gray-300">–</span>}
                 </td>
-                <td className="px-3 py-2 text-center whitespace-nowrap tabular-nums text-gray-500">
+                <td className={`px-3 py-2 text-center whitespace-nowrap tabular-nums ${isPast(sku.shootingDate) ? 'text-gray-400' : 'text-gray-500'}`}>
                   {toMD(sku.shootingDate) || <span className="text-gray-300">–</span>}
                 </td>
                 {/* 기본 오픈일 */}
