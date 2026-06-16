@@ -562,24 +562,6 @@ function SearchInput({ value, onChange }: { value: string; onChange: (v: string)
 }
 
 // ── LIST VIEW 테이블 ──────────────────────────────────────────────────────────
-function ChannelBadge({ label, confirmed }: { label: string; confirmed: boolean }) {
-  const confirmedCls: Record<string, string> = {
-    '플랫폼': 'bg-emerald-600 text-white',
-    '브랜드': 'bg-amber-500 text-white',
-    '글로벌': 'bg-sky-600 text-white',
-  };
-  const unconfirmedCls = 'bg-gray-100 text-gray-400';
-  return (
-    <span
-      className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium leading-none ${
-        confirmed ? (confirmedCls[label] ?? 'bg-indigo-600 text-white') : unconfirmedCls
-      }`}
-    >
-      {confirmed ? `${label} Y` : `${label} N`}
-    </span>
-  );
-}
-
 type PriceField = 'cost' | 'price' | 'regularPrice';
 interface EditingCell { skuId: string; field: PriceField; originalValue: number }
 interface CalendarState { skuId: string; field: 'releaseDate' | 'arrivalDate' | 'shootingDate'; selectedDate: string; top: number; left: number }
