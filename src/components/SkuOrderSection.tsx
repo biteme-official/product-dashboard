@@ -969,7 +969,9 @@ function getPreOpenStatus(
 function toMD(dateStr: string | null | undefined): string {
   if (!dateStr || dateStr === NONE) return '';
   const dt = new Date(dateStr + 'T00:00:00');
-  return isNaN(dt.getTime()) ? '' : `${dt.getMonth() + 1}/${dt.getDate()}`;
+  if (isNaN(dt.getTime())) return '';
+  const yy = String(dt.getFullYear()).slice(2);
+  return `${yy}.${dt.getMonth() + 1}.${dt.getDate()}`;
 }
 
 interface ScheduleCal { skuId: string; channel: ScheduleChannel; date: string; top: number; left: number }
