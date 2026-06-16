@@ -752,7 +752,9 @@ function FinalOrderTable({ sku, sumRatios }: { sku: SkuData; sumRatios: number }
 
   // Final stored values
   const finalStored = liveFinalOrderQty ?? {};
-  const isFinalManual = Object.keys(finalStored).some((k) => k !== '__total__');
+  // 메타 키(__total__, __confirmedStep2Total__)를 제외한 실제 breakdown 키가 있는지 확인
+  const META_KEYS = new Set(['__total__', '__confirmedStep2Total__']);
+  const isFinalManual = Object.keys(finalStored).some((k) => !META_KEYS.has(k));
   const dispCS = (cid: string, cQty: number, sl: string, sRatio: number) =>
     isFinalManual && finalStored[csKey(cid, sl)] !== undefined ? finalStored[csKey(cid, sl)] : s2DispCS(cid, cQty, sl, sRatio);
   const dispC = (cid: string, cQty: number) =>
@@ -776,8 +778,25 @@ function FinalOrderTable({ sku, sumRatios }: { sku: SkuData; sumRatios: number }
   }
 
   async function handleConfirm() {
-    const qtys = isEditing ? { ...draftQtys } : {};
-    updateFinalOrderQty(sku.id, { ...(liveFinalOrderQty ?? {}), ...qtys, __confirmedStep2Total__: step2Total });
+    // 확정 시 현재 표시값을 스냅샷으로 저장 (편집 여부와 무관하게 항상 고정)
+    const snapshot: Record<string, number> = {};
+    if (hasColors && hasSizes) {
+      activeColors.forEach((c) => activeSizes.forEach((s) => {
+        const key = csKey(c.id, s.label);
+        snapshot[key] = isEditing ? (draftQtys[key] ?? dispCS(c.id, c.quantity, s.label, s.ratio)) : dispCS(c.id, c.quantity, s.label, s.ratio);
+      }));
+    } else if (hasColors) {
+      activeColors.forEach((c) => {
+        const key = cKey(c.id);
+        snapshot[key] = isEditing ? (draftQtys[key] ?? dispC(c.id, c.quantity)) : dispC(c.id, c.quantity);
+      });
+    } else {
+      activeSizes.forEach((s) => {
+        const key = sKey(s.label);
+        snapshot[key] = isEditing ? (draftQtys[key] ?? dispS(s.label, s.ratio)) : dispS(s.label, s.ratio);
+      });
+    }
+    updateFinalOrderQty(sku.id, { ...snapshot, __confirmedStep2Total__: step2Total });
     setIsEditing(false);
     await setFinalOrderConfirmed(sku.id, true);
   }
