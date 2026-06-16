@@ -919,6 +919,41 @@ const CH_KEY: Record<ScheduleChannel, keyof ChannelOpenScheduleEntry> = {
 
 const NONE = 'NONE'; // 미판매 센티넬
 
+const SCHEDULE_CH_CLS: Record<ScheduleChannel, string> = {
+  '플랫폼': 'bg-indigo-100 text-indigo-700 border-indigo-200',
+  '스스':   'bg-violet-100 text-violet-700 border-violet-200',
+  '위탁':   'bg-cyan-100 text-cyan-700 border-cyan-200',
+  'B2B':    'bg-emerald-100 text-emerald-700 border-emerald-200',
+  '글로벌': 'bg-pink-100 text-pink-700 border-pink-200',
+  '기타':   'bg-gray-100 text-gray-600 border-gray-200',
+};
+
+function getPreOpenStatus(
+  sku: SkuData,
+  getVal: (sku: SkuData, ch: ScheduleChannel) => string | null | undefined,
+): 'none' | 'simultaneous' | { channel: ScheduleChannel; date: string }[] {
+  const baseDate = sku.releaseDate;
+  if (!baseDate) return 'none';
+
+  let hasActiveChannel = false;
+  const earlyChannels: { channel: ScheduleChannel; date: string }[] = [];
+
+  for (const ch of SCHEDULE_CHANNELS) {
+    const val = getVal(sku, ch);
+    if (val === NONE) continue;
+    hasActiveChannel = true;
+    const effectiveDate = (val !== null && val !== undefined) ? val : baseDate;
+    if (effectiveDate < baseDate) {
+      earlyChannels.push({ channel: ch, date: effectiveDate });
+    }
+  }
+
+  if (!hasActiveChannel) return 'none';
+  if (earlyChannels.length === 0) return 'simultaneous';
+  earlyChannels.sort((a, b) => a.date.localeCompare(b.date));
+  return earlyChannels;
+}
+
 function toMD(dateStr: string | null | undefined): string {
   if (!dateStr || dateStr === NONE) return '';
   const dt = new Date(dateStr + 'T00:00:00');
@@ -1008,6 +1043,7 @@ function ChannelScheduleTable({ skus, onSwitchToSkuList }: { skus: SkuData[]; on
               <th className="px-3 py-2.5 text-center font-semibold text-gray-600 whitespace-nowrap">입고예정일</th>
               <th className="px-3 py-2.5 text-center font-semibold text-gray-600 whitespace-nowrap">촬영예정일</th>
               <th className="px-3 py-2.5 text-center font-semibold text-gray-600 whitespace-nowrap">기본 오픈일</th>
+              <th className="px-3 py-2.5 text-center font-semibold text-gray-600 whitespace-nowrap">선오픈 여부</th>
               {(['플랫폼', '스스', '위탁', 'B2B', '글로벌'] as const).map((ch) => (
                 <th key={ch} className="px-3 py-2.5 text-center font-semibold text-gray-600 whitespace-nowrap">{ch}</th>
               ))}
@@ -1044,6 +1080,32 @@ function ChannelScheduleTable({ skus, onSwitchToSkuList }: { skus: SkuData[]; on
                 {/* 기본 오픈일 */}
                 <td className="px-3 py-2 text-center whitespace-nowrap tabular-nums text-gray-500">
                   {toMD(sku.releaseDate) || <span className="text-gray-300">–</span>}
+                </td>
+                {/* 선오픈 여부 */}
+                <td className="px-3 py-2 text-center whitespace-nowrap">
+                  {(() => {
+                    const status = getPreOpenStatus(sku, getVal);
+                    if (status === 'none') return <span className="text-gray-300">–</span>;
+                    if (status === 'simultaneous') {
+                      return (
+                        <span className="text-[11px] font-medium px-2 py-0.5 rounded-full border bg-gray-100 text-gray-600 border-gray-200">
+                          동시오픈
+                        </span>
+                      );
+                    }
+                    return (
+                      <span className="inline-flex items-center gap-1">
+                        {status.map(({ channel }) => (
+                          <span
+                            key={channel}
+                            className={`text-[11px] font-medium px-2 py-0.5 rounded-full border ${SCHEDULE_CH_CLS[channel]}`}
+                          >
+                            {channel} 선오픈
+                          </span>
+                        ))}
+                      </span>
+                    );
+                  })()}
                 </td>
                 {/* 채널 날짜 셀: 플랫폼, 스스, 위탁, B2B, 글로벌 */}
                 {(['플랫폼', '스스', '위탁', 'B2B', '글로벌'] as const).map((ch) => (
