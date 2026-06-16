@@ -36,6 +36,32 @@ const CHANNEL_COLORS: Record<Channel, string> = {
   '글로벌': '#ec4899', '일본': '#ef4444',
 };
 
+// 채널 → 확정 그룹 매핑 (플랫폼/브랜드/글로벌)
+const CHANNEL_CONFIRM_GROUP: Partial<Record<string, { field: 'platformConfirmed' | 'brandConfirmed' | 'globalConfirmed'; label: string }>> = {
+  '자사몰': { field: 'platformConfirmed', label: '플랫폼' },
+  '스스':   { field: 'brandConfirmed',    label: '브랜드' },
+  '위탁':   { field: 'brandConfirmed',    label: '브랜드' },
+  'B2B':    { field: 'brandConfirmed',    label: '브랜드' },
+  '일본':   { field: 'globalConfirmed',   label: '글로벌' },
+  '글로벌': { field: 'globalConfirmed',   label: '글로벌' },
+};
+
+/** 해당 채널이 속한 그룹이 확정됐는지 */
+function isChannelLocked(sku: SkuData, channel: string): boolean {
+  const group = CHANNEL_CONFIRM_GROUP[channel];
+  return !!(group && sku[group.field]);
+}
+
+/** 확정된 그룹 레이블 목록 반환 (빈 배열이면 모두 미확정) */
+function lockedGroupLabels(sku: SkuData, channels: readonly string[]): string[] {
+  return [...new Set(
+    channels
+      .map(ch => CHANNEL_CONFIRM_GROUP[ch])
+      .filter((g): g is NonNullable<typeof g> => !!g && !!sku[g.field])
+      .map(g => g.label),
+  )];
+}
+
 function formatWon(value: number): string {
   if (value <= 0) return '–';
   if (value >= 100_000_000) {
@@ -921,6 +947,11 @@ function MonthlyTable({
                 return (
                   <button
                     onClick={() => {
+                      const locked = lockedGroupLabels(sku, [...B2C_CHANNELS, ...B2B_CHANNELS]);
+                      if (locked.length > 0) {
+                        alert(`${locked.join(', ')} 채널 확정 취소 후 수정해주세요.`);
+                        return;
+                      }
                       captureStep2Backup();
                       const scaled = sku.channelMonthQty.map((e) => ({
                         ...e,
@@ -939,6 +970,11 @@ function MonthlyTable({
               })()}
               <button
                 onClick={() => {
+                  const locked = lockedGroupLabels(sku, [...B2C_CHANNELS, ...B2B_CHANNELS]);
+                  if (locked.length > 0) {
+                    alert(`${locked.join(', ')} 채널 확정 취소 후 수정해주세요.`);
+                    return;
+                  }
                   captureStep2Backup();
                   const latestSku = useStore.getState().skus.find((s) => s.id === sku.id) ?? sku;
                   const entries = buildChannelMonthEntries(compChannelDist, latestSku);
@@ -1848,10 +1884,10 @@ function PricingChannelTable({
                                           onChange={(val) => updateChannelMonthQty(sku.id, channel, m, val)}
                                           onBlur={() => persistSku(sku.id)}
                                           onFocus={() => onBeforeEdit?.()}
-                                          disabled={readOnly || (DISABLED_CHANNELS as readonly string[]).includes(channel)}
+                                          disabled={readOnly || (DISABLED_CHANNELS as readonly string[]).includes(channel) || isChannelLocked(sku, channel)}
                                           placeholder="0"
                                           className={`text-right rounded-md px-1 py-1 text-[11px] border focus:outline-none focus:ring-1 focus:ring-gray-400 ${
-                                            readOnly || (DISABLED_CHANNELS as readonly string[]).includes(channel) ? 'bg-gray-50 text-gray-400 cursor-not-allowed border-gray-200' : 'bg-white text-gray-700 border-gray-200 hover:border-gray-400'
+                                            readOnly || (DISABLED_CHANNELS as readonly string[]).includes(channel) || isChannelLocked(sku, channel) ? 'bg-gray-50 text-gray-400 cursor-not-allowed border-gray-200' : 'bg-white text-gray-700 border-gray-200 hover:border-gray-400'
                                           }`}
                                           style={{ width: '52px' }}
                                         />
