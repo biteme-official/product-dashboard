@@ -704,7 +704,6 @@ function SkuListTable({ skus, onSwitchToSkuList }: { skus: SkuData[]; onSwitchTo
               <th className="px-3 py-2.5 text-right font-semibold text-gray-600 whitespace-nowrap">상시할인율</th>
               <th className="px-3 py-2.5 text-right font-semibold text-gray-600 whitespace-nowrap">원가율</th>
               <th className="px-3 py-2.5 text-right font-semibold text-gray-600 whitespace-nowrap">총 발주량</th>
-              <th className="px-3 py-2.5 text-left font-semibold text-gray-600 whitespace-nowrap">채널 목표량 확정</th>
             </tr>
           </thead>
           <tbody>
@@ -854,13 +853,6 @@ function SkuListTable({ skus, onSwitchToSkuList }: { skus: SkuData[]; onSwitchTo
                         <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-500 text-white whitespace-nowrap">PM확정</span>
                       )}
                     </span>
-                  </td>
-                  <td className="px-3 py-2">
-                    <div className="flex gap-1 flex-wrap">
-                      <ChannelBadge label="플랫폼" confirmed={sku.platformConfirmed ?? false} />
-                      <ChannelBadge label="브랜드" confirmed={sku.brandConfirmed ?? false} />
-                      <ChannelBadge label="글로벌" confirmed={sku.globalConfirmed ?? false} />
-                    </div>
                   </td>
                 </tr>
               );
