@@ -938,7 +938,6 @@ function toMD(dateStr: string | null | undefined): string {
 }
 
 interface ScheduleCal { skuId: string; channel: ScheduleChannel; date: string; top: number; left: number }
-interface DateEditing { skuId: string; channel: ScheduleChannel; text: string }
 
 function ChannelScheduleTable({ skus, onSwitchToSkuList }: { skus: SkuData[]; onSwitchToSkuList?: () => void }) {
   const updateSku = useStore((s) => s.updateSku);
@@ -950,7 +949,6 @@ function ChannelScheduleTable({ skus, onSwitchToSkuList }: { skus: SkuData[]; on
 
   const [scheduleCal, setScheduleCal] = useState<ScheduleCal | null>(null);
   const calRef = useRef<HTMLDivElement>(null);
-  const [dateEdit, setDateEdit] = useState<DateEditing | null>(null);
 
   useEffect(() => {
     if (!scheduleCal) return;
@@ -984,18 +982,6 @@ function ChannelScheduleTable({ skus, onSwitchToSkuList }: { skus: SkuData[]; on
     const date = (val !== null && val !== undefined) ? val : (sku.releaseDate ?? '');
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     setScheduleCal({ skuId: sku.id, channel: ch, date, top: rect.bottom + 6, left: rect.left });
-  }
-
-  function commitDateEdit() {
-    if (!dateEdit) return;
-    const { skuId, channel, text } = dateEdit;
-    if (!text.trim()) {
-      saveDate(skuId, channel, null);
-    } else {
-      const parsed = parseMDInput(text);
-      if (parsed) saveDate(skuId, channel, parsed);
-    }
-    setDateEdit(null);
   }
 
   function navigateToSku(sku: SkuData) {
@@ -1076,10 +1062,7 @@ function ChannelScheduleTable({ skus, onSwitchToSkuList }: { skus: SkuData[]; on
                   <td key={ch} className="px-2 py-1.5 text-center whitespace-nowrap">
                     <ScheduleDateCell
                       sku={sku} channel={ch} canEdit={canEdit}
-                      getVal={getVal} dateEdit={dateEdit}
-                      onStartEdit={(text) => setDateEdit({ skuId: sku.id, channel: ch, text })}
-                      onEditChange={(text) => setDateEdit((prev) => prev ? { ...prev, text } : null)}
-                      onCommit={commitDateEdit}
+                      getVal={getVal}
                       onOpenCal={(e) => openCal(sku, ch, e)}
                       onReset={() => saveDate(sku.id, ch, null)}
                     />
@@ -1102,10 +1085,7 @@ function ChannelScheduleTable({ skus, onSwitchToSkuList }: { skus: SkuData[]; on
                     )}
                     <ScheduleDateCell
                       sku={sku} channel="기타" canEdit={canEdit}
-                      getVal={getVal} dateEdit={dateEdit}
-                      onStartEdit={(text) => setDateEdit({ skuId: sku.id, channel: '기타', text })}
-                      onEditChange={(text) => setDateEdit((prev) => prev ? { ...prev, text } : null)}
-                      onCommit={commitDateEdit}
+                      getVal={getVal}
                       onOpenCal={(e) => openCal(sku, '기타', e)}
                       onReset={() => saveDate(sku.id, '기타', null)}
                     />
@@ -1125,60 +1105,28 @@ function ChannelScheduleTable({ skus, onSwitchToSkuList }: { skus: SkuData[]; on
 }
 
 function ScheduleDateCell({
-  sku, channel, canEdit, getVal, dateEdit,
-  onStartEdit, onEditChange, onCommit, onOpenCal, onReset,
+  sku, channel, canEdit, getVal, onOpenCal, onReset,
 }: {
   sku: SkuData;
   channel: ScheduleChannel;
   canEdit: boolean;
   getVal: (sku: SkuData, ch: ScheduleChannel) => string | null | undefined;
-  dateEdit: DateEditing | null;
-  onStartEdit: (text: string) => void;
-  onEditChange: (text: string) => void;
-  onCommit: () => void;
   onOpenCal: (e: React.MouseEvent) => void;
   onReset: () => void;
 }) {
   const val = getVal(sku, channel);
-  const isEditing = dateEdit?.skuId === sku.id && dateEdit?.channel === channel;
   const isDefault = val === null || val === undefined;
   const isNone = val === NONE;
   const displayText = isDefault ? toMD(sku.releaseDate) : toMD(val);
-
-  if (isEditing) {
-    return (
-      <div className="flex items-center gap-0.5 justify-center">
-        <input
-          type="text"
-          value={dateEdit!.text}
-          onChange={(e) => onEditChange(e.target.value)}
-          onBlur={onCommit}
-          onKeyDown={(e) => { if (e.key === 'Enter') onCommit(); if (e.key === 'Escape') onCommit(); }}
-          placeholder="M/D 또는 0"
-          autoFocus
-          className="w-16 text-[12px] text-center px-1.5 py-0.5 border border-indigo-400 rounded focus:outline-none focus:ring-1 focus:ring-indigo-300 tabular-nums"
-        />
-        <button
-          onMouseDown={(e) => { e.preventDefault(); onOpenCal(e); }}
-          className="p-0.5 text-gray-400 hover:text-indigo-600 transition-colors"
-          title="캘린더 열기"
-        >
-          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-          </svg>
-        </button>
-      </div>
-    );
-  }
 
   // 미판매 상태
   if (isNone) {
     return (
       <div className="flex items-center gap-0.5 justify-center group">
         <button
-          onClick={() => canEdit && onStartEdit('')}
-          className={`px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-400 border border-gray-200 ${canEdit ? 'cursor-pointer hover:bg-rose-50 hover:text-rose-400 hover:border-rose-200 transition-colors' : 'cursor-default'}`}
-          title={canEdit ? '클릭하여 편집' : undefined}
+          onClick={canEdit ? onOpenCal : undefined}
+          className={`px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-400 border border-gray-200 ${canEdit ? 'cursor-pointer hover:bg-indigo-50 hover:text-indigo-400 hover:border-indigo-200 transition-colors' : 'cursor-default'}`}
+          title={canEdit ? '클릭하여 날짜 변경' : undefined}
         >
           미판매
         </button>
@@ -1198,35 +1146,22 @@ function ScheduleDateCell({
   return (
     <div className="flex items-center gap-0.5 justify-center group">
       <button
-        onClick={() => canEdit && onStartEdit(isDefault ? '' : (toMD(val) || ''))}
+        onClick={canEdit ? onOpenCal : undefined}
         className={`tabular-nums text-[12px] transition-colors ${
           isDefault ? 'text-gray-400' : 'text-gray-700 font-medium'
         } ${canEdit ? 'hover:text-indigo-600 hover:underline underline-offset-2 decoration-dashed cursor-pointer' : 'cursor-default'}`}
-        title={canEdit ? '클릭하여 편집 (0 입력 시 미판매)' : undefined}
+        title={canEdit ? '클릭하여 날짜 변경' : undefined}
       >
         {displayText || <span className="text-gray-300">–</span>}
       </button>
-      {canEdit && (
-        <>
-          <button
-            onClick={onOpenCal}
-            className="opacity-0 group-hover:opacity-100 p-0.5 text-gray-300 hover:text-indigo-500 transition-all"
-            title="캘린더"
-          >
-            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-            </svg>
-          </button>
-          {!isDefault && (
-            <button
-              onClick={onReset}
-              className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-rose-400 transition-all text-[10px] leading-none"
-              title="기본값(오픈일)으로 초기화"
-            >
-              ×
-            </button>
-          )}
-        </>
+      {canEdit && !isDefault && (
+        <button
+          onClick={onReset}
+          className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-rose-400 transition-all text-[10px] leading-none"
+          title="기본값(오픈일)으로 초기화"
+        >
+          ×
+        </button>
       )}
     </div>
   );
