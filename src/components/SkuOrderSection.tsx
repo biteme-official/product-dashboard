@@ -5,7 +5,7 @@ import { SkuCard } from './SkuCard';
 import { PricingModal } from './PricingModal';
 import { NumericInput } from './NumericInput';
 import { exportBulkOrderXlsx } from '../utils/exportXlsx';
-import type { SkuData } from '../types';
+import type { SkuData, ChannelOpenScheduleEntry } from '../types';
 
 type ViewMode = 'list' | 'gallery';
 
@@ -61,12 +61,16 @@ function sortForListView(a: SkuData, b: SkuData): number {
   return a.name.localeCompare(b.name, 'ko');
 }
 
-export function SkuOrderSection() {
+export function SkuOrderSection({ mode = 'sku', subTab = 'list-view', onSwitchToSkuList }: {
+  mode?: 'sku' | 'projection';
+  subTab?: string;
+  onSwitchToSkuList?: () => void;
+}) {
   const skus = useStore((s) => s.skus);
   const activeCategory = useStore((s) => s.activeCategory);
   const activeBrand = useStore((s) => s.activeBrand);
-  const isListView = useStore((s) => s.isListView);
   const addSku = useStore((s) => s.addSku);
+  const isProjection = mode === 'projection';
 
   const { role } = useAuth();
   const canEdit = role === 'master' || role === 'pm';
@@ -198,7 +202,7 @@ export function SkuOrderSection() {
     [skus, listCatFilter, listBrandFilter, listMonthFilter],
   );
 
-  const sourceSkus = isListView ? allFilteredSkus : filteredSkus;
+  const sourceSkus = isProjection ? allFilteredSkus : filteredSkus;
   const displaySkus = searchQuery.trim()
     ? sourceSkus.filter((s) => s.name.includes(searchQuery.trim()))
     : sourceSkus;
@@ -208,131 +212,123 @@ export function SkuOrderSection() {
 
   return (
     <section className="p-4 space-y-3">
-      {/* 헤더 */}
-      <div className="flex items-center justify-between gap-2 flex-wrap">
-        {isListView ? (
-          <span className="text-sm text-gray-400 font-normal flex-shrink-0">
-            전체 {allFilteredSkus.length}{hasListFilter ? ' (필터 적용)' : ''}
-          </span>
-        ) : (
+      {/* 헤더 — SKU 리스트 모드에서만 표시 */}
+      {!isProjection && (
+        <div className="flex items-center justify-between gap-2 flex-wrap">
           <h2 className="text-sm font-semibold text-gray-700 flex-shrink-0">
             SKU 발주 입력
             <span className="ml-2 text-gray-400 font-normal">
               {filteredSkus.length}{activeBrand !== '전체' ? ` (전체 ${categorySkus.length})` : ''} / 15
             </span>
           </h2>
-        )}
 
-        <div className="flex items-center gap-2 flex-wrap justify-end">
-          {/* 뷰 모드 토글 */}
-          <div className="flex rounded-lg border border-gray-200 overflow-hidden text-xs">
-            <button
-              onClick={() => switchView('list')}
-              title="목록 뷰"
-              className={`px-2.5 py-1.5 flex items-center gap-1 transition-colors ${
-                viewMode === 'list' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'
-              }`}
-            >
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
-              </svg>
-              <span className="hidden sm:inline">목록</span>
-            </button>
-            <button
-              onClick={() => switchView('gallery')}
-              title="갤러리 뷰"
-              className={`px-2.5 py-1.5 flex items-center gap-1 transition-colors ${
-                viewMode === 'gallery' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'
-              }`}
-            >
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
-              </svg>
-              <span className="hidden sm:inline">갤러리</span>
-            </button>
-          </div>
-
-          {/* 일괄 발주표 다운로드 — LIST VIEW에서는 숨김 */}
-          {!isListView && filteredSkus.length > 0 && (
-            <div className="relative" ref={dropdownRef}>
+          <div className="flex items-center gap-2 flex-wrap justify-end">
+            {/* 뷰 모드 토글 */}
+            <div className="flex rounded-lg border border-gray-200 overflow-hidden text-xs">
               <button
-                onClick={() => setBulkOpen((o) => !o)}
-                className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition-colors whitespace-nowrap"
+                onClick={() => switchView('list')}
+                title="목록 뷰"
+                className={`px-2.5 py-1.5 flex items-center gap-1 transition-colors ${
+                  viewMode === 'list' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'
+                }`}
               >
-                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3" />
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
                 </svg>
-                <span className="hidden sm:inline">일괄 발주표</span>
-                <span className="sm:hidden">발주표</span>
-                {selectedIds.size > 0 && (
-                  <span className="px-1.5 py-0.5 rounded-full bg-emerald-600 text-white text-[10px] font-bold leading-none">
-                    {selectedIds.size}
-                  </span>
-                )}
-                <span className="text-emerald-400 text-[10px]">▾</span>
+                <span className="hidden sm:inline">목록</span>
               </button>
-
-              {bulkOpen && (
-                <div className="absolute right-0 top-full mt-1.5 w-56 bg-white border border-gray-200 rounded-xl shadow-lg z-50 overflow-hidden">
-                  <label className="flex items-center gap-2.5 px-3 py-2.5 border-b border-gray-100 cursor-pointer hover:bg-gray-50 transition-colors">
-                    <input
-                      type="checkbox"
-                      checked={selectedIds.size === filteredSkus.length && filteredSkus.length > 0}
-                      onChange={toggleAll}
-                      className="w-3.5 h-3.5 accent-emerald-600"
-                    />
-                    <span className="text-xs font-semibold text-gray-700">전체 선택</span>
-                    <span className="ml-auto text-[10px] text-gray-400">{filteredSkus.length}개</span>
-                  </label>
-                  <div className="max-h-48 overflow-y-auto">
-                    {filteredSkus.map((sku) => (
-                      <label key={sku.id} className="flex items-center gap-2.5 px-3 py-2 cursor-pointer hover:bg-gray-50 transition-colors">
-                        <input
-                          type="checkbox"
-                          checked={selectedIds.has(sku.id)}
-                          onChange={() => toggleOne(sku.id)}
-                          className="w-3.5 h-3.5 accent-emerald-600 flex-shrink-0"
-                        />
-                        <span className="text-xs text-gray-700 truncate">
-                          {sku.name || <span className="text-gray-300">(SKU명 미입력)</span>}
-                        </span>
-                      </label>
-                    ))}
-                  </div>
-                  <div className="px-3 py-2.5 border-t border-gray-100 flex gap-2">
-                    <button
-                      onClick={handleBulkDownload}
-                      disabled={selectedIds.size === 0}
-                      className="flex-1 py-1.5 text-xs rounded-lg bg-emerald-600 text-white font-medium hover:bg-emerald-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                    >
-                      다운로드 {selectedIds.size > 0 ? `(${selectedIds.size})` : ''}
-                    </button>
-                    <button
-                      onClick={() => setBulkOpen(false)}
-                      className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors"
-                    >
-                      닫기
-                    </button>
-                  </div>
-                </div>
-              )}
+              <button
+                onClick={() => switchView('gallery')}
+                title="갤러리 뷰"
+                className={`px-2.5 py-1.5 flex items-center gap-1 transition-colors ${
+                  viewMode === 'gallery' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'
+                }`}
+              >
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+                </svg>
+                <span className="hidden sm:inline">갤러리</span>
+              </button>
             </div>
-          )}
 
-          {/* SKU 검색 — LIST VIEW에서는 필터 바 내부로 이동 */}
-          {!isListView && (
+            {/* 일괄 발주표 다운로드 */}
+            {filteredSkus.length > 0 && (
+              <div className="relative" ref={dropdownRef}>
+                <button
+                  onClick={() => setBulkOpen((o) => !o)}
+                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition-colors whitespace-nowrap"
+                >
+                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3" />
+                  </svg>
+                  <span className="hidden sm:inline">일괄 발주표</span>
+                  <span className="sm:hidden">발주표</span>
+                  {selectedIds.size > 0 && (
+                    <span className="px-1.5 py-0.5 rounded-full bg-emerald-600 text-white text-[10px] font-bold leading-none">
+                      {selectedIds.size}
+                    </span>
+                  )}
+                  <span className="text-emerald-400 text-[10px]">▾</span>
+                </button>
+
+                {bulkOpen && (
+                  <div className="absolute right-0 top-full mt-1.5 w-56 bg-white border border-gray-200 rounded-xl shadow-lg z-50 overflow-hidden">
+                    <label className="flex items-center gap-2.5 px-3 py-2.5 border-b border-gray-100 cursor-pointer hover:bg-gray-50 transition-colors">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.size === filteredSkus.length && filteredSkus.length > 0}
+                        onChange={toggleAll}
+                        className="w-3.5 h-3.5 accent-emerald-600"
+                      />
+                      <span className="text-xs font-semibold text-gray-700">전체 선택</span>
+                      <span className="ml-auto text-[10px] text-gray-400">{filteredSkus.length}개</span>
+                    </label>
+                    <div className="max-h-48 overflow-y-auto">
+                      {filteredSkus.map((sku) => (
+                        <label key={sku.id} className="flex items-center gap-2.5 px-3 py-2 cursor-pointer hover:bg-gray-50 transition-colors">
+                          <input
+                            type="checkbox"
+                            checked={selectedIds.has(sku.id)}
+                            onChange={() => toggleOne(sku.id)}
+                            className="w-3.5 h-3.5 accent-emerald-600 flex-shrink-0"
+                          />
+                          <span className="text-xs text-gray-700 truncate">
+                            {sku.name || <span className="text-gray-300">(SKU명 미입력)</span>}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                    <div className="px-3 py-2.5 border-t border-gray-100 flex gap-2">
+                      <button
+                        onClick={handleBulkDownload}
+                        disabled={selectedIds.size === 0}
+                        className="flex-1 py-1.5 text-xs rounded-lg bg-emerald-600 text-white font-medium hover:bg-emerald-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        다운로드 {selectedIds.size > 0 ? `(${selectedIds.size})` : ''}
+                      </button>
+                      <button
+                        onClick={() => setBulkOpen(false)}
+                        className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors"
+                      >
+                        닫기
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             <SearchInput value={searchQuery} onChange={setSearchQuery} />
-          )}
+          </div>
         </div>
-      </div>
+      )}
 
-      {isListView ? (
-        /* ── LIST VIEW: 필터바 + 테이블을 하나의 고정 높이 컨테이너로 묶어 스크롤 처리 ── */
-        <div className="flex flex-col gap-2" style={{ height: 'calc(100vh - 185px)' }}>
-          {/* 필터 바 (고정) */}
+      {isProjection ? (
+        /* ── 프로젝션 공통 컨테이너 (필터바 + 서브탭 콘텐츠) ── */
+        <div className="flex flex-col gap-2" style={{ height: 'calc(100vh - 108px)' }}>
+          {/* 필터 바 (모든 서브탭 공유) */}
           <div className="flex-shrink-0 bg-white border border-gray-200 rounded-xl px-3 py-2.5">
             <div className="flex items-center gap-x-2 gap-y-1.5 flex-wrap">
-              {/* 카테고리 */}
               <div className="flex items-center gap-1.5 flex-wrap">
                 <span className="text-[11px] text-gray-400 font-semibold shrink-0 w-14">카테고리</span>
                 {availableCategories.map((cat) => (
@@ -349,10 +345,7 @@ export function SkuOrderSection() {
                   </button>
                 ))}
               </div>
-
               <div className="w-px h-4 bg-gray-200 shrink-0" />
-
-              {/* 브랜드 */}
               <div className="flex items-center gap-1.5 flex-wrap">
                 <span className="text-[11px] text-gray-400 font-semibold shrink-0 w-[30px]">브랜드</span>
                 {availableBrands.map((brand) => (
@@ -369,23 +362,15 @@ export function SkuOrderSection() {
                   </button>
                 ))}
               </div>
-
-              {/* 우측: 필터 초기화 + 오픈월 드롭다운 + SKU 검색 */}
               <div className="ml-auto flex items-center gap-2 shrink-0">
                 {hasListFilter && (
                   <button
-                    onClick={() => {
-                      setListCatFilter(new Set());
-                      setListBrandFilter(new Set());
-                      setListMonthFilter(new Set());
-                    }}
+                    onClick={() => { setListCatFilter(new Set()); setListBrandFilter(new Set()); setListMonthFilter(new Set()); }}
                     className="text-[11px] text-gray-400 hover:text-rose-500 transition-colors whitespace-nowrap"
                   >
                     초기화
                   </button>
                 )}
-
-                {/* 오픈월 드롭다운 */}
                 {availableMonths.length > 0 && (
                   <div className="relative" ref={monthDropdownRef}>
                     <button
@@ -402,42 +387,23 @@ export function SkuOrderSection() {
                           {listMonthFilter.size}
                         </span>
                       )}
-                      <svg
-                        className={`w-3 h-3 transition-transform ${monthDropdownOpen ? 'rotate-180' : ''}`}
-                        fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
-                      >
+                      <svg className={`w-3 h-3 transition-transform ${monthDropdownOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
                       </svg>
                     </button>
-
                     {monthDropdownOpen && (
                       <div className="absolute right-0 top-full mt-1.5 min-w-[140px] bg-white border border-gray-200 rounded-xl shadow-lg z-50 overflow-hidden">
                         <div className="px-2 py-1.5 border-b border-gray-100 flex items-center justify-between">
                           <span className="text-[11px] font-semibold text-gray-500">오픈월 선택</span>
                           {listMonthFilter.size > 0 && (
-                            <button
-                              onClick={() => setListMonthFilter(new Set())}
-                              className="text-[10px] text-gray-400 hover:text-rose-500 transition-colors"
-                            >
-                              초기화
-                            </button>
+                            <button onClick={() => setListMonthFilter(new Set())} className="text-[10px] text-gray-400 hover:text-rose-500 transition-colors">초기화</button>
                           )}
                         </div>
                         <div className="py-1">
                           {availableMonths.map((ym) => (
-                            <label
-                              key={ym}
-                              className="flex items-center gap-2 px-3 py-1.5 cursor-pointer hover:bg-gray-50 transition-colors"
-                            >
-                              <input
-                                type="checkbox"
-                                checked={listMonthFilter.has(ym)}
-                                onChange={() => setListMonthFilter(toggleFilterItem(listMonthFilter, ym))}
-                                className="w-3.5 h-3.5 accent-indigo-600 shrink-0"
-                              />
-                              <span className={`text-[12px] ${listMonthFilter.has(ym) ? 'text-indigo-700 font-medium' : 'text-gray-600'}`}>
-                                {formatYearMonth(ym)}
-                              </span>
+                            <label key={ym} className="flex items-center gap-2 px-3 py-1.5 cursor-pointer hover:bg-gray-50 transition-colors">
+                              <input type="checkbox" checked={listMonthFilter.has(ym)} onChange={() => setListMonthFilter(toggleFilterItem(listMonthFilter, ym))} className="w-3.5 h-3.5 accent-indigo-600 shrink-0" />
+                              <span className={`text-[12px] ${listMonthFilter.has(ym) ? 'text-indigo-700 font-medium' : 'text-gray-600'}`}>{formatYearMonth(ym)}</span>
                             </label>
                           ))}
                         </div>
@@ -445,22 +411,25 @@ export function SkuOrderSection() {
                     )}
                   </div>
                 )}
-
                 <SearchInput value={searchQuery} onChange={setSearchQuery} />
               </div>
             </div>
           </div>
 
-          {/* 테이블 영역 (스크롤) */}
+          {/* 서브탭 콘텐츠 */}
           {displaySkus.length === 0 ? (
             <div className="border border-gray-200 rounded-xl p-8 text-center text-gray-400 text-sm">
               {searchQuery || hasListFilter ? '조건에 일치하는 SKU가 없습니다.' : '등록된 SKU가 없습니다.'}
             </div>
-          ) : (
+          ) : subTab === 'list-view' ? (
             <div className="flex-1 min-h-0">
-              <SkuListTable skus={displaySkus} />
+              <SkuListTable skus={displaySkus} onSwitchToSkuList={onSwitchToSkuList} />
             </div>
-          )}
+          ) : subTab === 'channel-schedule' ? (
+            <div className="flex-1 min-h-0">
+              <ChannelScheduleTable skus={displaySkus} onSwitchToSkuList={onSwitchToSkuList} />
+            </div>
+          ) : null}
         </div>
       ) : (
         /* ── CARD / GALLERY VIEW ── */
@@ -608,10 +577,9 @@ type PriceField = 'cost' | 'price' | 'regularPrice';
 interface EditingCell { skuId: string; field: PriceField; originalValue: number }
 interface CalendarState { skuId: string; selectedDate: string; top: number; left: number }
 
-function SkuListTable({ skus }: { skus: SkuData[] }) {
+function SkuListTable({ skus, onSwitchToSkuList }: { skus: SkuData[]; onSwitchToSkuList?: () => void }) {
   const updateSku = useStore((s) => s.updateSku);
   const persistSku = useStore((s) => s.persistSku);
-  const setListView = useStore((s) => s.setListView);
   const setActiveCategory = useStore((s) => s.setActiveCategory);
   const expandOnly = useStore((s) => s.expandOnly);
   const setPriceConfirmed = useStore((s) => s.setPriceConfirmed);
@@ -619,7 +587,7 @@ function SkuListTable({ skus }: { skus: SkuData[] }) {
 
   function navigateToSku(sku: SkuData) {
     setActiveCategory(sku.category);
-    setListView(false);
+    onSwitchToSkuList?.();
     // 카테고리 전환 후: 해당 카테고리의 다른 카드 모두 닫고 이 카드만 열기
     setTimeout(() => {
       expandOnly(sku.id);
@@ -892,6 +860,359 @@ function ListPriceCell({ sku, field, editingCell, canEdit, onStartEdit, onCommit
     >
       {value === 0 ? '–' : value.toLocaleString()}
     </span>
+  );
+}
+
+// ── 채널별 오픈일정 테이블 ────────────────────────────────────────────────────
+
+const SCHEDULE_CHANNELS = ['플랫폼', '스스', '위탁', 'B2B', '글로벌', '기타'] as const;
+type ScheduleChannel = typeof SCHEDULE_CHANNELS[number];
+
+const CH_KEY: Record<ScheduleChannel, keyof ChannelOpenScheduleEntry> = {
+  '플랫폼': '플랫폼', '스스': '스스', '위탁': '위탁', 'B2B': 'B2B', '글로벌': '글로벌', '기타': '기타',
+};
+
+const NONE = 'NONE'; // 미판매 센티넬
+
+function parseMDInput(input: string): string | null {
+  const t = input.trim();
+  if (t === '0' || t === 'x' || t === 'X' || t === '미판매') return NONE;
+  const match = t.match(/^(\d{1,2})\/(\d{1,2})$/);
+  if (!match) return null;
+  const m = parseInt(match[1], 10);
+  const d = parseInt(match[2], 10);
+  if (m < 1 || m > 12 || d < 1 || d > 31) return null;
+  const year = m >= 7 ? 2025 : 2026;
+  return `${year}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+}
+
+function toMD(dateStr: string | null | undefined): string {
+  if (!dateStr || dateStr === NONE) return '';
+  const dt = new Date(dateStr + 'T00:00:00');
+  return isNaN(dt.getTime()) ? '' : `${dt.getMonth() + 1}/${dt.getDate()}`;
+}
+
+interface ScheduleCal { skuId: string; channel: ScheduleChannel; date: string; top: number; left: number }
+interface DateEditing { skuId: string; channel: ScheduleChannel; text: string }
+
+function ChannelScheduleTable({ skus, onSwitchToSkuList }: { skus: SkuData[]; onSwitchToSkuList?: () => void }) {
+  const updateSku = useStore((s) => s.updateSku);
+  const persistSku = useStore((s) => s.persistSku);
+  const setActiveCategory = useStore((s) => s.setActiveCategory);
+  const expandOnly = useStore((s) => s.expandOnly);
+  const { role } = useAuth();
+  const canEdit = role === 'master' || role === 'platform_md' || role === 'brand_md';
+
+  const [scheduleCal, setScheduleCal] = useState<ScheduleCal | null>(null);
+  const calRef = useRef<HTMLDivElement>(null);
+  const [dateEdit, setDateEdit] = useState<DateEditing | null>(null);
+
+  useEffect(() => {
+    if (!scheduleCal) return;
+    function out(e: MouseEvent) { if (calRef.current && !calRef.current.contains(e.target as Node)) setScheduleCal(null); }
+    function esc(e: KeyboardEvent) { if (e.key === 'Escape') setScheduleCal(null); }
+    document.addEventListener('mousedown', out);
+    document.addEventListener('keydown', esc);
+    return () => { document.removeEventListener('mousedown', out); document.removeEventListener('keydown', esc); };
+  }, [scheduleCal]);
+
+  function getVal(sku: SkuData, ch: ScheduleChannel): string | null | undefined {
+    return sku.channelOpenSchedule?.[CH_KEY[ch]] as string | null | undefined;
+  }
+
+  function saveDate(skuId: string, ch: ScheduleChannel, dateStr: string | null) {
+    const sku = skus.find((s) => s.id === skuId);
+    if (!sku) return;
+    updateSku(skuId, { channelOpenSchedule: { ...sku.channelOpenSchedule, [CH_KEY[ch]]: dateStr } });
+    persistSku(skuId);
+  }
+
+  function saveLabelOnly(skuId: string, label: string) {
+    const sku = skus.find((s) => s.id === skuId);
+    if (!sku) return;
+    updateSku(skuId, { channelOpenSchedule: { ...sku.channelOpenSchedule, 기타Label: label } });
+    persistSku(skuId);
+  }
+
+  function openCal(sku: SkuData, ch: ScheduleChannel, e: React.MouseEvent) {
+    const val = getVal(sku, ch);
+    const date = (val !== null && val !== undefined) ? val : (sku.releaseDate ?? '');
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    setScheduleCal({ skuId: sku.id, channel: ch, date, top: rect.bottom + 6, left: rect.left });
+  }
+
+  function commitDateEdit() {
+    if (!dateEdit) return;
+    const { skuId, channel, text } = dateEdit;
+    if (!text.trim()) {
+      saveDate(skuId, channel, null);
+    } else {
+      const parsed = parseMDInput(text);
+      if (parsed) saveDate(skuId, channel, parsed);
+    }
+    setDateEdit(null);
+  }
+
+  function navigateToSku(sku: SkuData) {
+    setActiveCategory(sku.category);
+    onSwitchToSkuList?.();
+    setTimeout(() => {
+      expandOnly(sku.id);
+      setTimeout(() => {
+        document.getElementById(`sku-card-${sku.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 50);
+    }, 0);
+  }
+
+  return (
+    <>
+      {scheduleCal && (
+        <CalendarPopup
+          selectedDate={scheduleCal.date}
+          top={scheduleCal.top}
+          left={scheduleCal.left}
+          containerRef={calRef}
+          onSelect={(dateStr) => {
+            if (!scheduleCal) return;
+            saveDate(scheduleCal.skuId, scheduleCal.channel, dateStr || null);
+            setScheduleCal(null);
+          }}
+        />
+      )}
+      <div className="bg-white border border-gray-200 rounded-xl overflow-auto h-full">
+        <table className="w-full text-[12px]">
+          <thead className="sticky top-0 z-10 bg-gray-50">
+            <tr className="border-b border-gray-200">
+              <th className="px-3 py-2.5 text-left font-semibold text-gray-600 whitespace-nowrap">카테고리</th>
+              <th className="px-3 py-2.5 text-left font-semibold text-gray-600 whitespace-nowrap">브랜드</th>
+              <th className="px-3 py-2.5 text-left font-semibold text-gray-600">SKU명</th>
+              <th className="px-3 py-2.5 text-center font-semibold text-gray-600 whitespace-nowrap">기본 오픈일</th>
+              {(['플랫폼', '스스', '위탁', 'B2B', '글로벌'] as const).map((ch) => (
+                <th key={ch} className="px-3 py-2.5 text-center font-semibold text-gray-600 whitespace-nowrap">{ch}</th>
+              ))}
+              <th className="px-3 py-2.5 text-center font-semibold text-gray-600 whitespace-nowrap min-w-[180px]">기타</th>
+              <th className="px-3 py-2.5 text-left font-semibold text-gray-600 whitespace-nowrap min-w-[200px]">메모</th>
+            </tr>
+          </thead>
+          <tbody>
+            {skus.map((sku, i) => (
+              <tr
+                key={sku.id}
+                className={`border-b border-gray-100 last:border-0 ${i % 2 === 1 ? 'bg-gray-50/50' : 'bg-white'} hover:bg-indigo-50/40 transition-colors`}
+              >
+                <td className="px-3 py-2 whitespace-nowrap">
+                  <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${catCls(sku.category)}`}>{sku.category}</span>
+                </td>
+                <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{sku.brand}</td>
+                <td className="px-3 py-2 max-w-[180px]">
+                  <button
+                    onClick={() => navigateToSku(sku)}
+                    className="font-medium text-gray-800 truncate block w-full text-left hover:text-indigo-600 hover:underline underline-offset-2 transition-colors"
+                    title={sku.name || undefined}
+                  >
+                    {sku.name || <span className="text-gray-300">(미입력)</span>}
+                  </button>
+                </td>
+                {/* 기본 오픈일 */}
+                <td className="px-3 py-2 text-center whitespace-nowrap tabular-nums text-gray-500">
+                  {toMD(sku.releaseDate) || <span className="text-gray-300">–</span>}
+                </td>
+                {/* 채널 날짜 셀: 플랫폼, 스스, 위탁, B2B, 글로벌 */}
+                {(['플랫폼', '스스', '위탁', 'B2B', '글로벌'] as const).map((ch) => (
+                  <td key={ch} className="px-2 py-1.5 text-center whitespace-nowrap">
+                    <ScheduleDateCell
+                      sku={sku} channel={ch} canEdit={canEdit}
+                      getVal={getVal} dateEdit={dateEdit}
+                      onStartEdit={(text) => setDateEdit({ skuId: sku.id, channel: ch, text })}
+                      onEditChange={(text) => setDateEdit((prev) => prev ? { ...prev, text } : null)}
+                      onCommit={commitDateEdit}
+                      onOpenCal={(e) => openCal(sku, ch, e)}
+                      onReset={() => saveDate(sku.id, ch, null)}
+                    />
+                  </td>
+                ))}
+                {/* 기타 채널: 라벨(절반) + 날짜(나란히), 전체 가운데정렬 */}
+                <td className="px-2 py-1.5 whitespace-nowrap text-center">
+                  <div className="flex items-center justify-center gap-1">
+                    {canEdit ? (
+                      <input
+                        type="text"
+                        value={sku.channelOpenSchedule?.기타Label ?? ''}
+                        onChange={(e) => updateSku(sku.id, { channelOpenSchedule: { ...sku.channelOpenSchedule, 기타Label: e.target.value } })}
+                        onBlur={() => saveLabelOnly(sku.id, sku.channelOpenSchedule?.기타Label ?? '')}
+                        placeholder="채널명"
+                        className="w-[72px] text-[11px] px-1.5 py-0.5 border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-indigo-300 text-gray-700 placeholder:text-gray-300"
+                      />
+                    ) : (
+                      <span className="w-[72px] text-[11px] text-gray-500 px-1 truncate">{sku.channelOpenSchedule?.기타Label || <span className="text-gray-300">채널명</span>}</span>
+                    )}
+                    <ScheduleDateCell
+                      sku={sku} channel="기타" canEdit={canEdit}
+                      getVal={getVal} dateEdit={dateEdit}
+                      onStartEdit={(text) => setDateEdit({ skuId: sku.id, channel: '기타', text })}
+                      onEditChange={(text) => setDateEdit((prev) => prev ? { ...prev, text } : null)}
+                      onCommit={commitDateEdit}
+                      onOpenCal={(e) => openCal(sku, '기타', e)}
+                      onReset={() => saveDate(sku.id, '기타', null)}
+                    />
+                  </div>
+                </td>
+                {/* 메모 */}
+                <td className="px-2 py-1.5 align-top">
+                  <ScheduleMemoCell sku={sku} canEdit={canEdit} />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+}
+
+function ScheduleDateCell({
+  sku, channel, canEdit, getVal, dateEdit,
+  onStartEdit, onEditChange, onCommit, onOpenCal, onReset,
+}: {
+  sku: SkuData;
+  channel: ScheduleChannel;
+  canEdit: boolean;
+  getVal: (sku: SkuData, ch: ScheduleChannel) => string | null | undefined;
+  dateEdit: DateEditing | null;
+  onStartEdit: (text: string) => void;
+  onEditChange: (text: string) => void;
+  onCommit: () => void;
+  onOpenCal: (e: React.MouseEvent) => void;
+  onReset: () => void;
+}) {
+  const val = getVal(sku, channel);
+  const isEditing = dateEdit?.skuId === sku.id && dateEdit?.channel === channel;
+  const isDefault = val === null || val === undefined;
+  const isNone = val === NONE;
+  const displayText = isDefault ? toMD(sku.releaseDate) : toMD(val);
+
+  if (isEditing) {
+    return (
+      <div className="flex items-center gap-0.5 justify-center">
+        <input
+          type="text"
+          value={dateEdit!.text}
+          onChange={(e) => onEditChange(e.target.value)}
+          onBlur={onCommit}
+          onKeyDown={(e) => { if (e.key === 'Enter') onCommit(); if (e.key === 'Escape') onCommit(); }}
+          placeholder="M/D 또는 0"
+          autoFocus
+          className="w-16 text-[12px] text-center px-1.5 py-0.5 border border-indigo-400 rounded focus:outline-none focus:ring-1 focus:ring-indigo-300 tabular-nums"
+        />
+        <button
+          onMouseDown={(e) => { e.preventDefault(); onOpenCal(e); }}
+          className="p-0.5 text-gray-400 hover:text-indigo-600 transition-colors"
+          title="캘린더 열기"
+        >
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          </svg>
+        </button>
+      </div>
+    );
+  }
+
+  // 미판매 상태
+  if (isNone) {
+    return (
+      <div className="flex items-center gap-0.5 justify-center group">
+        <button
+          onClick={() => canEdit && onStartEdit('')}
+          className={`px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-400 border border-gray-200 ${canEdit ? 'cursor-pointer hover:bg-rose-50 hover:text-rose-400 hover:border-rose-200 transition-colors' : 'cursor-default'}`}
+          title={canEdit ? '클릭하여 편집' : undefined}
+        >
+          미판매
+        </button>
+        {canEdit && (
+          <button
+            onClick={onReset}
+            className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-rose-400 transition-all text-[10px] leading-none"
+            title="기본값(오픈일)으로 초기화"
+          >
+            ×
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-0.5 justify-center group">
+      <button
+        onClick={() => canEdit && onStartEdit(isDefault ? '' : (toMD(val) || ''))}
+        className={`tabular-nums text-[12px] transition-colors ${
+          isDefault ? 'text-gray-400' : 'text-gray-700 font-medium'
+        } ${canEdit ? 'hover:text-indigo-600 hover:underline underline-offset-2 decoration-dashed cursor-pointer' : 'cursor-default'}`}
+        title={canEdit ? '클릭하여 편집 (0 입력 시 미판매)' : undefined}
+      >
+        {displayText || <span className="text-gray-300">–</span>}
+      </button>
+      {canEdit && (
+        <>
+          <button
+            onClick={onOpenCal}
+            className="opacity-0 group-hover:opacity-100 p-0.5 text-gray-300 hover:text-indigo-500 transition-all"
+            title="캘린더"
+          >
+            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+          </button>
+          {!isDefault && (
+            <button
+              onClick={onReset}
+              className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-rose-400 transition-all text-[10px] leading-none"
+              title="기본값(오픈일)으로 초기화"
+            >
+              ×
+            </button>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function ScheduleMemoCell({ sku, canEdit }: { sku: SkuData; canEdit: boolean }) {
+  const updateSku = useStore((s) => s.updateSku);
+  const persistSku = useStore((s) => s.persistSku);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (ref.current) ref.current.innerHTML = sku.channelOpenSchedule?.memo ?? '';
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sku.id]);
+
+  function handleBlur() {
+    if (!ref.current) return;
+    const html = ref.current.innerHTML;
+    updateSku(sku.id, { channelOpenSchedule: { ...sku.channelOpenSchedule, memo: html } });
+    persistSku(sku.id);
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (e.ctrlKey || e.metaKey) {
+      if (e.key === 'b') { e.preventDefault(); document.execCommand('bold'); }
+      if (e.key === 'i') { e.preventDefault(); document.execCommand('italic'); }
+    }
+  }
+
+  return (
+    <div
+      ref={ref}
+      contentEditable={canEdit}
+      onBlur={handleBlur}
+      onKeyDown={handleKeyDown}
+      className={`min-w-[200px] min-h-[28px] text-[12px] text-gray-700 px-2 py-1 rounded transition-colors ${
+        canEdit ? 'hover:bg-gray-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-300' : ''
+      }`}
+      suppressContentEditableWarning
+    />
   );
 }
 

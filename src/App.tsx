@@ -13,7 +13,7 @@ import { ConfirmLogModal } from './components/ConfirmLogModal';
 import { parseImportJson, type RawSkuInput } from './utils/importParser';
 import { BulkImportModal } from './components/BulkImportModal';
 
-type MainTab = 'pm' | 'md' | 'manual';
+type MainTab = 'pm' | 'projection' | 'md' | 'manual';
 
 function useSessionState<T>(key: string, initial: T): [T, (val: T) => void] {
   const [state, setState] = useState<T>(() => {
@@ -48,7 +48,6 @@ function App() {
   const importSkus = useStore((s) => s.importSkus);
   const replaceAllSkus = useStore((s) => s.replaceAllSkus);
   const skus = useStore((s) => s.skus);
-  const setListView = useStore((s) => s.setListView);
   const { role, logout } = useAuth();
 
   const [pending, setPending] = useState<PendingImport | null>(null);
@@ -57,7 +56,8 @@ function App() {
   const [showConfirmLog, setShowConfirmLog] = useState(false);
   const [showBulkImport, setShowBulkImport] = useState(false);
   const [backupState, setBackupState] = useState<'idle' | 'done' | 'error'>('idle');
-  const [activeMainTab, setActiveMainTab] = useSessionState<MainTab>('app:mainTab', 'pm');
+  const [activeMainTab, setActiveMainTab] = useSessionState<MainTab>('app:mainTab', 'projection');
+  const [projectionSubTab, setProjectionSubTab] = useSessionState<string>('app:projectionSubTab', 'list-view');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   function handleExport() {
@@ -240,11 +240,12 @@ function App() {
         </div>
       </header>
 
-      {/* PM / MD 탭 + 카테고리 탭 + 브랜드 필터 (sticky) */}
+      {/* 탭 + 카테고리 탭 + 브랜드 필터 (sticky) */}
       <div className="sticky top-0 z-10 bg-white shadow-sm">
-        {/* 최상단: PM / MD 탭 */}
+        {/* 최상단 탭 */}
         <div className="flex items-center gap-1 px-3 pt-2 pb-0 border-b border-gray-100">
           {([
+            { key: 'projection', label: '프로젝션' },
             { key: 'pm', label: 'SKU 리스트' },
             { key: 'md', label: '채널별 요약' },
           ] as { key: MainTab; label: string }[]).map(({ key, label }) => {
@@ -252,7 +253,7 @@ function App() {
             return (
               <button
                 key={key}
-                onClick={() => { setActiveMainTab(key); if (key === 'md') setListView(false); }}
+                onClick={() => setActiveMainTab(key)}
                 className={`px-4 py-1.5 text-sm font-semibold rounded-t-lg border-b-2 transition-all ${
                   isActive
                     ? 'border-indigo-600 text-indigo-700 bg-indigo-50/60'
@@ -275,9 +276,33 @@ function App() {
             메뉴얼
           </button>
         </div>
-        {activeMainTab === 'manual' ? null : (
+
+        {/* 프로젝션 서브탭 */}
+        {activeMainTab === 'projection' && (
+          <div className="flex gap-1 p-3 bg-white border-b border-gray-200 overflow-x-auto scrollbar-none">
+            {[
+              { key: 'list-view', label: 'LIST VIEW' },
+              { key: 'channel-schedule', label: '채널별 오픈일정' },
+            ].map(({ key, label }) => (
+              <button
+                key={key}
+                onClick={() => setProjectionSubTab(key)}
+                className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all flex-shrink-0 ${
+                  projectionSubTab === key
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* 카테고리 탭 + 브랜드 필터 (SKU 리스트, 채널별 요약) */}
+        {(activeMainTab === 'pm' || activeMainTab === 'md') && (
           <>
-            <CategoryTabs hideListView={activeMainTab === 'md'} />
+            <CategoryTabs />
             <BrandFilter />
           </>
         )}
@@ -288,10 +313,9 @@ function App() {
         {activeMainTab === 'manual' ? (
           <ManualTab />
         ) : activeMainTab === 'pm' ? (
-          <>
-            {/* Section A */}
-            <SkuOrderSection />
-          </>
+          <SkuOrderSection mode="sku" onSwitchToSkuList={() => setActiveMainTab('pm')} />
+        ) : activeMainTab === 'projection' ? (
+          <SkuOrderSection mode="projection" subTab={projectionSubTab} onSwitchToSkuList={() => setActiveMainTab('pm')} />
         ) : (
           <div className="px-4 py-4">
             <MdSummarySection />

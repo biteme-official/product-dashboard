@@ -142,6 +142,7 @@ export interface SkuData {
   marketingBrief?: MarketingBrief;
   marketingMonthQty?: { [month: number]: number }; // 마케팅 채널 월별 수량 (원가×수량 = 비용)
   isPriceConfirmed?: boolean;                       // 가격 확정 여부 (master만 변경 가능)
+  channelOpenSchedule?: ChannelOpenScheduleEntry; // 채널별 오픈일정
   step2InitBaselineQty?: ChannelMonthQtyEntry[]; // 초기화 시 계산된 수량 (비교 기준값, 영구 보존)
   isConfirmed?: boolean;
   finalOrderQty?: Record<string, number>;
@@ -151,6 +152,17 @@ export interface SkuData {
   globalConfirmed?: boolean;
   isExpanded: boolean;
   _initialSnapshot: Omit<SkuData, 'isExpanded' | '_initialSnapshot'>;
+}
+
+export interface ChannelOpenScheduleEntry {
+  플랫폼?: string | null;   // YYYY-MM-DD | 'NONE' | null(=SKU 오픈일 기본값)
+  스스?: string | null;
+  위탁?: string | null;
+  B2B?: string | null;
+  글로벌?: string | null;
+  기타Label?: string;       // 기타 채널명 (직접 입력)
+  기타?: string | null;
+  memo?: string;            // HTML (bold/italic 지원)
 }
 
 export interface MarketingBriefTargetProduct {
