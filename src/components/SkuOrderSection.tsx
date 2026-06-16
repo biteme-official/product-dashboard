@@ -928,12 +928,19 @@ const SCHEDULE_CH_CLS: Record<ScheduleChannel, string> = {
   '기타':   'bg-gray-100 text-gray-600 border-gray-200',
 };
 
+function toDateObj(dateStr: string | null | undefined): Date | null {
+  if (!dateStr || dateStr === NONE) return null;
+  const d = new Date(dateStr + 'T00:00:00');
+  return isNaN(d.getTime()) ? null : d;
+}
+
 function getPreOpenStatus(
   sku: SkuData,
   getVal: (sku: SkuData, ch: ScheduleChannel) => string | null | undefined,
 ): 'none' | 'simultaneous' | { channel: ScheduleChannel; date: string }[] {
   const baseDate = sku.releaseDate;
-  if (!baseDate) return 'none';
+  const baseObj = toDateObj(baseDate);
+  if (!baseObj) return 'none';
 
   let hasActiveChannel = false;
   const earlyChannels: { channel: ScheduleChannel; date: string }[] = [];
@@ -942,15 +949,20 @@ function getPreOpenStatus(
     const val = getVal(sku, ch);
     if (val === NONE) continue;
     hasActiveChannel = true;
-    const effectiveDate = (val !== null && val !== undefined) ? val : baseDate;
-    if (effectiveDate < baseDate) {
-      earlyChannels.push({ channel: ch, date: effectiveDate });
+    const effectiveDateStr = (val !== null && val !== undefined) ? val : baseDate;
+    const effectiveObj = toDateObj(effectiveDateStr);
+    if (effectiveObj && effectiveObj < baseObj) {
+      earlyChannels.push({ channel: ch, date: effectiveDateStr });
     }
   }
 
   if (!hasActiveChannel) return 'none';
   if (earlyChannels.length === 0) return 'simultaneous';
-  earlyChannels.sort((a, b) => a.date.localeCompare(b.date));
+  earlyChannels.sort((a, b) => {
+    const da = toDateObj(a.date), db = toDateObj(b.date);
+    if (!da || !db) return 0;
+    return da.getTime() - db.getTime();
+  });
   return earlyChannels;
 }
 
@@ -1100,7 +1112,7 @@ function ChannelScheduleTable({ skus, onSwitchToSkuList }: { skus: SkuData[]; on
                             key={channel}
                             className={`text-[11px] font-medium px-2 py-0.5 rounded-full border ${SCHEDULE_CH_CLS[channel]}`}
                           >
-                            {channel} 선오픈
+                            {channel}
                           </span>
                         ))}
                       </span>
