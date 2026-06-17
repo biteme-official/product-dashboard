@@ -152,6 +152,7 @@ export interface SkuData {
   platformConfirmed?: boolean;
   brandConfirmed?: boolean;
   globalConfirmed?: boolean;
+  isProjectionConfirmed?: boolean;           // 프로젝션 확정 여부 (master/PM 변경 가능)
   isExpanded: boolean;
   _initialSnapshot: Omit<SkuData, 'isExpanded' | '_initialSnapshot'>;
 }

@@ -693,6 +693,7 @@ function SkuListTable({ skus, onSwitchToSkuList }: { skus: SkuData[]; onSwitchTo
               const dr = discountRate(sku);
               const cr = costRate(sku);
               const formattedDate = formatReleaseDate(sku.releaseDate);
+              const isProjectionLocked = sku.isProjectionConfirmed ?? false;
               return (
                 <tr
                   key={sku.id}
@@ -714,23 +715,30 @@ function SkuListTable({ skus, onSwitchToSkuList }: { skus: SkuData[]; onSwitchTo
                       {sku.name || <span className="text-gray-300">(미입력)</span>}
                     </button>
                   </td>
-                  {/* 오픈일 — M/D (요일) 형식, master/pm 클릭 시 캘린더 팝업 */}
+                  {/* 오픈일 — 확정 시 [확정] 뱃지만 표시 (토글 없음) */}
                   <td className="px-3 py-2 whitespace-nowrap">
-                    {canEditDate ? (
-                      <button
-                        onClick={(e) => openDateCalendar(sku, 'releaseDate', e)}
-                        className={`text-[12px] tabular-nums transition-colors hover:text-indigo-600 hover:underline underline-offset-2 decoration-dashed ${
-                          formattedDate ? 'text-gray-600' : 'text-gray-300'
-                        }`}
-                        title="클릭하여 날짜 변경"
-                      >
-                        {formattedDate ?? '날짜 설정'}
-                      </button>
-                    ) : (
-                      <span className="text-[12px] tabular-nums text-gray-500">
-                        {formattedDate ?? <span className="text-gray-300">–</span>}
-                      </span>
-                    )}
+                    <div className="flex items-center gap-1.5">
+                      {canEditDate ? (
+                        <button
+                          onClick={(e) => openDateCalendar(sku, 'releaseDate', e)}
+                          className={`text-[12px] tabular-nums transition-colors hover:text-indigo-600 hover:underline underline-offset-2 decoration-dashed ${
+                            formattedDate ? 'text-gray-600' : 'text-gray-300'
+                          }`}
+                          title="클릭하여 날짜 변경"
+                        >
+                          {formattedDate ?? '날짜 설정'}
+                        </button>
+                      ) : (
+                        <span className="text-[12px] tabular-nums text-gray-500">
+                          {formattedDate ?? <span className="text-gray-300">–</span>}
+                        </span>
+                      )}
+                      {isProjectionLocked && (
+                        <span className="px-1.5 py-0.5 text-[9px] font-medium rounded-full bg-gray-100 text-gray-400 whitespace-nowrap">
+                          확정
+                        </span>
+                      )}
+                    </div>
                   </td>
                   {/* 입고예정일 — master/pm 클릭 시 캘린더 팝업 */}
                   <td className="px-3 py-2 whitespace-nowrap">
@@ -966,8 +974,10 @@ function ChannelScheduleTable({ skus, onSwitchToSkuList }: { skus: SkuData[]; on
   const persistSku = useStore((s) => s.persistSku);
   const setActiveCategory = useStore((s) => s.setActiveCategory);
   const expandOnly = useStore((s) => s.expandOnly);
+  const setProjectionConfirmed = useStore((s) => s.setProjectionConfirmed);
   const { role } = useAuth();
   const canEdit = role === 'master' || role === 'platform_md' || role === 'brand_md';
+  const canConfirm = role === 'master' || role === 'pm';
 
   const [scheduleCal, setScheduleCal] = useState<ScheduleCal | null>(null);
   const calRef = useRef<HTMLDivElement>(null);
@@ -1042,6 +1052,7 @@ function ChannelScheduleTable({ skus, onSwitchToSkuList }: { skus: SkuData[]; on
               <th className="px-3 py-2.5 text-center font-semibold text-gray-600 whitespace-nowrap">입고예정일</th>
               <th className="px-3 py-2.5 text-center font-semibold text-gray-600 whitespace-nowrap">촬영예정일</th>
               <th className="px-3 py-2.5 text-center font-semibold text-gray-600 whitespace-nowrap">기본 오픈일</th>
+              <th className="px-3 py-2.5 text-center font-semibold text-gray-600 whitespace-nowrap">확정</th>
               <th className="px-3 py-2.5 text-center font-semibold text-gray-600 whitespace-nowrap">선오픈 여부</th>
               {(['플랫폼', '스스', '위탁', 'B2B', '글로벌'] as const).map((ch) => (
                 <th key={ch} className="px-3 py-2.5 text-center font-semibold text-gray-600 whitespace-nowrap">{ch}</th>
@@ -1051,7 +1062,10 @@ function ChannelScheduleTable({ skus, onSwitchToSkuList }: { skus: SkuData[]; on
             </tr>
           </thead>
           <tbody>
-            {skus.map((sku, i) => (
+            {skus.map((sku, i) => {
+              const isProjectionLocked = sku.isProjectionConfirmed ?? false;
+              const rowCanEdit = canEdit && !isProjectionLocked;
+              return (
               <tr
                 key={sku.id}
                 className={`border-b border-gray-100 last:border-0 ${i % 2 === 1 ? 'bg-gray-50/50' : 'bg-white'} hover:bg-indigo-50/40 transition-colors`}
@@ -1079,6 +1093,32 @@ function ChannelScheduleTable({ skus, onSwitchToSkuList }: { skus: SkuData[]; on
                 {/* 기본 오픈일 */}
                 <td className="px-3 py-2 text-center whitespace-nowrap tabular-nums text-gray-500">
                   {toMD(sku.releaseDate) || <span className="text-gray-300">–</span>}
+                </td>
+                {/* 오픈일정 확정 */}
+                <td className="px-2 py-1.5 text-center whitespace-nowrap">
+                  {canConfirm ? (
+                    <button
+                      onClick={() => setProjectionConfirmed(sku.id, !isProjectionLocked)}
+                      title={isProjectionLocked ? '클릭하여 확정 해제' : '클릭하여 오픈일정 확정'}
+                      className={`px-2 py-0.5 text-[10px] font-semibold rounded border transition-colors whitespace-nowrap ${
+                        isProjectionLocked
+                          ? 'bg-indigo-100 text-indigo-700 border-indigo-300 hover:bg-indigo-200'
+                          : 'bg-gray-100 text-gray-400 border-gray-200 hover:bg-gray-200 hover:text-gray-600'
+                      }`}
+                    >
+                      {isProjectionLocked ? '✓ 확정' : '미확정'}
+                    </button>
+                  ) : (
+                    isProjectionLocked ? (
+                      <span className="px-2 py-0.5 text-[10px] font-semibold rounded border bg-indigo-100 text-indigo-700 border-indigo-300 whitespace-nowrap">
+                        ✓ 확정
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 text-[10px] font-semibold rounded border bg-gray-100 text-gray-400 border-gray-200 whitespace-nowrap">
+                        미확정
+                      </span>
+                    )
+                  )}
                 </td>
                 {/* 선오픈 여부 */}
                 <td className="px-3 py-2 text-center whitespace-nowrap">
@@ -1117,7 +1157,7 @@ function ChannelScheduleTable({ skus, onSwitchToSkuList }: { skus: SkuData[]; on
                 {(['플랫폼', '스스', '위탁', 'B2B', '글로벌'] as const).map((ch) => (
                   <td key={ch} className="px-2 py-1.5 text-center whitespace-nowrap">
                     <ScheduleDateCell
-                      sku={sku} channel={ch} canEdit={canEdit}
+                      sku={sku} channel={ch} canEdit={rowCanEdit}
                       getVal={getVal}
                       onOpenCal={(e) => openCal(sku, ch, e)}
                       onReset={() => saveDate(sku.id, ch, null)}
@@ -1127,7 +1167,7 @@ function ChannelScheduleTable({ skus, onSwitchToSkuList }: { skus: SkuData[]; on
                 {/* 기타 채널: 라벨(절반) + 날짜(나란히), 전체 가운데정렬 */}
                 <td className="px-2 py-1.5 whitespace-nowrap text-center">
                   <div className="flex items-center justify-center gap-1">
-                    {canEdit ? (
+                    {rowCanEdit ? (
                       <input
                         type="text"
                         value={sku.channelOpenSchedule?.기타Label ?? ''}
@@ -1140,7 +1180,7 @@ function ChannelScheduleTable({ skus, onSwitchToSkuList }: { skus: SkuData[]; on
                       <span className="w-[60px] text-[11px] text-gray-500 px-1 truncate">{sku.channelOpenSchedule?.기타Label || <span className="text-gray-300">채널명</span>}</span>
                     )}
                     <ScheduleDateCell
-                      sku={sku} channel="기타" canEdit={canEdit}
+                      sku={sku} channel="기타" canEdit={rowCanEdit}
                       getVal={getVal}
                       onOpenCal={(e) => openCal(sku, '기타', e)}
                       onReset={() => saveDate(sku.id, '기타', null)}
@@ -1149,10 +1189,11 @@ function ChannelScheduleTable({ skus, onSwitchToSkuList }: { skus: SkuData[]; on
                 </td>
                 {/* 메모 */}
                 <td className="px-2 py-1.5 align-top">
-                  <ScheduleMemoCell sku={sku} canEdit={canEdit} />
+                  <ScheduleMemoCell sku={sku} canEdit={rowCanEdit} />
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>
