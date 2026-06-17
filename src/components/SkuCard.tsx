@@ -73,7 +73,6 @@ interface Props {
 export function SkuCard({ sku }: Props) {
   const toggleExpanded = useStore((s) => s.toggleExpanded);
   const deleteSku = useStore((s) => s.deleteSku);
-  const resetSku = useStore((s) => s.resetSku);
   const duplicateSku = useStore((s) => s.duplicateSku);
   const updateSku = useStore((s) => s.updateSku);
   const persistSku = useStore((s) => s.persistSku);
@@ -153,12 +152,6 @@ export function SkuCard({ sku }: Props) {
 
           {canEdit && (
             <div className="flex items-center gap-1 flex-shrink-0">
-              <button
-                onClick={() => resetSku(sku.id)}
-                className="text-xs px-2 py-1 rounded-lg border border-amber-300 text-amber-700 bg-amber-50 hover:bg-amber-100 transition-colors"
-              >
-                초기화
-              </button>
               <button
                 onClick={() => duplicateSku(sku.id)}
                 title="이 SKU를 복사합니다"
