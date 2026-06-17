@@ -185,6 +185,17 @@ export interface MarketingBrief {
   note: string;
 }
 
+export interface TrashItem {
+  trashId: string;   // Firestore 'trash' 컬렉션 doc ID
+  skuId: string;
+  skuName: string;
+  category: Category;
+  brand: string;
+  deletedAt: string;  // ISO string
+  deletedBy: string;  // role
+  expiresAt: string;  // ISO string (deletedAt + 15일)
+}
+
 export interface AppState {
   activeCategory: Category;
   activeBrand: Brand | '전체';

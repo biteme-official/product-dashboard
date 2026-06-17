@@ -2,14 +2,16 @@ import { create } from 'zustand';
 import { v4 as uuidv4 } from 'uuid';
 import {
   collection, doc, setDoc, getDoc, deleteDoc, onSnapshot, writeBatch, getDocs,
-  addDoc, serverTimestamp,
+  addDoc, serverTimestamp, Timestamp,
 } from 'firebase/firestore';
 import { fsdb } from '../lib/firebase';
-import type { AppState, Category, Month, SkuData, MonthlySplit, ColorEntry, ChannelMonthEntry, ChannelMonthQtyEntry, ChannelPricing } from '../types';
+import type { AppState, Category, Month, SkuData, MonthlySplit, ColorEntry, ChannelMonthEntry, ChannelMonthQtyEntry, ChannelPricing, TrashItem } from '../types';
 import { MAX_SIZES, SIZE_LABELS, MONTHS, CHANNELS, BRANDS, DEFAULT_CHANNEL_RATIOS, DEFAULT_CHANNEL_COMMISSION, DISABLED_CHANNELS, getReleaseMonth, simPosition, type Brand, type Channel } from '../types';
 import { recalcQuantities, revenueMultiplier, calcDynamicMultiplier } from '../utils/calc';
 
 const SKUS_COL = 'skus';
+const TRASH_COL = 'trash';
+const TRASH_DAYS = 15;
 
 // 세션 내 확정 캐시: onSnapshot race & persistSku 덮어쓰기로부터 finalOrderConfirmedAt을 복구
 // null = 사용자가 명시적으로 취소, { ... } = 확정 완료, undefined = 모름(캐시 없음)
@@ -270,7 +272,9 @@ interface StoreActions {
   loadSkus: () => () => void;
   addSku: () => void;
   duplicateSku: (id: string) => void;
-  deleteSku: (id: string) => void;
+  deleteSku: (id: string, deletedBy: string) => Promise<void>;
+  loadTrash: () => Promise<TrashItem[]>;
+  restoreFromTrash: (trashId: string) => Promise<void>;
   resetSku: (id: string) => void;
   toggleExpanded: (id: string) => void;
   expandOnly: (id: string) => void;
@@ -405,9 +409,53 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
     setDoc(doc(fsdb, SKUS_COL, copy.id), toFirestore(copy));
   },
 
-  deleteSku: (id) => {
+  deleteSku: async (id, deletedBy) => {
+    const sku = get().skus.find((s) => s.id === id);
+    if (!sku) return;
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + TRASH_DAYS * 24 * 60 * 60 * 1000);
+    await addDoc(collection(fsdb, TRASH_COL), {
+      skuId: id,
+      skuName: sku.name || '(SKU명 미입력)',
+      category: sku.category,
+      brand: sku.brand,
+      deletedAt: now.toISOString(),
+      deletedBy,
+      expiresAt: Timestamp.fromDate(expiresAt),
+      skuData: toFirestore(sku),
+    });
+    await deleteDoc(doc(fsdb, SKUS_COL, id));
     set({ skus: get().skus.filter((s) => s.id !== id) });
-    deleteDoc(doc(fsdb, SKUS_COL, id));
+  },
+
+  loadTrash: async () => {
+    const snap = await getDocs(collection(fsdb, TRASH_COL));
+    return snap.docs
+      .map((d) => {
+        const data = d.data();
+        const expiresTs = data.expiresAt as Timestamp | undefined;
+        return {
+          trashId: d.id,
+          skuId: data.skuId as string,
+          skuName: data.skuName as string,
+          category: data.category as Category,
+          brand: data.brand as string,
+          deletedAt: data.deletedAt as string,
+          deletedBy: data.deletedBy as string,
+          expiresAt: expiresTs?.toDate?.()?.toISOString() ?? data.deletedAt as string,
+        } as TrashItem;
+      })
+      .sort((a, b) => b.deletedAt.localeCompare(a.deletedAt));
+  },
+
+  restoreFromTrash: async (trashId) => {
+    const trashRef = doc(fsdb, TRASH_COL, trashId);
+    const trashDoc = await getDoc(trashRef);
+    if (!trashDoc.exists()) return;
+    const data = trashDoc.data();
+    await setDoc(doc(fsdb, SKUS_COL, data.skuId as string), data.skuData as Record<string, unknown>);
+    await deleteDoc(trashRef);
+    // onSnapshot이 복원된 SKU를 자동으로 로컬 상태에 반영
   },
 
   resetSku: (id) => {

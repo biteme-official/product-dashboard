@@ -10,6 +10,7 @@ import { ManualTab } from './components/ManualTab';
 import { LoginScreen } from './components/LoginScreen';
 import { PinManager } from './components/PinManager';
 import { ConfirmLogModal } from './components/ConfirmLogModal';
+import { TrashModal } from './components/TrashModal';
 import { parseImportJson, type RawSkuInput } from './utils/importParser';
 import { BulkImportModal } from './components/BulkImportModal';
 import { usePermission } from './contexts/PermissionsContext';
@@ -58,6 +59,7 @@ function App() {
   const [showPinManager, setShowPinManager] = useState(false);
   const [showConfirmLog, setShowConfirmLog] = useState(false);
   const [showBulkImport, setShowBulkImport] = useState(false);
+  const [showTrash, setShowTrash] = useState(false);
   const [backupState, setBackupState] = useState<'idle' | 'done' | 'error' | 'restoring' | 'rolling-back' | 'rolled-back'>('idle');
   const [activeMainTab, setActiveMainTab] = useSessionState<MainTab>('app:mainTab', 'projection');
   const [projectionSubTab, setProjectionSubTab] = useSessionState<string>('app:projectionSubTab', 'list-view');
@@ -155,6 +157,7 @@ function App() {
     <div className="min-h-screen bg-gray-50">
       {showPinManager && <PinManager onClose={() => setShowPinManager(false)} />}
       {showConfirmLog && <ConfirmLogModal onClose={() => setShowConfirmLog(false)} />}
+      {showTrash && <TrashModal onClose={() => setShowTrash(false)} />}
       {showBulkImport && <BulkImportModal onClose={() => setShowBulkImport(false)} />}
       {/* 헤더 */}
       <header className="bg-white border-b border-gray-200 px-3 sm:px-6 py-3 flex items-center gap-2 flex-wrap">
@@ -228,6 +231,13 @@ function App() {
 
           {role === 'master' && (
             <>
+              <button
+                onClick={() => setShowTrash(true)}
+                title="최근 삭제된 SKU (15일 보관)"
+                className="text-xs px-2.5 py-1 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-100 transition-colors"
+              >
+                🗑 휴지통
+              </button>
               <button
                 onClick={() => setShowConfirmLog(true)}
                 className="text-xs px-2.5 py-1 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-100 transition-colors"

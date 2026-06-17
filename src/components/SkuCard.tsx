@@ -161,7 +161,7 @@ export function SkuCard({ sku }: Props) {
               </button>
               {showDeleteConfirm ? (
                 <div className="flex items-center gap-1">
-                  <button onClick={() => deleteSku(sku.id)} className="text-xs px-2 py-1 rounded bg-red-500 text-white hover:bg-red-600">삭제</button>
+                  <button onClick={() => deleteSku(sku.id, role ?? 'master')} className="text-xs px-2 py-1 rounded bg-red-500 text-white hover:bg-red-600">삭제</button>
                   <button onClick={() => setShowDeleteConfirm(false)} className="text-xs px-2 py-1 rounded bg-gray-200 text-gray-700 hover:bg-gray-300">취소</button>
                 </div>
               ) : (
