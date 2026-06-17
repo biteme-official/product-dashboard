@@ -203,9 +203,9 @@ function simScenarioPrice(optId: string, base: number, usdKrw: number, jpyKrw: n
   const openSpecial = (b: number) => Math.floor((f10(b * 0.8) - 901) / 1000) * 1000 + 900;
   const map: Record<string, (b: number) => number> = {
     '오픈특가':           openSpecial,
-    '신상위크':           (b) => Math.max(0, openSpecial(b) - 1000),
-    '신상위크 라이브':    (b) => Math.max(0, openSpecial(b) - 2000),
-    '선단독':             (b) => Math.max(0, openSpecial(b) - 1000),
+    '신상위크':           (b) => { const op = openSpecial(b); return op <= 10000 ? Math.floor(op * 0.95 / 10) * 10 : Math.max(0, op - 1000); },
+    '라이브 할인':        (b) => { const op = openSpecial(b); const sw = op <= 10000 ? Math.floor(op * 0.95 / 10) * 10 : Math.max(0, op - 1000); return Math.floor((sw - Math.min(Math.round(sw * 0.05), 1000)) / 10) * 10; },
+    '선단독':             (b) => { const op = openSpecial(b); return op <= 10000 ? Math.floor(op * 0.95 / 10) * 10 : Math.max(0, op - 1000); },
     '상시 최대할인율':    (b) => f10(b * 0.85),
     '특가 최대할인율':    (b) => f10(b * 0.80),
     '시즌오프(의류전용)': (b) => f10(b * 0.75),

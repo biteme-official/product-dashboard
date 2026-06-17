@@ -4,7 +4,7 @@ export interface PricingScenario {
   id: string;
   label: string;
   hint?: string;
-  calcKrwPrice: (base: number, usdRate?: number, jpyRate?: number) => number;
+  calcKrwPrice: (base: number, usdRate?: number, jpyRate?: number, promoNewWeek?: boolean) => number;
   foreignAmt?: (base: number, usdRate?: number, jpyRate?: number) => { symbol: string; amount: number; decimals: number } | null;
 }
 
@@ -15,11 +15,34 @@ export const calcOpenSpecialPrice = (base: number): number => {
   return Math.floor((twentyOff - 901) / 1000) * 1000 + 900;
 };
 
+// 신상위크 가격: 오픈특가 1만원 이하는 5% 할인 10원 버림, 초과는 오픈특가-1,000원
+export const calcSinSangWeekPrice = (base: number): number => {
+  const openSpecial = calcOpenSpecialPrice(base);
+  return openSpecial <= 10000
+    ? floor10(openSpecial * 0.95)
+    : Math.max(0, openSpecial - 1000);
+};
+
 export const PRICING_SCENARIOS: PricingScenario[] = [
   { id: '오픈특가',           label: '오픈특가',           hint: '특가최대-900단위', calcKrwPrice: (b) => calcOpenSpecialPrice(b) },
-  { id: '신상위크',           label: '신상위크',           hint: '오픈특가-천원',    calcKrwPrice: (b) => Math.max(0, calcOpenSpecialPrice(b) - 1000) },
-  { id: '신상위크 라이브',    label: '신상위크 라이브',    hint: '신상위크-천원',    calcKrwPrice: (b) => Math.max(0, calcOpenSpecialPrice(b) - 2000) },
-  { id: '선단독',             label: '선단독',             hint: '오픈특가-천원',    calcKrwPrice: (b) => Math.max(0, calcOpenSpecialPrice(b) - 1000) },
+  {
+    id: '신상위크', label: '신상위크',
+    hint: '1만원 이하 5%, 1만원 초과 오픈특가-1,000원',
+    calcKrwPrice: (b) => calcSinSangWeekPrice(b),
+  },
+  {
+    id: '라이브 할인', label: '라이브 할인',
+    hint: '신상위크(or 오픈특가)×0.95, max -1,000원',
+    calcKrwPrice: (b, _u, _j, promoNewWeek = true) => {
+      const basePrice = promoNewWeek ? calcSinSangWeekPrice(b) : calcOpenSpecialPrice(b);
+      return floor10(basePrice - Math.min(Math.round(basePrice * 0.05), 1000));
+    },
+  },
+  {
+    id: '선단독', label: '선단독',
+    hint: '1만원 이하 5%, 1만원 초과 오픈특가-1,000원',
+    calcKrwPrice: (b) => calcSinSangWeekPrice(b),
+  },
   { id: '상시 최대할인율',    label: '상시 최대할인율',                              calcKrwPrice: (b) => floor10(b * 0.85) },
   { id: '특가 최대할인율',    label: '특가 최대할인율',                              calcKrwPrice: (b) => floor10(b * 0.80) },
   { id: '시즌오프(의류전용)', label: '시즌오프(의류전용)',                           calcKrwPrice: (b) => floor10(b * 0.75) },

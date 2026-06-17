@@ -3,11 +3,11 @@ import type { SkuData } from '../types';
 import { useExchangeRates } from '../utils/useExchangeRates';
 import { PRICING_SCENARIOS } from '../utils/pricingScenarios';
 
-const B2C_SCENARIO_IDS = ['오픈특가', '신상위크', '신상위크 라이브', '선단독', '상시 최대할인율', '특가 최대할인율', '시즌오프(의류전용)'];
+const B2C_SCENARIO_IDS = ['오픈특가', '신상위크', '라이브 할인', '선단독', '상시 최대할인율', '특가 최대할인율', '시즌오프(의류전용)'];
 const B2B_SCENARIO_IDS = ['B2B 오픈 할인', 'B2B 상시 운영', '사입 공급가', '글로벌 공급가', '일본 공급가'];
 
 // 기본 비활성: 프로모션 선택 전에는 흐리게 표시
-const PROMO_DIMMED_IDS = new Set(['신상위크', '신상위크 라이브', '선단독']);
+const PROMO_DIMMED_IDS = new Set(['신상위크', '라이브 할인', '선단독']);
 
 function fmtPct(v: number | null, dim: boolean) {
   if (v === null || !isFinite(v)) return <span className="text-gray-300">–</span>;
@@ -17,7 +17,7 @@ function fmtPct(v: number | null, dim: boolean) {
 }
 
 function ScenarioTable({
-  scenarioIds, base, regularPrice, cost, usdKrw, jpyKrw, activeIds,
+  scenarioIds, base, regularPrice, cost, usdKrw, jpyKrw, activeIds, promoNewWeek = false, hintOverrides = {},
 }: {
   scenarioIds: string[];
   base: number;
@@ -26,6 +26,8 @@ function ScenarioTable({
   usdKrw: number;
   jpyKrw: number;
   activeIds?: Set<string>;  // undefined = 전부 활성 (B2B)
+  promoNewWeek?: boolean;
+  hintOverrides?: Record<string, string>;
 }) {
   return (
     <table className="w-full text-xs">
@@ -47,7 +49,7 @@ function ScenarioTable({
           const isDimTarget = PROMO_DIMMED_IDS.has(id);
           const dim = activeIds !== undefined && isDimTarget && !activeIds.has(id);
 
-          const actualPrice = scenario.calcKrwPrice(base, usdKrw, jpyKrw);
+          const actualPrice = scenario.calcKrwPrice(base, usdKrw, jpyKrw, promoNewWeek);
           const discountVsPrice = base > 0 ? (1 - actualPrice / base) * 100 : null;
           const discountVsRegular = regularPrice > 0 ? (1 - actualPrice / regularPrice) * 100 : null;
           const costRate = actualPrice > 0 ? (cost / actualPrice) * 100 : null;
@@ -63,8 +65,8 @@ function ScenarioTable({
                 <span className={dim ? 'text-gray-400' : 'font-medium text-gray-700'}>
                   {scenario.label}
                 </span>
-                {scenario.hint && (
-                  <span className="ml-1.5 text-[10px] text-gray-400 font-normal">({scenario.hint})</span>
+                {(hintOverrides[id] ?? scenario.hint) && (
+                  <span className="ml-1.5 text-[10px] text-gray-400 font-normal">({hintOverrides[id] ?? scenario.hint})</span>
                 )}
               </td>
               <td className="px-3 py-2.5 text-right tabular-nums whitespace-nowrap">
@@ -105,12 +107,18 @@ export function PricingModal({ sku, onClose }: { sku: SkuData; onClose: () => vo
   const { usdKrw, jpyKrw } = useExchangeRates();
 
   const [promoNewWeek, setPromoNewWeek] = useState(false);   // 신상위크
+  const [promoLive, setPromoLive] = useState(false);          // 라이브 (단독)
   const [promoExclusive, setPromoExclusive] = useState(false); // 선단독
 
   // B2C에서 활성화된 시나리오 ID 집합
   const b2cActiveIds = new Set<string>();
-  if (promoNewWeek) { b2cActiveIds.add('신상위크'); b2cActiveIds.add('신상위크 라이브'); }
+  if (promoNewWeek) { b2cActiveIds.add('신상위크'); b2cActiveIds.add('라이브 할인'); }
+  if (promoLive) b2cActiveIds.add('라이브 할인');
   if (promoExclusive) b2cActiveIds.add('선단독');
+
+  // 라이브 할인 행 hint: 신상위크 활성 여부에 따라 다르게 표시
+  const liveHint = promoNewWeek ? '신상위크 5% 추가할인, max 1,000원' : '오픈특가 5% 추가할인, max 1,000원';
+  const b2cHintOverrides = { '라이브 할인': liveHint };
 
   const discountRate = sku.regularPrice > 0 && sku.price > 0
     ? Math.round((1 - sku.price / sku.regularPrice) * 1000) / 10
@@ -169,7 +177,7 @@ export function PricingModal({ sku, onClose }: { sku: SkuData; onClose: () => vo
               <span className="text-[11px] font-bold tracking-wide uppercase text-sky-600">B2C</span>
               <div className="w-px h-3.5 bg-sky-200" />
               <span className="text-[11px] text-sky-500 font-medium">오픈 프로모션 선택</span>
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-2 flex-wrap">
                 <button
                   onClick={() => setPromoNewWeek((v) => !v)}
                   className={`px-2.5 py-1 rounded-md text-[11px] font-semibold border transition-colors ${
@@ -179,6 +187,16 @@ export function PricingModal({ sku, onClose }: { sku: SkuData; onClose: () => vo
                   }`}
                 >
                   신상위크
+                </button>
+                <button
+                  onClick={() => setPromoLive((v) => !v)}
+                  className={`px-2.5 py-1 rounded-md text-[11px] font-semibold border transition-colors ${
+                    promoLive
+                      ? 'bg-orange-500 text-white border-orange-500 shadow-sm'
+                      : 'bg-white text-orange-400 border-orange-200 hover:bg-orange-50'
+                  }`}
+                >
+                  라이브
                 </button>
                 <button
                   onClick={() => setPromoExclusive((v) => !v)}
@@ -193,7 +211,7 @@ export function PricingModal({ sku, onClose }: { sku: SkuData; onClose: () => vo
               </div>
             </div>
             <div className="overflow-x-auto">
-              <ScenarioTable scenarioIds={B2C_SCENARIO_IDS} {...tableProps} activeIds={b2cActiveIds} />
+              <ScenarioTable scenarioIds={B2C_SCENARIO_IDS} {...tableProps} activeIds={b2cActiveIds} promoNewWeek={promoNewWeek} hintOverrides={b2cHintOverrides} />
             </div>
           </div>
 

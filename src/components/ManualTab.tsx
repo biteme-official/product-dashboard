@@ -368,12 +368,12 @@ export function ManualTab() {
 
         <p className="text-xs font-semibold text-gray-600 mb-2">B2C 시나리오 — 오픈 프로모션 토글</p>
         <p className="text-xs text-gray-500 mb-2">
-          B2C 테이블 상단에 <span className="text-red-600 font-medium">[신상위크]</span> · <span className="text-emerald-600 font-medium">[선단독]</span> 토글 버튼이 있습니다.
-          기본 상태에서 신상위크·신상위크 라이브·선단독 행은 비활성화(흐리게)로 표시되며, 버튼을 눌러 활성화할 수 있습니다. 두 토글은 독립적으로 작동합니다.
+          B2C 테이블 상단에 <span className="text-red-600 font-medium">[신상위크]</span> · <span className="text-orange-500 font-medium">[라이브]</span> · <span className="text-emerald-600 font-medium">[선단독]</span> 토글 버튼이 있습니다.
+          기본 상태에서 신상위크·라이브 할인·선단독 행은 비활성화(흐리게)로 표시됩니다. [신상위크] 버튼은 신상위크+라이브 할인을 동시 활성화하며, [라이브] 버튼은 라이브 할인만 단독 활성화합니다. 세 토글은 독립적으로 작동합니다.
         </p>
 
         <p className="text-xs font-semibold text-gray-600 mb-2">B2C 시나리오 계산식</p>
-        <p className="text-xs text-gray-500 mb-2">* floor10(x) = x를 10원 단위 내림 &nbsp;|&nbsp; calcOpenSpecialPrice(base) = floor((floor10(base × 0.80) − 901) ÷ 1000) × 1000 + 900</p>
+        <p className="text-xs text-gray-500 mb-2">* floor10(x) = x를 10원 단위 내림 &nbsp;|&nbsp; 오픈특가 = floor((floor10(base × 0.80) − 901) ÷ 1000) × 1000 + 900</p>
         <table className="w-full border-collapse text-xs mb-4">
           <thead>
             <tr className="bg-gray-50">
@@ -384,9 +384,9 @@ export function ManualTab() {
           </thead>
           <tbody>
             <Tr><Td>오픈특가</Td><Td>floor((floor10(base × 0.80) − 901) ÷ 1000) × 1000 + 900</Td><Td>항상 활성</Td></Tr>
-            <Tr><Td>신상위크</Td><Td>max(0, 오픈특가 − 1,000)</Td><Td>[신상위크] 토글 활성 시</Td></Tr>
-            <Tr><Td>신상위크 라이브</Td><Td>max(0, 오픈특가 − 2,000)</Td><Td>[신상위크] 토글 활성 시</Td></Tr>
-            <Tr><Td>선단독</Td><Td>max(0, 오픈특가 − 1,000)</Td><Td>[선단독] 토글 활성 시</Td></Tr>
+            <Tr><Td>신상위크</Td><Td>오픈특가 ≤ 10,000: floor10(오픈특가 × 0.95) / 오픈특가 {'>'} 10,000: max(0, 오픈특가 − 1,000)</Td><Td>[신상위크] 토글 활성 시</Td></Tr>
+            <Tr><Td>라이브 할인</Td><Td>기준가(신상위크 or 오픈특가)에서 min(round(기준가×0.05), 1,000) 차감 후 floor10</Td><Td>[신상위크] ON → 신상위크 기준 / [라이브] ON → 오픈특가 기준</Td></Tr>
+            <Tr><Td>선단독</Td><Td>오픈특가 ≤ 10,000: floor10(오픈특가 × 0.95) / 오픈특가 {'>'} 10,000: max(0, 오픈특가 − 1,000)</Td><Td>[선단독] 토글 활성 시</Td></Tr>
             <Tr><Td>상시 최대할인율</Td><Td>floor10(base × 0.85)</Td><Td>항상 활성</Td></Tr>
             <Tr><Td>특가 최대할인율</Td><Td>floor10(base × 0.80)</Td><Td>항상 활성</Td></Tr>
             <Tr><Td>시즌오프 (의류전용)</Td><Td>floor10(base × 0.75)</Td><Td>항상 활성</Td></Tr>
@@ -433,7 +433,7 @@ export function ManualTab() {
             <Tr><Td>40% 초과</Td><Td>빨간색</Td></Tr>
           </tbody>
         </table>
-        <p className="text-xs text-gray-400">* 할인율은 소수점 반올림 정수 표시. 비활성화된 시나리오(신상위크·선단독)는 회색으로 흐리게 표시됩니다.</p>
+        <p className="text-xs text-gray-400">* 할인율은 소수점 반올림 정수 표시. 비활성화된 시나리오(신상위크·라이브 할인·선단독)는 회색으로 흐리게 표시됩니다.</p>
         <p className="mt-1 text-xs text-gray-400">* 쿠팡·B2B·사입및페어는 시나리오 미설정 시 'B2B 상시 운영' 자동 적용. 글로벌은 '글로벌 공급가', 일본은 '일본 공급가' 자동 적용.</p>
       </section>
 

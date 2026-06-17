@@ -10,9 +10,9 @@ const calcOpenSpecialPrice = (base: number) =>
 
 const SCENARIO_CALC: Record<string, (b: number) => number> = {
   '오픈특가':              (b) => calcOpenSpecialPrice(b),
-  '신상위크':              (b) => Math.max(0, calcOpenSpecialPrice(b) - 1000),
-  '신상위크 라이브':       (b) => Math.max(0, calcOpenSpecialPrice(b) - 2000),
-  '선단독':                (b) => Math.max(0, calcOpenSpecialPrice(b) - 1000),
+  '신상위크':              (b) => { const op = calcOpenSpecialPrice(b); return op <= 10000 ? Math.floor(op * 0.95 / 10) * 10 : Math.max(0, op - 1000); },
+  '라이브 할인':           (b) => { const op = calcOpenSpecialPrice(b); const sw = op <= 10000 ? Math.floor(op * 0.95 / 10) * 10 : Math.max(0, op - 1000); return Math.floor((sw - Math.min(Math.round(sw * 0.05), 1000)) / 10) * 10; },
+  '선단독':                (b) => { const op = calcOpenSpecialPrice(b); return op <= 10000 ? Math.floor(op * 0.95 / 10) * 10 : Math.max(0, op - 1000); },
   '상시 최대할인율':       (b) => floor10(b * 0.85),
   '특가 최대할인율':       (b) => floor10(b * 0.80),
   '시즌오프(의류전용)':    (b) => floor10(b * 0.75),
