@@ -430,11 +430,18 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
 
   loadTrash: async () => {
     const snap = await getDocs(collection(fsdb, TRASH_COL));
-    return snap.docs
-      .map((d) => {
-        const data = d.data();
-        const expiresTs = data.expiresAt as Timestamp | undefined;
-        return {
+    const now = Date.now();
+    const expired: string[] = [];
+    const valid: TrashItem[] = [];
+
+    snap.docs.forEach((d) => {
+      const data = d.data();
+      const expiresTs = data.expiresAt as Timestamp | undefined;
+      const expiresIso = expiresTs?.toDate?.()?.toISOString() ?? data.deletedAt as string;
+      if (new Date(expiresIso).getTime() <= now) {
+        expired.push(d.id);
+      } else {
+        valid.push({
           trashId: d.id,
           skuId: data.skuId as string,
           skuName: data.skuName as string,
@@ -442,10 +449,19 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
           brand: data.brand as string,
           deletedAt: data.deletedAt as string,
           deletedBy: data.deletedBy as string,
-          expiresAt: expiresTs?.toDate?.()?.toISOString() ?? data.deletedAt as string,
-        } as TrashItem;
-      })
-      .sort((a, b) => b.deletedAt.localeCompare(a.deletedAt));
+          expiresAt: expiresIso,
+        });
+      }
+    });
+
+    // 만료된 항목 Firestore에서 영구 삭제
+    if (expired.length > 0) {
+      const batch = writeBatch(fsdb);
+      expired.forEach((id) => batch.delete(doc(fsdb, TRASH_COL, id)));
+      await batch.commit();
+    }
+
+    return valid.sort((a, b) => b.deletedAt.localeCompare(a.deletedAt));
   },
 
   restoreFromTrash: async (trashId) => {
