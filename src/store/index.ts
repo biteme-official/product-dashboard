@@ -287,7 +287,7 @@ interface StoreActions {
   applyChannelRatiosToFiltered: (sourceSkuId: string) => Promise<void>;
   importSkus: (skus: SkuData[]) => Promise<void>;
   replaceAllSkus: (skus: Omit<SkuData, '_initialSnapshot' | 'isExpanded'>[]) => Promise<void>;
-  updateMarketingMonthQty: (id: string, month: Month, qty: number) => void;
+  updateMarketingMonthQty: (id: string, month: Month, qty: number) => Promise<void>;
   updateStep2OptionQty: (id: string, qty: Record<string, number>) => void;
   updateFinalOrderQty: (id: string, qty: Record<string, number>) => void;
   setFinalOrderConfirmed: (id: string, confirmed: boolean, finalOrderQty?: Record<string, number>) => Promise<void>;
@@ -640,7 +640,7 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
     set({ skus: full });
   },
 
-  updateMarketingMonthQty: (id, month, qty) => {
+  updateMarketingMonthQty: async (id, month, qty) => {
     set({
       skus: get().skus.map((s) =>
         s.id === id
@@ -648,6 +648,7 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
           : s,
       ),
     });
+    await get().persistSku(id);
   },
 
   updateStep2OptionQty: (id, qty) => {
