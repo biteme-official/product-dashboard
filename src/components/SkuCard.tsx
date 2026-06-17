@@ -15,6 +15,7 @@ import { MarketingBriefModal } from './MarketingBriefModal';
 import { PricingModal } from './PricingModal';
 import { exportSimulationXlsx } from '../utils/exportXlsx';
 import { PRICING_SCENARIOS, PRICING_DEFAULT_OPT } from '../utils/pricingScenarios';
+import { CalendarPopup } from './CalendarPopup';
 
 const MONTH_LABELS: Record<Month, string> = {
   7: '7월', 8: '8월', 9: '9월', 10: '10월', 11: '11월', 12: '12월',
@@ -366,15 +367,36 @@ function ThumbnailSection({ skuId, imageUrl, readOnly }: { skuId: string; imageU
   );
 }
 
-// ── 날짜 입력 (yy.M.D 형식, 빈 칸에 포맷 힌트 없음) ─────────────────────────
-function DateInputCompact({ value, onChange, onBlur, disabled }: {
+// ── 날짜 필드: 텍스트 직접 입력 + 우측 캘린더 버튼 → CalendarPopup ──────────
+function DateField({ value, onChange, onBlur, disabled }: {
   value: string;
   onChange: (v: string) => void;
   onBlur: () => void;
   disabled?: boolean;
 }) {
-  const [editing, setEditing] = useState(false);
   const [text, setText] = useState('');
+  const [editing, setEditing] = useState(false);
+  const [calOpen, setCalOpen] = useState(false);
+  const [pos, setPos] = useState({ top: 0, left: 0 });
+  const calBtnRef = useRef<HTMLButtonElement>(null);
+  const calRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!calOpen) return;
+    function handleOutside(e: MouseEvent) {
+      if (calRef.current && !calRef.current.contains(e.target as Node) &&
+          calBtnRef.current && !calBtnRef.current.contains(e.target as Node)) {
+        setCalOpen(false);
+      }
+    }
+    function handleEsc(e: KeyboardEvent) { if (e.key === 'Escape') setCalOpen(false); }
+    document.addEventListener('mousedown', handleOutside);
+    document.addEventListener('keydown', handleEsc);
+    return () => {
+      document.removeEventListener('mousedown', handleOutside);
+      document.removeEventListener('keydown', handleEsc);
+    };
+  }, [calOpen]);
 
   function fmt(d: string): string {
     if (!d) return '';
@@ -405,52 +427,64 @@ function DateInputCompact({ value, onChange, onBlur, disabled }: {
     onBlur();
   }
 
-  const baseCls = 'flex-1 px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed';
+  function openCal(e: React.MouseEvent) {
+    e.stopPropagation();
+    const rect = calBtnRef.current?.getBoundingClientRect();
+    if (rect) setPos({ top: rect.bottom + 6, left: rect.left });
+    setCalOpen((v) => !v);
+  }
 
   return (
-    <div className="flex items-center gap-1">
-      {editing ? (
-        <input
-          type="text"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onBlur={commit}
-          onKeyDown={(e) => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') setEditing(false); }}
-          placeholder="yy.M.D"
-          autoFocus
-          className={`${baseCls} border-indigo-400 focus:ring-indigo-400`}
-        />
-      ) : (
-        <button
-          type="button"
-          onClick={() => { if (!disabled) { setText(fmt(value)); setEditing(true); } }}
-          disabled={disabled}
-          className={`${baseCls} border-gray-200 text-left ${value ? 'text-gray-700' : 'text-gray-300'} hover:border-gray-300`}
-        >
-          {fmt(value) || '—'}
-        </button>
-      )}
-      {!disabled && (
-        <div className="relative flex-shrink-0">
+    <>
+      <div className={`flex items-center w-full border rounded-lg text-sm transition-colors ${
+        disabled ? 'border-gray-200 bg-gray-50' : 'border-gray-200 focus-within:ring-2 focus-within:ring-indigo-400 focus-within:border-indigo-400'
+      }`}>
+        {editing ? (
+          <input
+            type="text"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onBlur={commit}
+            onKeyDown={(e) => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') { setEditing(false); } }}
+            placeholder="yy.M.D"
+            autoFocus
+            className="flex-1 px-3 py-2 bg-transparent outline-none text-gray-700 min-w-0"
+          />
+        ) : (
           <button
             type="button"
-            className="p-2 border border-gray-200 rounded-lg text-gray-400 hover:text-indigo-600 hover:border-indigo-300 transition-colors"
+            onClick={() => { if (!disabled) { setText(fmt(value)); setEditing(true); } }}
+            disabled={disabled}
+            className={`flex-1 px-3 py-2 text-left bg-transparent outline-none min-w-0 ${value ? 'text-gray-700' : 'text-gray-300'} ${disabled ? 'cursor-not-allowed' : 'cursor-text'}`}
+          >
+            {fmt(value) || '—'}
+          </button>
+        )}
+        {!disabled && (
+          <button
+            ref={calBtnRef}
+            type="button"
+            onClick={openCal}
             tabIndex={-1}
+            className="px-2 py-2 text-gray-400 hover:text-indigo-500 transition-colors flex-shrink-0"
+            title="캘린더에서 선택"
           >
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
             </svg>
           </button>
-          <input
-            type="date"
-            value={value}
-            onChange={(e) => { onChange(e.target.value); onBlur(); }}
-            className="absolute inset-0 opacity-0 cursor-pointer w-full"
-            tabIndex={-1}
-          />
-        </div>
+        )}
+      </div>
+      {calOpen && (
+        <CalendarPopup
+          selectedDate={value}
+          top={pos.top}
+          left={pos.left}
+          containerRef={calRef}
+          onSelect={(d) => { onChange(d); onBlur(); setCalOpen(false); }}
+        />
       )}
-    </div>
+    </>
   );
 }
 
@@ -561,20 +595,18 @@ function BasicInfoColumn({ sku, readOnly }: { sku: SkuData; readOnly?: boolean }
 
       <div>
         <label className="block text-xs text-gray-500 mb-1">출시일</label>
-        <input
-          type="date"
+        <DateField
           value={sku.releaseDate}
-          onChange={(e) => handleChange({ releaseDate: e.target.value })}
+          onChange={(v) => handleChange({ releaseDate: v })}
           onBlur={handleBlur}
           disabled={readOnly}
-          className={inputCls}
         />
       </div>
 
       <div className="grid grid-cols-2 gap-2">
         <div>
           <label className="block text-xs text-gray-500 mb-1">입고예정일</label>
-          <DateInputCompact
+          <DateField
             value={sku.arrivalDate ?? ''}
             onChange={(v) => handleChange({ arrivalDate: v })}
             onBlur={handleBlur}
@@ -583,7 +615,7 @@ function BasicInfoColumn({ sku, readOnly }: { sku: SkuData; readOnly?: boolean }
         </div>
         <div>
           <label className="block text-xs text-gray-500 mb-1">촬영예정일</label>
-          <DateInputCompact
+          <DateField
             value={sku.shootingDate ?? ''}
             onChange={(v) => handleChange({ shootingDate: v })}
             onBlur={handleBlur}
