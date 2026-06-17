@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { v4 as uuidv4 } from 'uuid';
 import {
   collection, doc, setDoc, getDoc, deleteDoc, onSnapshot, writeBatch, getDocs,
-  addDoc, serverTimestamp, Timestamp,
+  addDoc, Timestamp,
 } from 'firebase/firestore';
 import { fsdb } from '../lib/firebase';
 import type { AppState, Category, Month, SkuData, MonthlySplit, ColorEntry, ChannelMonthEntry, ChannelMonthQtyEntry, ChannelPricing, TrashItem } from '../types';

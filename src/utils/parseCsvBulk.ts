@@ -121,10 +121,9 @@ export function parseCsvBulk(text: string): ParsedRow[] {
       monthlySplit: MONTHS.map((m) => ({
         month: m as Month, ratio: 0, quantity: 0, revenue: 0, contributionProfit: 0,
       })),
-      isConfirmed: false,
-      platformConfirmed: false,
-      brandConfirmed: false,
-      globalConfirmed: false,
+      step2PlatformConfirmed: false,
+      step2BrandConfirmed: false,
+      step2GlobalConfirmed: false,
     };
 
     results.push({ rowNum: i - startIdx + 1, errors: [], sku, raw });
