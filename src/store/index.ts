@@ -88,10 +88,9 @@ function buildEmptySku(category: Category): SkuData {
     monthlySplit: MONTHS.map((month) => ({
       month, ratio: 0, quantity: 0, revenue: 0, contributionProfit: 0,
     })),
-    isConfirmed: false,
-    platformConfirmed: false,
-    brandConfirmed: false,
-    globalConfirmed: false,
+    step2PlatformConfirmed: false,
+    step2BrandConfirmed: false,
+    step2GlobalConfirmed: false,
   };
   return { ...base, isExpanded: true, _initialSnapshot: JSON.parse(JSON.stringify(base)) };
 }
@@ -189,7 +188,6 @@ function applyMigration(raw: any): SkuData {
     pricingOpts: raw.pricingOpts ?? {},
     pricingUsdRate: raw.pricingUsdRate ?? 1400,
     isExpanded: false,
-    isConfirmed: raw.isConfirmed ?? false,
     finalOrderConfirmedAt: raw.finalOrderConfirmedAt ?? null,
     // toFirestore에서 분리 저장한 메타 키 복원
     // finalOrderStep2Total → finalOrderQty.__confirmedStep2Total__
@@ -200,10 +198,10 @@ function applyMigration(raw: any): SkuData {
     ...(raw.step2OptionQty !== undefined && raw.step2OptionTotal !== undefined
       ? { step2OptionQty: { ...raw.step2OptionQty, __total__: raw.step2OptionTotal } }
       : {}),
-    platformConfirmed: raw.platformConfirmed ?? false,
-    brandConfirmed: raw.brandConfirmed ?? false,
-    globalConfirmed: raw.globalConfirmed ?? false,
-    isProjectionConfirmed: raw.isProjectionConfirmed ?? false,
+    step2PlatformConfirmed: raw.step2PlatformConfirmed ?? raw.platformConfirmed ?? false,
+    step2BrandConfirmed: raw.step2BrandConfirmed ?? raw.brandConfirmed ?? false,
+    step2GlobalConfirmed: raw.step2GlobalConfirmed ?? raw.globalConfirmed ?? false,
+    scheduleConfirmed: raw.scheduleConfirmed ?? raw.isProjectionConfirmed ?? false,
     _initialSnapshot: {
       hasColors: false,
       colors: [],
@@ -296,10 +294,9 @@ interface StoreActions {
   updateFinalOrderQty: (id: string, qty: Record<string, number>) => void;
   setFinalOrderConfirmed: (id: string, confirmed: boolean, finalOrderQty?: Record<string, number>) => Promise<void>;
   persistSku: (id: string) => Promise<void>;
-  setSkuConfirmed: (id: string, confirmed: boolean, role: string) => Promise<void>;
-  setChannelConfirmed: (id: string, field: 'platformConfirmed' | 'brandConfirmed' | 'globalConfirmed', value: boolean) => Promise<void>;
+  setChannelConfirmed: (id: string, field: 'step2PlatformConfirmed' | 'step2BrandConfirmed' | 'step2GlobalConfirmed', value: boolean) => Promise<void>;
   setPriceConfirmed: (id: string, confirmed: boolean) => Promise<void>;
-  setProjectionConfirmed: (id: string, confirmed: boolean) => Promise<void>;
+  setScheduleConfirmed: (id: string, confirmed: boolean) => Promise<void>;
 }
 
 const readSession = <T>(key: string, fallback: T): T => {
@@ -770,21 +767,6 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
     }
   },
 
-  setSkuConfirmed: async (id, confirmed, role) => {
-    const sku = get().skus.find((s) => s.id === id);
-    if (!sku) return;
-    const updated = { ...sku, isConfirmed: confirmed };
-    set({ skus: get().skus.map((s) => (s.id === id ? updated : s)) });
-    await setDoc(doc(fsdb, SKUS_COL, id), toFirestore(updated));
-    await addDoc(collection(fsdb, 'confirmLogs'), {
-      skuId: id,
-      skuName: sku.name || '(SKU명 미입력)',
-      action: confirmed ? '확정' : '확정취소',
-      role,
-      timestamp: serverTimestamp(),
-    });
-  },
-
   setChannelConfirmed: async (id, field, value) => {
     const sku = get().skus.find((s) => s.id === id);
     if (!sku) return;
@@ -801,10 +783,10 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
     await setDoc(doc(fsdb, SKUS_COL, id), toFirestore(updated));
   },
 
-  setProjectionConfirmed: async (id, confirmed) => {
+  setScheduleConfirmed: async (id, confirmed) => {
     const sku = get().skus.find((s) => s.id === id);
     if (!sku) return;
-    const updated = { ...sku, isProjectionConfirmed: confirmed };
+    const updated = { ...sku, scheduleConfirmed: confirmed };
     set({ skus: get().skus.map((s) => (s.id === id ? updated : s)) });
     await setDoc(doc(fsdb, SKUS_COL, id), toFirestore(updated));
   },

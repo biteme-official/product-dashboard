@@ -696,7 +696,7 @@ function SkuListTable({ skus, onSwitchToSkuList }: { skus: SkuData[]; onSwitchTo
               const dr = discountRate(sku);
               const cr = costRate(sku);
               const formattedDate = formatReleaseDate(sku.releaseDate);
-              const isProjectionLocked = sku.isProjectionConfirmed ?? false;
+              const isProjectionLocked = sku.scheduleConfirmed ?? false;
               return (
                 <tr
                   key={sku.id}
@@ -977,7 +977,7 @@ function ChannelScheduleTable({ skus, onSwitchToSkuList }: { skus: SkuData[]; on
   const persistSku = useStore((s) => s.persistSku);
   const setActiveCategory = useStore((s) => s.setActiveCategory);
   const expandOnly = useStore((s) => s.expandOnly);
-  const setProjectionConfirmed = useStore((s) => s.setProjectionConfirmed);
+  const setScheduleConfirmed = useStore((s) => s.setScheduleConfirmed);
   const { role } = useAuth();
   const { step2: canEdit, projectionConfirm: canConfirm } = usePermission(role);
 
@@ -1065,7 +1065,7 @@ function ChannelScheduleTable({ skus, onSwitchToSkuList }: { skus: SkuData[]; on
           </thead>
           <tbody>
             {skus.map((sku, i) => {
-              const isProjectionLocked = sku.isProjectionConfirmed ?? false;
+              const isProjectionLocked = sku.scheduleConfirmed ?? false;
               const rowCanEdit = canEdit && !isProjectionLocked;
               return (
               <tr
@@ -1100,7 +1100,7 @@ function ChannelScheduleTable({ skus, onSwitchToSkuList }: { skus: SkuData[]; on
                 <td className="px-2 py-1.5 text-center whitespace-nowrap">
                   {canConfirm ? (
                     <button
-                      onClick={() => setProjectionConfirmed(sku.id, !isProjectionLocked)}
+                      onClick={() => setScheduleConfirmed(sku.id, !isProjectionLocked)}
                       title={isProjectionLocked ? '클릭하여 확정 해제' : '클릭하여 오픈일정 확정'}
                       className={`px-2 py-0.5 text-[10px] font-semibold rounded border transition-colors whitespace-nowrap ${
                         isProjectionLocked

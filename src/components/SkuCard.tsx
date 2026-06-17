@@ -38,13 +38,13 @@ const CHANNEL_COLORS: Record<Channel, string> = {
 };
 
 // 채널 → 확정 그룹 매핑 (플랫폼/브랜드/글로벌)
-const CHANNEL_CONFIRM_GROUP: Partial<Record<string, { field: 'platformConfirmed' | 'brandConfirmed' | 'globalConfirmed'; label: string }>> = {
-  '자사몰': { field: 'platformConfirmed', label: '플랫폼' },
-  '스스':   { field: 'brandConfirmed',    label: '브랜드' },
-  '위탁':   { field: 'brandConfirmed',    label: '브랜드' },
-  'B2B':    { field: 'brandConfirmed',    label: '브랜드' },
-  '일본':   { field: 'globalConfirmed',   label: '글로벌' },
-  '글로벌': { field: 'globalConfirmed',   label: '글로벌' },
+const CHANNEL_CONFIRM_GROUP: Partial<Record<string, { field: 'step2PlatformConfirmed' | 'step2BrandConfirmed' | 'step2GlobalConfirmed'; label: string }>> = {
+  '자사몰': { field: 'step2PlatformConfirmed', label: '플랫폼' },
+  '스스':   { field: 'step2BrandConfirmed',    label: '브랜드' },
+  '위탁':   { field: 'step2BrandConfirmed',    label: '브랜드' },
+  'B2B':    { field: 'step2BrandConfirmed',    label: '브랜드' },
+  '일본':   { field: 'step2GlobalConfirmed',   label: '글로벌' },
+  '글로벌': { field: 'step2GlobalConfirmed',   label: '글로벌' },
 };
 
 /** 확정된 그룹 레이블 목록 반환 (빈 배열이면 모두 미확정) */
@@ -144,12 +144,6 @@ export function SkuCard({ sku }: Props) {
             {sku.name || '(SKU명 미입력)'}
           </button>
 
-          {sku.isConfirmed && (
-            <span className="flex-shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200">
-              ✓ 확정
-            </span>
-          )}
-
           {canEdit && (
             <div className="flex items-center gap-1 flex-shrink-0">
               <button
@@ -190,13 +184,13 @@ export function SkuCard({ sku }: Props) {
           </div>
           {/* 채널별 확정 뱃지 */}
           <div className="flex items-center gap-1">
-            {sku.platformConfirmed && (
+            {sku.step2PlatformConfirmed && (
               <span className="text-[10px] px-1.5 py-0.5 rounded font-semibold bg-emerald-600 text-white">플랫폼 확정</span>
             )}
-            {sku.brandConfirmed && (
+            {sku.step2BrandConfirmed && (
               <span className="text-[10px] px-1.5 py-0.5 rounded font-semibold bg-amber-500 text-white">브랜드 확정</span>
             )}
-            {sku.globalConfirmed && (
+            {sku.step2GlobalConfirmed && (
               <span className="text-[10px] px-1.5 py-0.5 rounded font-semibold bg-sky-600 text-white">글로벌 확정</span>
             )}
           </div>
@@ -206,14 +200,6 @@ export function SkuCard({ sku }: Props) {
       {/* 상세 입력 영역 (펼침) */}
       {sku.isExpanded && (
         <div className="p-4 bg-white">
-          {sku.isConfirmed && (
-            <div className="flex items-center gap-2 mb-4 px-3 py-2 rounded-lg bg-red-50 border border-red-200">
-              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-red-100 text-red-600 border border-red-200 whitespace-nowrap">
-                🔒 수량 확정
-              </span>
-              <span className="text-xs text-red-500">수량 수정 MD 협의 필요</span>
-            </div>
-          )}
           <div className="grid gap-4 grid-cols-1 md:grid-cols-[1fr_1.8fr_1.4fr]">
             {/* 열 1: 기본정보 */}
             <BasicInfoColumn sku={sku} readOnly={!canEdit} />
@@ -1020,10 +1006,10 @@ function MonthlyTable({
               </button>
               {(
                 [
-                  { field: 'platformConfirmed', label: '플랫폼 확정', on: 'bg-emerald-600 text-white hover:bg-emerald-700', off: 'border border-emerald-400 bg-emerald-50 text-emerald-700 hover:bg-emerald-100' },
-                  { field: 'brandConfirmed',    label: '브랜드 확정', on: 'bg-amber-500 text-white hover:bg-amber-600',     off: 'border border-amber-400 bg-amber-50 text-amber-700 hover:bg-amber-100'   },
-                  { field: 'globalConfirmed',   label: '글로벌 확정', on: 'bg-sky-600 text-white hover:bg-sky-700',         off: 'border border-sky-400 bg-sky-50 text-sky-700 hover:bg-sky-100'           },
-                ] as { field: 'platformConfirmed' | 'brandConfirmed' | 'globalConfirmed'; label: string; on: string; off: string }[]
+                  { field: 'step2PlatformConfirmed', label: '플랫폼 확정', on: 'bg-emerald-600 text-white hover:bg-emerald-700', off: 'border border-emerald-400 bg-emerald-50 text-emerald-700 hover:bg-emerald-100' },
+                  { field: 'step2BrandConfirmed',    label: '브랜드 확정', on: 'bg-amber-500 text-white hover:bg-amber-600',     off: 'border border-amber-400 bg-amber-50 text-amber-700 hover:bg-amber-100'   },
+                  { field: 'step2GlobalConfirmed',   label: '글로벌 확정', on: 'bg-sky-600 text-white hover:bg-sky-700',         off: 'border border-sky-400 bg-sky-50 text-sky-700 hover:bg-sky-100'           },
+                ] as { field: 'step2PlatformConfirmed' | 'step2BrandConfirmed' | 'step2GlobalConfirmed'; label: string; on: string; off: string }[]
               ).map(({ field, label, on, off }) => {
                 const isOn = !!sku[field];
                 return (
@@ -1583,14 +1569,14 @@ function PricingChannelTable({
   // prop 드릴링 대신 스토어에서 확정 상태를 직접 구독 — 버튼 클릭 즉시 인풋이 비활성화됨
   const liveConfirmKey = useStore((s) => {
     const found = s.skus.find((sk) => sk.id === sku.id);
-    return `${found?.platformConfirmed ?? false}|${found?.brandConfirmed ?? false}|${found?.globalConfirmed ?? false}`;
+    return `${found?.step2PlatformConfirmed ?? false}|${found?.step2BrandConfirmed ?? false}|${found?.step2GlobalConfirmed ?? false}`;
   });
   const [livePlatform, liveBrand, liveGlobal] = liveConfirmKey.split('|').map((v) => v === 'true');
   const isChannelLockedLive = (channel: string): boolean => {
     const group = CHANNEL_CONFIRM_GROUP[channel];
     if (!group) return false;
-    if (group.field === 'platformConfirmed') return livePlatform;
-    if (group.field === 'brandConfirmed') return liveBrand;
+    if (group.field === 'step2PlatformConfirmed') return livePlatform;
+    if (group.field === 'step2BrandConfirmed') return liveBrand;
     return liveGlobal;
   };
 

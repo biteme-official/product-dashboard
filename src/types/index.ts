@@ -146,13 +146,12 @@ export interface SkuData {
   isPriceConfirmed?: boolean;                       // 가격 확정 여부 (master만 변경 가능)
   channelOpenSchedule?: ChannelOpenScheduleEntry; // 채널별 오픈일정
   step2InitBaselineQty?: ChannelMonthQtyEntry[]; // 초기화 시 계산된 수량 (비교 기준값, 영구 보존)
-  isConfirmed?: boolean;
   finalOrderQty?: Record<string, number>;
   finalOrderConfirmedAt?: string | null;
-  platformConfirmed?: boolean;
-  brandConfirmed?: boolean;
-  globalConfirmed?: boolean;
-  isProjectionConfirmed?: boolean;           // 프로젝션 확정 여부 (master/PM 변경 가능)
+  step2PlatformConfirmed?: boolean;
+  step2BrandConfirmed?: boolean;
+  step2GlobalConfirmed?: boolean;
+  scheduleConfirmed?: boolean;               // 채널 오픈일정 확정 여부 (master/PM 변경 가능)
   isExpanded: boolean;
   _initialSnapshot: Omit<SkuData, 'isExpanded' | '_initialSnapshot'>;
 }

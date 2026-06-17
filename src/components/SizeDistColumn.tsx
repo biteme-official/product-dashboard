@@ -192,7 +192,7 @@ export function SizeDistColumn({ sku, readOnly }: Props) {
             value={sku.totalOrderQty}
             onChange={handleTotalQtyChange}
             onBlur={handleBlur}
-            disabled={readOnly || !!sku.isConfirmed}
+            disabled={readOnly}
             placeholder="0"
             className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed"
           />
@@ -230,14 +230,14 @@ export function SizeDistColumn({ sku, readOnly }: Props) {
                     value={color.quantity}
                     onChange={(v) => handleColorChange(color.id, { quantity: v })}
                     onBlur={handleBlur}
-                    disabled={readOnly || !!sku.isConfirmed}
+                    disabled={readOnly}
                     placeholder="수량"
                     className="w-20 px-2 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-400 text-right disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed"
                   />
                   <span className="w-9 text-right text-[11px] tabular-nums flex-shrink-0 text-indigo-400 font-medium">
                     {pct !== null ? `${pct}%` : ''}
                   </span>
-                  {!readOnly && !sku.isConfirmed && (
+                  {!readOnly && (
                     <button
                       onClick={() => removeColor(color.id)}
                       className="text-lg leading-none text-gray-300 hover:text-red-400 transition-colors flex-shrink-0"
@@ -249,7 +249,7 @@ export function SizeDistColumn({ sku, readOnly }: Props) {
               );
             })}
           </div>
-          {!readOnly && !sku.isConfirmed && (
+          {!readOnly && (
             <button
               onClick={addColor}
               className="w-full py-1.5 text-xs border border-dashed border-indigo-200 text-indigo-500 rounded-lg hover:bg-indigo-50 transition-colors"

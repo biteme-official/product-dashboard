@@ -30,7 +30,6 @@ export function MdSimSection() {
   const updateChannelMonthRatio = useStore((s) => s.updateChannelMonthRatio);
   const resetChannelMonthlySplit = useStore((s) => s.resetChannelMonthlySplit);
   const persistSku = useStore((s) => s.persistSku);
-  const setSkuConfirmed = useStore((s) => s.setSkuConfirmed);
   const { role } = useAuth();
   const canEdit = role === 'master' || isMdRole(role);
 
@@ -54,11 +53,6 @@ export function MdSimSection() {
   }, [eligibleSkus, selectedSkuId]);
 
   const sku = skus.find((s) => s.id === selectedSkuId) ?? null;
-  const isConfirmed = sku?.isConfirmed ?? false;
-
-  function alertConfirmed() {
-    window.alert('발주량 확정 취소 후 수정하세요.\n수정 전 유관부서 공유/확인 요망');
-  }
 
   // 저장된 ratio → 수량 변환
   function getCMQty(channel: Channel, month: Month): number {
@@ -149,40 +143,17 @@ export function MdSimSection() {
                   </span>
                 </span>
                 {canEdit && (
-                  <>
-                    {/* 확정 / 확정 취소 버튼 */}
-                    {isConfirmed ? (
-                      <button
-                        onClick={() => {
-                          if (window.confirm('확정건 수정 시 유관부서 공유/확인 필수') && sku) {
-                            setSkuConfirmed(sku.id, false, role!);
-                          }
-                        }}
-                        className="text-xs px-3 py-1.5 rounded-lg border border-red-300 text-red-600 bg-red-50 hover:bg-red-100 transition-colors whitespace-nowrap font-semibold"
-                      >
-                        🔓 확정 취소
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => { if (sku) setSkuConfirmed(sku.id, true, role!); }}
-                        className="text-xs px-3 py-1.5 rounded-lg border border-emerald-400 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition-colors whitespace-nowrap font-semibold"
-                      >
-                        ✓ 확정
-                      </button>
-                    )}
-                    {/* 초기값 복원 — 확정 상태에서 비활성 */}
-                    <button
-                      onClick={async () => {
-                        setResetting(true);
-                        await resetChannelMonthlySplit(sku.id);
-                        setResetting(false);
-                      }}
-                      disabled={resetting || isConfirmed}
-                      className="text-xs px-3 py-1.5 rounded-lg border border-amber-300 text-amber-700 bg-amber-50 hover:bg-amber-100 transition-colors whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed"
-                    >
-                      {resetting ? '복원 중...' : '↺ 초기값 복원'}
-                    </button>
-                  </>
+                  <button
+                    onClick={async () => {
+                      setResetting(true);
+                      await resetChannelMonthlySplit(sku.id);
+                      setResetting(false);
+                    }}
+                    disabled={resetting}
+                    className="text-xs px-3 py-1.5 rounded-lg border border-amber-300 text-amber-700 bg-amber-50 hover:bg-amber-100 transition-colors whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    {resetting ? '복원 중...' : '↺ 초기값 복원'}
+                  </button>
                 )}
               </>
             )}
@@ -199,13 +170,6 @@ export function MdSimSection() {
 
       {sku && (
         <>
-          {/* 확정 상태 배너 */}
-          {isConfirmed && (
-            <div className="flex items-center gap-2 mb-3 px-3 py-2 rounded-lg bg-red-50 border border-red-200 text-xs text-red-600 font-medium">
-              🔒 발주량이 확정되었습니다. 수정하려면 확정을 취소하세요.
-            </div>
-          )}
-
           {/* B2C/B2B 범례 */}
           <div className="flex items-center gap-4 mb-2 px-1 flex-wrap">
             <span className="flex items-center gap-1.5 text-xs text-gray-500">
@@ -309,21 +273,20 @@ export function MdSimSection() {
                         return (
                           <td
                             key={month}
-                            onClick={isConfirmed ? alertConfirmed : undefined}
                             className={`px-1.5 py-1 text-center border-r border-gray-100 ${
                               IS_NEXT_YEAR[month] ? 'bg-blue-50/30' : ''
-                            } ${isConfirmed ? 'cursor-not-allowed' : ''}`}
+                            }`}
                           >
                             <input
                               type="text"
                               inputMode="numeric"
-                              disabled={!canEdit || isConfirmed}
+                              disabled={!canEdit}
                               value={qty === 0 ? '' : qty}
                               onChange={(e) => handleQtyChange(channel, month, e.target.value)}
-                              onBlur={canEdit && !isConfirmed ? () => persistSku(sku.id) : undefined}
+                              onBlur={canEdit ? () => persistSku(sku.id) : undefined}
                               placeholder="0"
                               className={`w-14 text-center text-xs rounded px-1 py-0.5 border border-gray-200 focus:outline-none focus:ring-1 focus:ring-indigo-400 tabular-nums ${
-                                !canEdit || isConfirmed
+                                !canEdit
                                   ? 'bg-gray-50 text-gray-400 cursor-not-allowed'
                                   : 'bg-white'
                               }`}

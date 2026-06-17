@@ -165,7 +165,6 @@ export function MdSummaryOverview({ skus }: { skus: SkuData[] }) {
   const totalCm = allTotals.revenue > 0
     ? Math.round((allTotals.profit / allTotals.revenue) * 1000) / 10
     : null;
-  const confirmedCount = skus.filter((s) => s.isConfirmed).length;
   const step2UnsetCount = skus.filter((s) => s.channelMonthQty.every((e) => e.qty === 0)).length;
 
   const skuRows = skus
@@ -193,7 +192,6 @@ export function MdSummaryOverview({ skus }: { skus: SkuData[] }) {
         <KpiCard
           label="총 SKU"
           value={`${skus.length}개`}
-          sub={confirmedCount > 0 ? `확정 ${confirmedCount}개 포함` : undefined}
         />
         <KpiCard
           label="STEP2 총 목표량"
@@ -320,9 +318,6 @@ export function MdSummaryOverview({ skus }: { skus: SkuData[] }) {
                           : <span className="text-gray-300">–</span>}
                       </td>
                       <td className="px-4 py-2.5 text-center">
-                        {sku.isConfirmed && (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-semibold">✓ 확정</span>
-                        )}
                       </td>
                     </tr>
                   );
