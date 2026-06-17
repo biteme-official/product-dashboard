@@ -22,11 +22,9 @@ const confirmCache = new Map<string, { confirmedAt: string; qty: Record<string, 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function toFirestore(sku: SkuData): Record<string, any> {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { isExpanded: _, finalOrderQty, step2OptionQty, ...data } = sku;
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { imageUrl: _img, ...snapshotWithoutImage } = (data._initialSnapshot ?? {}) as SkuData;
+  const { isExpanded: _, finalOrderQty, step2OptionQty, _initialSnapshot: __, ...data } = sku;
 
-  const result: Record<string, unknown> = { ...data, _initialSnapshot: snapshotWithoutImage };
+  const result: Record<string, unknown> = { ...data };
 
   // finalOrderQty: __confirmedStep2Total__ 분리 → finalOrderStep2Total 최상위 필드
   if (finalOrderQty !== undefined) {
@@ -382,7 +380,7 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
 
   addSku: () => {
     const { skus, activeCategory } = get();
-    if (skus.filter((s) => s.category === activeCategory).length >= 15) return;
+    if (skus.filter((s) => s.category === activeCategory).length >= 100) return;
     const newSku = buildEmptySku(activeCategory);
     set({ skus: [...skus, newSku] });
     setDoc(doc(fsdb, SKUS_COL, newSku.id), toFirestore(newSku));

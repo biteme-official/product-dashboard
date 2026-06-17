@@ -216,7 +216,7 @@ export function SkuOrderSection({ mode = 'sku', subTab = 'list-view', onSwitchTo
     ? sourceSkus.filter((s) => s.name.includes(searchQuery.trim()))
     : sourceSkus;
 
-  const isAtMax = categorySkus.length >= 15;
+  const isAtMax = categorySkus.length >= 100;
   const gallerySelectedSku = gallerySkuId ? skus.find((s) => s.id === gallerySkuId) ?? null : null;
 
   return (
@@ -227,7 +227,7 @@ export function SkuOrderSection({ mode = 'sku', subTab = 'list-view', onSwitchTo
           <h2 className="text-sm font-semibold text-gray-700 flex-shrink-0">
             SKU 발주 입력
             <span className="ml-2 text-gray-400 font-normal">
-              {filteredSkus.length}{activeBrand !== '전체' ? ` (전체 ${categorySkus.length})` : ''} / 15
+              {filteredSkus.length}{activeBrand !== '전체' ? ` (전체 ${categorySkus.length})` : ''} / 100
             </span>
           </h2>
 
@@ -488,7 +488,7 @@ export function SkuOrderSection({ mode = 'sku', subTab = 'list-view', onSwitchTo
                       : 'border-indigo-300 text-indigo-600 hover:border-indigo-400 hover:bg-indigo-50'
                   }`}
                 >
-                  {isAtMax ? '최대 15개 도달' : '+ SKU 추가'}
+                  {isAtMax ? '최대 100개 도달' : '+ SKU 추가'}
                 </button>
               )}
             </>
@@ -1306,12 +1306,16 @@ function ScheduleMemoCell({ sku, canEdit }: { sku: SkuData; canEdit: boolean }) 
 
 // ── 갤러리 카드 ──────────────────────────────────────────────────────────────
 function SkuGalleryCard({ sku, onClick }: { sku: SkuData; onClick: () => void }) {
+  const releaseLabel = sku.releaseDate
+    ? sku.releaseDate.slice(5).replace('-', '/')
+    : null;
+
   return (
     <button
       onClick={onClick}
       className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm hover:shadow-md hover:border-indigo-300 transition-all text-left group w-full"
     >
-      <div className="aspect-square w-full bg-gray-100 overflow-hidden">
+      <div className="aspect-square w-full bg-gray-100 overflow-hidden relative">
         {sku.imageUrl ? (
           <img
             src={sku.imageUrl}
@@ -1325,17 +1329,37 @@ function SkuGalleryCard({ sku, onClick }: { sku: SkuData; onClick: () => void })
             </svg>
           </div>
         )}
+        {/* 발주 확정 오버레이 */}
+        {sku.finalOrderConfirmedAt && (
+          <span className="absolute top-1.5 right-1.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-indigo-600 text-white shadow">
+            발주확정
+          </span>
+        )}
       </div>
-      <div className="p-2.5 space-y-0.5">
+      <div className="p-2.5 space-y-1">
         <p className="text-xs font-semibold text-gray-800 truncate leading-tight">
           {sku.name || <span className="text-gray-300">(미입력)</span>}
         </p>
-        <p className="text-[11px] text-gray-500">
-          {sku.price > 0 ? `₩${sku.price.toLocaleString()}` : <span className="text-gray-300">–</span>}
-        </p>
-        <p className="text-[11px] text-gray-400">
-          {sku.totalOrderQty > 0 ? sku.totalOrderQty.toLocaleString() : <span className="text-gray-300">–</span>}
-        </p>
+        <div className="flex items-center justify-between gap-1">
+          <span className="text-[11px] text-gray-500">
+            {sku.price > 0 ? `₩${sku.price.toLocaleString()}` : <span className="text-gray-300">–</span>}
+          </span>
+          <span className="text-[11px] text-gray-400 tabular-nums">
+            {releaseLabel ?? <span className="text-gray-300">–</span>}
+          </span>
+        </div>
+        {/* 채널 확정 배지 */}
+        <div className="flex items-center gap-1 flex-wrap">
+          {sku.step2PlatformConfirmed && (
+            <span className="text-[9px] px-1 py-0.5 rounded font-semibold bg-emerald-100 text-emerald-700">플랫폼</span>
+          )}
+          {sku.step2BrandConfirmed && (
+            <span className="text-[9px] px-1 py-0.5 rounded font-semibold bg-amber-100 text-amber-700">브랜드</span>
+          )}
+          {sku.step2GlobalConfirmed && (
+            <span className="text-[9px] px-1 py-0.5 rounded font-semibold bg-sky-100 text-sky-700">글로벌</span>
+          )}
+        </div>
       </div>
     </button>
   );
