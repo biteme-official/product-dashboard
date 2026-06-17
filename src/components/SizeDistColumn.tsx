@@ -2,6 +2,7 @@ import { v4 as uuidv4, } from 'uuid';
 import { useState, useRef } from 'react';
 import { useStore } from '../store';
 import { useAuth } from '../store/auth';
+import { usePermission } from '../contexts/PermissionsContext';
 import type { SkuData } from '../types';
 import { buildSizesFromCount, recalcQuantities } from '../utils/calc';
 import { exportSkuOrderXlsx, copySkuOrderToClipboard } from '../utils/exportXlsx';
@@ -708,7 +709,7 @@ function formatConfirmedAt(iso: string): string {
 function FinalOrderTable({ sku, sumRatios }: { sku: SkuData; sumRatios: number }) {
   const { setFinalOrderConfirmed } = useStore();
   const { role } = useAuth();
-  const canEdit = role === 'master' || role === 'pm';
+  const canEdit = usePermission(role).orderConfirm;
 
   const liveSku = useStore((s) => s.skus.find((x) => x.id === sku.id) ?? sku);
   const liveChannelMonthQty = liveSku.channelMonthQty;

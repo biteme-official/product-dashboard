@@ -7,6 +7,7 @@ import { NumericInput } from './NumericInput';
 import { exportBulkOrderXlsx } from '../utils/exportXlsx';
 import { CalendarPopup } from './CalendarPopup';
 import type { SkuData, ChannelOpenScheduleEntry } from '../types';
+import { usePermission } from '../contexts/PermissionsContext';
 
 type ViewMode = 'list' | 'gallery';
 
@@ -81,7 +82,7 @@ export function SkuOrderSection({ mode = 'sku', subTab = 'list-view', onSwitchTo
   const isProjection = mode === 'projection';
 
   const { role } = useAuth();
-  const canEdit = role === 'master' || role === 'pm';
+  const canEdit = usePermission(role).skuBasic;
   const [searchQuery, setSearchQuery] = useState('');
   const [bulkOpen, setBulkOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -587,8 +588,9 @@ function SkuListTable({ skus, onSwitchToSkuList }: { skus: SkuData[]; onSwitchTo
       }, 50);
     }, 0);
   }
-  const canEdit = role === 'master';
-  const canEditDate = role === 'master' || role === 'pm';
+  const { skuBasic } = usePermission(role);
+  const canEdit = skuBasic;
+  const canEditDate = skuBasic;
 
   const [editingCell, setEditingCell] = useState<EditingCell | null>(null);
   const [pricingSkuId, setPricingSkuId] = useState<string | null>(null);
@@ -977,8 +979,7 @@ function ChannelScheduleTable({ skus, onSwitchToSkuList }: { skus: SkuData[]; on
   const expandOnly = useStore((s) => s.expandOnly);
   const setProjectionConfirmed = useStore((s) => s.setProjectionConfirmed);
   const { role } = useAuth();
-  const canEdit = role === 'master' || role === 'platform_md' || role === 'brand_md';
-  const canConfirm = role === 'master' || role === 'pm';
+  const { step2: canEdit, projectionConfirm: canConfirm } = usePermission(role);
 
   const [scheduleCal, setScheduleCal] = useState<ScheduleCal | null>(null);
   const calRef = useRef<HTMLDivElement>(null);

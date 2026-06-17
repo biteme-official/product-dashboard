@@ -10,7 +10,7 @@ import { SizeDistColumn } from './SizeDistColumn';
 import { ComparisonColumn } from './ComparisonColumn';
 import { NumericInput } from './NumericInput';
 import { useExchangeRates } from '../utils/useExchangeRates';
-import { isMdRole } from '../utils/pin';
+import { usePermission } from '../contexts/PermissionsContext';
 import { MarketingBriefModal } from './MarketingBriefModal';
 import { PricingModal } from './PricingModal';
 import { exportSimulationXlsx } from '../utils/exportXlsx';
@@ -78,7 +78,8 @@ export function SkuCard({ sku }: Props) {
   const updateSku = useStore((s) => s.updateSku);
   const persistSku = useStore((s) => s.persistSku);
   const { role } = useAuth();
-  const canEdit = role === 'master' || role === 'pm';
+  const perm = usePermission(role);
+  const canEdit = perm.skuBasic;
   const isFinalized = !!sku.finalOrderConfirmedAt;
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
@@ -841,11 +842,9 @@ function MonthlyTable({
   const persistSku = useStore((s) => s.persistSku);
   const setChannelConfirmed = useStore((s) => s.setChannelConfirmed);
   const { role } = useAuth();
-  const canEdit = role === 'master' || role === 'pm';
-  // STEP 1은 PM/master만 편집 가능
-  const step1ReadOnly = readOnly || isMdRole(role);
-  // STEP 2는 MD 역할도 편집 가능, 확정 여부와 무관하게 채널 편집 권한 보유 역할 수정 가능
-  const step2ReadOnly = !canEdit && !isMdRole(role);
+  const perm = usePermission(role);
+  const step1ReadOnly = !perm.step1;
+  const step2ReadOnly = !perm.step2;
 
   // STEP2 탭 진입 시, channelMonthQty가 미초기화 상태면 대응SKU 채널 비중으로 자동 세팅
   useEffect(() => {

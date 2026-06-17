@@ -12,6 +12,7 @@ import { PinManager } from './components/PinManager';
 import { ConfirmLogModal } from './components/ConfirmLogModal';
 import { parseImportJson, type RawSkuInput } from './utils/importParser';
 import { BulkImportModal } from './components/BulkImportModal';
+import { usePermission } from './contexts/PermissionsContext';
 
 type MainTab = 'pm' | 'projection' | 'md' | 'manual';
 
@@ -50,6 +51,7 @@ function App() {
   const replaceAllSkus = useStore((s) => s.replaceAllSkus);
   const skus = useStore((s) => s.skus);
   const { role, logout } = useAuth();
+  const perm = usePermission(role);
 
   const [pending, setPending] = useState<PendingImport | null>(null);
   const [importState, setImportState] = useState<'idle' | 'done' | 'error'>('idle');
@@ -146,8 +148,8 @@ function App() {
             {ROLE_META[role].label}
           </span>
 
-          {/* 일괄 추가 (master·pm) */}
-          {(role === 'master' || role === 'pm') && (
+          {/* 일괄 추가 */}
+          {perm.skuBasic && (
             <button
               onClick={() => setShowBulkImport(true)}
               title="CSV로 SKU 일괄 추가"
