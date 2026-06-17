@@ -58,7 +58,7 @@ function App() {
   const [showPinManager, setShowPinManager] = useState(false);
   const [showConfirmLog, setShowConfirmLog] = useState(false);
   const [showBulkImport, setShowBulkImport] = useState(false);
-  const [backupState, setBackupState] = useState<'idle' | 'done' | 'error'>('idle');
+  const [backupState, setBackupState] = useState<'idle' | 'done' | 'error' | 'restoring' | 'rolling-back' | 'rolled-back'>('idle');
   const [activeMainTab, setActiveMainTab] = useSessionState<MainTab>('app:mainTab', 'projection');
   const [projectionSubTab, setProjectionSubTab] = useSessionState<string>('app:projectionSubTab', 'list-view');
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -80,18 +80,39 @@ function App() {
     const file = e.target.files?.[0];
     if (!file) return;
     e.target.value = '';
+
+    // 파일 파싱 (유효성 검사 먼저)
+    let rawSkus: Omit<SkuData, '_initialSnapshot' | 'isExpanded'>[];
     try {
       const text = await file.text();
       const parsed = JSON.parse(text);
-      const rawSkus: Omit<SkuData, '_initialSnapshot' | 'isExpanded'>[] =
-        parsed.version === 1 ? parsed.skus : parsed;
+      rawSkus = parsed.version === 1 ? parsed.skus : parsed;
       if (!Array.isArray(rawSkus) || rawSkus.length === 0) throw new Error('invalid');
+    } catch {
+      setBackupState('error');
+      setTimeout(() => setBackupState('idle'), 4000);
+      return;
+    }
+
+    // 복원 전: 현재 데이터 메모리 스냅샷 보관 + 자동 백업 파일 다운로드
+    const snapshot = skus.map(({ _initialSnapshot: _, isExpanded: __, ...rest }) => rest);
+    handleExport();
+
+    setBackupState('restoring');
+    try {
       await replaceAllSkus(rawSkus);
       setBackupState('done');
       setTimeout(() => setBackupState('idle'), 3000);
     } catch {
-      setBackupState('error');
-      setTimeout(() => setBackupState('idle'), 4000);
+      // 복원 실패 → 메모리 스냅샷으로 자동 롤백
+      setBackupState('rolling-back');
+      try {
+        await replaceAllSkus(snapshot);
+        setBackupState('rolled-back');
+      } catch {
+        setBackupState('error');
+      }
+      setTimeout(() => setBackupState('idle'), 6000);
     }
   }
 
@@ -180,16 +201,26 @@ function App() {
               />
               <button
                 onClick={() => fileInputRef.current?.click()}
-                title="백업 JSON 파일로 데이터 복원 (기존 데이터 전체 교체)"
-                className="text-xs px-2.5 py-1 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-100 transition-colors"
+                disabled={backupState === 'restoring' || backupState === 'rolling-back'}
+                title="백업 JSON 파일로 데이터 복원 (복원 전 자동 백업 다운로드)"
+                className="text-xs px-2.5 py-1 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 ↑ 복원
               </button>
+              {backupState === 'restoring' && (
+                <span className="text-xs text-blue-500 font-medium">복원 중…</span>
+              )}
               {backupState === 'done' && (
                 <span className="text-xs text-green-600 font-medium">✓ 복원 완료</span>
               )}
+              {backupState === 'rolling-back' && (
+                <span className="text-xs text-amber-600 font-medium">롤백 중…</span>
+              )}
+              {backupState === 'rolled-back' && (
+                <span className="text-xs text-amber-600 font-medium">복원 실패 — 이전 데이터로 롤백됨</span>
+              )}
               {backupState === 'error' && (
-                <span className="text-xs text-red-500">복원 실패</span>
+                <span className="text-xs text-red-500">복원 실패 (백업 파일로 수동 복원 필요)</span>
               )}
 
             </>
