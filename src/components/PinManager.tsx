@@ -8,6 +8,7 @@ const ROLE_LABELS: Record<Role, string> = {
   platform_md: '플랫폼MD',
   brand_md:    '브랜드MD',
   global:      '글로벌',
+  cs:          'CS/경영지원',
 };
 
 const ROLE_COLORS: Record<Role, string> = {
@@ -17,6 +18,7 @@ const ROLE_COLORS: Record<Role, string> = {
   platform_md: 'text-emerald-700 bg-emerald-50',
   brand_md:    'text-amber-700 bg-amber-50',
   global:      'text-sky-700 bg-sky-50',
+  cs:          'text-orange-700 bg-orange-50',
 };
 
 function PinInput({

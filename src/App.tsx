@@ -41,6 +41,7 @@ const ROLE_META: Record<import('./utils/pin').Role, { label: string; color: stri
   platform_md: { label: '플랫폼MD', color: 'bg-emerald-100 text-emerald-700' },
   brand_md:    { label: '브랜드MD', color: 'bg-amber-100 text-amber-700' },
   global:      { label: '글로벌',   color: 'bg-sky-100 text-sky-700' },
+  cs:          { label: 'CS/경영지원', color: 'bg-orange-100 text-orange-700' },
 };
 
 function App() {
