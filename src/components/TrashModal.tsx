@@ -4,7 +4,7 @@ import type { TrashItem } from '../types';
 
 const ROLE_LABELS: Record<string, string> = {
   master: 'MASTER',
-  pm: 'PM',
+  pm: 'CPO',
   marketing: '마케팅',
   platform_md: '플랫폼MD',
   brand_md: '브랜드MD',

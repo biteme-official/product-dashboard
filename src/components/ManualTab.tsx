@@ -637,7 +637,7 @@ export function ManualTab() {
           </thead>
           <tbody>
             <Tr><Td>STEP 2 MD 확정</Td><Td>MD</Td><Td>채널별 목표량 설정 완료 후 확정 버튼 클릭. 이후 수량 잠금</Td></Tr>
-            <Tr><Td>STEP 1 PM 확정</Td><Td>PM</Td><Td>월별 발주 계획 최종 확정. 이후 수량 잠금</Td></Tr>
+            <Tr><Td>STEP 1 CPO 확정</Td><Td>CPO</Td><Td>월별 발주 계획 최종 확정. 이후 수량 잠금</Td></Tr>
             <Tr><Td>확정 이력 조회</Td><Td>MASTER</Td><Td>확정 일시·역할 이력을 모달에서 확인 가능</Td></Tr>
           </tbody>
         </table>

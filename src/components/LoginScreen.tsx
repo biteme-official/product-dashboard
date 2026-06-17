@@ -11,7 +11,7 @@ const ROLE_META: Record<Role, {
   dot: string;          // 셋업 스텝 도트
 }> = {
   master:      { label: 'MASTER',      desc: '모든 권한',     color: 'bg-indigo-600 text-white',  ring: 'ring-indigo-400',  badge: 'bg-indigo-100 text-indigo-700',  dot: 'bg-indigo-500' },
-  pm:          { label: 'PM',          desc: 'SKU 편집',      color: 'bg-violet-600 text-white',  ring: 'ring-violet-400',  badge: 'bg-violet-100 text-violet-700',  dot: 'bg-violet-500' },
+  pm:          { label: 'CPO',         desc: 'SKU 편집',      color: 'bg-violet-600 text-white',  ring: 'ring-violet-400',  badge: 'bg-violet-100 text-violet-700',  dot: 'bg-violet-500' },
   marketing:   { label: '마케팅',      desc: '뷰어',          color: 'bg-pink-500 text-white',    ring: 'ring-pink-400',    badge: 'bg-pink-100 text-pink-700',      dot: 'bg-pink-500' },
   platform_md: { label: '플랫폼MD',    desc: '플랫폼 채널',   color: 'bg-emerald-600 text-white', ring: 'ring-emerald-400', badge: 'bg-emerald-100 text-emerald-700', dot: 'bg-emerald-500' },
   brand_md:    { label: '브랜드MD',    desc: '브랜드·B2B',    color: 'bg-amber-500 text-white',   ring: 'ring-amber-400',   badge: 'bg-amber-100 text-amber-700',    dot: 'bg-amber-500' },
