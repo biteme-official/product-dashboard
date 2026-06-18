@@ -372,6 +372,9 @@ export function SkuOrderSection({ mode = 'sku', subTab = 'list-view', onSwitchTo
                 ))}
               </div>
               <div className="ml-auto flex items-center gap-2 shrink-0">
+                <span className="text-[11px] font-semibold tabular-nums text-gray-500 whitespace-nowrap">
+                  {displaySkus.length}개
+                </span>
                 {hasListFilter && (
                   <button
                     onClick={() => { setListCatFilter(new Set()); setListBrandFilter(new Set()); setListMonthFilter(new Set()); }}

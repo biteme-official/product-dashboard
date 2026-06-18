@@ -2,20 +2,52 @@ import { create } from 'zustand';
 import { v4 as uuidv4 } from 'uuid';
 import {
   collection, doc, setDoc, getDoc, deleteDoc, onSnapshot, writeBatch, getDocs,
-  addDoc, Timestamp,
+  addDoc, Timestamp, deleteField, query, orderBy, limit,
 } from 'firebase/firestore';
 import { fsdb } from '../lib/firebase';
-import type { AppState, Category, Month, SkuData, MonthlySplit, ColorEntry, ChannelMonthEntry, ChannelMonthQtyEntry, ChannelPricing, TrashItem } from '../types';
+import type { AppState, Category, Month, SkuData, MonthlySplit, ColorEntry, ChannelMonthEntry, ChannelMonthQtyEntry, ChannelPricing, TrashItem, ActivityLog, LogChange } from '../types';
+import { useAuth } from './auth';
 import { MAX_SIZES, SIZE_LABELS, MONTHS, CHANNELS, BRANDS, DEFAULT_CHANNEL_RATIOS, DEFAULT_CHANNEL_COMMISSION, DISABLED_CHANNELS, getReleaseMonth, simPosition, type Brand, type Channel } from '../types';
 import { recalcQuantities, revenueMultiplier, calcDynamicMultiplier } from '../utils/calc';
 
 const SKUS_COL = 'skus';
 const TRASH_COL = 'trash';
 const TRASH_DAYS = 15;
+const LOGS_COL = 'activityLogs';
 
 // 세션 내 확정 캐시: onSnapshot race & persistSku 덮어쓰기로부터 finalOrderConfirmedAt을 복구
 // null = 사용자가 명시적으로 취소, { ... } = 확정 완료, undefined = 모름(캐시 없음)
 const confirmCache = new Map<string, { confirmedAt: string; qty: Record<string, number> } | null>();
+
+// 마지막으로 Firestore에 저장된 SKU 상태 (변경 이력 diff용)
+const savedSkuState: Record<string, SkuData> = {};
+
+// diff 대상 필드만 추적 (배열/객체는 제외)
+const TRACKED_FIELDS: Partial<Record<keyof SkuData, string>> = {
+  name: 'SKU명',
+  category: '카테고리',
+  brand: '브랜드',
+  releaseDate: '출시일',
+  price: '판매가',
+  memo: '메모',
+};
+
+function formatLogValue(val: unknown): string {
+  if (val === null || val === undefined || val === '') return '–';
+  if (typeof val === 'boolean') return val ? '✓' : '–';
+  return String(val);
+}
+
+async function writeLog(skuId: string, skuName: string, role: string, changes: LogChange[]) {
+  if (changes.length === 0) return;
+  await addDoc(collection(fsdb, LOGS_COL), {
+    skuId,
+    skuName,
+    role,
+    changedAt: Timestamp.now(),
+    changes,
+  });
+}
 
 // Firestore는 __ 로 시작하고 끝나는 필드명을 금지함
 // → finalOrderQty.__confirmedStep2Total__ / step2OptionQty.__total__ 를 최상위 필드로 분리
@@ -295,6 +327,8 @@ interface StoreActions {
   setChannelConfirmed: (id: string, field: 'step2PlatformConfirmed' | 'step2BrandConfirmed' | 'step2GlobalConfirmed', value: boolean) => Promise<void>;
   setPriceConfirmed: (id: string, confirmed: boolean) => Promise<void>;
   setScheduleConfirmed: (id: string, confirmed: boolean) => Promise<void>;
+  cleanupInitialSnapshots: () => Promise<number>;
+  loadActivityLogs: (maxItems?: number) => Promise<ActivityLog[]>;
 }
 
 const readSession = <T>(key: string, fallback: T): T => {
@@ -362,6 +396,11 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
         return s;
       });
       set({ skus: merged });
+      // Firestore 확정 상태를 savedSkuState에 기록 (변경 이력 diff용)
+      merged.forEach((s) => { savedSkuState[s.id] = s; });
+      snapshot.docChanges().forEach((change) => {
+        if (change.type === 'removed') delete savedSkuState[change.doc.id];
+      });
       // 비활성 채널에 잔존하는 qty > 0 이면 Firestore에도 0으로 저장 (1회성 마이그레이션)
       // merged를 사용해 보존된 finalOrderConfirmedAt을 같이 write
       const toMigrate = merged.filter((s) =>
@@ -746,11 +785,31 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
       ...(finalOrderQty !== undefined ? { finalOrderQty } : {}),
     };
     set({ skus: get().skus.map((s) => (s.id === id ? { ...s, ...patch } : s)) });
+    writeLog(id, sku.name, useAuth.getState().role ?? 'unknown', [{
+      field: 'finalOrderConfirmedAt', label: '발주 확정',
+      from: formatLogValue(!!sku.finalOrderConfirmedAt), to: formatLogValue(confirmed),
+    }]).catch(console.error);
   },
 
   persistSku: async (id) => {
     const sku = get().skus.find((s) => s.id === id);
     if (!sku) return;
+
+    // 변경 이력: savedSkuState와 현재 상태를 diff
+    const before = savedSkuState[id];
+    if (before) {
+      const changes: LogChange[] = [];
+      for (const [field, label] of Object.entries(TRACKED_FIELDS)) {
+        const oldVal = formatLogValue(before[field as keyof SkuData]);
+        const newVal = formatLogValue(sku[field as keyof SkuData]);
+        if (oldVal !== newVal) changes.push({ field, label, from: oldVal, to: newVal });
+      }
+      if (changes.length > 0) {
+        const role = useAuth.getState().role ?? 'unknown';
+        writeLog(id, sku.name, role, changes).catch(console.error);
+      }
+    }
+
     // finalOrderConfirmedAt / finalOrderQty는 setFinalOrderConfirmed만 write
     // persistSku가 로컬 state를 그대로 write하면 onSnapshot race로 null이 된
     // 로컬 값이 Firestore에도 덮여써져 새로고침 후 데이터 유실 발생
@@ -771,6 +830,15 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
     const updated = { ...sku, [field]: value };
     set({ skus: get().skus.map((s) => (s.id === id ? updated : s)) });
     await setDoc(doc(fsdb, SKUS_COL, id), toFirestore(updated));
+    const CHANNEL_LABELS: Record<string, string> = {
+      step2PlatformConfirmed: '플랫폼 확정',
+      step2BrandConfirmed: '브랜드 확정',
+      step2GlobalConfirmed: '글로벌 확정',
+    };
+    writeLog(id, sku.name, useAuth.getState().role ?? 'unknown', [{
+      field, label: CHANNEL_LABELS[field] ?? field,
+      from: formatLogValue(!value), to: formatLogValue(value),
+    }]).catch(console.error);
   },
 
   setPriceConfirmed: async (id, confirmed) => {
@@ -779,6 +847,10 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
     const updated = { ...sku, isPriceConfirmed: confirmed };
     set({ skus: get().skus.map((s) => (s.id === id ? updated : s)) });
     await setDoc(doc(fsdb, SKUS_COL, id), toFirestore(updated));
+    writeLog(id, sku.name, useAuth.getState().role ?? 'unknown', [{
+      field: 'isPriceConfirmed', label: '가격 확정',
+      from: formatLogValue(!confirmed), to: formatLogValue(confirmed),
+    }]).catch(console.error);
   },
 
   setScheduleConfirmed: async (id, confirmed) => {
@@ -787,5 +859,37 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
     const updated = { ...sku, scheduleConfirmed: confirmed };
     set({ skus: get().skus.map((s) => (s.id === id ? updated : s)) });
     await setDoc(doc(fsdb, SKUS_COL, id), toFirestore(updated));
+    writeLog(id, sku.name, useAuth.getState().role ?? 'unknown', [{
+      field: 'scheduleConfirmed', label: '일정 확정',
+      from: formatLogValue(!confirmed), to: formatLogValue(confirmed),
+    }]).catch(console.error);
+  },
+
+  loadActivityLogs: async (maxItems = 200) => {
+    const q = query(collection(fsdb, LOGS_COL), orderBy('changedAt', 'desc'), limit(maxItems));
+    const snap = await getDocs(q);
+    return snap.docs.map((d) => ({
+      id: d.id,
+      skuId: d.data().skuId as string,
+      skuName: d.data().skuName as string,
+      role: d.data().role as string,
+      changedAt: (d.data().changedAt as Timestamp).toDate().toISOString(),
+      changes: (d.data().changes ?? []) as import('../types').LogChange[],
+    }));
+  },
+
+  cleanupInitialSnapshots: async () => {
+    const snap = await getDocs(collection(fsdb, SKUS_COL));
+    const dirty = snap.docs.filter((d) => d.data()._initialSnapshot !== undefined);
+    if (dirty.length === 0) return 0;
+    const CHUNK = 500;
+    for (let i = 0; i < dirty.length; i += CHUNK) {
+      const batch = writeBatch(fsdb);
+      dirty.slice(i, i + CHUNK).forEach((d) => {
+        batch.update(d.ref, { _initialSnapshot: deleteField() });
+      });
+      await batch.commit();
+    }
+    return dirty.length;
   },
 }));

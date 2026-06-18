@@ -195,6 +195,22 @@ export interface TrashItem {
   expiresAt: string;  // ISO string (deletedAt + 15일)
 }
 
+export interface LogChange {
+  field: string;
+  label: string;
+  from: string;
+  to: string;
+}
+
+export interface ActivityLog {
+  id: string;
+  skuId: string;
+  skuName: string;
+  role: string;
+  changedAt: string; // ISO string
+  changes: LogChange[];
+}
+
 export interface AppState {
   activeCategory: Category;
   activeBrand: Brand | '전체';

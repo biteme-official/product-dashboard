@@ -162,8 +162,7 @@ function App() {
       {/* 헤더 */}
       <header className="bg-white border-b border-gray-200 px-3 sm:px-6 py-3 flex items-center gap-2 flex-wrap">
         <div>
-          <h1 className="text-base font-bold text-gray-900 leading-tight">Product Dashboard</h1>
-          <p className="text-xs text-gray-400 hidden sm:block">발주량 시뮬레이션 &amp; 월별 판매 계획</p>
+          <h1 className="text-base font-bold text-gray-900 leading-tight">바잇미 제품 프로젝션</h1>
         </div>
 
         {/* 역할 배지 + 관리 버튼 */}
@@ -242,7 +241,7 @@ function App() {
                 onClick={() => setShowConfirmLog(true)}
                 className="text-xs px-2.5 py-1 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-100 transition-colors"
               >
-                확정 로그
+                수정 이력
               </button>
               <button
                 onClick={() => setShowPinManager(true)}

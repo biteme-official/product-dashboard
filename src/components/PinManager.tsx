@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { setPin, ALL_ROLES, type Role } from '../utils/pin';
+import { useStore } from '../store';
 import {
   PERM_LABELS,
   saveRolePermission,
@@ -184,10 +185,61 @@ function PermissionTable() {
   );
 }
 
+function DataCleanupTab() {
+  const cleanupInitialSnapshots = useStore((s) => s.cleanupInitialSnapshots);
+  const [status, setStatus] = useState<'idle' | 'running' | 'done' | 'error'>('idle');
+  const [count, setCount] = useState(0);
+
+  async function handleCleanup() {
+    setStatus('running');
+    try {
+      const n = await cleanupInitialSnapshots();
+      setCount(n);
+      setStatus('done');
+    } catch {
+      setStatus('error');
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <p className="text-xs text-gray-500">
+        이전 버전에서 Firestore에 저장된 <code className="bg-gray-100 px-1 rounded text-[11px]">_initialSnapshot</code> 필드를
+        일괄 삭제합니다. 현재 버전에서는 이 필드가 저장되지 않으며, 기존 문서에 남아있는 중복 데이터를 정리합니다.
+      </p>
+
+      <div className="border border-gray-200 rounded-xl p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-xs font-semibold text-gray-700">_initialSnapshot 정리</p>
+            <p className="text-[11px] text-gray-400 mt-0.5">기존 SKU 문서에서 불필요한 필드를 제거합니다</p>
+          </div>
+          <button
+            onClick={handleCleanup}
+            disabled={status === 'running'}
+            className="text-xs px-3 py-1.5 rounded-lg border border-indigo-300 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {status === 'running' ? '정리 중…' : '정리 실행'}
+          </button>
+        </div>
+
+        {status === 'done' && (
+          <p className="text-xs text-green-600 font-medium">
+            {count > 0 ? `완료 — ${count}개 문서에서 필드 삭제됨` : '이미 정리되어 있습니다 (0개 문서에서 발견)'}
+          </p>
+        )}
+        {status === 'error' && (
+          <p className="text-xs text-red-500 font-medium">오류가 발생했습니다. 콘솔을 확인해 주세요.</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function PinManager({ onClose }: { onClose: () => void }) {
   const [editing, setEditing] = useState<Role | null>(null);
   const [saved, setSaved] = useState<Role | null>(null);
-  const [activeTab, setActiveTab] = useState<'pin' | 'perm'>('pin');
+  const [activeTab, setActiveTab] = useState<'pin' | 'perm' | 'data'>('pin');
 
   async function handleSave(role: Role, pin: string) {
     await setPin(role, pin);
@@ -222,6 +274,12 @@ export function PinManager({ onClose }: { onClose: () => void }) {
             className={`flex-1 text-xs py-1.5 rounded-md font-semibold transition-all ${activeTab === 'perm' ? 'bg-white shadow text-gray-800' : 'text-gray-500 hover:text-gray-700'}`}
           >
             권한 관리
+          </button>
+          <button
+            onClick={() => setActiveTab('data')}
+            className={`flex-1 text-xs py-1.5 rounded-md font-semibold transition-all ${activeTab === 'data' ? 'bg-white shadow text-gray-800' : 'text-gray-500 hover:text-gray-700'}`}
+          >
+            데이터 정리
           </button>
         </div>
 
@@ -275,6 +333,8 @@ export function PinManager({ onClose }: { onClose: () => void }) {
             </p>
           </>
         )}
+
+        {activeTab === 'data' && <DataCleanupTab />}
       </div>
     </div>
   );
