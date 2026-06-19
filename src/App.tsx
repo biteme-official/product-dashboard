@@ -14,6 +14,7 @@ import { TrashModal } from './components/TrashModal';
 import { parseImportJson, type RawSkuInput } from './utils/importParser';
 import { BulkImportModal } from './components/BulkImportModal';
 import { usePermission } from './contexts/PermissionsContext';
+import { getPortalToken, verifyPortalToken, cleanPortalToken } from './utils/portalAuth';
 
 type MainTab = 'pm' | 'projection' | 'md' | 'manual';
 
@@ -51,8 +52,19 @@ function App() {
   const importSkus = useStore((s) => s.importSkus);
   const replaceAllSkus = useStore((s) => s.replaceAllSkus);
   const skus = useStore((s) => s.skus);
-  const { role, logout } = useAuth();
+  const { role, setRole, logout } = useAuth();
   const perm = usePermission(role);
+  const [portalAuthChecked, setPortalAuthChecked] = useState(false);
+
+  useEffect(() => {
+    const token = getPortalToken();
+    if (!token) { setPortalAuthChecked(true); return; }
+    verifyPortalToken(token).then((r) => {
+      if (r) setRole(r);
+      cleanPortalToken();
+      setPortalAuthChecked(true);
+    });
+  }, [setRole]);
 
   const [pending, setPending] = useState<PendingImport | null>(null);
   const [importState, setImportState] = useState<'idle' | 'done' | 'error'>('idle');
@@ -150,6 +162,14 @@ function App() {
       setTimeout(() => setImportState('idle'), 4000);
     }
   }, [pending, importSkus]);
+
+  if (!portalAuthChecked) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <span className="text-sm text-gray-400">인증 확인 중...</span>
+      </div>
+    );
+  }
 
   if (!role) return <LoginScreen />;
 
