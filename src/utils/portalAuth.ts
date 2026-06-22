@@ -1,6 +1,7 @@
 import { type Role, ALL_ROLES } from './pin';
 
 const PORTAL_URL = import.meta.env.VITE_PORTAL_URL as string | undefined;
+const DEFAULT_PORTAL = 'https://biteme-portal-hub.vercel.app';
 
 interface VerifyResult {
   valid: boolean;
@@ -14,8 +15,7 @@ interface VerifyResult {
 }
 
 export async function verifyPortalToken(token: string): Promise<Role | null> {
-  const baseUrl = PORTAL_URL || window.location.ancestorOrigins?.[0] || '';
-  if (!baseUrl) return null;
+  const baseUrl = PORTAL_URL || window.location.ancestorOrigins?.[0] || DEFAULT_PORTAL;
 
   try {
     const res = await fetch(`${baseUrl}/api/auth/verify-token`, {
