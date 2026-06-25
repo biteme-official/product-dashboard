@@ -674,6 +674,7 @@ function SkuListTable({ skus, onSwitchToSkuList }: { skus: SkuData[]; onSwitchTo
               <th className="px-3 py-2.5 text-left font-semibold text-gray-600 whitespace-nowrap">브랜드</th>
               <th className="px-3 py-2.5 text-left font-semibold text-gray-600">SKU명</th>
               <th className="px-3 py-2.5 text-left font-semibold text-gray-600 whitespace-nowrap">오픈일</th>
+              <th className="px-3 py-2.5 text-center font-semibold text-gray-600 whitespace-nowrap">자사몰 세팅</th>
               <th className="px-3 py-2.5 text-left font-semibold text-gray-600 whitespace-nowrap">입고예정일</th>
               <th className="px-3 py-2.5 text-left font-semibold text-gray-600 whitespace-nowrap">촬영예정일</th>
               <th className="px-3 py-2.5 text-center font-semibold text-gray-600 whitespace-nowrap">프라이싱</th>
@@ -745,6 +746,41 @@ function SkuListTable({ skus, onSwitchToSkuList }: { skus: SkuData[]; onSwitchTo
                         </span>
                       )}
                     </div>
+                  </td>
+                  {/* 자사몰 세팅 — master/pm만 체크 가능 */}
+                  <td className="px-3 py-2 text-center whitespace-nowrap">
+                    {canEdit ? (
+                      <button
+                        onClick={() => {
+                          updateSku(sku.id, { ownMallSetup: !(sku.ownMallSetup ?? false) });
+                          persistSku(sku.id);
+                        }}
+                        title={sku.ownMallSetup ? '클릭하여 해제' : '클릭하여 세팅 완료 표시'}
+                        className={`w-5 h-5 rounded flex items-center justify-center border-2 transition-colors mx-auto ${
+                          sku.ownMallSetup
+                            ? 'bg-emerald-500 border-emerald-500 text-white hover:bg-emerald-600 hover:border-emerald-600'
+                            : 'bg-white border-gray-300 hover:border-emerald-400'
+                        }`}
+                      >
+                        {sku.ownMallSetup && (
+                          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                          </svg>
+                        )}
+                      </button>
+                    ) : (
+                      <span className={`w-5 h-5 rounded flex items-center justify-center border-2 mx-auto ${
+                        sku.ownMallSetup
+                          ? 'bg-emerald-500 border-emerald-500 text-white'
+                          : 'bg-white border-gray-200'
+                      }`}>
+                        {sku.ownMallSetup && (
+                          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                          </svg>
+                        )}
+                      </span>
+                    )}
                   </td>
                   {/* 입고예정일 — master/pm 클릭 시 캘린더 팝업 */}
                   <td className="px-3 py-2 whitespace-nowrap">

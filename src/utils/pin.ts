@@ -1,9 +1,9 @@
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, deleteField } from 'firebase/firestore';
 import { fsdb } from '../lib/firebase';
 
-export type Role = 'master' | 'pm' | 'marketing' | 'platform_md' | 'brand_md' | 'global' | 'cs';
+export type Role = 'master' | 'pm' | 'viewer' | 'platform_md' | 'brand_md' | 'global';
 
-export const ALL_ROLES: readonly Role[] = ['master', 'pm', 'marketing', 'platform_md', 'brand_md', 'global', 'cs'] as const;
+export const ALL_ROLES: readonly Role[] = ['master', 'pm', 'viewer', 'platform_md', 'brand_md', 'global'] as const;
 export const MD_ROLES: readonly Role[] = ['platform_md', 'brand_md', 'global'] as const;
 
 /** platform_md / brand_md / global 여부 확인 */
@@ -35,8 +35,21 @@ export async function verifyPin(role: Role, pin: string): Promise<boolean> {
   return (await sha256hex(pin)) === stored;
 }
 
-// 모든 역할의 PIN이 Firestore에 설정되어 있는지 확인
+// 모든 권한의 PIN이 Firestore에 설정되어 있는지 확인 (구버전 marketing→viewer 자동 마이그레이션)
 export async function allPinsSet(): Promise<boolean> {
   const pins = await fetchPins();
+
+  // 구버전 마이그레이션: viewer PIN 없고 marketing PIN 있으면 복사, cs PIN 삭제
+  const needsMigration = !pins['viewer'] && !!pins['marketing'];
+  const hasCs = !!pins['cs'];
+  if (needsMigration || hasCs) {
+    const patch: Record<string, unknown> = {};
+    if (needsMigration) patch['viewer'] = pins['marketing'];
+    if (hasCs) patch['cs'] = deleteField();
+    if (needsMigration) patch['marketing'] = deleteField();
+    await updateDoc(PINS_DOC, patch);
+    if (needsMigration) pins['viewer'] = pins['marketing'];
+  }
+
   return ALL_ROLES.every((r) => !!pins[r]);
 }

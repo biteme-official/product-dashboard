@@ -10,22 +10,20 @@ import { usePermission } from '../contexts/PermissionsContext';
 
 const ROLE_LABELS: Record<Role, string> = {
   master:      'MASTER',
-  pm:          'CPO',
-  marketing:   '마케팅',
+  pm:          'PM',
+  viewer:      'VIEWER',
   platform_md: '플랫폼MD',
   brand_md:    '브랜드MD',
   global:      '글로벌',
-  cs:          'CS/경영지원',
 };
 
 const ROLE_COLORS: Record<Role, string> = {
   master:      'text-indigo-700 bg-indigo-50',
   pm:          'text-violet-700 bg-violet-50',
-  marketing:   'text-pink-700 bg-pink-50',
+  viewer:      'text-gray-600 bg-gray-100',
   platform_md: 'text-emerald-700 bg-emerald-50',
   brand_md:    'text-amber-700 bg-amber-50',
   global:      'text-sky-700 bg-sky-50',
-  cs:          'text-orange-700 bg-orange-50',
 };
 
 function PinInput({
@@ -108,16 +106,15 @@ const PERM_KEYS = Object.keys(PERM_LABELS) as (keyof RolePermission)[];
 function PermissionTable() {
   const [saving, setSaving] = useState<Role | null>(null);
 
-  const pmPerm    = usePermission('pm');
-  const platPerm  = usePermission('platform_md');
-  const brandPerm = usePermission('brand_md');
-  const globalPerm = usePermission('global');
-  const mktPerm   = usePermission('marketing');
-  const csPerm    = usePermission('cs');
+  const pmPerm      = usePermission('pm');
+  const viewerPerm  = usePermission('viewer');
+  const platPerm    = usePermission('platform_md');
+  const brandPerm   = usePermission('brand_md');
+  const globalPerm  = usePermission('global');
 
   const permMap: Partial<Record<Role, RolePermission>> = {
-    pm: pmPerm, platform_md: platPerm, brand_md: brandPerm,
-    global: globalPerm, marketing: mktPerm, cs: csPerm,
+    pm: pmPerm, viewer: viewerPerm, platform_md: platPerm,
+    brand_md: brandPerm, global: globalPerm,
   };
 
   async function toggle(role: Exclude<Role, 'master'>, key: keyof RolePermission) {
@@ -135,7 +132,7 @@ function PermissionTable() {
       <table className="w-full text-[11px] border-collapse">
         <thead>
           <tr className="bg-gray-50">
-            <th className="px-2 py-2 text-left font-semibold text-gray-500 border border-gray-200 whitespace-nowrap">역할</th>
+            <th className="px-2 py-2 text-left font-semibold text-gray-500 border border-gray-200 whitespace-nowrap">권한</th>
             {PERM_KEYS.map((k) => (
               <th key={k} className="px-2 py-2 text-center font-semibold text-gray-500 border border-gray-200 whitespace-nowrap">
                 {PERM_LABELS[k]}
@@ -285,7 +282,7 @@ export function PinManager({ onClose }: { onClose: () => void }) {
 
         {activeTab === 'pin' && (
           <>
-            <p className="text-xs text-gray-400">각 역할의 PIN을 변경할 수 있습니다.</p>
+            <p className="text-xs text-gray-400">각 권한의 PIN을 변경할 수 있습니다.</p>
             <div className="space-y-2">
               {ALL_ROLES.map((role) => (
                 <div key={role} className="border border-gray-200 rounded-xl p-3">
@@ -325,11 +322,11 @@ export function PinManager({ onClose }: { onClose: () => void }) {
         {activeTab === 'perm' && (
           <>
             <p className="text-xs text-gray-400">
-              역할별 편집 권한을 설정합니다. 변경 사항은 Firestore에 즉시 저장되며 모든 사용자에게 실시간 반영됩니다.
+              권한별 편집 범위를 설정합니다. 변경 사항은 Firestore에 즉시 저장되며 모든 사용자에게 실시간 반영됩니다.
             </p>
             <PermissionTable />
             <p className="text-[10px] text-gray-400">
-              * MASTER는 항상 전체 권한. 체크 해제 시 해당 역할은 해당 기능을 뷰어로만 사용합니다.
+              * MASTER는 항상 전체 권한. 체크 해제 시 해당 권한은 해당 기능을 뷰어로만 사용합니다.
             </p>
           </>
         )}

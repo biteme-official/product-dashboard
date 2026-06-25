@@ -24,6 +24,6 @@ export function PermissionsProvider({ children }: { children: ReactNode }) {
 
 export function usePermission(role: Role | null | undefined): RolePermission {
   const ctx = useContext(PermissionsContext);
-  if (!role || !ALL_ROLES.includes(role)) return DEFAULT_PERMISSIONS.cs;
+  if (!role || !ALL_ROLES.includes(role)) return DEFAULT_PERMISSIONS.viewer;
   return ctx[role];
 }

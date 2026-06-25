@@ -39,12 +39,11 @@ interface PendingImport {
 
 const ROLE_META: Record<import('./utils/pin').Role, { label: string; color: string }> = {
   master:      { label: 'MASTER',   color: 'bg-indigo-100 text-indigo-700' },
-  pm:          { label: 'CPO',      color: 'bg-violet-100 text-violet-700' },
-  marketing:   { label: '마케팅',   color: 'bg-pink-100 text-pink-700' },
+  pm:          { label: 'PM',       color: 'bg-violet-100 text-violet-700' },
+  viewer:      { label: 'VIEWER',   color: 'bg-gray-100 text-gray-600' },
   platform_md: { label: '플랫폼MD', color: 'bg-emerald-100 text-emerald-700' },
   brand_md:    { label: '브랜드MD', color: 'bg-amber-100 text-amber-700' },
   global:      { label: '글로벌',   color: 'bg-sky-100 text-sky-700' },
-  cs:          { label: 'CS/경영지원', color: 'bg-orange-100 text-orange-700' },
 };
 
 function App() {

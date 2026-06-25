@@ -152,6 +152,7 @@ export interface SkuData {
   step2BrandConfirmed?: boolean;
   step2GlobalConfirmed?: boolean;
   scheduleConfirmed?: boolean;               // 채널 오픈일정 확정 여부 (master/PM 변경 가능)
+  ownMallSetup?: boolean;                    // 자사몰 세팅 완료 여부 (master/PM만 변경)
   isExpanded: boolean;
   _initialSnapshot: Omit<SkuData, 'isExpanded' | '_initialSnapshot'>;
 }

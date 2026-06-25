@@ -27,11 +27,10 @@ const MASTER_PERM: RolePermission = {
 export const DEFAULT_PERMISSIONS: Record<Role, RolePermission> = {
   master:      { skuBasic: true,  step1: true,  step2: true,  projectionConfirm: true,  orderConfirm: true  },
   pm:          { skuBasic: true,  step1: true,  step2: true,  projectionConfirm: true,  orderConfirm: true  },
+  viewer:      { skuBasic: false, step1: false, step2: false, projectionConfirm: false, orderConfirm: false },
   platform_md: { skuBasic: false, step1: false, step2: true,  projectionConfirm: true,  orderConfirm: false },
   brand_md:    { skuBasic: false, step1: false, step2: true,  projectionConfirm: true,  orderConfirm: false },
   global:      { skuBasic: false, step1: false, step2: true,  projectionConfirm: true,  orderConfirm: false },
-  marketing:   { skuBasic: false, step1: false, step2: false, projectionConfirm: false, orderConfirm: false },
-  cs:          { skuBasic: false, step1: false, step2: false, projectionConfirm: false, orderConfirm: false },
 };
 
 const ROLES_DOC = doc(fsdb, 'config', 'roles');
@@ -43,7 +42,8 @@ function buildPermMap(stored: Partial<Record<string, Partial<RolePermission>>>):
       result.master = MASTER_PERM;
       continue;
     }
-    const raw = stored[role] ?? {};
+    // viewer는 Firestore에 marketing 또는 viewer 키로 저장된 것을 모두 인식
+    const raw = (role === 'viewer' ? (stored['viewer'] ?? stored['marketing']) : stored[role]) ?? {};
     result[role] = { ...DEFAULT_PERMISSIONS[role] };
     for (const k of PERM_KEYS) {
       if (typeof raw[k] === 'boolean') result[role][k] = raw[k] as boolean;

@@ -10,13 +10,12 @@ const ROLE_META: Record<Role, {
   badge: string;        // 배지 (헤더용)
   dot: string;          // 셋업 스텝 도트
 }> = {
-  master:      { label: 'MASTER',      desc: '모든 권한',     color: 'bg-indigo-600 text-white',  ring: 'ring-indigo-400',  badge: 'bg-indigo-100 text-indigo-700',  dot: 'bg-indigo-500' },
-  pm:          { label: 'CPO',         desc: 'SKU 편집',      color: 'bg-violet-600 text-white',  ring: 'ring-violet-400',  badge: 'bg-violet-100 text-violet-700',  dot: 'bg-violet-500' },
-  marketing:   { label: '마케팅',      desc: '뷰어',          color: 'bg-pink-500 text-white',    ring: 'ring-pink-400',    badge: 'bg-pink-100 text-pink-700',      dot: 'bg-pink-500' },
-  platform_md: { label: '플랫폼MD',    desc: '플랫폼 채널',   color: 'bg-emerald-600 text-white', ring: 'ring-emerald-400', badge: 'bg-emerald-100 text-emerald-700', dot: 'bg-emerald-500' },
-  brand_md:    { label: '브랜드MD',    desc: '브랜드·B2B',    color: 'bg-amber-500 text-white',   ring: 'ring-amber-400',   badge: 'bg-amber-100 text-amber-700',    dot: 'bg-amber-500' },
-  global:      { label: '글로벌',      desc: '글로벌·일본',   color: 'bg-sky-600 text-white',     ring: 'ring-sky-400',     badge: 'bg-sky-100 text-sky-700',        dot: 'bg-sky-500' },
-  cs:          { label: 'CS/경영지원', desc: '뷰어',          color: 'bg-orange-500 text-white',  ring: 'ring-orange-400',  badge: 'bg-orange-100 text-orange-700',  dot: 'bg-orange-500' },
+  master:      { label: 'MASTER',   desc: '모든 권한',   color: 'bg-indigo-600 text-white',  ring: 'ring-indigo-400',  badge: 'bg-indigo-100 text-indigo-700',   dot: 'bg-indigo-500' },
+  pm:          { label: 'PM',       desc: 'SKU 편집',    color: 'bg-violet-600 text-white',  ring: 'ring-violet-400',  badge: 'bg-violet-100 text-violet-700',   dot: 'bg-violet-500' },
+  viewer:      { label: 'VIEWER',   desc: '뷰어',        color: 'bg-gray-600 text-white',    ring: 'ring-gray-400',    badge: 'bg-gray-100 text-gray-600',       dot: 'bg-gray-500' },
+  platform_md: { label: '플랫폼MD', desc: '플랫폼 채널', color: 'bg-emerald-600 text-white', ring: 'ring-emerald-400', badge: 'bg-emerald-100 text-emerald-700', dot: 'bg-emerald-500' },
+  brand_md:    { label: '브랜드MD', desc: '브랜드·B2B',  color: 'bg-amber-500 text-white',   ring: 'ring-amber-400',   badge: 'bg-amber-100 text-amber-700',     dot: 'bg-amber-500' },
+  global:      { label: '글로벌',   desc: '글로벌·일본', color: 'bg-sky-600 text-white',     ring: 'ring-sky-400',     badge: 'bg-sky-100 text-sky-700',         dot: 'bg-sky-500' },
 };
 
 // ── PIN 도트 입력 UI ───────────────────────────────────────────────────────
@@ -121,14 +120,14 @@ function SetupScreen({ onDone }: { onDone: () => void }) {
             </svg>
           </div>
           <h1 className="text-lg font-bold text-gray-900">초기 PIN 설정</h1>
-          <p className="text-xs text-gray-400 mt-1">각 역할의 PIN을 순서대로 설정해주세요</p>
+          <p className="text-xs text-gray-400 mt-1">각 권한의 PIN을 순서대로 설정해주세요</p>
         </div>
 
         {/* 스텝 인디케이터 */}
         <div className="space-y-2">
-          {/* 상단 4개 (master, pm, marketing, platform_md) */}
+          {/* 상단 3개 (master, pm, viewer) */}
           <div className="flex gap-2 justify-center flex-wrap">
-            {ALL_ROLES.slice(0, 4).map((r, i) => {
+            {ALL_ROLES.slice(0, 3).map((r, i) => {
               const done = i < step;
               const current = i === step;
               const m = ROLE_META[r];
@@ -146,10 +145,10 @@ function SetupScreen({ onDone }: { onDone: () => void }) {
               );
             })}
           </div>
-          {/* 하단 3개 (brand_md, global, cs) */}
+          {/* 하단 3개 (platform_md, brand_md, global) */}
           <div className="flex gap-2 justify-center flex-wrap">
-            {ALL_ROLES.slice(4).map((r, idx) => {
-              const i = idx + 4;
+            {ALL_ROLES.slice(3).map((r, idx) => {
+              const i = idx + 3;
               const done = i < step;
               const current = i === step;
               const m = ROLE_META[r];
@@ -242,9 +241,8 @@ export function LoginScreen() {
     setError('');
   }
 
-  const topRoles: Role[] = ['master', 'pm', 'marketing'];
+  const topRoles: Role[] = ['master', 'pm', 'viewer'];
   const mdRoles: Role[] = ['platform_md', 'brand_md', 'global'];
-  const csRoles: Role[] = ['cs'];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex flex-col items-center justify-center px-4">
@@ -318,36 +316,6 @@ export function LoginScreen() {
             })}
           </div>
 
-          {/* CS/경영지원 구분선 */}
-          <div className="flex items-center gap-2 py-0.5">
-            <div className="flex-1 h-px bg-gray-200" />
-            <span className="text-[10px] text-gray-400 font-semibold tracking-widest">CS</span>
-            <div className="flex-1 h-px bg-gray-200" />
-          </div>
-
-          {/* CS/경영지원 */}
-          <div className="grid grid-cols-1 gap-2">
-            {csRoles.map((role) => {
-              const m = ROLE_META[role];
-              const isSelected = selectedRole === role;
-              return (
-                <button
-                  key={role}
-                  onClick={() => selectRole(role)}
-                  className={`flex flex-col items-center py-3 px-1 rounded-xl border-2 transition-all ${
-                    isSelected
-                      ? `border-transparent ${m.color} ring-2 ${m.ring}`
-                      : 'border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'
-                  }`}
-                >
-                  <span className="font-bold text-xs leading-tight text-center">{m.label}</span>
-                  <span className={`text-[9px] mt-0.5 text-center ${isSelected ? 'text-white/80' : 'text-gray-400'}`}>
-                    {m.desc}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
         </div>
 
         {/* PIN 입력 */}
@@ -361,7 +329,7 @@ export function LoginScreen() {
         {error && <p className="text-center text-xs text-red-500">{error}</p>}
 
         {!selectedRole && (
-          <p className="text-center text-xs text-gray-400">역할을 선택하세요</p>
+          <p className="text-center text-xs text-gray-400">권한을 선택하세요</p>
         )}
       </div>
     </div>
