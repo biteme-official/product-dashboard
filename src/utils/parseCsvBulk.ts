@@ -1,8 +1,8 @@
 import { v4 as uuidv4 } from 'uuid';
 import type { SkuData, Category, SkuType, Brand, Month } from '../types';
 import {
-  MONTHS, CHANNELS, DEFAULT_CHANNEL_RATIOS, DEFAULT_CHANNEL_COMMISSION,
-  SIZE_LABELS, MAX_SIZES,
+  CHANNELS, DEFAULT_CHANNEL_RATIOS, DEFAULT_CHANNEL_COMMISSION,
+  SIZE_LABELS, MAX_SIZES, getSkuMonths,
 } from '../types';
 
 const VALID_CATEGORIES = new Set<Category>(['식품', '용품', '잡화', '의류', '장난감']);
@@ -106,10 +106,10 @@ export function parseCsvBulk(text: string): ParsedRow[] {
       colors: [],
       channelRatios: CHANNELS.map((ch) => ({ channel: ch, ratio: DEFAULT_CHANNEL_RATIOS[ch] })),
       channelMonthlySplit: CHANNELS.flatMap((ch) =>
-        MONTHS.map((m) => ({ channel: ch, month: m, ratio: 0 })),
+        getSkuMonths(rawDate).map((m) => ({ channel: ch, month: m, ratio: 0 })),
       ),
       channelMonthQty: CHANNELS.flatMap((ch) =>
-        MONTHS.map((m) => ({ channel: ch, month: m, qty: 0 })),
+        getSkuMonths(rawDate).map((m) => ({ channel: ch, month: m, qty: 0 })),
       ),
       channelPricing: CHANNELS.map((ch) => ({
         channel: ch, price: 0, commissionRate: DEFAULT_CHANNEL_COMMISSION[ch],
@@ -118,7 +118,7 @@ export function parseCsvBulk(text: string): ParsedRow[] {
       pricingOpts: {},
       pricingUsdRate: 1400,
       comparisonSku: { name: '', price: 0, cost: 0, monthlyShipment: 0, annualShipment: 0 },
-      monthlySplit: MONTHS.map((m) => ({
+      monthlySplit: getSkuMonths(rawDate).map((m) => ({
         month: m as Month, ratio: 0, quantity: 0, revenue: 0, contributionProfit: 0,
       })),
       step2PlatformConfirmed: false,

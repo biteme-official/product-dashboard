@@ -6,12 +6,12 @@ import { MONTHS, CHANNELS, B2C_CHANNELS, type Month, type Channel } from '../typ
 import { getChannelRate } from '../utils/calc';
 
 const MONTH_LABELS: Record<Month, string> = {
+  1: '1월', 2: '2월', 3: '3월', 4: '4월', 5: '5월', 6: '6월',
   7: '7월', 8: '8월', 9: '9월', 10: '10월', 11: '11월', 12: '12월',
-  1: '1월', 2: '2월',
 };
 const IS_NEXT_YEAR: Record<Month, boolean> = {
+  1: true, 2: true, 3: false, 4: false, 5: false, 6: false,
   7: false, 8: false, 9: false, 10: false, 11: false, 12: false,
-  1: true, 2: true,
 };
 
 function formatWon(value: number): string {

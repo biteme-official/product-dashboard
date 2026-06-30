@@ -1,6 +1,6 @@
 export type Category = '식품' | '용품' | '잡화' | '의류' | '장난감';
 export type SkuType = '시즈널' | '스테디' | '미해당';
-export type Month = 1 | 2 | 7 | 8 | 9 | 10 | 11 | 12;
+export type Month = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12;
 
 export const CATEGORIES: Category[] = ['식품', '용품', '잡화', '의류', '장난감'];
 export const SKU_TYPES: SkuType[] = ['시즈널', '스테디', '미해당'];
@@ -28,8 +28,25 @@ export const DEFAULT_CHANNEL_RATIOS: Record<Channel, number> = {
   '글로벌': 15,
   '일본': 15,
 };
-/** 7~12월은 당해, 1~2월은 익년 순서로 표시 */
+/** 기본 시즌 8개월 (7월 출시 기준 — 하위 호환용). 컴포넌트에서는 getSkuMonths() 사용 권장 */
 export const MONTHS: Month[] = [7, 8, 9, 10, 11, 12, 1, 2];
+
+/** SKU 출시일 기준 8개월 윈도우를 반환. releaseDate 없으면 7월 시작 기본값 */
+export function getSkuMonths(releaseDate: string | undefined | null): Month[] {
+  const rm = getReleaseMonth(releaseDate ?? '');
+  const start: number = rm ?? 7;
+  const result: Month[] = [];
+  for (let i = 0; i < 8; i++) {
+    result.push(((start - 1 + i) % 12 + 1) as Month);
+  }
+  return result;
+}
+
+/** 해당 월이 출시연도 기준 익년인지 여부 (출시월보다 숫자가 작으면 익년으로 wrap된 것) */
+export function isNextYearMonth(month: Month, releaseDate: string | undefined | null): boolean {
+  const rm = getReleaseMonth(releaseDate ?? '') ?? 7;
+  return month < rm;
+}
 
 /**
  * 시뮬레이션 기준 월 순서 값 (7월=7, 12월=12, 익년1월=13, 익년2월=14)
@@ -139,7 +156,7 @@ export interface SkuData {
   pricingOpts: Record<string, string>; // STEP3 채널×월 판매가 시나리오 (key: "채널-월")
   pricingUsdRate: number;              // STEP3 USD 환율
   comparisonSku: ComparisonSku;
-  monthlySplit: MonthlySplit[];     // 길이 8 (7~12월 + 익년 1~2월)
+  monthlySplit: MonthlySplit[];     // 출시월 기준 8개월분 (getSkuMonths 윈도우)
   step2OptionQty?: Record<string, number>;
   marketingBrief?: MarketingBrief;
   marketingMonthQty?: { [month: number]: number }; // 마케팅 채널 월별 수량 (원가×수량 = 비용)

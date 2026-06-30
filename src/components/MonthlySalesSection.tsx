@@ -2,7 +2,7 @@ import { useRef } from 'react';
 import { useStore } from '../store';
 import { useAuth } from '../store/auth';
 import { isMdRole } from '../utils/pin';
-import { MONTHS, getReleaseMonth, simPosition, type Month } from '../types';
+import { MONTHS, getSkuMonths, type Month } from '../types';
 
 /** 1억 이상이면 억 단위, 그 미만이면 만 단위로 표시 */
 function formatWon(value: number): string {
@@ -16,14 +16,14 @@ function formatWon(value: number): string {
 }
 
 const MONTH_LABELS: Record<Month, string> = {
+  1: '1월', 2: '2월', 3: '3월', 4: '4월', 5: '5월', 6: '6월',
   7: '7월', 8: '8월', 9: '9월', 10: '10월', 11: '11월', 12: '12월',
-  1: '1월', 2: '2월',
 };
 
-/** 익년 월(1·2월)은 컬럼에 시각적 구분 */
+/** 이 뷰는 7~2월 고정 집계이므로 1·2월만 익년 처리 */
 const IS_NEXT_YEAR: Record<Month, boolean> = {
+  1: true, 2: true, 3: false, 4: false, 5: false, 6: false,
   7: false, 8: false, 9: false, 10: false, 11: false, 12: false,
-  1: true, 2: true,
 };
 
 export function MonthlySalesSection() {
@@ -42,16 +42,20 @@ export function MonthlySalesSection() {
   );
   if (filteredSkus.length === 0) return null;
 
-  // 월별 합계 (비활성화된 월은 0으로 처리돼 있으므로 단순 합산)
+  // 월별 합계 (각 SKU의 출시월 기준 8개월 윈도우만 합산)
   const monthTotals = MONTHS.map((month) => ({
     month,
     totalRevenue: filteredSkus.reduce((sum, sku) => {
-      const ms = sku.monthlySplit.find((m) => m.month === month);
-      return sum + (ms?.revenue ?? 0);
+      const skuMs = sku.monthlySplit.find((m) => m.month === month);
+      if (!skuMs) return sum;
+      const skuMonthSet = new Set(getSkuMonths(sku.releaseDate));
+      return sum + (skuMonthSet.has(month) ? skuMs.revenue : 0);
     }, 0),
     totalProfit: filteredSkus.reduce((sum, sku) => {
-      const ms = sku.monthlySplit.find((m) => m.month === month);
-      return sum + (ms?.contributionProfit ?? 0);
+      const skuMs = sku.monthlySplit.find((m) => m.month === month);
+      if (!skuMs) return sum;
+      const skuMonthSet = new Set(getSkuMonths(sku.releaseDate));
+      return sum + (skuMonthSet.has(month) ? skuMs.contributionProfit : 0);
     }, 0),
   }));
 
@@ -110,14 +114,11 @@ export function MonthlySalesSection() {
 
           <tbody>
             {filteredSkus.map((sku, rowIdx) => {
-              const releaseMonth = getReleaseMonth(sku.releaseDate);
-              const isMonthDisabled = (m: Month) =>
-                releaseMonth !== null &&
-                simPosition(m) < simPosition(releaseMonth);
+              const skuMonthSet = new Set(getSkuMonths(sku.releaseDate));
 
               // 활성 월들의 비중 합산
               const activeRatioSum = sku.monthlySplit
-                .filter((ms) => !isMonthDisabled(ms.month))
+                .filter((ms) => skuMonthSet.has(ms.month))
                 .reduce((sum, ms) => sum + ms.ratio, 0);
               const hasAnyRatio = activeRatioSum > 0;
               const isWarning = hasAnyRatio && activeRatioSum !== 100;
@@ -165,8 +166,8 @@ export function MonthlySalesSection() {
 
                   {/* 월별 셀 */}
                   {MONTHS.map((month) => {
-                    const ms = sku.monthlySplit.find((m) => m.month === month)!;
-                    const disabled = isMonthDisabled(month);
+                    const ms = sku.monthlySplit.find((m) => m.month === month);
+                    const disabled = !skuMonthSet.has(month);
                     return (
                       <MonthCell
                         key={month}

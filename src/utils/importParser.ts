@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import type { SkuData, Category, SkuType, Channel } from '../types';
-import { MONTHS, CHANNELS, DEFAULT_CHANNEL_RATIOS, SIZE_LABELS, MAX_SIZES } from '../types';
+import { CHANNELS, DEFAULT_CHANNEL_RATIOS, SIZE_LABELS, MAX_SIZES, getSkuMonths } from '../types';
 import { recalcQuantities } from './calc';
 
 /** 가져오기용 간략 입력 포맷 */
@@ -66,7 +66,7 @@ function parseOne(raw: RawSkuInput): SkuData {
   const msInput = raw.monthlySplit ?? {};
   const price = raw.price ?? 0;
   const cmRate = raw.contributionMarginRate ?? 0;
-  const monthlySplit = MONTHS.map((month) => {
+  const monthlySplit = getSkuMonths(raw.releaseDate).map((month) => {
     const ratio = msInput[String(month)] ?? 0;
     const quantity = Math.round(totalOrderQty * ratio / 100);
     const revenue = quantity * price;

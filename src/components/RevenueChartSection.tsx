@@ -8,8 +8,8 @@ import { MONTHS, CHANNELS, type Month, type Channel } from '../types';
 import { getChannelRate } from '../utils/calc';
 
 const MONTH_LABELS: Record<Month, string> = {
+  1: '1월(익년)', 2: '2월(익년)', 3: '3월', 4: '4월', 5: '5월', 6: '6월',
   7: '7월', 8: '8월', 9: '9월', 10: '10월', 11: '11월', 12: '12월',
-  1: '1월(익년)', 2: '2월(익년)',
 };
 
 const CHANNEL_COLORS: Record<Channel, string> = {

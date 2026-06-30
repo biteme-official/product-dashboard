@@ -1,5 +1,5 @@
 import type { SkuData } from '../types';
-import { BRANDS, MONTHS, CHANNELS, B2C_CHANNELS, B2B_CHANNELS, DISABLED_CHANNELS, DEFAULT_CHANNEL_COMMISSION, getReleaseMonth, simPosition, type Month, type Channel } from '../types';
+import { BRANDS, CHANNELS, B2C_CHANNELS, B2B_CHANNELS, DISABLED_CHANNELS, DEFAULT_CHANNEL_COMMISSION, getReleaseMonth, getSkuMonths, isNextYearMonth, type Month, type Channel } from '../types';
 import type { ChannelMonthQtyEntry, ChannelPricing } from '../types';
 import { useStore } from '../store';
 import { useAuth } from '../store/auth';
@@ -18,12 +18,8 @@ import { PRICING_SCENARIOS, PRICING_DEFAULT_OPT } from '../utils/pricingScenario
 import { CalendarPopup } from './CalendarPopup';
 
 const MONTH_LABELS: Record<Month, string> = {
+  1: '1월', 2: '2월', 3: '3월', 4: '4월', 5: '5월', 6: '6월',
   7: '7월', 8: '8월', 9: '9월', 10: '10월', 11: '11월', 12: '12월',
-  1: '1월', 2: '2월',
-};
-const IS_NEXT_YEAR: Record<Month, boolean> = {
-  7: false, 8: false, 9: false, 10: false, 11: false, 12: false,
-  1: true, 2: true,
 };
 
 const DEFAULT_CHANNEL_RATIO_PCT: Record<Channel, number> = {
@@ -686,14 +682,15 @@ function buildChannelMonthEntries(
   compChannelDist: Record<string, number> | null | undefined,
   sku: SkuData,
 ): ChannelMonthQtyEntry[] {
+  const skuMs = getSkuMonths(sku.releaseDate);
   // STEP1 월별 수량 합산 — 비중 합이 100% 초과하면 totalOrderQty보다 클 수 있음
-  const monthQtys = MONTHS.map((m) => sku.monthlySplit.find((ms) => ms.month === m)?.quantity ?? 0);
+  const monthQtys = skuMs.map((m) => sku.monthlySplit.find((ms) => ms.month === m)?.quantity ?? 0);
   const totalMonthly = monthQtys.reduce((s, q) => s + q, 0);
 
   // STEP1 합계를 기준으로 사용, 미입력이면 totalOrderQty fallback
   const baseQty = totalMonthly > 0 ? totalMonthly : sku.totalOrderQty;
   if (baseQty === 0) {
-    return CHANNELS.flatMap((channel) => MONTHS.map((month) => ({ channel, month, qty: 0 })));
+    return CHANNELS.flatMap((channel) => skuMs.map((month) => ({ channel, month, qty: 0 })));
   }
 
   const isDisabledCh = (ch: string) => (DISABLED_CHANNELS as readonly string[]).includes(ch);
@@ -708,16 +705,16 @@ function buildChannelMonthEntries(
 
   return CHANNELS.flatMap((channel) => {
     if (isDisabledCh(channel)) {
-      return MONTHS.map((month) => ({ channel, month, qty: 0 }));
+      return skuMs.map((month) => ({ channel, month, qty: 0 }));
     }
     const channelRatio = compChannelDist && distTotal > 0
       ? (compChannelDist[channel] ?? 0) / distTotal
       : DEFAULT_CHANNEL_RATIO_PCT[channel] / activeDefaultSum;
     const channelTotal = Math.round(baseQty * channelRatio);
 
-    return MONTHS.map((month, mi) => {
+    return skuMs.map((month, mi) => {
       // STEP1 미입력이면 균등 배분
-      const fraction = totalMonthly > 0 ? monthQtys[mi] / totalMonthly : 1 / MONTHS.length;
+      const fraction = totalMonthly > 0 ? monthQtys[mi] / totalMonthly : 1 / skuMs.length;
       return { channel, month, qty: Math.round(channelTotal * fraction) };
     });
   });
@@ -756,7 +753,7 @@ function MonthlyTable({
   const [teamCateMap, setTeamCateMap] = useState<TeamCateMap | null>(null);
   useEffect(() => { fetchTeamCateData().then(setTeamCateMap).catch(() => {}); }, []);
 
-  const releaseYear = sku.releaseDate ? parseInt(sku.releaseDate.split('-')[0], 10) : null;
+  const releaseYear = sku.releaseDate ? parseInt(sku.releaseDate.split('-')[0], 10) : 2026;
 
   // 대응SKU 출고 데이터에서 직전12개월 기간 추출 (변동비 비중 기간 동기화용)
   const rolling12Periods = useMemo<{ year: number; month: number }[]>(() => {
@@ -848,18 +845,30 @@ function MonthlyTable({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, compChannelDist]);
 
-  const releaseMonth = getReleaseMonth(sku.releaseDate);
-  const isDisabled = (m: Month) =>
-    releaseMonth !== null && simPosition(m) < simPosition(releaseMonth);
+  // ── 출시월 기준 동적 8개월 윈도우 ──────────────────────────────────────────
+  const skuMonths = getSkuMonths(sku.releaseDate);
+  const isNextYr = (m: Month): boolean => isNextYearMonth(m, sku.releaseDate);
+  const year1Months = skuMonths.filter((m) => !isNextYr(m));
+  const year2Months = skuMonths.filter((m) => isNextYr(m));
+  const hasYear2 = year2Months.length > 0;
+  const year1Label = `${releaseYear % 100}년`;
+  const year2Label = `${(releaseYear + 1) % 100}년`;
+  // 연도 경계 왼쪽 보더: 익년으로 넘어가는 첫 번째 열
+  const yearBorderStep1 = (m: Month): string => {
+    if (!isNextYr(m)) return '';
+    const idx = skuMonths.indexOf(m);
+    return idx > 0 && !isNextYr(skuMonths[idx - 1]) ? 'border-l-2 border-blue-300' : '';
+  };
 
   const totalQty = sku.monthlySplit.reduce((sum, ms) => sum + ms.quantity, 0);
-  const fy26Split = sku.monthlySplit.filter((ms) => !IS_NEXT_YEAR[ms.month]);
-  const fy26Qty = fy26Split.reduce((sum, ms) => sum + ms.quantity, 0);
-  const fy26RatioSum = fy26Split
-    .filter((ms) => !isDisabled(ms.month))
-    .reduce((sum, ms) => sum + ms.ratio, 0);
+  const year1Split = sku.monthlySplit.filter((ms) => year1Months.includes(ms.month));
+  const year2Split = sku.monthlySplit.filter((ms) => year2Months.includes(ms.month));
+  const fy1Qty = year1Split.reduce((sum, ms) => sum + ms.quantity, 0);
+  const fy2Qty = year2Split.reduce((sum, ms) => sum + ms.quantity, 0);
+  const fy1RatioSum = year1Split.reduce((sum, ms) => sum + ms.ratio, 0);
+  const fy2RatioSum = year2Split.reduce((sum, ms) => sum + ms.ratio, 0);
   const totalRatioSum = sku.monthlySplit
-    .filter((ms) => !isDisabled(ms.month))
+    .filter((ms) => skuMonths.includes(ms.month))
     .reduce((sum, ms) => sum + ms.ratio, 0);
 
   return (
@@ -1041,10 +1050,12 @@ function MonthlyTable({
           compMode={compMode}
           compModeLabel={compModeLabel}
           step2Baseline={sku.step2InitBaselineQty ?? null}
+          skuMonths={skuMonths}
+          releaseYear={releaseYear}
         />
       ) : activeTab === 'channel' ? (
         <>
-          <ChannelMonthTable sku={sku} readOnly={readOnly} monthlySplit={sku.monthlySplit} compChannelDist={compChannelDist} />
+          <ChannelMonthTable sku={sku} readOnly={readOnly} monthlySplit={sku.monthlySplit} compChannelDist={compChannelDist} skuMonths={skuMonths} releaseYear={releaseYear} />
           <p className="text-[11px] text-gray-400 mt-2">채널별 토글을 열어 옵션별 수량을 확인하세요. (옵션별 수량 및 비중 임의 수정 불가)</p>
         </>
       ) : (
@@ -1052,27 +1063,29 @@ function MonthlyTable({
         <table className="w-full text-xs min-w-[640px]" style={{ tableLayout: 'fixed' }}>
           <colgroup>
             <col style={{ width: '80px' }} />
-            {MONTHS.map((m) => <col key={m} style={{ width: '60px' }} />)}
+            {skuMonths.map((m) => <col key={m} style={{ width: '60px' }} />)}
             <col style={{ width: '72px' }} />
+            {hasYear2 && <col style={{ width: '72px' }} />}
             <col style={{ width: '72px' }} />
           </colgroup>
           <thead>
             <tr className="bg-gray-50 border-b border-gray-200">
               <th className="px-3 py-2 text-left text-gray-500 font-semibold">구분</th>
-              {MONTHS.map((m) => (
+              {skuMonths.map((m) => (
                 <th
                   key={m}
-                  className={`px-2 py-2 text-center font-semibold ${
-                    IS_NEXT_YEAR[m] ? 'text-blue-600 bg-blue-50/60' : 'text-gray-600'
+                  className={`px-2 py-2 text-center font-semibold ${yearBorderStep1(m)} ${
+                    isNextYr(m) ? 'text-blue-600 bg-blue-50/60' : 'text-gray-600'
                   }`}
                 >
                   {MONTH_LABELS[m]}
-                  {IS_NEXT_YEAR[m] && (
-                    <div className="text-[10px] text-blue-400 font-normal leading-tight">27년</div>
+                  {isNextYr(m) && (
+                    <div className="text-[10px] text-blue-400 font-normal leading-tight">{year2Label}</div>
                   )}
                 </th>
               ))}
-              <th className="px-2 py-2 text-center text-indigo-700 font-semibold bg-indigo-100/70 whitespace-nowrap">26년 연간</th>
+              <th className="px-2 py-2 text-center text-indigo-700 font-semibold bg-indigo-100/70 whitespace-nowrap">{year1Label} 소계</th>
+              {hasYear2 && <th className="px-2 py-2 text-center text-blue-700 font-semibold bg-blue-50/80 whitespace-nowrap">{year2Label} 소계</th>}
               <th className="px-2 py-2 text-center text-gray-600 font-semibold bg-gray-100 whitespace-nowrap">합계</th>
             </tr>
           </thead>
@@ -1080,9 +1093,9 @@ function MonthlyTable({
             {/* 대응SKU 실적 행 */}
             {(() => {
               const hasData = Object.keys(compMonthlyData).length > 0;
-              const fy26Sum = MONTHS.filter((m) => !IS_NEXT_YEAR[m])
-                .reduce((s, m) => s + (compMonthlyData[m] ?? 0), 0);
-              const totalSum = MONTHS.reduce((s, m) => s + (compMonthlyData[m] ?? 0), 0);
+              const fy1Sum = year1Months.reduce((s, m) => s + (compMonthlyData[m] ?? 0), 0);
+              const fy2Sum = year2Months.reduce((s, m) => s + (compMonthlyData[m] ?? 0), 0);
+              const totalSum = skuMonths.reduce((s, m) => s + (compMonthlyData[m] ?? 0), 0);
               return (
                 <tr className="border-b border-gray-100 bg-gray-50/50">
                   <td className="px-3 py-2 whitespace-nowrap">
@@ -1095,12 +1108,12 @@ function MonthlyTable({
                       )}
                     </div>
                   </td>
-                  {MONTHS.map((m) => {
+                  {skuMonths.map((m) => {
                     const qty = compMonthlyData[m];
                     return (
                       <td
                         key={m}
-                        className={`px-2 py-2 text-center tabular-nums ${IS_NEXT_YEAR[m] ? 'bg-blue-50/20' : ''}`}
+                        className={`px-2 py-2 text-center tabular-nums ${yearBorderStep1(m)} ${isNextYr(m) ? 'bg-blue-50/20' : ''}`}
                       >
                         {qty !== undefined ? (
                           <span className="text-gray-600">{qty.toLocaleString()}</span>
@@ -1111,10 +1124,17 @@ function MonthlyTable({
                     );
                   })}
                   <td className="px-2 py-2 text-center bg-indigo-50/50 tabular-nums">
-                    {fy26Sum > 0
-                      ? <span className="font-semibold text-indigo-600">{fy26Sum.toLocaleString()}</span>
+                    {fy1Sum > 0
+                      ? <span className="font-semibold text-indigo-600">{fy1Sum.toLocaleString()}</span>
                       : <span className="text-gray-300">–</span>}
                   </td>
+                  {hasYear2 && (
+                    <td className="px-2 py-2 text-center bg-blue-50/40 tabular-nums">
+                      {fy2Sum > 0
+                        ? <span className="font-semibold text-blue-600">{fy2Sum.toLocaleString()}</span>
+                        : <span className="text-gray-300">–</span>}
+                    </td>
+                  )}
                   <td className="px-2 py-2 text-center bg-gray-100/60 tabular-nums">
                     {totalSum > 0
                       ? <span className="font-semibold text-gray-600">{totalSum.toLocaleString()}</span>
@@ -1127,12 +1147,11 @@ function MonthlyTable({
             {/* 수량 행 — 읽기 전용 표시 */}
             <tr className="border-b border-gray-100">
               <td className="px-3 py-2 text-gray-500 font-medium whitespace-nowrap">수량</td>
-              {MONTHS.map((m) => {
-                const ms = sku.monthlySplit.find((x) => x.month === m)!;
-                const disabled = isDisabled(m);
+              {skuMonths.map((m) => {
+                const ms = sku.monthlySplit.find((x) => x.month === m);
                 return (
-                  <td key={m} className={`px-2 py-2 text-center tabular-nums ${IS_NEXT_YEAR[m] ? 'bg-blue-50/30' : ''}`}>
-                    {disabled || ms.quantity === 0 ? (
+                  <td key={m} className={`px-2 py-2 text-center tabular-nums ${yearBorderStep1(m)} ${isNextYr(m) ? 'bg-blue-50/30' : ''}`}>
+                    {!ms || ms.quantity === 0 ? (
                       <span className="text-gray-300">–</span>
                     ) : (
                       <span className="text-gray-700">{ms.quantity.toLocaleString()}</span>
@@ -1141,8 +1160,13 @@ function MonthlyTable({
                 );
               })}
               <td className="px-2 py-2 text-center font-semibold text-indigo-700 bg-indigo-50/50 tabular-nums whitespace-nowrap">
-                {fy26Qty > 0 ? fy26Qty.toLocaleString() : <span className="text-gray-300">–</span>}
+                {fy1Qty > 0 ? fy1Qty.toLocaleString() : <span className="text-gray-300">–</span>}
               </td>
+              {hasYear2 && (
+                <td className="px-2 py-2 text-center font-semibold text-blue-700 bg-blue-50/40 tabular-nums whitespace-nowrap">
+                  {fy2Qty > 0 ? fy2Qty.toLocaleString() : <span className="text-gray-300">–</span>}
+                </td>
+              )}
               <td className="px-2 py-2 text-center font-semibold text-gray-700 bg-gray-50 tabular-nums whitespace-nowrap">
                 {totalQty > 0 ? totalQty.toLocaleString() : <span className="text-gray-300">–</span>}
               </td>
@@ -1151,36 +1175,38 @@ function MonthlyTable({
             {/* 비중 행 — 퍼센티지 입력, 수량은 위 행에 표시 */}
             <tr className="border-b border-gray-100">
               <td className="px-3 py-2 text-gray-400 font-medium whitespace-nowrap text-[11px]">비중</td>
-              {MONTHS.map((m) => {
-                const ms = sku.monthlySplit.find((x) => x.month === m)!;
-                const disabled = isDisabled(m);
+              {skuMonths.map((m) => {
+                const ms = sku.monthlySplit.find((x) => x.month === m);
                 return (
-                  <td key={m} className={`px-1 py-1 ${IS_NEXT_YEAR[m] ? 'bg-blue-50/20' : ''}`}>
-                    {disabled ? (
-                      <div className="text-center text-gray-300">–</div>
-                    ) : (
-                      <div className="relative flex items-center">
-                        <NumericInput
-                          value={ms.ratio}
-                          onChange={(val) => updateMonthlySplit(sku.id, m, val)}
-                          onBlur={() => persistSku(sku.id)}
-                          disabled={step1ReadOnly}
-                          placeholder="0"
-                          className={`w-full text-center rounded px-1 py-1 border border-gray-200 focus:outline-none focus:ring-1 focus:ring-indigo-400 text-[11px] ${
-                            step1ReadOnly ? 'bg-gray-50 text-gray-400 cursor-not-allowed' : 'bg-white'
-                          }`}
-                        />
-                        <span className="absolute right-1.5 text-[10px] text-gray-400 pointer-events-none">%</span>
-                      </div>
-                    )}
+                  <td key={m} className={`px-1 py-1 ${yearBorderStep1(m)} ${isNextYr(m) ? 'bg-blue-50/20' : ''}`}>
+                    <div className="relative flex items-center">
+                      <NumericInput
+                        value={ms?.ratio ?? 0}
+                        onChange={(val) => updateMonthlySplit(sku.id, m, val)}
+                        onBlur={() => persistSku(sku.id)}
+                        disabled={step1ReadOnly}
+                        placeholder="0"
+                        className={`w-full text-center rounded px-1 py-1 border border-gray-200 focus:outline-none focus:ring-1 focus:ring-indigo-400 text-[11px] ${
+                          step1ReadOnly ? 'bg-gray-50 text-gray-400 cursor-not-allowed' : 'bg-white'
+                        }`}
+                      />
+                      <span className="absolute right-1.5 text-[10px] text-gray-400 pointer-events-none">%</span>
+                    </div>
                   </td>
                 );
               })}
               <td className="px-2 py-2 text-center bg-indigo-50/50 tabular-nums whitespace-nowrap">
-                {fy26RatioSum > 0
-                  ? <span className="text-indigo-600 text-[11px] font-semibold">{Math.round(fy26RatioSum)}%</span>
+                {fy1RatioSum > 0
+                  ? <span className="text-indigo-600 text-[11px] font-semibold">{Math.round(fy1RatioSum)}%</span>
                   : <span className="text-gray-300">–</span>}
               </td>
+              {hasYear2 && (
+                <td className="px-2 py-2 text-center bg-blue-50/40 tabular-nums whitespace-nowrap">
+                  {fy2RatioSum > 0
+                    ? <span className="text-blue-600 text-[11px] font-semibold">{Math.round(fy2RatioSum)}%</span>
+                    : <span className="text-gray-300">–</span>}
+                </td>
+              )}
               <td className="px-2 py-2 text-center bg-gray-50 tabular-nums">
                 {totalRatioSum > 0
                   ? <span className={`text-[11px] font-semibold ${Math.round(totalRatioSum) === 100 ? 'text-gray-500' : 'text-amber-500'}`}>
@@ -1198,10 +1224,11 @@ function MonthlyTable({
                   ? Math.round(((planned - ref) / ref) * 100)
                   : null;
 
-              const fy26Comp = MONTHS.filter((m) => !IS_NEXT_YEAR[m])
-                .reduce((s, m) => s + (compMonthlyData[m] ?? 0), 0);
-              const totalComp = MONTHS.reduce((s, m) => s + (compMonthlyData[m] ?? 0), 0);
-              const fy26Rate = calcRate(fy26Qty, fy26Comp > 0 ? fy26Comp : undefined);
+              const fy1Comp = year1Months.reduce((s, m) => s + (compMonthlyData[m] ?? 0), 0);
+              const fy2Comp = year2Months.reduce((s, m) => s + (compMonthlyData[m] ?? 0), 0);
+              const totalComp = skuMonths.reduce((s, m) => s + (compMonthlyData[m] ?? 0), 0);
+              const fy1Rate = calcRate(fy1Qty, fy1Comp > 0 ? fy1Comp : undefined);
+              const fy2Rate = calcRate(fy2Qty, fy2Comp > 0 ? fy2Comp : undefined);
               const totalRate = calcRate(totalQty, totalComp > 0 ? totalComp : undefined);
 
               const RateBadge = ({ rate }: { rate: number | null }) => {
@@ -1224,24 +1251,26 @@ function MonthlyTable({
                     <div className="text-gray-500 font-medium text-[11px]">증감율</div>
                     <div className="text-[10px] text-gray-300 leading-tight mt-0.5">vs 대응SKU</div>
                   </td>
-                  {MONTHS.map((m) => {
-                    const ms = sku.monthlySplit.find((x) => x.month === m)!;
-                    const disabled = isDisabled(m);
-                    const rate = !disabled && hasComp
-                      ? calcRate(ms.quantity, compMonthlyData[m])
-                      : null;
+                  {skuMonths.map((m) => {
+                    const ms = sku.monthlySplit.find((x) => x.month === m);
+                    const rate = hasComp ? calcRate(ms?.quantity ?? 0, compMonthlyData[m]) : null;
                     return (
                       <td
                         key={m}
-                        className={`px-2 py-2 text-center ${IS_NEXT_YEAR[m] ? 'bg-blue-50/20' : ''}`}
+                        className={`px-2 py-2 text-center ${yearBorderStep1(m)} ${isNextYr(m) ? 'bg-blue-50/20' : ''}`}
                       >
                         <RateBadge rate={rate} />
                       </td>
                     );
                   })}
                   <td className="px-2 py-2 text-center bg-indigo-50/50">
-                    <RateBadge rate={fy26Rate} />
+                    <RateBadge rate={fy1Rate} />
                   </td>
+                  {hasYear2 && (
+                    <td className="px-2 py-2 text-center bg-blue-50/40">
+                      <RateBadge rate={fy2Rate} />
+                    </td>
+                  )}
                   <td className="px-2 py-2 text-center bg-gray-50">
                     <RateBadge rate={totalRate} />
                   </td>
@@ -1258,12 +1287,26 @@ function MonthlyTable({
 }
 
 // ── 채널×월 상세수량 테이블 (STEP2 값 읽기 전용 표시) ──────────────────────
-function ChannelMonthTable({ sku, monthlySplit: _monthlySplit }: {
+function ChannelMonthTable({ sku, monthlySplit: _monthlySplit, skuMonths, releaseYear }: {
   sku: SkuData;
   readOnly: boolean;
   monthlySplit: SkuData['monthlySplit'];
   compChannelDist?: Record<string, number> | null;
+  skuMonths: Month[];
+  releaseYear: number;
 }) {
+  const releaseMonth = skuMonths[0];
+  const isNextYr = (m: Month): boolean => m < releaseMonth;
+  const year1Months = skuMonths.filter((m) => !isNextYr(m));
+  const year2Months = skuMonths.filter((m) => isNextYr(m));
+  const hasYear2 = year2Months.length > 0;
+  const year1Label = `${releaseYear % 100}년`;
+  const year2Label = `${(releaseYear + 1) % 100}년`;
+  const yearBorder = (m: Month): string => {
+    if (!isNextYr(m)) return '';
+    const idx = skuMonths.indexOf(m);
+    return idx > 0 && !isNextYr(skuMonths[idx - 1]) ? 'border-l-2 border-blue-300' : '';
+  };
   const [expandedChannels, setExpandedChannels] = useState<Set<Channel>>(new Set());
 
   const toggleChannel = (ch: Channel) =>
@@ -1280,16 +1323,19 @@ function ChannelMonthTable({ sku, monthlySplit: _monthlySplit }: {
     (sku.marketingMonthQty ?? {})[month] ?? 0;
 
   const channelTotal = (channel: Channel) =>
-    MONTHS.reduce((sum, m) => sum + getQty(channel, m), 0);
+    skuMonths.reduce((sum, m) => sum + getQty(channel, m), 0);
 
   const monthTotal = (month: Month) =>
     CHANNELS.reduce((sum, ch) => sum + getQty(ch, month), 0) + getMktQty(month);
 
-  const channel26Total = (channel: Channel) =>
-    MONTHS.filter((m) => !IS_NEXT_YEAR[m]).reduce((sum, m) => sum + getQty(channel, m), 0);
+  const channelYear1Total = (channel: Channel) =>
+    year1Months.reduce((sum, m) => sum + getQty(channel, m), 0);
+  const channelYear2Total = (channel: Channel) =>
+    year2Months.reduce((sum, m) => sum + getQty(channel, m), 0);
 
-  const grandTotal = MONTHS.reduce((sum, m) => sum + monthTotal(m), 0);
-  const grand26Total = MONTHS.filter((m) => !IS_NEXT_YEAR[m]).reduce((sum, m) => sum + monthTotal(m), 0);
+  const grandTotal = skuMonths.reduce((sum, m) => sum + monthTotal(m), 0);
+  const grandYear1Total = year1Months.reduce((sum, m) => sum + monthTotal(m), 0);
+  const grandYear2Total = year2Months.reduce((sum, m) => sum + monthTotal(m), 0);
 
   // 옵션 목록 계산
   // 컬러+사이즈 모두 있으면 "컬러 사이즈" 조합, 컬러만 있으면 컬러별, 없으면 사이즈별
@@ -1322,7 +1368,8 @@ function ChannelMonthTable({ sku, monthlySplit: _monthlySplit }: {
   const renderChannelRow = (channel: Channel, groupBg: string) => {
     const isExpanded = expandedChannels.has(channel);
     const total = channelTotal(channel);
-    const total26 = channel26Total(channel);
+    const total1 = channelYear1Total(channel);
+    const total2 = channelYear2Total(channel);
     const ratio = grandTotal > 0 ? Math.round((total / grandTotal) * 100) : null;
     const canExpand = optionRows.length > 1 && total > 0;
 
@@ -1349,10 +1396,10 @@ function ChannelMonthTable({ sku, monthlySplit: _monthlySplit }: {
               ? <span className="text-gray-500 font-medium">{ratio}%</span>
               : <span className="text-gray-300">–</span>}
           </td>
-          {MONTHS.map((m) => {
+          {skuMonths.map((m) => {
             const qty = getQty(channel, m);
             return (
-              <td key={m} className={`px-2 py-1.5 text-center tabular-nums text-[11px] ${IS_NEXT_YEAR[m] ? 'bg-blue-50/40' : ''}`}>
+              <td key={m} className={`px-2 py-1.5 text-center tabular-nums text-[11px] ${yearBorder(m)} ${isNextYr(m) ? 'bg-blue-50/40' : ''}`}>
                 {qty > 0
                   ? <span className="text-gray-700 font-medium">{qty.toLocaleString()}</span>
                   : <span className="text-gray-300">–</span>}
@@ -1360,8 +1407,13 @@ function ChannelMonthTable({ sku, monthlySplit: _monthlySplit }: {
             );
           })}
           <td className="px-2 py-1.5 text-center font-semibold tabular-nums text-indigo-700 bg-indigo-50/50 whitespace-nowrap text-[11px]">
-            {total26 > 0 ? total26.toLocaleString() : <span className="text-gray-300">–</span>}
+            {total1 > 0 ? total1.toLocaleString() : <span className="text-gray-300">–</span>}
           </td>
+          {hasYear2 && (
+            <td className="px-2 py-1.5 text-center font-semibold tabular-nums text-blue-700 bg-blue-50/40 whitespace-nowrap text-[11px]">
+              {total2 > 0 ? total2.toLocaleString() : <span className="text-gray-300">–</span>}
+            </td>
+          )}
           <td className="px-2 py-1.5 text-center font-semibold tabular-nums text-gray-700 bg-gray-50 whitespace-nowrap text-[11px]">
             {total > 0 ? total.toLocaleString() : <span className="text-gray-300">–</span>}
           </td>
@@ -1374,19 +1426,20 @@ function ChannelMonthTable({ sku, monthlySplit: _monthlySplit }: {
               <td colSpan={2} className="pl-6 pr-2 py-1 text-[10px] font-semibold text-gray-500 tracking-wide">
                 {multiColor && multiSize ? '컬러·사이즈별' : multiColor ? '컬러별' : '사이즈별'}
               </td>
-              {MONTHS.map((m) => (
-                <td key={m} className={`px-2 py-1 text-center text-[10px] font-medium text-gray-400 ${IS_NEXT_YEAR[m] ? 'bg-blue-50/30' : ''}`}>
+              {skuMonths.map((m) => (
+                <td key={m} className={`px-2 py-1 text-center text-[10px] font-medium text-gray-400 ${yearBorder(m)} ${isNextYr(m) ? 'bg-blue-50/30' : ''}`}>
                   {MONTH_LABELS[m]}
                 </td>
               ))}
-              <td className="px-2 py-1 text-center text-[10px] font-medium text-gray-400 bg-indigo-50/40">연간</td>
+              <td className="px-2 py-1 text-center text-[10px] font-medium text-gray-400 bg-indigo-50/40">{year1Label} 소계</td>
+              {hasYear2 && <td className="px-2 py-1 text-center text-[10px] font-medium text-gray-400 bg-blue-50/30">{year2Label} 소계</td>}
               <td className="px-2 py-1 text-center text-[10px] font-medium text-gray-400 bg-gray-200/50">합계</td>
             </tr>
             {optionRows.map((opt, i) => {
               const isLast = i === optionRows.length - 1;
-              const opt26 = MONTHS.filter((m) => !IS_NEXT_YEAR[m])
-                .reduce((s, m) => s + Math.round(getQty(channel, m) * opt.ratio), 0);
-              const optTotal = MONTHS.reduce((s, m) => s + Math.round(getQty(channel, m) * opt.ratio), 0);
+              const opt1 = year1Months.reduce((s, m) => s + Math.round(getQty(channel, m) * opt.ratio), 0);
+              const opt2 = year2Months.reduce((s, m) => s + Math.round(getQty(channel, m) * opt.ratio), 0);
+              const optTotal = skuMonths.reduce((s, m) => s + Math.round(getQty(channel, m) * opt.ratio), 0);
               return (
                 <tr
                   key={`${channel}-${opt.label}`}
@@ -1397,10 +1450,10 @@ function ChannelMonthTable({ sku, monthlySplit: _monthlySplit }: {
                     <span className="ml-1.5 text-gray-400">{Math.round(opt.displayRatio * 100)}%</span>
                   </td>
                   <td className="px-2 py-1" />
-                  {MONTHS.map((m) => {
+                  {skuMonths.map((m) => {
                     const qty = Math.round(getQty(channel, m) * opt.ratio);
                     return (
-                      <td key={m} className={`px-2 py-1 text-center tabular-nums text-[10px] ${IS_NEXT_YEAR[m] ? 'bg-blue-50/20' : ''}`}>
+                      <td key={m} className={`px-2 py-1 text-center tabular-nums text-[10px] ${yearBorder(m)} ${isNextYr(m) ? 'bg-blue-50/20' : ''}`}>
                         {qty > 0
                           ? <span className="text-gray-600">{qty.toLocaleString()}</span>
                           : <span className="text-gray-300">–</span>}
@@ -1408,8 +1461,13 @@ function ChannelMonthTable({ sku, monthlySplit: _monthlySplit }: {
                     );
                   })}
                   <td className="px-2 py-1 text-center tabular-nums text-[10px] text-gray-600 bg-indigo-50/30">
-                    {opt26 > 0 ? opt26.toLocaleString() : <span className="text-gray-300">–</span>}
+                    {opt1 > 0 ? opt1.toLocaleString() : <span className="text-gray-300">–</span>}
                   </td>
+                  {hasYear2 && (
+                    <td className="px-2 py-1 text-center tabular-nums text-[10px] text-gray-600 bg-blue-50/20">
+                      {opt2 > 0 ? opt2.toLocaleString() : <span className="text-gray-300">–</span>}
+                    </td>
+                  )}
                   <td className="px-2 py-1 text-center tabular-nums text-[10px] text-gray-600 bg-gray-100/80">
                     {optTotal > 0 ? optTotal.toLocaleString() : <span className="text-gray-300">–</span>}
                   </td>
@@ -1430,32 +1488,33 @@ function ChannelMonthTable({ sku, monthlySplit: _monthlySplit }: {
           <tr className="bg-gray-50 border-b border-gray-200">
             <th className="px-2 py-2 text-left text-gray-500 font-semibold whitespace-nowrap">채널</th>
             <th className="px-2 py-2 text-center text-gray-500 font-semibold whitespace-nowrap w-10">비중</th>
-            {MONTHS.map((m) => (
+            {skuMonths.map((m) => (
               <th
                 key={m}
-                className={`px-1 py-2 text-center font-semibold whitespace-nowrap text-[11px] ${IS_NEXT_YEAR[m] ? 'text-blue-600 bg-blue-50/60' : 'text-gray-600'}`}
+                className={`px-1 py-2 text-center font-semibold whitespace-nowrap text-[11px] ${yearBorder(m)} ${isNextYr(m) ? 'text-blue-600 bg-blue-50/60' : 'text-gray-600'}`}
               >
                 {MONTH_LABELS[m]}
-                {IS_NEXT_YEAR[m] && (
-                  <div className="text-[10px] text-blue-400 font-normal leading-tight">27년</div>
+                {isNextYr(m) && (
+                  <div className="text-[10px] text-blue-400 font-normal leading-tight">{year2Label}</div>
                 )}
               </th>
             ))}
-            <th className="px-2 py-2 text-center text-indigo-700 font-semibold bg-indigo-100/70 whitespace-nowrap text-[11px]">26년 연간</th>
+            <th className="px-2 py-2 text-center text-indigo-700 font-semibold bg-indigo-100/70 whitespace-nowrap text-[11px]">{year1Label} 소계</th>
+            {hasYear2 && <th className="px-2 py-2 text-center text-blue-700 font-semibold bg-blue-50/80 whitespace-nowrap text-[11px]">{year2Label} 소계</th>}
             <th className="px-2 py-2 text-center text-gray-600 font-semibold bg-gray-100 whitespace-nowrap text-[11px]">합계</th>
           </tr>
         </thead>
         <tbody>
           {/* B2C 그룹 */}
           <tr className="bg-sky-50/60 border-b border-sky-200">
-            <td colSpan={2 + MONTHS.length + 2} className="px-3 py-0.5">
+            <td colSpan={2 + skuMonths.length + (hasYear2 ? 3 : 2)} className="px-3 py-0.5">
               <span className="text-[10px] font-bold text-sky-600 tracking-wide uppercase">B2C</span>
             </td>
           </tr>
           {B2C_CHANNELS.map((ch) => renderChannelRow(ch, 'hover:bg-sky-50/30'))}
           {/* 마케팅 그룹 */}
           <tr className="bg-pink-50/60 border-b border-pink-200">
-            <td colSpan={2 + MONTHS.length + 2} className="px-3 py-0.5">
+            <td colSpan={2 + skuMonths.length + (hasYear2 ? 3 : 2)} className="px-3 py-0.5">
               <span className="text-[10px] font-bold text-pink-600 tracking-wide">마케팅</span>
             </td>
           </tr>
@@ -1468,10 +1527,10 @@ function ChannelMonthTable({ sku, monthlySplit: _monthlySplit }: {
               </div>
             </td>
             <td className="px-2 py-1.5 text-center text-gray-300 text-[11px]">–</td>
-            {MONTHS.map((m) => {
+            {skuMonths.map((m) => {
               const qty = getMktQty(m);
               return (
-                <td key={m} className={`px-2 py-1.5 text-center tabular-nums text-[11px] ${IS_NEXT_YEAR[m] ? 'bg-blue-50/40' : ''}`}>
+                <td key={m} className={`px-2 py-1.5 text-center tabular-nums text-[11px] ${yearBorder(m)} ${isNextYr(m) ? 'bg-blue-50/40' : ''}`}>
                   {qty > 0
                     ? <span className="text-pink-600 font-medium">{qty.toLocaleString()}</span>
                     : <span className="text-gray-300">–</span>}
@@ -1479,13 +1538,19 @@ function ChannelMonthTable({ sku, monthlySplit: _monthlySplit }: {
               );
             })}
             {(() => {
-              const t26 = MONTHS.filter((m) => !IS_NEXT_YEAR[m]).reduce((s, m) => s + getMktQty(m), 0);
-              const tAll = MONTHS.reduce((s, m) => s + getMktQty(m), 0);
+              const t1 = year1Months.reduce((s, m) => s + getMktQty(m), 0);
+              const t2 = year2Months.reduce((s, m) => s + getMktQty(m), 0);
+              const tAll = skuMonths.reduce((s, m) => s + getMktQty(m), 0);
               return (
                 <>
                   <td className="px-2 py-1.5 text-center font-semibold tabular-nums text-pink-600 bg-indigo-50/50 whitespace-nowrap text-[11px]">
-                    {t26 > 0 ? t26.toLocaleString() : <span className="text-gray-300">–</span>}
+                    {t1 > 0 ? t1.toLocaleString() : <span className="text-gray-300">–</span>}
                   </td>
+                  {hasYear2 && (
+                    <td className="px-2 py-1.5 text-center font-semibold tabular-nums text-pink-500 bg-blue-50/30 whitespace-nowrap text-[11px]">
+                      {t2 > 0 ? t2.toLocaleString() : <span className="text-gray-300">–</span>}
+                    </td>
+                  )}
                   <td className="px-2 py-1.5 text-center font-semibold tabular-nums text-pink-500 bg-gray-50 whitespace-nowrap text-[11px]">
                     {tAll > 0 ? tAll.toLocaleString() : <span className="text-gray-300">–</span>}
                   </td>
@@ -1495,7 +1560,7 @@ function ChannelMonthTable({ sku, monthlySplit: _monthlySplit }: {
           </tr>
           {/* B2B 그룹 */}
           <tr className="bg-violet-50/60 border-b border-violet-200">
-            <td colSpan={2 + MONTHS.length + 2} className="px-3 py-0.5">
+            <td colSpan={2 + skuMonths.length + (hasYear2 ? 3 : 2)} className="px-3 py-0.5">
               <span className="text-[10px] font-bold text-violet-600 tracking-wide uppercase">B2B</span>
             </td>
           </tr>
@@ -1504,20 +1569,25 @@ function ChannelMonthTable({ sku, monthlySplit: _monthlySplit }: {
         <tfoot>
           <tr className="bg-indigo-50 border-t-2 border-indigo-200">
             <td colSpan={2} className="px-3 py-2 font-semibold text-indigo-800 whitespace-nowrap text-[11px]">합계</td>
-            {MONTHS.map((m) => {
+            {skuMonths.map((m) => {
               const total = monthTotal(m);
               return (
                 <td
                   key={m}
-                  className={`px-1 py-2 text-center font-semibold tabular-nums text-indigo-700 whitespace-nowrap text-[11px] ${IS_NEXT_YEAR[m] ? 'bg-blue-100/40' : ''}`}
+                  className={`px-1 py-2 text-center font-semibold tabular-nums text-indigo-700 whitespace-nowrap text-[11px] ${yearBorder(m)} ${isNextYr(m) ? 'bg-blue-100/40' : ''}`}
                 >
                   {total > 0 ? total.toLocaleString() : <span className="text-indigo-300">–</span>}
                 </td>
               );
             })}
             <td className="px-2 py-2 text-center font-semibold tabular-nums text-indigo-700 bg-indigo-100/70 whitespace-nowrap text-[11px]">
-              {grand26Total > 0 ? grand26Total.toLocaleString() : <span className="text-indigo-300">–</span>}
+              {grandYear1Total > 0 ? grandYear1Total.toLocaleString() : <span className="text-indigo-300">–</span>}
             </td>
+            {hasYear2 && (
+              <td className="px-2 py-2 text-center font-semibold tabular-nums text-blue-700 bg-blue-100/50 whitespace-nowrap text-[11px]">
+                {grandYear2Total > 0 ? grandYear2Total.toLocaleString() : <span className="text-indigo-300">–</span>}
+              </td>
+            )}
             <td className="px-2 py-2 text-center font-semibold tabular-nums text-indigo-800 bg-indigo-100 whitespace-nowrap text-[11px]">
               {grandTotal > 0 ? grandTotal.toLocaleString() : <span className="text-indigo-300">–</span>}
             </td>
@@ -1543,6 +1613,8 @@ function PricingChannelTable({
   compMode,
   compModeLabel,
   step2Baseline,
+  skuMonths,
+  releaseYear,
 }: {
   sku: SkuData;
   readOnly: boolean;
@@ -1556,7 +1628,21 @@ function PricingChannelTable({
   compMode?: 'rolling12' | 'samePeriod';
   compModeLabel?: string;
   step2Baseline?: SkuData['channelMonthQty'] | null;
+  skuMonths: Month[];
+  releaseYear: number;
 }) {
+  const releaseMonthStep2 = skuMonths[0];
+  const isNextYrStep2 = (m: Month): boolean => m < releaseMonthStep2;
+  const year1MonthsStep2 = skuMonths.filter((m) => !isNextYrStep2(m));
+  const year2MonthsStep2 = skuMonths.filter((m) => isNextYrStep2(m));
+  const hasYear2Step2 = year2MonthsStep2.length > 0;
+  const year1LabelStep2 = `${releaseYear % 100}년`;
+  const year2LabelStep2 = `${(releaseYear + 1) % 100}년`;
+  const yearBorderStep2 = (m: Month): string => {
+    if (!isNextYrStep2(m)) return '';
+    const idx = skuMonths.indexOf(m);
+    return idx > 0 && !isNextYrStep2(skuMonths[idx - 1]) ? 'border-l-2 border-blue-300' : '';
+  };
   const updateChannelMonthQty = useStore((s) => s.updateChannelMonthQty);
   const updateMarketingMonthQty = useStore((s) => s.updateMarketingMonthQty);
   const persistSku = useStore((s) => s.persistSku);
@@ -1595,15 +1681,13 @@ function PricingChannelTable({
     setPricingOpts((prev) => ({ ...prev, [`${channel}-${month}`]: optId }));
 
   // 대응SKU 채널×월 비교 수량 (compMode에 따라 year 매핑)
-  const releaseYear = sku.releaseDate ? parseInt(sku.releaseDate.split('-')[0], 10) : null;
   const getCompQty = (channel: Channel, month: Month): number | null => {
     if (!compChannelYM) return null;
     const byYM = compChannelYM[channel];
     if (!byYM) return null;
-    const isNextYr = IS_NEXT_YEAR[month];
+    const isNextYrM = isNextYrStep2(month);
     if (compMode === 'samePeriod') {
-      const lookupYear = isNextYr ? releaseYear : (releaseYear ? releaseYear - 1 : null);
-      if (!lookupYear) return null;
+      const lookupYear = isNextYrM ? releaseYear : releaseYear - 1;
       return byYM[lookupYear]?.[month] ?? null;
     } else {
       const allYears = Object.keys(byYM).map(Number).sort((a, b) => b - a);
@@ -1630,11 +1714,11 @@ function PricingChannelTable({
     sku.channelMonthQty.find((e) => e.channel === channel && e.month === month)?.qty ?? 0;
 
   const getChannelQty = (channel: Channel) =>
-    MONTHS.reduce((sum, m) => sum + getMonthQty(channel, m), 0);
+    skuMonths.reduce((sum, m) => sum + getMonthQty(channel, m), 0);
 
   const getMarketingQty = (month: Month) =>
     (sku.marketingMonthQty ?? {})[month] ?? 0;
-  const marketingTotalQty = MONTHS.reduce((s, m) => s + getMarketingQty(m), 0);
+  const marketingTotalQty = skuMonths.reduce((s, m) => s + getMarketingQty(m), 0);
   const marketingCost = sku.cost * marketingTotalQty;
 
   const calcRow = (channel: Channel) => {
@@ -1644,7 +1728,7 @@ function PricingChannelTable({
     // 실매출단가 = 월별 (수량 × 시나리오가격) 합계 / 총수량 (수수료 미반영)
     const netPrice = qty > 0
       ? Math.round(
-          MONTHS.reduce((s, m) => {
+          skuMonths.reduce((s, m) => {
             const mQty = getMonthQty(channel, m);
             const opt = getPricingOpt(channel, m);
             return s + calcScenarioPrice(opt, effectivePrice) * mQty;
@@ -1703,10 +1787,10 @@ function PricingChannelTable({
         const cp = getPricing(channel);
         const { netPrice, qty, revenue, profit, cm } = calcRow(channel);
         const isExpanded = expandedChannels.has(channel);
-        const channelMonthTotal = MONTHS.reduce((s, m) => s + getMonthQty(channel, m), 0);
+        const channelMonthTotal = skuMonths.reduce((s, m) => s + getMonthQty(channel, m), 0);
         const displayQty = channelMonthTotal > 0 ? channelMonthTotal : qty;
         const baselineChannelTotal = step2Baseline
-          ? MONTHS.reduce((s, m) => s + (step2Baseline.find((e) => e.channel === channel && e.month === m)?.qty ?? 0), 0)
+          ? skuMonths.reduce((s, m) => s + (step2Baseline.find((e) => e.channel === channel && e.month === m)?.qty ?? 0), 0)
           : null;
         const channelDiff = baselineChannelTotal !== null ? displayQty - baselineChannelTotal : null;
         return (
@@ -1780,9 +1864,9 @@ function PricingChannelTable({
 
             {/* 월별 상세 (펼침) — 월을 열로, 항목을 행으로 */}
             {isExpanded && (() => {
-              const FY26 = MONTHS.filter((m) => !IS_NEXT_YEAR[m]);
-              const FY27 = MONTHS.filter((m) => IS_NEXT_YEAR[m]);
-              const yearBorder = (m: Month) => IS_NEXT_YEAR[m] && !IS_NEXT_YEAR[MONTHS[MONTHS.indexOf(m) - 1] as Month] ? 'border-l-2 border-gray-400' : '';
+              const FY26 = year1MonthsStep2;
+              const FY27 = year2MonthsStep2;
+              const yearBorderInner = (m: Month) => yearBorderStep2(m);
               const labelCell = 'px-3 py-2 border-r border-gray-200 bg-gray-100 whitespace-nowrap';
               const totalCell = 'px-3 py-2 text-right tabular-nums text-[11px] font-bold whitespace-nowrap border-l border-gray-200 bg-gray-100';
               // 옵션별 비중 계산 (STEP3와 동일 로직)
@@ -1820,7 +1904,7 @@ function PricingChannelTable({
                           const opt = channelBulkOpt[channel] ?? '';
                           setPricingOpts((prev) => {
                             const next = { ...prev };
-                            MONTHS.forEach((m) => { next[`${channel}-${m}`] = opt; });
+                            skuMonths.forEach((m) => { next[`${channel}-${m}`] = opt; });
                             return next;
                           });
                         }}
@@ -1838,14 +1922,14 @@ function PricingChannelTable({
                           <thead>
                             <tr className="bg-gray-100 border-b-2 border-gray-300">
                               <th className="px-3 py-2 text-left text-[11px] font-bold text-gray-500 whitespace-nowrap border-r border-gray-200" style={{ minWidth: '80px' }}>구분</th>
-                              {MONTHS.map((m) => (
-                                <th key={m} className={`px-2 py-2 text-center font-bold whitespace-nowrap ${yearBorder(m)} ${IS_NEXT_YEAR[m] ? 'text-gray-500 bg-gray-200/60' : 'text-gray-600'}`} style={{ minWidth: '76px' }}>
+                              {skuMonths.map((m) => (
+                                <th key={m} className={`px-2 py-2 text-center font-bold whitespace-nowrap ${yearBorderInner(m)} ${isNextYrStep2(m) ? 'text-gray-500 bg-gray-200/60' : 'text-gray-600'}`} style={{ minWidth: '76px' }}>
                                   <div className="text-[13px]">{MONTH_LABELS[m]}</div>
-                                  {IS_NEXT_YEAR[m] && <div className="text-[9px] text-gray-400 font-normal">27년</div>}
+                                  {isNextYrStep2(m) && <div className="text-[9px] text-gray-400 font-normal">{year2LabelStep2}</div>}
                                 </th>
                               ))}
-                              <th className="px-3 py-2 text-center text-[11px] font-bold text-gray-500 whitespace-nowrap border-l-2 border-gray-300 bg-gray-200/50" style={{ minWidth: '72px' }}>26년<br/>합계</th>
-                              <th className="px-3 py-2 text-center text-[11px] font-bold text-gray-400 whitespace-nowrap border-l border-gray-200 bg-gray-200/50" style={{ minWidth: '72px' }}>27년<br/>합계</th>
+                              <th className="px-3 py-2 text-center text-[11px] font-bold text-gray-500 whitespace-nowrap border-l-2 border-gray-300 bg-gray-200/50" style={{ minWidth: '72px' }}>{year1LabelStep2}<br/>합계</th>
+                              {hasYear2Step2 && <th className="px-3 py-2 text-center text-[11px] font-bold text-gray-400 whitespace-nowrap border-l border-gray-200 bg-gray-200/50" style={{ minWidth: '72px' }}>{year2LabelStep2}<br/>합계</th>}
                             </tr>
                           </thead>
                           <tbody>
@@ -1856,10 +1940,10 @@ function PricingChannelTable({
                                   <div className="text-[9px] font-bold text-gray-600 leading-tight">대응SKU</div>
                                   <div className="text-[8px] text-gray-400 font-normal leading-tight">{compModeLabel ?? ''}</div>
                                 </td>
-                                {MONTHS.map((m) => {
+                                {skuMonths.map((m) => {
                                   const compQty = getCompQty(channel, m);
                                   return (
-                                    <td key={m} className={`px-2 py-0.5 text-right tabular-nums ${yearBorder(m)} ${IS_NEXT_YEAR[m] ? 'bg-gray-300/20' : ''}`}>
+                                    <td key={m} className={`px-2 py-0.5 text-right tabular-nums ${yearBorderInner(m)} ${isNextYrStep2(m) ? 'bg-gray-300/20' : ''}`}>
                                       {compQty !== null
                                         ? <span className="text-[10px] font-medium text-gray-600">{compQty.toLocaleString()}</span>
                                         : <span className="text-[10px] text-gray-300">–</span>}
@@ -1872,12 +1956,14 @@ function PricingChannelTable({
                                     return t > 0 ? <span className="text-[10px] font-semibold text-gray-600">{t.toLocaleString()}</span> : <span className="text-[10px] text-gray-300">–</span>;
                                   })()}
                                 </td>
-                                <td className="px-3 py-0.5 text-right tabular-nums border-l border-gray-300 bg-gray-400/20 whitespace-nowrap">
-                                  {(() => {
-                                    const t = FY27.reduce((s, m) => s + (getCompQty(channel, m) ?? 0), 0);
-                                    return t > 0 ? <span className="text-[10px] font-semibold text-gray-500">{t.toLocaleString()}</span> : <span className="text-[10px] text-gray-300">–</span>;
-                                  })()}
-                                </td>
+                                {hasYear2Step2 && (
+                                  <td className="px-3 py-0.5 text-right tabular-nums border-l border-gray-300 bg-gray-400/20 whitespace-nowrap">
+                                    {(() => {
+                                      const t = FY27.reduce((s, m) => s + (getCompQty(channel, m) ?? 0), 0);
+                                      return t > 0 ? <span className="text-[10px] font-semibold text-gray-500">{t.toLocaleString()}</span> : <span className="text-[10px] text-gray-300">–</span>;
+                                    })()}
+                                  </td>
+                                )}
                               </tr>
                             )}
                             {/* 수량 행 */}
@@ -1885,7 +1971,7 @@ function PricingChannelTable({
                               <td className={labelCell}>
                                 <span className="text-[11px] font-bold text-gray-600">수량</span>
                               </td>
-                              {MONTHS.map((m) => {
+                              {skuMonths.map((m) => {
                                 const compQty = getCompQty(channel, m);
                                 const monthQtyVal = getMonthQty(channel, m);
                                 const growthRate = compQty && compQty > 0
@@ -1894,7 +1980,7 @@ function PricingChannelTable({
                                 const baseQty = step2Baseline?.find(e => e.channel === channel && e.month === m)?.qty ?? null;
                                 const diff = baseQty !== null ? monthQtyVal - baseQty : null;
                                 return (
-                                  <td key={m} className={`px-1 py-1 ${yearBorder(m)} ${IS_NEXT_YEAR[m] ? 'bg-gray-50/60' : ''}`}>
+                                  <td key={m} className={`px-1 py-1 ${yearBorderInner(m)} ${isNextYrStep2(m) ? 'bg-gray-50/60' : ''}`}>
                                     <div className="flex flex-col items-center gap-0">
                                       <div className="flex items-center gap-0.5">
                                         <NumericInput
@@ -1933,20 +2019,22 @@ function PricingChannelTable({
                               <td className={`${totalCell} border-l-2 border-gray-300 text-gray-700`}>
                                 {(() => { const t = FY26.reduce((s, m) => s + getMonthQty(channel, m), 0); return t > 0 ? t.toLocaleString() : <span className="text-gray-300">–</span>; })()}
                               </td>
-                              <td className={`${totalCell} text-gray-500`}>
-                                {(() => { const t = FY27.reduce((s, m) => s + getMonthQty(channel, m), 0); return t > 0 ? t.toLocaleString() : <span className="text-gray-300">–</span>; })()}
-                              </td>
+                              {hasYear2Step2 && (
+                                <td className={`${totalCell} text-gray-500`}>
+                                  {(() => { const t = FY27.reduce((s, m) => s + getMonthQty(channel, m), 0); return t > 0 ? t.toLocaleString() : <span className="text-gray-300">–</span>; })()}
+                                </td>
+                              )}
                             </tr>
                             {/* 판매가 설정 행 */}
                             <tr className="border-b border-gray-100 bg-gray-50/50">
                               <td className={labelCell}>
                                 <span className="text-[11px] font-bold text-gray-600">판매가 설정</span>
                               </td>
-                              {MONTHS.map((m) => {
+                              {skuMonths.map((m) => {
                                 const optId = getPricingOpt(channel, m);
                                 const basePrice = cp.price > 0 ? cp.price : sku.price;
                                 return (
-                                  <td key={m} className={`px-1.5 py-1.5 ${yearBorder(m)} ${IS_NEXT_YEAR[m] ? 'bg-gray-50/60' : ''}`}>
+                                  <td key={m} className={`px-1.5 py-1.5 ${yearBorderInner(m)} ${isNextYrStep2(m) ? 'bg-gray-50/60' : ''}`}>
                                     <select
                                       value={optId}
                                       onChange={(e) => { onBeforeEdit?.(); setPricingOpt(channel, m, e.target.value); }}
@@ -1962,7 +2050,7 @@ function PricingChannelTable({
                                 );
                               })}
                               <td className="border-l-2 border-gray-300 bg-gray-100" />
-                              <td className="border-l border-gray-200 bg-gray-100" />
+                              {hasYear2Step2 && <td className="border-l border-gray-200 bg-gray-100" />}
                             </tr>
                             {/* 실 판매가 행 */}
                             <tr className="border-b-2 border-gray-200 bg-white">
@@ -1972,14 +2060,14 @@ function PricingChannelTable({
                                   ${usdKrw.toLocaleString()} · ¥{jpyKrw.toFixed(1)}
                                 </span>
                               </td>
-                              {MONTHS.map((m) => {
+                              {skuMonths.map((m) => {
                                 const optId = getPricingOpt(channel, m);
                                 const basePrice = cp.price > 0 ? cp.price : sku.price;
                                 const scenarioKrwPrice = calcScenarioPrice(optId, basePrice);
                                 const scenario = PRICING_SCENARIOS.find((x) => x.id === optId);
                                 const foreign = scenario?.foreignAmt?.(basePrice, usdKrw, jpyKrw) ?? null;
                                 return (
-                                  <td key={m} className={`px-2 py-2 text-right tabular-nums ${yearBorder(m)} ${IS_NEXT_YEAR[m] ? 'bg-gray-50/60' : ''}`}>
+                                  <td key={m} className={`px-2 py-2 text-right tabular-nums ${yearBorderInner(m)} ${isNextYrStep2(m) ? 'bg-gray-50/60' : ''}`}>
                                     {scenarioKrwPrice > 0
                                       ? <div className="flex flex-col items-end gap-0.5">
                                           <span className="text-[11px] text-gray-700 font-semibold">{scenarioKrwPrice.toLocaleString()}</span>
@@ -1994,21 +2082,21 @@ function PricingChannelTable({
                                 );
                               })}
                               <td className="border-l-2 border-gray-300 bg-gray-100" />
-                              <td className="border-l border-gray-200 bg-gray-100" />
+                              {hasYear2Step2 && <td className="border-l border-gray-200 bg-gray-100" />}
                             </tr>
                             {/* 예상 순매출 행 */}
                             <tr className="border-b border-blue-100 bg-blue-50/50">
                               <td className="px-3 py-2 border-r border-blue-200 bg-blue-100/70 whitespace-nowrap">
                                 <span className="text-[11px] font-bold text-blue-700">예상 순매출</span>
                               </td>
-                              {MONTHS.map((m) => {
+                              {skuMonths.map((m) => {
                                 const optId = getPricingOpt(channel, m);
                                 const basePrice = cp.price > 0 ? cp.price : sku.price;
                                 const scenarioKrwPrice = calcScenarioPrice(optId, basePrice);
                                 const monthQty = getMonthQty(channel, m);
                                 const netRevenue = Math.round(scenarioKrwPrice / 1.1 * monthQty);
                                 return (
-                                  <td key={m} className={`px-2 py-2 text-right tabular-nums text-[11px] font-semibold text-blue-700 ${yearBorder(m)} ${IS_NEXT_YEAR[m] ? 'bg-blue-50/40' : ''}`}>
+                                  <td key={m} className={`px-2 py-2 text-right tabular-nums text-[11px] font-semibold text-blue-700 ${yearBorderInner(m)} ${isNextYrStep2(m) ? 'bg-blue-50/40' : ''}`}>
                                     {netRevenue > 0 ? formatWon(netRevenue) : <span className="text-blue-200">–</span>}
                                   </td>
                                 );
@@ -2023,23 +2111,25 @@ function PricingChannelTable({
                                   return t > 0 ? formatWon(t) : <span className="text-blue-200">–</span>;
                                 })()}
                               </td>
-                              <td className="px-3 py-2 text-right tabular-nums text-[11px] font-bold text-blue-600 border-l border-blue-200 bg-blue-100/70 whitespace-nowrap">
-                                {(() => {
-                                  const t = FY27.reduce((s, m) => {
-                                    const base = cp.price > 0 ? cp.price : sku.price;
-                                    const sp = calcScenarioPrice(getPricingOpt(channel, m), base);
-                                    return s + Math.round(sp / 1.1 * getMonthQty(channel, m));
-                                  }, 0);
-                                  return t > 0 ? formatWon(t) : <span className="text-blue-200">–</span>;
-                                })()}
-                              </td>
+                              {hasYear2Step2 && (
+                                <td className="px-3 py-2 text-right tabular-nums text-[11px] font-bold text-blue-600 border-l border-blue-200 bg-blue-100/70 whitespace-nowrap">
+                                  {(() => {
+                                    const t = FY27.reduce((s, m) => {
+                                      const base = cp.price > 0 ? cp.price : sku.price;
+                                      const sp = calcScenarioPrice(getPricingOpt(channel, m), base);
+                                      return s + Math.round(sp / 1.1 * getMonthQty(channel, m));
+                                    }, 0);
+                                    return t > 0 ? formatWon(t) : <span className="text-blue-200">–</span>;
+                                  })()}
+                                </td>
+                              )}
                             </tr>
                             {/* 예상 공헌이익 행 */}
                             <tr className="bg-emerald-50/50">
                               <td className={`${labelCell} border-r-emerald-200`}>
                                 <span className="text-[11px] font-bold text-emerald-700">예상 공헌이익</span>
                               </td>
-                              {MONTHS.map((m) => {
+                              {skuMonths.map((m) => {
                                 const optId = getPricingOpt(channel, m);
                                 const basePrice = cp.price > 0 ? cp.price : sku.price;
                                 const scenarioKrwPrice = calcScenarioPrice(optId, basePrice);
@@ -2048,7 +2138,7 @@ function PricingChannelTable({
                                 const varRatio = varCostByChannel[channel] ?? 0.25;
                                 const monthContrib = Math.round(netRevenue * (1 - varRatio) - sku.cost * monthQty);
                                 return (
-                                  <td key={m} className={`px-2 py-2 text-right tabular-nums text-[11px] font-semibold ${yearBorder(m)} ${IS_NEXT_YEAR[m] ? 'bg-emerald-50/30' : ''}`}>
+                                  <td key={m} className={`px-2 py-2 text-right tabular-nums text-[11px] font-semibold ${yearBorderInner(m)} ${isNextYrStep2(m) ? 'bg-emerald-50/30' : ''}`}>
                                     {monthQty > 0
                                       ? monthContrib >= 0
                                         ? <span className="text-emerald-700">{formatWon(monthContrib)}</span>
@@ -2071,20 +2161,22 @@ function PricingChannelTable({
                                   return t >= 0 ? <span className="text-emerald-700">{formatWon(t)}</span> : <span className="text-red-500">-{formatWon(Math.abs(t))}</span>;
                                 })()}
                               </td>
-                              <td className={`${totalCell}`}>
-                                {(() => {
-                                  const t = FY27.reduce((s, m) => {
-                                    const base = cp.price > 0 ? cp.price : sku.price;
-                                    const sp = calcScenarioPrice(getPricingOpt(channel, m), base);
-                                    const mQty = getMonthQty(channel, m);
-                                    const rev = Math.round(sp / 1.1 * mQty);
-                                    const vr = varCostByChannel[channel] ?? 0.25;
-                                    return s + Math.round(rev * (1 - vr) - sku.cost * mQty);
-                                  }, 0);
-                                  if (FY27.every((m) => getMonthQty(channel, m) === 0)) return <span className="text-gray-300">–</span>;
-                                  return t >= 0 ? <span className="text-emerald-600">{formatWon(t)}</span> : <span className="text-red-500">-{formatWon(Math.abs(t))}</span>;
-                                })()}
-                              </td>
+                              {hasYear2Step2 && (
+                                <td className={`${totalCell}`}>
+                                  {(() => {
+                                    const t = FY27.reduce((s, m) => {
+                                      const base = cp.price > 0 ? cp.price : sku.price;
+                                      const sp = calcScenarioPrice(getPricingOpt(channel, m), base);
+                                      const mQty = getMonthQty(channel, m);
+                                      const rev = Math.round(sp / 1.1 * mQty);
+                                      const vr = varCostByChannel[channel] ?? 0.25;
+                                      return s + Math.round(rev * (1 - vr) - sku.cost * mQty);
+                                    }, 0);
+                                    if (FY27.every((m) => getMonthQty(channel, m) === 0)) return <span className="text-gray-300">–</span>;
+                                    return t >= 0 ? <span className="text-emerald-600">{formatWon(t)}</span> : <span className="text-red-500">-{formatWon(Math.abs(t))}</span>;
+                                  })()}
+                                </td>
+                              )}
                             </tr>
                           </tbody>
                         </table>
@@ -2106,13 +2198,13 @@ function PricingChannelTable({
                               <tr className="bg-gray-100 border-b border-gray-200">
                                 <th className="px-3 py-1.5 text-left text-[11px] font-semibold text-gray-500 whitespace-nowrap border-r border-gray-200" style={{ minWidth: '90px' }}>옵션</th>
                                 <th className="px-2 py-1.5 text-center text-[10px] font-semibold text-gray-400 whitespace-nowrap border-r border-gray-200 w-10">비중</th>
-                                {MONTHS.map((m) => (
-                                  <th key={m} className={`px-2 py-1.5 text-center font-semibold whitespace-nowrap text-[11px] ${yearBorder(m)} ${IS_NEXT_YEAR[m] ? 'text-gray-500 bg-gray-200/60' : 'text-gray-500'}`} style={{ minWidth: '52px' }}>
+                                {skuMonths.map((m) => (
+                                  <th key={m} className={`px-2 py-1.5 text-center font-semibold whitespace-nowrap text-[11px] ${yearBorderInner(m)} ${isNextYrStep2(m) ? 'text-gray-500 bg-gray-200/60' : 'text-gray-500'}`} style={{ minWidth: '52px' }}>
                                     {MONTH_LABELS[m]}
                                   </th>
                                 ))}
-                                <th className="px-2 py-1.5 text-center text-[10px] font-semibold text-indigo-600 whitespace-nowrap border-l-2 border-gray-300 bg-indigo-50/60">FY26</th>
-                                <th className="px-2 py-1.5 text-center text-[10px] font-semibold text-gray-500 whitespace-nowrap border-l border-gray-200 bg-gray-100/80">FY27</th>
+                                <th className="px-2 py-1.5 text-center text-[10px] font-semibold text-indigo-600 whitespace-nowrap border-l-2 border-gray-300 bg-indigo-50/60">{year1LabelStep2}</th>
+                                {hasYear2Step2 && <th className="px-2 py-1.5 text-center text-[10px] font-semibold text-gray-500 whitespace-nowrap border-l border-gray-200 bg-gray-100/80">{year2LabelStep2}</th>}
                               </tr>
                             </thead>
                             <tbody>
@@ -2130,10 +2222,10 @@ function PricingChannelTable({
                                     <td className="px-2 py-1.5 text-center text-[10px] text-gray-400 border-r border-gray-200">
                                       {Math.round(opt.displayRatio * 100)}%
                                     </td>
-                                    {MONTHS.map((m) => {
+                                    {skuMonths.map((m) => {
                                       const qty = Math.round(getMonthQty(channel, m) * opt.ratio);
                                       return (
-                                        <td key={m} className={`px-2 py-1.5 text-center tabular-nums text-[11px] ${yearBorder(m)} ${IS_NEXT_YEAR[m] ? 'bg-blue-50/20' : ''}`}>
+                                        <td key={m} className={`px-2 py-1.5 text-center tabular-nums text-[11px] ${yearBorderInner(m)} ${isNextYrStep2(m) ? 'bg-blue-50/20' : ''}`}>
                                           {qty > 0 ? <span className="text-gray-700">{qty.toLocaleString()}</span> : <span className="text-gray-300">–</span>}
                                         </td>
                                       );
@@ -2141,9 +2233,11 @@ function PricingChannelTable({
                                     <td className="px-2 py-1.5 text-center tabular-nums text-[11px] text-indigo-600 border-l-2 border-gray-300 bg-indigo-50/30">
                                       {optFY26 > 0 ? optFY26.toLocaleString() : <span className="text-gray-300">–</span>}
                                     </td>
-                                    <td className="px-2 py-1.5 text-center tabular-nums text-[11px] text-gray-600 border-l border-gray-200 bg-gray-100/50">
-                                      {optFY27 > 0 ? optFY27.toLocaleString() : <span className="text-gray-300">–</span>}
-                                    </td>
+                                    {hasYear2Step2 && (
+                                      <td className="px-2 py-1.5 text-center tabular-nums text-[11px] text-gray-600 border-l border-gray-200 bg-gray-100/50">
+                                        {optFY27 > 0 ? optFY27.toLocaleString() : <span className="text-gray-300">–</span>}
+                                      </td>
+                                    )}
                                   </tr>
                                 );
                               })}
@@ -2225,9 +2319,9 @@ function PricingChannelTable({
           </tr>
           {/* 마케팅 월별 상세 (펼침) */}
           {marketingExpanded && (() => {
-            const FY26 = MONTHS.filter((m) => !IS_NEXT_YEAR[m]);
-            const FY27 = MONTHS.filter((m) => IS_NEXT_YEAR[m]);
-            const yearBorder = (m: Month) => IS_NEXT_YEAR[m] && !IS_NEXT_YEAR[MONTHS[MONTHS.indexOf(m) - 1] as Month] ? 'border-l-2 border-gray-400' : '';
+            const FY26m = year1MonthsStep2;
+            const FY27m = year2MonthsStep2;
+            const yearBorderMkt = (m: Month) => yearBorderStep2(m);
             const labelCell = 'px-3 py-2 border-r border-gray-200 bg-gray-100 whitespace-nowrap';
             const totalCell = 'px-3 py-2 text-right tabular-nums text-[11px] font-bold whitespace-nowrap border-l border-gray-200 bg-gray-100';
             return (
@@ -2239,14 +2333,14 @@ function PricingChannelTable({
                         <thead>
                           <tr className="bg-pink-50 border-b-2 border-pink-200">
                             <th className="px-3 py-2 text-left text-[11px] font-bold text-pink-500 whitespace-nowrap border-r border-pink-200" style={{ minWidth: '80px' }}>구분</th>
-                            {MONTHS.map((m) => (
-                              <th key={m} className={`px-2 py-2 text-center font-bold whitespace-nowrap ${yearBorder(m)} ${IS_NEXT_YEAR[m] ? 'text-gray-500 bg-pink-100/50' : 'text-pink-600'}`} style={{ minWidth: '76px' }}>
+                            {skuMonths.map((m) => (
+                              <th key={m} className={`px-2 py-2 text-center font-bold whitespace-nowrap ${yearBorderMkt(m)} ${isNextYrStep2(m) ? 'text-gray-500 bg-pink-100/50' : 'text-pink-600'}`} style={{ minWidth: '76px' }}>
                                 <div className="text-[13px]">{MONTH_LABELS[m]}</div>
-                                {IS_NEXT_YEAR[m] && <div className="text-[9px] text-gray-400 font-normal">27년</div>}
+                                {isNextYrStep2(m) && <div className="text-[9px] text-gray-400 font-normal">{year2LabelStep2}</div>}
                               </th>
                             ))}
-                            <th className="px-3 py-2 text-center text-[11px] font-bold text-gray-500 whitespace-nowrap border-l-2 border-pink-200 bg-pink-100/50" style={{ minWidth: '72px' }}>26년<br/>합계</th>
-                            <th className="px-3 py-2 text-center text-[11px] font-bold text-gray-400 whitespace-nowrap border-l border-pink-100 bg-pink-100/50" style={{ minWidth: '72px' }}>27년<br/>합계</th>
+                            <th className="px-3 py-2 text-center text-[11px] font-bold text-gray-500 whitespace-nowrap border-l-2 border-pink-200 bg-pink-100/50" style={{ minWidth: '72px' }}>{year1LabelStep2}<br/>합계</th>
+                            {hasYear2Step2 && <th className="px-3 py-2 text-center text-[11px] font-bold text-gray-400 whitespace-nowrap border-l border-pink-100 bg-pink-100/50" style={{ minWidth: '72px' }}>{year2LabelStep2}<br/>합계</th>}
                           </tr>
                         </thead>
                         <tbody>
@@ -2255,10 +2349,10 @@ function PricingChannelTable({
                             <td className={labelCell}>
                               <span className="text-[11px] font-bold text-gray-600">수량</span>
                             </td>
-                            {MONTHS.map((m) => {
+                            {skuMonths.map((m) => {
                               const mQty = getMarketingQty(m);
                               return (
-                                <td key={m} className={`px-1 py-1 ${yearBorder(m)} ${IS_NEXT_YEAR[m] ? 'bg-gray-50/60' : ''}`}>
+                                <td key={m} className={`px-1 py-1 ${yearBorderMkt(m)} ${isNextYrStep2(m) ? 'bg-gray-50/60' : ''}`}>
                                   <NumericInput
                                     value={mQty}
                                     onChange={(val) => updateMarketingMonthQty(sku.id, m, val)}
@@ -2275,11 +2369,13 @@ function PricingChannelTable({
                               );
                             })}
                             <td className={`${totalCell} border-l-2 border-gray-300 text-gray-700`}>
-                              {(() => { const t = FY26.reduce((s, m) => s + getMarketingQty(m), 0); return t > 0 ? t.toLocaleString() : <span className="text-gray-300">–</span>; })()}
+                              {(() => { const t = FY26m.reduce((s, m) => s + getMarketingQty(m), 0); return t > 0 ? t.toLocaleString() : <span className="text-gray-300">–</span>; })()}
                             </td>
-                            <td className={`${totalCell} text-gray-500`}>
-                              {(() => { const t = FY27.reduce((s, m) => s + getMarketingQty(m), 0); return t > 0 ? t.toLocaleString() : <span className="text-gray-300">–</span>; })()}
-                            </td>
+                            {hasYear2Step2 && (
+                              <td className={`${totalCell} text-gray-500`}>
+                                {(() => { const t = FY27m.reduce((s, m) => s + getMarketingQty(m), 0); return t > 0 ? t.toLocaleString() : <span className="text-gray-300">–</span>; })()}
+                              </td>
+                            )}
                           </tr>
                           {/* 예상 비용 (공헌이익 차감) 행 */}
                           <tr className="bg-red-50/50">
@@ -2287,20 +2383,22 @@ function PricingChannelTable({
                               <span className="text-[11px] font-bold text-red-600">예상 비용</span>
                               <span className="block text-[9px] text-red-400 mt-0.5">공헌이익 차감</span>
                             </td>
-                            {MONTHS.map((m) => {
+                            {skuMonths.map((m) => {
                               const mCost = sku.cost * getMarketingQty(m);
                               return (
-                                <td key={m} className={`px-2 py-2 text-right tabular-nums text-[11px] font-semibold text-red-600 ${yearBorder(m)} ${IS_NEXT_YEAR[m] ? 'bg-red-50/40' : ''}`}>
+                                <td key={m} className={`px-2 py-2 text-right tabular-nums text-[11px] font-semibold text-red-600 ${yearBorderMkt(m)} ${isNextYrStep2(m) ? 'bg-red-50/40' : ''}`}>
                                   {mCost > 0 ? <span>-{formatWon(mCost)}</span> : <span className="text-red-200">–</span>}
                                 </td>
                               );
                             })}
                             <td className="px-3 py-2 text-right tabular-nums text-[11px] font-bold text-red-600 border-l-2 border-red-300 bg-red-100/70 whitespace-nowrap">
-                              {(() => { const t = FY26.reduce((s, m) => s + sku.cost * getMarketingQty(m), 0); return t > 0 ? <span>-{formatWon(t)}</span> : <span className="text-red-200">–</span>; })()}
+                              {(() => { const t = FY26m.reduce((s, m) => s + sku.cost * getMarketingQty(m), 0); return t > 0 ? <span>-{formatWon(t)}</span> : <span className="text-red-200">–</span>; })()}
                             </td>
-                            <td className="px-3 py-2 text-right tabular-nums text-[11px] font-bold text-red-500 border-l border-red-200 bg-red-100/70 whitespace-nowrap">
-                              {(() => { const t = FY27.reduce((s, m) => s + sku.cost * getMarketingQty(m), 0); return t > 0 ? <span>-{formatWon(t)}</span> : <span className="text-red-200">–</span>; })()}
-                            </td>
+                            {hasYear2Step2 && (
+                              <td className="px-3 py-2 text-right tabular-nums text-[11px] font-bold text-red-500 border-l border-red-200 bg-red-100/70 whitespace-nowrap">
+                                {(() => { const t = FY27m.reduce((s, m) => s + sku.cost * getMarketingQty(m), 0); return t > 0 ? <span>-{formatWon(t)}</span> : <span className="text-red-200">–</span>; })()}
+                              </td>
+                            )}
                           </tr>
                         </tbody>
                       </table>

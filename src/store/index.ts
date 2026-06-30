@@ -7,7 +7,7 @@ import {
 import { fsdb } from '../lib/firebase';
 import type { AppState, Category, Month, SkuData, MonthlySplit, ColorEntry, ChannelMonthEntry, ChannelMonthQtyEntry, ChannelPricing, TrashItem, ActivityLog, LogChange } from '../types';
 import { useAuth } from './auth';
-import { MAX_SIZES, SIZE_LABELS, MONTHS, CHANNELS, BRANDS, DEFAULT_CHANNEL_RATIOS, DEFAULT_CHANNEL_COMMISSION, DISABLED_CHANNELS, getReleaseMonth, simPosition, type Brand, type Channel } from '../types';
+import { MAX_SIZES, SIZE_LABELS, MONTHS, CHANNELS, BRANDS, DEFAULT_CHANNEL_RATIOS, DEFAULT_CHANNEL_COMMISSION, DISABLED_CHANNELS, getSkuMonths, type Brand, type Channel } from '../types';
 import { recalcQuantities, revenueMultiplier, calcDynamicMultiplier } from '../utils/calc';
 
 const SKUS_COL = 'skus';
@@ -118,6 +118,8 @@ function buildEmptySku(category: Category): SkuData {
     monthlySplit: MONTHS.map((month) => ({
       month, ratio: 0, quantity: 0, revenue: 0, contributionProfit: 0,
     })),
+    // NOTE: 위 MONTHS 기반 초기값은 releaseDate 없을 때의 기본값.
+    // addSku 시 releaseDate가 있으면 applyMigration에서 올바른 월로 자동 보정됨.
     step2PlatformConfirmed: false,
     step2BrandConfirmed: false,
     step2GlobalConfirmed: false,
@@ -127,12 +129,10 @@ function buildEmptySku(category: Category): SkuData {
 
 function recalcMonthlySplit(sku: SkuData, overrideSplit?: MonthlySplit[]): MonthlySplit[] {
   const base = overrideSplit ?? sku.monthlySplit;
-  const releaseMonth = getReleaseMonth(sku.releaseDate);
+  const skuMonthSet = new Set(getSkuMonths(sku.releaseDate));
   const multiplier = calcDynamicMultiplier(sku.channelRatios) ?? revenueMultiplier(sku.category);
   return base.map((ms) => {
-    const isDisabled =
-      releaseMonth !== null && simPosition(ms.month) < simPosition(releaseMonth);
-    if (isDisabled) return { ...ms, quantity: 0, revenue: 0, contributionProfit: 0 };
+    if (!skuMonthSet.has(ms.month)) return { ...ms, quantity: 0, revenue: 0, contributionProfit: 0 };
     const quantity = Math.round(sku.totalOrderQty * ms.ratio / 100);
     const revenue = Math.round(quantity * sku.price / 1.1 * multiplier);
     const contributionProfit = Math.round(revenue * sku.contributionMarginRate / 100);
@@ -142,12 +142,10 @@ function recalcMonthlySplit(sku: SkuData, overrideSplit?: MonthlySplit[]): Month
 
 /** Product Dashboard 전용: 수량은 Firestore 저장값 그대로, revenue/profit만 재계산 */
 function recalcRevenueFromQty(sku: SkuData): MonthlySplit[] {
-  const releaseMonth = getReleaseMonth(sku.releaseDate);
+  const skuMonthSet = new Set(getSkuMonths(sku.releaseDate));
   const multiplier = calcDynamicMultiplier(sku.channelRatios) ?? revenueMultiplier(sku.category);
   return sku.monthlySplit.map((ms) => {
-    const isDisabled =
-      releaseMonth !== null && simPosition(ms.month) < simPosition(releaseMonth);
-    if (isDisabled) return { ...ms, quantity: 0, revenue: 0, contributionProfit: 0 };
+    if (!skuMonthSet.has(ms.month)) return { ...ms, quantity: 0, revenue: 0, contributionProfit: 0 };
     const revenue = Math.round(ms.quantity * sku.price / 1.1 * multiplier);
     const contributionProfit = Math.round(revenue * sku.contributionMarginRate / 100);
     return { ...ms, revenue, contributionProfit };
@@ -188,9 +186,10 @@ function isCMSEmpty(cms: ChannelMonthEntry[]): boolean {
 }
 
 /** PM 탭의 monthlySplit × channelRatios로부터 channelMonthlySplit 파생 */
-function deriveChannelMonthlySplit(sku: { channelRatios: any[]; monthlySplit: any[] }): ChannelMonthEntry[] {
+function deriveChannelMonthlySplit(sku: { channelRatios: any[]; monthlySplit: any[]; releaseDate?: string }): ChannelMonthEntry[] {
+  const skuMonths = getSkuMonths(sku.releaseDate);
   return CHANNELS.flatMap((channel) =>
-    MONTHS.map((month) => {
+    skuMonths.map((month) => {
       const chRatio = sku.channelRatios.find((r: any) => r.channel === channel)?.ratio ?? 0;
       const mRatio = sku.monthlySplit.find((m: any) => m.month === month)?.ratio ?? 0;
       const ratio = Math.round(chRatio * mRatio) / 100;
@@ -255,8 +254,9 @@ function applyMigration(raw: any): SkuData {
   if (base.channelRatios.every((cr) => cr.ratio === 0)) {
     base.channelRatios = defaultChannelRatios;
   }
+  const skuMonths = getSkuMonths(base.releaseDate);
   const existingMonths = new Set(base.monthlySplit.map((ms) => ms.month));
-  const missing = MONTHS.filter((m) => !existingMonths.has(m));
+  const missing = skuMonths.filter((m) => !existingMonths.has(m));
   if (missing.length > 0) {
     const newEntries = missing.map((month) => ({
       month, ratio: 0, quantity: 0, revenue: 0, contributionProfit: 0,
@@ -264,7 +264,7 @@ function applyMigration(raw: any): SkuData {
     base.monthlySplit = [
       ...base.monthlySplit,
       ...newEntries,
-    ].sort((a, b) => MONTHS.indexOf(a.month) - MONTHS.indexOf(b.month));
+    ].sort((a, b) => skuMonths.indexOf(a.month) - skuMonths.indexOf(b.month));
   }
   // channelMonthlySplit 보정 및 PM 데이터 파생
   if (!Array.isArray(base.channelMonthlySplit) || base.channelMonthlySplit.length === 0) {
@@ -276,7 +276,7 @@ function applyMigration(raw: any): SkuData {
       base.channelMonthlySplit.map((e: ChannelMonthEntry) => `${e.channel}|${e.month}`),
     );
     const toAdd = CHANNELS.flatMap((channel) =>
-      MONTHS.filter((month) => !existing.has(`${channel}|${month}`)).map((month) => ({
+      skuMonths.filter((month) => !existing.has(`${channel}|${month}`)).map((month) => ({
         channel, month, ratio: 0,
       })),
     );
