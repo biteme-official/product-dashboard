@@ -125,23 +125,40 @@ export function MdSummarySection({ categoryFilter }: Props) {
   );
   const monthLabels = useMemo(() => allYearMonths.map(fmtYearMonth), [allYearMonths]);
 
-  const [rangeStart, setRangeStart] = useState(0);
-  const [rangeEnd, setRangeEnd] = useState(0);
-  const rangeInitedRef = useRef(false);
+  // 슬라이더 상태를 인덱스가 아닌 YearMonth 값으로 보존
+  // → 카테고리가 바뀌어도 "26.09~27.02를 보겠다"는 의도가 유지됨
+  const [rangeStartYm, setRangeStartYm] = useState<YearMonth | null>(null);
+  const [rangeEndYm, setRangeEndYm] = useState<YearMonth | null>(null);
 
+  function findClosestIdx(ym: YearMonth, months: YearMonth[]): number {
+    const exact = months.findIndex((m) => m.year === ym.year && m.month === ym.month);
+    if (exact >= 0) return exact;
+    const target = ym.year * 12 + ym.month;
+    let bestIdx = 0, bestDiff = Infinity;
+    months.forEach((m, i) => {
+      const diff = Math.abs(m.year * 12 + m.month - target);
+      if (diff < bestDiff) { bestDiff = diff; bestIdx = i; }
+    });
+    return bestIdx;
+  }
+
+  // 최초 1회만 기본값 세팅 (첫 데이터 로드 시)
   useEffect(() => {
-    if (allYearMonths.length === 0) return;
-    if (!rangeInitedRef.current) {
-      // 최초 1회만 기본값(0 ~ +5) 세팅
-      rangeInitedRef.current = true;
-      setRangeStart(0);
-      setRangeEnd(Math.min(5, allYearMonths.length - 1));
-      return;
-    }
-    // 이후 월 범위가 줄어들면 인덱스만 clamp (사용자가 조정한 값 유지)
-    setRangeStart((prev) => Math.min(prev, allYearMonths.length - 1));
-    setRangeEnd((prev) => Math.min(prev, allYearMonths.length - 1));
-  }, [allYearMonths.length]);
+    if (allYearMonths.length === 0 || rangeStartYm !== null) return;
+    setRangeStartYm(allYearMonths[0]);
+    setRangeEndYm(allYearMonths[Math.min(5, allYearMonths.length - 1)]);
+  }, [allYearMonths, rangeStartYm]);
+
+  // YearMonth → 인덱스 변환 (카테고리 변경 시 가장 가까운 월로 재계산)
+  const rangeStart = useMemo(() => {
+    if (!rangeStartYm || allYearMonths.length === 0) return 0;
+    return findClosestIdx(rangeStartYm, allYearMonths);
+  }, [allYearMonths, rangeStartYm]);
+
+  const rangeEnd = useMemo(() => {
+    if (!rangeEndYm || allYearMonths.length === 0) return Math.min(5, allYearMonths.length - 1);
+    return Math.max(rangeStart, findClosestIdx(rangeEndYm, allYearMonths));
+  }, [allYearMonths, rangeEndYm, rangeStart]);
 
   const visibleMonths = useMemo(
     () => allYearMonths.slice(rangeStart, rangeEnd + 1),
@@ -149,9 +166,9 @@ export function MdSummarySection({ categoryFilter }: Props) {
   );
 
   const handleRangeChange = useCallback((s: number, e: number) => {
-    setRangeStart(s);
-    setRangeEnd(e);
-  }, []);
+    setRangeStartYm(allYearMonths[s] ?? null);
+    setRangeEndYm(allYearMonths[e] ?? null);
+  }, [allYearMonths]);
 
   useEffect(() => {
     function onClickOutside(ev: MouseEvent) {

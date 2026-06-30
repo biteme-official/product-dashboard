@@ -382,7 +382,7 @@ function App() {
         {activeMainTab === 'md' && (
           <>
             <CategoryTabs showAll={true} value={mdCategory} onChange={setMdCategory} />
-            <BrandFilter />
+            <BrandFilter categoryFilter={mdCategory} />
           </>
         )}
       </div>
