@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useStore } from '../store';
 import { BRANDS, type Brand, type Category } from '../types';
 
@@ -14,6 +15,15 @@ export function BrandFilter({ categoryFilter }: Props = {}) {
   const filterCat = categoryFilter ?? activeCategory;
   const categorySkus = filterCat === '전체' ? skus : skus.filter((s) => s.category === filterCat);
   const presentBrands = BRANDS.filter((b) => categorySkus.some((s) => s.brand === b));
+
+  // 카테고리 변경 시 현재 선택된 브랜드가 새 카테고리에 없으면 전체로 초기화
+  useEffect(() => {
+    if (activeBrand !== '전체' && !presentBrands.includes(activeBrand as Brand)) {
+      setActiveBrand('전체');
+    }
+  // filterCat 변경(카테고리 전환)마다 실행
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterCat]);
 
   if (presentBrands.length < 2) return null;
 
