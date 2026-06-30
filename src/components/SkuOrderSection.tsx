@@ -70,10 +70,30 @@ function sortForListView(a: SkuData, b: SkuData): number {
   return a.name.localeCompare(b.name, 'ko');
 }
 
-export function SkuOrderSection({ mode = 'sku', subTab = 'list-view', onSwitchToSkuList }: {
+export function SkuOrderSection({
+  mode = 'sku',
+  subTab = 'list-view',
+  listCatFilter = new Set<string>(),
+  listBrandFilter = new Set<string>(),
+  listMonthFilter = new Set<string>(),
+  searchQuery = '',
+  onListCatFilterChange = () => {},
+  onListBrandFilterChange = () => {},
+  onListMonthFilterChange = () => {},
+  onSearchQueryChange = () => {},
+  onNavigateToSku,
+}: {
   mode?: 'sku' | 'projection';
   subTab?: string;
-  onSwitchToSkuList?: () => void;
+  listCatFilter?: Set<string>;
+  listBrandFilter?: Set<string>;
+  listMonthFilter?: Set<string>;
+  searchQuery?: string;
+  onListCatFilterChange?: (v: Set<string>) => void;
+  onListBrandFilterChange?: (v: Set<string>) => void;
+  onListMonthFilterChange?: (v: Set<string>) => void;
+  onSearchQueryChange?: (v: string) => void;
+  onNavigateToSku?: (sku: SkuData) => void;
 }) {
   const skus = useStore((s) => s.skus);
   const activeCategory = useStore((s) => s.activeCategory);
@@ -83,17 +103,13 @@ export function SkuOrderSection({ mode = 'sku', subTab = 'list-view', onSwitchTo
 
   const { role } = useAuth();
   const canEdit = usePermission(role).skuBasic;
-  const [searchQuery, setSearchQuery] = useState('');
   const [bulkOpen, setBulkOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // LIST VIEW 로컬 필터
-  const [listCatFilter, setListCatFilter] = useState<Set<string>>(new Set());
-  const [listBrandFilter, setListBrandFilter] = useState<Set<string>>(new Set());
-  const [listMonthFilter, setListMonthFilter] = useState<Set<string>>(new Set());
+  // LIST VIEW 필터 (App.tsx에서 props로 수신)
 
-  // 뷰 모드: 목록 / 갤러리 (localStorage에 유지)
+  // 뷰 모드: 목록 / 갤러리 (localStorage 유지, SKU 리스트 모드 전용)
   const [viewMode, setViewMode] = useState<ViewMode>(
     () => (localStorage.getItem('sku-view-mode') as ViewMode) ?? 'list',
   );
@@ -126,6 +142,11 @@ export function SkuOrderSection({ mode = 'sku', subTab = 'list-view', onSwitchTo
     else next.add(val);
     return next;
   }
+
+  function toggleCat(val: string) { onListCatFilterChange(toggleFilterItem(listCatFilter, val)); }
+  function toggleBrand(val: string) { onListBrandFilterChange(toggleFilterItem(listBrandFilter, val)); }
+  function toggleMonth(val: string) { onListMonthFilterChange(toggleFilterItem(listMonthFilter, val)); }
+  function resetFilters() { onListCatFilterChange(new Set()); onListBrandFilterChange(new Set()); onListMonthFilterChange(new Set()); }
 
   const hasListFilter = listCatFilter.size > 0 || listBrandFilter.size > 0 || listMonthFilter.size > 0;
 
@@ -327,7 +348,7 @@ export function SkuOrderSection({ mode = 'sku', subTab = 'list-view', onSwitchTo
               </div>
             )}
 
-            <SearchInput value={searchQuery} onChange={setSearchQuery} />
+            <SearchInput value={searchQuery} onChange={onSearchQueryChange} />
           </div>
         </div>
       )}
@@ -343,7 +364,7 @@ export function SkuOrderSection({ mode = 'sku', subTab = 'list-view', onSwitchTo
                 {availableCategories.map((cat) => (
                   <button
                     key={cat}
-                    onClick={() => setListCatFilter(toggleFilterItem(listCatFilter, cat))}
+                    onClick={() => toggleCat(cat)}
                     className={`px-2.5 py-0.5 rounded-full text-[11px] font-medium border transition-colors ${
                       listCatFilter.has(cat)
                         ? catCls(cat) + ' border-transparent'
@@ -360,7 +381,7 @@ export function SkuOrderSection({ mode = 'sku', subTab = 'list-view', onSwitchTo
                 {availableBrands.map((brand) => (
                   <button
                     key={brand}
-                    onClick={() => setListBrandFilter(toggleFilterItem(listBrandFilter, brand))}
+                    onClick={() => toggleBrand(brand)}
                     className={`px-2.5 py-0.5 rounded-full text-[11px] font-medium border transition-colors ${
                       listBrandFilter.has(brand)
                         ? 'bg-gray-700 text-white border-gray-700'
@@ -377,7 +398,7 @@ export function SkuOrderSection({ mode = 'sku', subTab = 'list-view', onSwitchTo
                 </span>
                 {hasListFilter && (
                   <button
-                    onClick={() => { setListCatFilter(new Set()); setListBrandFilter(new Set()); setListMonthFilter(new Set()); }}
+                    onClick={resetFilters}
                     className="text-[11px] text-gray-400 hover:text-rose-500 transition-colors whitespace-nowrap"
                   >
                     초기화
@@ -408,13 +429,13 @@ export function SkuOrderSection({ mode = 'sku', subTab = 'list-view', onSwitchTo
                         <div className="px-2 py-1.5 border-b border-gray-100 flex items-center justify-between">
                           <span className="text-[11px] font-semibold text-gray-500">오픈월 선택</span>
                           {listMonthFilter.size > 0 && (
-                            <button onClick={() => setListMonthFilter(new Set())} className="text-[10px] text-gray-400 hover:text-rose-500 transition-colors">초기화</button>
+                            <button onClick={() => onListMonthFilterChange(new Set())} className="text-[10px] text-gray-400 hover:text-rose-500 transition-colors">초기화</button>
                           )}
                         </div>
                         <div className="py-1">
                           {availableMonths.map((ym) => (
                             <label key={ym} className="flex items-center gap-2 px-3 py-1.5 cursor-pointer hover:bg-gray-50 transition-colors">
-                              <input type="checkbox" checked={listMonthFilter.has(ym)} onChange={() => setListMonthFilter(toggleFilterItem(listMonthFilter, ym))} className="w-3.5 h-3.5 accent-indigo-600 shrink-0" />
+                              <input type="checkbox" checked={listMonthFilter.has(ym)} onChange={() => toggleMonth(ym)} className="w-3.5 h-3.5 accent-indigo-600 shrink-0" />
                               <span className={`text-[12px] ${listMonthFilter.has(ym) ? 'text-indigo-700 font-medium' : 'text-gray-600'}`}>{formatYearMonth(ym)}</span>
                             </label>
                           ))}
@@ -423,7 +444,7 @@ export function SkuOrderSection({ mode = 'sku', subTab = 'list-view', onSwitchTo
                     )}
                   </div>
                 )}
-                <SearchInput value={searchQuery} onChange={setSearchQuery} />
+                <SearchInput value={searchQuery} onChange={onSearchQueryChange} />
               </div>
             </div>
           </div>
@@ -435,11 +456,11 @@ export function SkuOrderSection({ mode = 'sku', subTab = 'list-view', onSwitchTo
             </div>
           ) : subTab === 'list-view' ? (
             <div className="flex-1 min-h-0">
-              <SkuListTable skus={displaySkus} onSwitchToSkuList={onSwitchToSkuList} />
+              <SkuListTable skus={displaySkus} onNavigateToSku={onNavigateToSku} />
             </div>
           ) : subTab === 'channel-schedule' ? (
             <div className="flex-1 min-h-0">
-              <ChannelScheduleTable skus={displaySkus} onSwitchToSkuList={onSwitchToSkuList} />
+              <ChannelScheduleTable skus={displaySkus} onNavigateToSku={onNavigateToSku} />
             </div>
           ) : null}
         </div>
@@ -571,26 +592,11 @@ type PriceField = 'cost' | 'price' | 'regularPrice';
 interface EditingCell { skuId: string; field: PriceField; originalValue: number }
 interface CalendarState { skuId: string; field: 'releaseDate' | 'arrivalDate' | 'shootingDate'; selectedDate: string; top: number; left: number }
 
-function SkuListTable({ skus, onSwitchToSkuList }: { skus: SkuData[]; onSwitchToSkuList?: () => void }) {
+function SkuListTable({ skus, onNavigateToSku }: { skus: SkuData[]; onNavigateToSku?: (sku: SkuData) => void }) {
   const updateSku = useStore((s) => s.updateSku);
   const persistSku = useStore((s) => s.persistSku);
-  const setActiveCategory = useStore((s) => s.setActiveCategory);
-  const expandOnly = useStore((s) => s.expandOnly);
   const setPriceConfirmed = useStore((s) => s.setPriceConfirmed);
   const { role } = useAuth();
-
-  function navigateToSku(sku: SkuData) {
-    setActiveCategory(sku.category);
-    onSwitchToSkuList?.();
-    // 카테고리 전환 후: 해당 카테고리의 다른 카드 모두 닫고 이 카드만 열기
-    setTimeout(() => {
-      expandOnly(sku.id);
-      // 카드가 렌더된 후 해당 위치로 스크롤
-      setTimeout(() => {
-        document.getElementById(`sku-card-${sku.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }, 50);
-    }, 0);
-  }
   const { skuBasic } = usePermission(role);
   const canEdit = skuBasic;
   const canEditDate = skuBasic;
@@ -715,7 +721,7 @@ function SkuListTable({ skus, onSwitchToSkuList }: { skus: SkuData[]; onSwitchTo
                   <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{sku.brand}</td>
                   <td className="px-3 py-2 max-w-[180px]">
                     <button
-                      onClick={() => navigateToSku(sku)}
+                      onClick={() => onNavigateToSku?.(sku)}
                       className="font-medium text-gray-800 truncate block w-full text-left hover:text-indigo-600 hover:underline underline-offset-2 transition-colors"
                       title={sku.name || undefined}
                     >
@@ -1011,11 +1017,9 @@ function toMD(dateStr: string | null | undefined): string {
 
 interface ScheduleCal { skuId: string; channel: ScheduleChannel; date: string; top: number; left: number }
 
-function ChannelScheduleTable({ skus, onSwitchToSkuList }: { skus: SkuData[]; onSwitchToSkuList?: () => void }) {
+function ChannelScheduleTable({ skus, onNavigateToSku }: { skus: SkuData[]; onNavigateToSku?: (sku: SkuData) => void }) {
   const updateSku = useStore((s) => s.updateSku);
   const persistSku = useStore((s) => s.persistSku);
-  const setActiveCategory = useStore((s) => s.setActiveCategory);
-  const expandOnly = useStore((s) => s.expandOnly);
   const setScheduleConfirmed = useStore((s) => s.setScheduleConfirmed);
   const { role } = useAuth();
   const { step2: canEdit, projectionConfirm: canConfirm } = usePermission(role);
@@ -1055,17 +1059,6 @@ function ChannelScheduleTable({ skus, onSwitchToSkuList }: { skus: SkuData[]; on
     const date = (val !== null && val !== undefined) ? val : (sku.releaseDate ?? '');
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     setScheduleCal({ skuId: sku.id, channel: ch, date, top: rect.bottom + 6, left: rect.left });
-  }
-
-  function navigateToSku(sku: SkuData) {
-    setActiveCategory(sku.category);
-    onSwitchToSkuList?.();
-    setTimeout(() => {
-      expandOnly(sku.id);
-      setTimeout(() => {
-        document.getElementById(`sku-card-${sku.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }, 50);
-    }, 0);
   }
 
   return (
@@ -1117,7 +1110,7 @@ function ChannelScheduleTable({ skus, onSwitchToSkuList }: { skus: SkuData[]; on
                 <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{sku.brand}</td>
                 <td className="px-3 py-2 max-w-[180px]">
                   <button
-                    onClick={() => navigateToSku(sku)}
+                    onClick={() => onNavigateToSku?.(sku)}
                     className="font-medium text-gray-800 truncate block w-full text-left hover:text-indigo-600 hover:underline underline-offset-2 transition-colors"
                     title={sku.name || undefined}
                   >

@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useStore } from './store';
 import { useAuth } from './store/auth';
 import type { SkuData, Category } from './types';
+import type { Brand } from './types';
 import { CategoryTabs } from './components/CategoryTabs';
 import { SkuOrderSection } from './components/SkuOrderSection';
 import { MdSummarySection } from './components/MdSummarySection';
@@ -17,6 +18,33 @@ import { usePermission } from './contexts/PermissionsContext';
 import { getPortalToken, verifyPortalToken, cleanPortalToken } from './utils/portalAuth';
 
 type MainTab = 'pm' | 'projection' | 'md' | 'manual';
+
+interface NavSnapshot {
+  mainTab: MainTab;
+  projectionSubTab: string;
+  activeCategory: Category;
+  activeBrand: Brand | '전체';
+  expandedSkuIds: string[];
+  listCatFilter: Set<string>;
+  listBrandFilter: Set<string>;
+  listMonthFilter: Set<string>;
+  searchQuery: string;
+  scrollY: number;
+}
+
+const MAIN_TAB_LABELS: Record<MainTab, string> = {
+  pm: 'SKU 리스트',
+  projection: 'LIST VIEW',
+  md: '채널별 요약',
+  manual: '메뉴얼',
+};
+
+function getNavLabel(snap: NavSnapshot): string {
+  if (snap.mainTab === 'projection') {
+    return snap.projectionSubTab === 'list-view' ? 'LIST VIEW' : '채널별 오픈일정';
+  }
+  return MAIN_TAB_LABELS[snap.mainTab];
+}
 
 function useSessionState<T>(key: string, initial: T): [T, (val: T) => void] {
   const [state, setState] = useState<T>(() => {
@@ -51,6 +79,12 @@ function App() {
   const importSkus = useStore((s) => s.importSkus);
   const replaceAllSkus = useStore((s) => s.replaceAllSkus);
   const skus = useStore((s) => s.skus);
+  const storeActiveCategory = useStore((s) => s.activeCategory);
+  const storeActiveBrand = useStore((s) => s.activeBrand);
+  const setActiveCategory = useStore((s) => s.setActiveCategory);
+  const setActiveBrand = useStore((s) => s.setActiveBrand);
+  const expandOnly = useStore((s) => s.expandOnly);
+  const setExpandedIds = useStore((s) => s.setExpandedIds);
   const { role, setRole, logout } = useAuth();
   const perm = usePermission(role);
   const [portalAuthChecked, setPortalAuthChecked] = useState(false);
@@ -78,6 +112,15 @@ function App() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const prevRoleRef = useRef<typeof role>(null);
 
+  // 내비게이션 히스토리
+  const [navHistory, setNavHistory] = useState<NavSnapshot[]>([]);
+
+  // 프로젝션 필터 상태 (SkuOrderSection에서 리프트 → 히스토리 복원에 사용)
+  const [listCatFilter, setListCatFilter] = useState<Set<string>>(new Set());
+  const [listBrandFilter, setListBrandFilter] = useState<Set<string>>(new Set());
+  const [listMonthFilter, setListMonthFilter] = useState<Set<string>>(new Set());
+  const [searchQuery, setSearchQuery] = useState('');
+
   // 로그인 시(role이 null→유효값으로 전환) 프로젝션 List view로 초기화
   useEffect(() => {
     if (prevRoleRef.current === null && role !== null) {
@@ -86,6 +129,50 @@ function App() {
     }
     prevRoleRef.current = role;
   }, [role, setActiveMainTab, setProjectionSubTab]);
+
+  function pushNavHistory() {
+    const snapshot: NavSnapshot = {
+      mainTab: activeMainTab,
+      projectionSubTab,
+      activeCategory: storeActiveCategory,
+      activeBrand: storeActiveBrand,
+      expandedSkuIds: skus.filter((s) => s.isExpanded).map((s) => s.id),
+      listCatFilter: new Set(listCatFilter),
+      listBrandFilter: new Set(listBrandFilter),
+      listMonthFilter: new Set(listMonthFilter),
+      searchQuery,
+      scrollY: window.scrollY,
+    };
+    setNavHistory((prev) => [...prev.slice(-19), snapshot]);
+  }
+
+  function goBack() {
+    const prev = navHistory[navHistory.length - 1];
+    if (!prev) return;
+    setNavHistory((h) => h.slice(0, -1));
+    setActiveMainTab(prev.mainTab);
+    setProjectionSubTab(prev.projectionSubTab);
+    setActiveCategory(prev.activeCategory);
+    setActiveBrand(prev.activeBrand);
+    setExpandedIds(prev.expandedSkuIds);
+    setListCatFilter(new Set(prev.listCatFilter));
+    setListBrandFilter(new Set(prev.listBrandFilter));
+    setListMonthFilter(new Set(prev.listMonthFilter));
+    setSearchQuery(prev.searchQuery);
+    setTimeout(() => window.scrollTo({ top: prev.scrollY }), 50);
+  }
+
+  function handleNavigateToSku(sku: SkuData) {
+    pushNavHistory();
+    setActiveMainTab('pm');
+    setActiveCategory(sku.category);
+    setTimeout(() => {
+      expandOnly(sku.id);
+      setTimeout(() => {
+        document.getElementById(`sku-card-${sku.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 50);
+    }, 0);
+  }
 
   function handleExport() {
     const data = skus.map(({ _initialSnapshot: _, isExpanded: __, ...rest }) => rest);
@@ -317,6 +404,18 @@ function App() {
       <div className="sticky top-0 z-10 bg-white shadow-sm">
         {/* 최상단 탭 */}
         <div className="flex items-center gap-1 px-3 pt-2 pb-0 border-b border-gray-100">
+          {/* 뒤로가기 버튼 */}
+          {navHistory.length > 0 && (
+            <button
+              onClick={goBack}
+              className="flex items-center gap-1 px-2.5 py-1 mr-1 text-xs font-medium text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors flex-shrink-0 border border-gray-200 hover:border-indigo-300"
+            >
+              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+              </svg>
+              {getNavLabel(navHistory[navHistory.length - 1])}
+            </button>
+          )}
           {([
             { key: 'projection', label: '프로젝션' },
             { key: 'pm', label: 'SKU 리스트' },
@@ -326,7 +425,7 @@ function App() {
             return (
               <button
                 key={key}
-                onClick={() => setActiveMainTab(key)}
+                onClick={() => { pushNavHistory(); setActiveMainTab(key); }}
                 className={`px-4 py-1.5 text-sm font-semibold rounded-t-lg border-b-2 transition-all ${
                   isActive
                     ? 'border-indigo-600 text-indigo-700 bg-indigo-50/60'
@@ -339,7 +438,7 @@ function App() {
           })}
           <div className="w-px h-5 bg-gray-200 mx-1 self-center" />
           <button
-            onClick={() => setActiveMainTab('manual')}
+            onClick={() => { pushNavHistory(); setActiveMainTab('manual'); }}
             className={`px-3 py-1.5 text-xs font-medium rounded-t-lg border-b-2 transition-all ${
               activeMainTab === 'manual'
                 ? 'border-gray-400 text-gray-700 bg-gray-50'
@@ -359,7 +458,7 @@ function App() {
             ].map(({ key, label }) => (
               <button
                 key={key}
-                onClick={() => setProjectionSubTab(key)}
+                onClick={() => { pushNavHistory(); setProjectionSubTab(key); }}
                 className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all flex-shrink-0 ${
                   projectionSubTab === key
                     ? 'bg-indigo-600 text-white shadow-sm'
@@ -392,9 +491,25 @@ function App() {
         {activeMainTab === 'manual' ? (
           <ManualTab />
         ) : activeMainTab === 'pm' ? (
-          <SkuOrderSection mode="sku" onSwitchToSkuList={() => setActiveMainTab('pm')} />
+          <SkuOrderSection
+            mode="sku"
+            searchQuery={searchQuery}
+            onSearchQueryChange={setSearchQuery}
+          />
         ) : activeMainTab === 'projection' ? (
-          <SkuOrderSection mode="projection" subTab={projectionSubTab} onSwitchToSkuList={() => setActiveMainTab('pm')} />
+          <SkuOrderSection
+            mode="projection"
+            subTab={projectionSubTab}
+            listCatFilter={listCatFilter}
+            listBrandFilter={listBrandFilter}
+            listMonthFilter={listMonthFilter}
+            searchQuery={searchQuery}
+            onListCatFilterChange={setListCatFilter}
+            onListBrandFilterChange={setListBrandFilter}
+            onListMonthFilterChange={setListMonthFilter}
+            onSearchQueryChange={setSearchQuery}
+            onNavigateToSku={handleNavigateToSku}
+          />
         ) : (
           <div className="px-4 py-4">
             <MdSummarySection categoryFilter={mdCategory} />

@@ -327,6 +327,7 @@ interface StoreActions {
   setChannelConfirmed: (id: string, field: 'step2PlatformConfirmed' | 'step2BrandConfirmed' | 'step2GlobalConfirmed', value: boolean) => Promise<void>;
   setPriceConfirmed: (id: string, confirmed: boolean) => Promise<void>;
   setScheduleConfirmed: (id: string, confirmed: boolean) => Promise<void>;
+  setExpandedIds: (ids: string[]) => void;
   cleanupInitialSnapshots: () => Promise<number>;
   loadActivityLogs: (maxItems?: number) => Promise<ActivityLog[]>;
 }
@@ -876,6 +877,11 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
       changedAt: (d.data().changedAt as Timestamp).toDate().toISOString(),
       changes: (d.data().changes ?? []) as import('../types').LogChange[],
     }));
+  },
+
+  setExpandedIds: (ids) => {
+    const idSet = new Set(ids);
+    set({ skus: get().skus.map((s) => ({ ...s, isExpanded: idSet.has(s.id) })) });
   },
 
   cleanupInitialSnapshots: async () => {
