@@ -76,6 +76,16 @@ function App() {
   const [projectionSubTab, setProjectionSubTab] = useSessionState<string>('app:projectionSubTab', 'list-view');
   const [mdCategory, setMdCategory] = useState<Category | '전체'>('전체');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const prevRoleRef = useRef<typeof role>(null);
+
+  // 로그인 시(role이 null→유효값으로 전환) 프로젝션 List view로 초기화
+  useEffect(() => {
+    if (prevRoleRef.current === null && role !== null) {
+      setActiveMainTab('projection');
+      setProjectionSubTab('list-view');
+    }
+    prevRoleRef.current = role;
+  }, [role, setActiveMainTab, setProjectionSubTab]);
 
   function handleExport() {
     const data = skus.map(({ _initialSnapshot: _, isExpanded: __, ...rest }) => rest);

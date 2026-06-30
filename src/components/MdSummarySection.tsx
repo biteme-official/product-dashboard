@@ -127,14 +127,21 @@ export function MdSummarySection({ categoryFilter }: Props) {
 
   const [rangeStart, setRangeStart] = useState(0);
   const [rangeEnd, setRangeEnd] = useState(0);
+  const rangeInitedRef = useRef(false);
 
   useEffect(() => {
     if (allYearMonths.length === 0) return;
-    const s = 0;
-    const e = Math.min(s + 5, allYearMonths.length - 1);
-    setRangeStart(s);
-    setRangeEnd(e);
-  }, [allYearMonths.length, categoryFilter, activeBrand]);
+    if (!rangeInitedRef.current) {
+      // 최초 1회만 기본값(0 ~ +5) 세팅
+      rangeInitedRef.current = true;
+      setRangeStart(0);
+      setRangeEnd(Math.min(5, allYearMonths.length - 1));
+      return;
+    }
+    // 이후 월 범위가 줄어들면 인덱스만 clamp (사용자가 조정한 값 유지)
+    setRangeStart((prev) => Math.min(prev, allYearMonths.length - 1));
+    setRangeEnd((prev) => Math.min(prev, allYearMonths.length - 1));
+  }, [allYearMonths.length]);
 
   const visibleMonths = useMemo(
     () => allYearMonths.slice(rangeStart, rangeEnd + 1),
