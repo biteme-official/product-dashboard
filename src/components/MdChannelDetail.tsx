@@ -2,11 +2,11 @@ import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer,
 } from 'recharts';
-import type { SkuData, Channel, Month } from '../types';
-import { MONTHS } from '../types';
+import type { SkuData, Channel, YearMonth } from '../types';
+import { isSkuActiveForYearMonth } from '../types';
 import {
   calcChannelMonthMetrics, calcSkuChannelTotals, addMetrics,
-  formatWon, cmBadgeCls, isMonthActive, ZERO_METRICS,
+  formatWon, cmBadgeCls, ZERO_METRICS,
 } from '../utils/mdSummaryCalc';
 
 type MonthChartPoint = { label: string; revenue: number; profit: number };
@@ -89,37 +89,44 @@ function ChannelMonthlyChart({ data }: { data: MonthChartPoint[] }) {
   );
 }
 
-export function MdChannelDetail({ skus, channel }: { skus: SkuData[]; channel: Channel }) {
+export function MdChannelDetail({ skus, channel, months }: { skus: SkuData[]; channel: Channel; months: YearMonth[] }) {
   const channelTotal = skus.reduce(
-    (acc, sku) => addMetrics(acc, calcSkuChannelTotals(sku, channel)),
+    (acc, sku) => addMetrics(acc, calcSkuChannelTotals(sku, channel, months)),
     ZERO_METRICS,
   );
   const cm = channelTotal.revenue > 0
     ? Math.round((channelTotal.profit / channelTotal.revenue) * 1000) / 10
     : null;
 
-  const monthTotals: Record<Month, typeof ZERO_METRICS> = Object.fromEntries(
-    MONTHS.map((m) => [m, ZERO_METRICS]),
-  ) as Record<Month, typeof ZERO_METRICS>;
-
-  skus.forEach((sku) => {
-    MONTHS.forEach((m) => {
-      monthTotals[m] = addMetrics(monthTotals[m], calcChannelMonthMetrics(sku, channel, m));
-    });
+  // 월별 합계 (YearMonth 단위)
+  const monthTotals = months.map((ym) => {
+    const metrics = skus.reduce((acc, sku) => {
+      if (!isSkuActiveForYearMonth(sku, ym)) return acc;
+      return addMetrics(acc, calcChannelMonthMetrics(sku, channel, ym.month));
+    }, ZERO_METRICS);
+    return { ym, metrics };
   });
 
-  const chartData: MonthChartPoint[] = MONTHS.map((m) => ({
-    label: m <= 2 ? `${m}월(익)` : `${m}월`,
-    revenue: monthTotals[m].revenue,
-    profit: monthTotals[m].profit,
-  }));
+  const chartData: MonthChartPoint[] = months.map((ym, idx) => {
+    const showYear = idx === 0 || months[idx - 1].year !== ym.year;
+    const label = showYear
+      ? `${ym.month}월 '${String(ym.year).slice(2)}`
+      : `${ym.month}월`;
+    const metrics = monthTotals[idx].metrics;
+    return { label, revenue: metrics.revenue, profit: metrics.profit };
+  });
 
   const skuRows = skus
     .map((sku) => {
-      const totals = calcSkuChannelTotals(sku, channel);
+      const totals = calcSkuChannelTotals(sku, channel, months);
       return { sku, totals };
     })
     .sort((a, b) => b.totals.revenue - a.totals.revenue);
+
+  function monthLabel(ym: YearMonth, idx: number) {
+    const showYear = idx === 0 || months[idx - 1].year !== ym.year;
+    return showYear ? `${ym.month}월 '${String(ym.year).slice(2)}` : `${ym.month}월`;
+  }
 
   return (
     <div className="space-y-4">
@@ -147,10 +154,9 @@ export function MdChannelDetail({ skus, channel }: { skus: SkuData[]; channel: C
         </div>
       </div>
 
-      {/* 월별 차트 */}
       <ChannelMonthlyChart data={chartData} />
 
-      {/* SKU × 월 테이블 */}
+      {/* SKU × 월 목표량 테이블 */}
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
         <div className="px-4 py-2.5 bg-gray-50 border-b border-gray-200">
           <h3 className="text-xs font-semibold text-gray-600">SKU별 월별 목표량</h3>
@@ -162,16 +168,16 @@ export function MdChannelDetail({ skus, channel }: { skus: SkuData[]; channel: C
             <table className="w-full text-xs" style={{ tableLayout: 'fixed' }}>
               <colgroup>
                 <col style={{ width: '160px' }} />
-                {MONTHS.map((m) => <col key={m} />)}
+                {months.map((_, i) => <col key={i} />)}
                 <col style={{ width: '80px' }} />
                 <col style={{ width: '80px' }} />
               </colgroup>
               <thead>
                 <tr className="border-b border-gray-100 bg-gray-50/40">
                   <th className="px-3 py-2 text-left font-semibold text-gray-500">SKU명</th>
-                  {MONTHS.map((m) => (
-                    <th key={m} className="px-1 py-2 text-center font-semibold text-gray-500">
-                      {m}월
+                  {months.map((ym, idx) => (
+                    <th key={`${ym.year}-${ym.month}`} className="px-1 py-2 text-center font-semibold text-gray-500">
+                      {monthLabel(ym, idx)}
                     </th>
                   ))}
                   <th className="px-2 py-2 text-right font-semibold text-gray-500">수량</th>
@@ -184,16 +190,16 @@ export function MdChannelDetail({ skus, channel }: { skus: SkuData[]; channel: C
                     <td className="px-3 py-2.5 font-medium text-gray-800 truncate" title={sku.name}>
                       {sku.name || <span className="text-gray-300">(미입력)</span>}
                     </td>
-                    {MONTHS.map((m) => {
-                      const active = isMonthActive(sku, m);
+                    {months.map((ym) => {
+                      const active = isSkuActiveForYearMonth(sku, ym);
                       if (!active) {
                         return (
-                          <td key={m} className="px-1 py-2.5 text-center text-gray-300">–</td>
+                          <td key={`${ym.year}-${ym.month}`} className="px-1 py-2.5 text-center text-gray-300">–</td>
                         );
                       }
-                      const metrics = calcChannelMonthMetrics(sku, channel, m);
+                      const metrics = calcChannelMonthMetrics(sku, channel, ym.month);
                       return (
-                        <td key={m} className={`px-1 py-2.5 text-center tabular-nums ${metrics.qty === 0 ? 'text-gray-300' : 'text-gray-700 font-medium'}`}>
+                        <td key={`${ym.year}-${ym.month}`} className={`px-1 py-2.5 text-center tabular-nums ${metrics.qty === 0 ? 'text-gray-300' : 'text-gray-700 font-medium'}`}>
                           {metrics.qty === 0 ? '0' : metrics.qty.toLocaleString()}
                         </td>
                       );
@@ -210,9 +216,9 @@ export function MdChannelDetail({ skus, channel }: { skus: SkuData[]; channel: C
               <tfoot>
                 <tr className="bg-indigo-50 border-t-2 border-indigo-200">
                   <td className="px-3 py-2 text-xs font-bold text-indigo-700">합계</td>
-                  {MONTHS.map((m) => (
-                    <td key={m} className="px-1 py-2 text-center tabular-nums text-xs font-bold text-indigo-700">
-                      {monthTotals[m].qty > 0 ? monthTotals[m].qty.toLocaleString() : <span className="text-indigo-300">0</span>}
+                  {monthTotals.map(({ ym, metrics }) => (
+                    <td key={`${ym.year}-${ym.month}`} className="px-1 py-2 text-center tabular-nums text-xs font-bold text-indigo-700">
+                      {metrics.qty > 0 ? metrics.qty.toLocaleString() : <span className="text-indigo-300">0</span>}
                     </td>
                   ))}
                   <td className="px-2 py-2 text-right tabular-nums text-xs font-bold text-indigo-700">
@@ -228,7 +234,7 @@ export function MdChannelDetail({ skus, channel }: { skus: SkuData[]; channel: C
         )}
       </div>
 
-      {/* 순매출 월별 분포 */}
+      {/* SKU × 월 순매출 테이블 */}
       {channelTotal.revenue > 0 && (
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
           <div className="px-4 py-2.5 bg-gray-50 border-b border-gray-200">
@@ -238,36 +244,38 @@ export function MdChannelDetail({ skus, channel }: { skus: SkuData[]; channel: C
             <table className="w-full text-xs" style={{ tableLayout: 'fixed' }}>
               <colgroup>
                 <col style={{ width: '160px' }} />
-                {MONTHS.map((m) => <col key={m} />)}
+                {months.map((_, i) => <col key={i} />)}
                 <col style={{ width: '80px' }} />
               </colgroup>
               <thead>
                 <tr className="border-b border-gray-100 bg-gray-50/40">
                   <th className="px-3 py-2 text-left font-semibold text-gray-500">SKU명</th>
-                  {MONTHS.map((m) => (
-                    <th key={m} className="px-1 py-2 text-center font-semibold text-gray-500">{m}월</th>
+                  {months.map((ym, idx) => (
+                    <th key={`${ym.year}-${ym.month}`} className="px-1 py-2 text-center font-semibold text-gray-500">
+                      {monthLabel(ym, idx)}
+                    </th>
                   ))}
                   <th className="px-2 py-2 text-right font-semibold text-gray-500">합계</th>
                 </tr>
               </thead>
               <tbody>
-                {skuRows.filter(({ totals }) => totals.revenue > 0).map(({ sku, totals }) => (
+                {skuRows.filter(({ totals }) => totals.revenue > 0).map(({ sku }) => (
                   <tr key={sku.id} className="border-b border-gray-50 last:border-0 hover:bg-indigo-50/20 transition-colors">
                     <td className="px-3 py-2.5 font-medium text-gray-800 truncate" title={sku.name}>
                       {sku.name || <span className="text-gray-300">(미입력)</span>}
                     </td>
-                    {MONTHS.map((m) => {
-                      const active = isMonthActive(sku, m);
-                      if (!active) return <td key={m} className="px-1 py-2.5 text-center text-gray-300">–</td>;
-                      const metrics = calcChannelMonthMetrics(sku, channel, m);
+                    {months.map((ym) => {
+                      const active = isSkuActiveForYearMonth(sku, ym);
+                      if (!active) return <td key={`${ym.year}-${ym.month}`} className="px-1 py-2.5 text-center text-gray-300">–</td>;
+                      const metrics = calcChannelMonthMetrics(sku, channel, ym.month);
                       return (
-                        <td key={m} className={`px-1 py-2.5 text-center tabular-nums ${metrics.revenue === 0 ? 'text-gray-300' : 'text-gray-700'}`}>
+                        <td key={`${ym.year}-${ym.month}`} className={`px-1 py-2.5 text-center tabular-nums ${metrics.revenue === 0 ? 'text-gray-300' : 'text-gray-700'}`}>
                           {metrics.revenue === 0 ? '–' : formatWon(metrics.revenue)}
                         </td>
                       );
                     })}
                     <td className="px-2 py-2.5 text-right tabular-nums font-medium text-gray-700">
-                      {formatWon(totals.revenue)}
+                      {formatWon(calcSkuChannelTotals(sku, channel, months).revenue)}
                     </td>
                   </tr>
                 ))}
@@ -275,9 +283,9 @@ export function MdChannelDetail({ skus, channel }: { skus: SkuData[]; channel: C
               <tfoot>
                 <tr className="bg-indigo-50 border-t-2 border-indigo-200">
                   <td className="px-3 py-2 text-xs font-bold text-indigo-700">합계</td>
-                  {MONTHS.map((m) => (
-                    <td key={m} className="px-1 py-2 text-center tabular-nums text-xs font-bold text-indigo-700">
-                      {monthTotals[m].revenue > 0 ? formatWon(monthTotals[m].revenue) : <span className="text-indigo-300">–</span>}
+                  {monthTotals.map(({ ym, metrics }) => (
+                    <td key={`${ym.year}-${ym.month}`} className="px-1 py-2 text-center tabular-nums text-xs font-bold text-indigo-700">
+                      {metrics.revenue > 0 ? formatWon(metrics.revenue) : <span className="text-indigo-300">–</span>}
                     </td>
                   ))}
                   <td className="px-2 py-2 text-right tabular-nums text-xs font-bold text-indigo-700">

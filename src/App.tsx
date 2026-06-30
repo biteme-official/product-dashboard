@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useStore } from './store';
 import { useAuth } from './store/auth';
-import type { SkuData } from './types';
+import type { SkuData, Category } from './types';
 import { CategoryTabs } from './components/CategoryTabs';
 import { SkuOrderSection } from './components/SkuOrderSection';
 import { MdSummarySection } from './components/MdSummarySection';
@@ -74,6 +74,7 @@ function App() {
   const [backupState, setBackupState] = useState<'idle' | 'done' | 'error' | 'restoring' | 'rolling-back' | 'rolled-back'>('idle');
   const [activeMainTab, setActiveMainTab] = useSessionState<MainTab>('app:mainTab', 'projection');
   const [projectionSubTab, setProjectionSubTab] = useSessionState<string>('app:projectionSubTab', 'list-view');
+  const [mdCategory, setMdCategory] = useState<Category | '전체'>('전체');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   function handleExport() {
@@ -362,9 +363,15 @@ function App() {
         )}
 
         {/* 카테고리 탭 + 브랜드 필터 (SKU 리스트, 채널별 요약) */}
-        {(activeMainTab === 'pm' || activeMainTab === 'md') && (
+        {activeMainTab === 'pm' && (
           <>
             <CategoryTabs />
+            <BrandFilter />
+          </>
+        )}
+        {activeMainTab === 'md' && (
+          <>
+            <CategoryTabs showAll={true} value={mdCategory} onChange={setMdCategory} />
             <BrandFilter />
           </>
         )}
@@ -380,7 +387,7 @@ function App() {
           <SkuOrderSection mode="projection" subTab={projectionSubTab} onSwitchToSkuList={() => setActiveMainTab('pm')} />
         ) : (
           <div className="px-4 py-4">
-            <MdSummarySection />
+            <MdSummarySection categoryFilter={mdCategory} />
           </div>
         )}
       </main>

@@ -242,3 +242,46 @@ export function getReleaseMonth(releaseDate: string): number | null {
   const m = parseInt(releaseDate.split('-')[1], 10);
   return isNaN(m) ? null : m;
 }
+
+/** 연도+월 쌍 (채널별 요약 탭 동적 월 범위용) */
+export type YearMonth = { year: number; month: Month };
+
+/** 포맷: "26.06" */
+export function fmtYearMonth(ym: YearMonth): string {
+  return `${String(ym.year).slice(2)}.${String(ym.month).padStart(2, '0')}`;
+}
+
+/**
+ * 전달된 SKU 목록의 출시일 기준 8개월 윈도우를 union하여
+ * 연도 포함 정렬된 YearMonth 배열로 반환
+ */
+export function getYearMonthRange(skus: SkuData[]): YearMonth[] {
+  const seen = new Set<string>();
+  const result: YearMonth[] = [];
+  for (const sku of skus) {
+    const releaseYear = sku.releaseDate ? parseInt(sku.releaseDate.split('-')[0], 10) : 2026;
+    const skuMonths = getSkuMonths(sku.releaseDate);
+    for (const month of skuMonths) {
+      const year = isNextYearMonth(month, sku.releaseDate) ? releaseYear + 1 : releaseYear;
+      const key = `${year}-${month}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        result.push({ year, month });
+      }
+    }
+  }
+  result.sort((a, b) => a.year !== b.year ? a.year - b.year : a.month - b.month);
+  return result;
+}
+
+/**
+ * 특정 YearMonth가 해당 SKU의 8개월 윈도우 안에 있는지 확인
+ * (year까지 체크 — 같은 month 번호라도 연도가 다르면 false)
+ */
+export function isSkuActiveForYearMonth(sku: SkuData, ym: YearMonth): boolean {
+  const releaseYear = sku.releaseDate ? parseInt(sku.releaseDate.split('-')[0], 10) : 2026;
+  const skuMonths = getSkuMonths(sku.releaseDate);
+  if (!skuMonths.includes(ym.month)) return false;
+  const expectedYear = isNextYearMonth(ym.month, sku.releaseDate) ? releaseYear + 1 : releaseYear;
+  return expectedYear === ym.year;
+}

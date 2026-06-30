@@ -1,6 +1,6 @@
-import { useState, useRef, useEffect } from 'react';
-import type { Channel } from '../types';
-import { CHANNELS } from '../types';
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import type { Channel, Category, YearMonth } from '../types';
+import { CHANNELS, getYearMonthRange, fmtYearMonth } from '../types';
 import { useStore } from '../store';
 import { MdSummaryOverview } from './MdSummaryOverview';
 import { MdChannelDetail } from './MdChannelDetail';
@@ -8,25 +8,147 @@ import { MdChannelDetail } from './MdChannelDetail';
 type TabId = '전체 요약' | Channel;
 const TABS: TabId[] = ['전체 요약', ...CHANNELS];
 
-export function MdSummarySection() {
+interface Props {
+  categoryFilter: Category | '전체';
+}
+
+/* ── 듀얼 범위 슬라이더 ───────────────────────────────────────────────── */
+interface RangeSliderProps {
+  min: number;
+  max: number;
+  start: number;
+  end: number;
+  labels: string[];
+  onChange: (start: number, end: number) => void;
+}
+
+function RangeSlider({ min, max, start, end, labels, onChange }: RangeSliderProps) {
+  const trackRef = useRef<HTMLDivElement>(null);
+
+  const pct = (v: number) => max === min ? 0 : ((v - min) / (max - min)) * 100;
+  const clamp = (v: number) => Math.max(min, Math.min(max, v));
+
+  function posToIdx(clientX: number): number {
+    const rect = trackRef.current?.getBoundingClientRect();
+    if (!rect) return min;
+    const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    return clamp(Math.round(min + ratio * (max - min)));
+  }
+
+  function makeDragHandler(which: 'start' | 'end') {
+    return (e: React.MouseEvent | React.TouchEvent) => {
+      e.preventDefault();
+      function getX(ev: MouseEvent | TouchEvent) {
+        return 'touches' in ev ? ev.touches[0].clientX : ev.clientX;
+      }
+      function onMove(ev: MouseEvent | TouchEvent) {
+        const idx = posToIdx(getX(ev));
+        if (which === 'start') {
+          onChange(Math.min(idx, end), end);
+        } else {
+          onChange(start, Math.max(idx, start));
+        }
+      }
+      function onUp() {
+        window.removeEventListener('mousemove', onMove);
+        window.removeEventListener('mouseup', onUp);
+        window.removeEventListener('touchmove', onMove);
+        window.removeEventListener('touchend', onUp);
+      }
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('mouseup', onUp);
+      window.addEventListener('touchmove', onMove, { passive: false });
+      window.addEventListener('touchend', onUp);
+    };
+  }
+
+  if (max < min) return null;
+
+  const leftPct = pct(start);
+  const rightPct = pct(end);
+
+  return (
+    <div className="flex items-center gap-2 min-w-[220px] select-none">
+      <span className="text-[11px] text-indigo-600 font-semibold tabular-nums whitespace-nowrap">
+        {labels[start]}
+      </span>
+      <div ref={trackRef} className="relative flex-1 h-5 flex items-center cursor-pointer">
+        <div className="absolute inset-y-0 flex items-center w-full">
+          <div className="w-full h-1.5 bg-gray-200 rounded-full" />
+        </div>
+        <div
+          className="absolute h-1.5 bg-indigo-400 rounded-full"
+          style={{ left: `${leftPct}%`, width: `${rightPct - leftPct}%` }}
+        />
+        <div
+          className="absolute w-4 h-4 bg-white border-2 border-indigo-500 rounded-full shadow cursor-grab active:cursor-grabbing z-10"
+          style={{ left: `calc(${leftPct}% - 8px)` }}
+          onMouseDown={makeDragHandler('start')}
+          onTouchStart={makeDragHandler('start')}
+        />
+        <div
+          className="absolute w-4 h-4 bg-white border-2 border-indigo-500 rounded-full shadow cursor-grab active:cursor-grabbing z-10"
+          style={{ left: `calc(${rightPct}% - 8px)` }}
+          onMouseDown={makeDragHandler('end')}
+          onTouchStart={makeDragHandler('end')}
+        />
+      </div>
+      <span className="text-[11px] text-indigo-600 font-semibold tabular-nums whitespace-nowrap">
+        {labels[end]}
+      </span>
+    </div>
+  );
+}
+
+/* ── 메인 컴포넌트 ───────────────────────────────────────────────────── */
+export function MdSummarySection({ categoryFilter }: Props) {
   const [activeTab, setActiveTab] = useState<TabId>('전체 요약');
   const [selectedSkuIds, setSelectedSkuIds] = useState<Set<string>>(new Set());
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const { skus, activeCategory, activeBrand } = useStore();
+  const { skus, activeBrand } = useStore();
 
-  const categoryFiltered = skus.filter((s) => {
-    if (s.category !== activeCategory) return false;
-    if (activeBrand !== '전체' && s.brand !== activeBrand) return false;
-    return true;
-  });
+  const categoryFiltered = useMemo(() =>
+    skus.filter((s) => {
+      if (categoryFilter !== '전체' && s.category !== categoryFilter) return false;
+      if (activeBrand !== '전체' && s.brand !== activeBrand) return false;
+      return true;
+    }),
+    [skus, categoryFilter, activeBrand],
+  );
 
-  // 드롭다운 외부 클릭 시 닫기
+  const allYearMonths: YearMonth[] = useMemo(
+    () => getYearMonthRange(categoryFiltered),
+    [categoryFiltered],
+  );
+  const monthLabels = useMemo(() => allYearMonths.map(fmtYearMonth), [allYearMonths]);
+
+  const [rangeStart, setRangeStart] = useState(0);
+  const [rangeEnd, setRangeEnd] = useState(0);
+
   useEffect(() => {
-    function onClickOutside(e: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+    if (allYearMonths.length === 0) return;
+    const s = 0;
+    const e = Math.min(s + 5, allYearMonths.length - 1);
+    setRangeStart(s);
+    setRangeEnd(e);
+  }, [allYearMonths.length, categoryFilter, activeBrand]);
+
+  const visibleMonths = useMemo(
+    () => allYearMonths.slice(rangeStart, rangeEnd + 1),
+    [allYearMonths, rangeStart, rangeEnd],
+  );
+
+  const handleRangeChange = useCallback((s: number, e: number) => {
+    setRangeStart(s);
+    setRangeEnd(e);
+  }, []);
+
+  useEffect(() => {
+    function onClickOutside(ev: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(ev.target as Node)) {
         setDropdownOpen(false);
       }
     }
@@ -34,16 +156,14 @@ export function MdSummarySection() {
     return () => document.removeEventListener('mousedown', onClickOutside);
   }, []);
 
-  // 카테고리/브랜드 필터 변경 시 SKU 선택 초기화
   useEffect(() => {
     setSelectedSkuIds(new Set());
-  }, [activeCategory, activeBrand]);
+  }, [categoryFilter, activeBrand]);
 
   const visibleSkus = categoryFiltered.filter((s) =>
     searchQuery === '' || s.name.toLowerCase().includes(searchQuery.toLowerCase()),
   );
 
-  // 빈 Set = 필터 없음(전체 표시), 값 있으면 해당 SKU만 표시
   const filtered = selectedSkuIds.size === 0
     ? categoryFiltered
     : categoryFiltered.filter((s) => selectedSkuIds.has(s.id));
@@ -51,44 +171,51 @@ export function MdSummarySection() {
   const allSelected = selectedSkuIds.size === categoryFiltered.length && categoryFiltered.length > 0;
 
   function toggleAll() {
-    if (allSelected) {
-      setSelectedSkuIds(new Set());
-    } else {
-      setSelectedSkuIds(new Set(categoryFiltered.map((s) => s.id)));
-    }
+    setSelectedSkuIds(allSelected ? new Set() : new Set(categoryFiltered.map((s) => s.id)));
   }
 
   function toggleSku(id: string) {
     const next = new Set(selectedSkuIds);
-    if (next.has(id)) {
-      next.delete(id);
-    } else {
-      next.add(id);
-    }
+    if (next.has(id)) next.delete(id); else next.add(id);
     setSelectedSkuIds(next);
-  }
-
-  function isSkuSelected(id: string) {
-    return selectedSkuIds.has(id);
   }
 
   return (
     <div className="space-y-3">
-      {/* 채널 탭 바 */}
-      <div className="flex gap-1 flex-wrap bg-white rounded-xl border border-gray-200 p-1 shadow-sm">
-        {TABS.map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap ${
-              activeTab === tab
-                ? 'bg-indigo-600 text-white shadow-sm'
-                : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
-            }`}
-          >
-            {tab}
-          </button>
-        ))}
+      {/* 채널 탭 바 + 월 범위 슬라이더 */}
+      <div className="flex items-center gap-3 bg-white rounded-xl border border-gray-200 p-1 shadow-sm">
+        <div className="flex gap-1 overflow-x-auto scrollbar-none flex-1 min-w-0">
+          {TABS.map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap flex-shrink-0 ${
+                activeTab === tab
+                  ? 'bg-indigo-600 text-white shadow-sm'
+                  : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
+              }`}
+            >
+              {tab}
+            </button>
+          ))}
+        </div>
+
+        {allYearMonths.length > 1 && (
+          <div className="w-px h-5 bg-gray-200 flex-shrink-0" />
+        )}
+
+        {allYearMonths.length > 1 && (
+          <div className="flex-shrink-0 pr-1">
+            <RangeSlider
+              min={0}
+              max={allYearMonths.length - 1}
+              start={rangeStart}
+              end={rangeEnd}
+              labels={monthLabels}
+              onChange={handleRangeChange}
+            />
+          </div>
+        )}
       </div>
 
       {/* SKU 필터 드롭다운 */}
@@ -114,7 +241,6 @@ export function MdSummarySection() {
 
         {dropdownOpen && (
           <div className="absolute z-30 mt-1 w-72 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
-            {/* 검색 */}
             <div className="p-2 border-b border-gray-100">
               <input
                 type="text"
@@ -125,8 +251,6 @@ export function MdSummarySection() {
                 autoFocus
               />
             </div>
-
-            {/* 전체 선택 */}
             <div className="px-2 py-1.5 border-b border-gray-100">
               <label className="flex items-center gap-2 px-1 py-1 rounded-lg hover:bg-gray-50 cursor-pointer">
                 <input
@@ -138,8 +262,6 @@ export function MdSummarySection() {
                 <span className="text-xs font-semibold text-gray-700">전체 선택 ({categoryFiltered.length})</span>
               </label>
             </div>
-
-            {/* SKU 목록 */}
             <div className="max-h-56 overflow-y-auto px-2 py-1.5">
               {visibleSkus.length === 0 ? (
                 <p className="text-xs text-gray-400 text-center py-3">검색 결과 없음</p>
@@ -148,7 +270,7 @@ export function MdSummarySection() {
                   <label key={sku.id} className="flex items-center gap-2 px-1 py-1 rounded-lg hover:bg-gray-50 cursor-pointer">
                     <input
                       type="checkbox"
-                      checked={isSkuSelected(sku.id)}
+                      checked={selectedSkuIds.has(sku.id)}
                       onChange={() => toggleSku(sku.id)}
                       className="w-3.5 h-3.5 rounded accent-indigo-600 flex-shrink-0"
                     />
@@ -163,9 +285,9 @@ export function MdSummarySection() {
 
       {/* 탭 콘텐츠 */}
       {activeTab === '전체 요약' ? (
-        <MdSummaryOverview skus={filtered} />
+        <MdSummaryOverview skus={filtered} months={visibleMonths} />
       ) : (
-        <MdChannelDetail skus={filtered} channel={activeTab as Channel} />
+        <MdChannelDetail skus={filtered} channel={activeTab as Channel} months={visibleMonths} />
       )}
     </div>
   );
