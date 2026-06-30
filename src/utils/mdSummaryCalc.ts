@@ -1,5 +1,5 @@
-import { MONTHS, CHANNELS, getReleaseMonth, simPosition } from '../types';
-import type { SkuData, Channel, Month } from '../types';
+import { CHANNELS, getReleaseMonth, getSkuMonths, isSkuActiveForYearMonth } from '../types';
+import type { SkuData, Channel, Month, YearMonth } from '../types';
 
 export type MonthMetrics = { qty: number; revenue: number; profit: number };
 export const ZERO_METRICS: MonthMetrics = { qty: 0, revenue: 0, profit: 0 };
@@ -33,10 +33,13 @@ export function calcScenarioPrice(optId: string, base: number): number {
   return SCENARIO_CALC[optId]?.(base) ?? base;
 }
 
+/**
+ * SKU의 특정 월이 활성(표시)인지 확인.
+ * 출시월 기준 8개월 윈도우(getSkuMonths) 내에 있으면 active.
+ * 추후 전월(pre-release) 입력 허용 시에는 이 함수 대신 isSkuActiveForYearMonth 사용.
+ */
 export function isMonthActive(sku: SkuData, month: Month): boolean {
-  const releaseMonth = getReleaseMonth(sku.releaseDate);
-  if (releaseMonth === null) return true;
-  return simPosition(month) >= simPosition(releaseMonth);
+  return getSkuMonths(sku.releaseDate).includes(month);
 }
 
 export function calcChannelMonthMetrics(sku: SkuData, channel: Channel, month: Month): MonthMetrics {
@@ -51,13 +54,20 @@ export function calcChannelMonthMetrics(sku: SkuData, channel: Channel, month: M
   return { qty, revenue, profit };
 }
 
-export function calcSkuChannelTotals(sku: SkuData, channel: Channel): MonthMetrics {
-  return MONTHS.reduce((acc, m) => addMetrics(acc, calcChannelMonthMetrics(sku, channel, m)), ZERO_METRICS);
+/**
+ * SKU × 채널 × YearMonth 목록 합산.
+ * YearMonth 단위로 체크하므로 같은 월 번호라도 연도가 다르면 별도 집계됨.
+ */
+export function calcSkuChannelTotals(sku: SkuData, channel: Channel, months: YearMonth[]): MonthMetrics {
+  return months.reduce((acc, ym) => {
+    if (!isSkuActiveForYearMonth(sku, ym)) return acc;
+    return addMetrics(acc, calcChannelMonthMetrics(sku, channel, ym.month));
+  }, ZERO_METRICS);
 }
 
-export function calcSkuAllChannelTotals(sku: SkuData): MonthMetrics & { cm: number | null } {
+export function calcSkuAllChannelTotals(sku: SkuData, months: YearMonth[]): MonthMetrics & { cm: number | null } {
   const totals = [...CHANNELS].reduce(
-    (acc, ch) => addMetrics(acc, calcSkuChannelTotals(sku, ch)),
+    (acc, ch) => addMetrics(acc, calcSkuChannelTotals(sku, ch, months)),
     ZERO_METRICS,
   );
   const cm = totals.revenue > 0 ? Math.round((totals.profit / totals.revenue) * 1000) / 10 : null;
@@ -82,4 +92,16 @@ export function cmBadgeCls(cm: number | null): string {
   if (cm >= 40) return 'bg-emerald-100 text-emerald-700';
   if (cm >= 30) return 'bg-yellow-100 text-yellow-700';
   return 'bg-red-100 text-red-600';
+}
+
+// --- 하위 호환: 구 MONTHS 기반 집계 (ChannelSimSection 등 비요약탭용) ---
+export function calcSkuChannelTotalsLegacy(sku: SkuData, channel: Channel): MonthMetrics {
+  const releaseYear = sku.releaseDate ? parseInt(sku.releaseDate.split('-')[0], 10) : 2026;
+  const rm = getReleaseMonth(sku.releaseDate) ?? 7;
+  const skuMonths = getSkuMonths(sku.releaseDate);
+  const legacyMonths: YearMonth[] = skuMonths.map((m) => ({
+    year: m < rm ? releaseYear + 1 : releaseYear,
+    month: m,
+  }));
+  return calcSkuChannelTotals(sku, channel, legacyMonths);
 }

@@ -2,11 +2,12 @@ import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer,
 } from 'recharts';
-import type { SkuData, Channel, Month } from '../types';
-import { BRANDS, CHANNELS, MONTHS } from '../types';
+import type { SkuData, Channel, YearMonth } from '../types';
+import { BRANDS, CHANNELS, fmtYearMonth, isSkuActiveForYearMonth } from '../types';
 import {
-  calcSkuAllChannelTotals, calcChannelMonthMetrics, addMetrics,
+  calcChannelMonthMetrics, addMetrics,
   formatWon, cmBadgeCls, ZERO_METRICS,
+  calcSkuAllChannelTotals,
 } from '../utils/mdSummaryCalc';
 
 const CHANNEL_COLORS: Record<string, string> = {
@@ -22,26 +23,28 @@ type MonthChartPoint = {
   channels: Record<string, { revenue: number; profit: number }>;
 };
 
-function buildMonthlyChartData(skus: SkuData[]): MonthChartPoint[] {
-  return MONTHS.map((m) => {
+function buildMonthlyChartData(skus: SkuData[], months: YearMonth[]): MonthChartPoint[] {
+  return months.map((ym, idx) => {
+    const showYear = idx === 0 || months[idx - 1].year !== ym.year;
+    const label = showYear
+      ? `${ym.month}월 '${String(ym.year).slice(2)}`
+      : `${ym.month}월`;
+
     const channels: Record<string, { revenue: number; profit: number }> = {};
     let totalRevenue = 0;
     let totalProfit = 0;
+
     for (const channel of CHANNELS) {
-      const metrics = skus.reduce(
-        (acc, sku) => addMetrics(acc, calcChannelMonthMetrics(sku, channel as Channel, m as Month)),
-        ZERO_METRICS,
-      );
+      const metrics = skus.reduce((acc, sku) => {
+        if (!isSkuActiveForYearMonth(sku, ym)) return acc;
+        return addMetrics(acc, calcChannelMonthMetrics(sku, channel as Channel, ym.month));
+      }, ZERO_METRICS);
       channels[channel] = { revenue: metrics.revenue, profit: metrics.profit };
       totalRevenue += metrics.revenue;
       totalProfit += metrics.profit;
     }
-    return {
-      label: m <= 2 ? `${m}월(익)` : `${m}월`,
-      revenue: totalRevenue,
-      profit: totalProfit,
-      channels,
-    };
+
+    return { label, revenue: totalRevenue, profit: totalProfit, channels };
   });
 }
 
@@ -88,8 +91,8 @@ function ChartTooltip({ active, payload, data }: {
   );
 }
 
-function MonthlyChart({ skus }: { skus: SkuData[] }) {
-  const data = buildMonthlyChartData(skus);
+function MonthlyChart({ skus, months }: { skus: SkuData[]; months: YearMonth[] }) {
+  const data = buildMonthlyChartData(skus, months);
   if (data.every((d) => d.revenue === 0)) return null;
 
   const fmtWon = (v: number) => (v === 0 ? '0' : formatWon(v));
@@ -160,8 +163,8 @@ function KpiCard({ label, value, sub, warn }: { label: string; value: string; su
   );
 }
 
-export function MdSummaryOverview({ skus }: { skus: SkuData[] }) {
-  const allTotals = skus.reduce((acc, sku) => addMetrics(acc, calcSkuAllChannelTotals(sku)), ZERO_METRICS);
+export function MdSummaryOverview({ skus, months }: { skus: SkuData[]; months: YearMonth[] }) {
+  const allTotals = skus.reduce((acc, sku) => addMetrics(acc, calcSkuAllChannelTotals(sku, months)), ZERO_METRICS);
   const totalCm = allTotals.revenue > 0
     ? Math.round((allTotals.profit / allTotals.revenue) * 1000) / 10
     : null;
@@ -169,7 +172,7 @@ export function MdSummaryOverview({ skus }: { skus: SkuData[] }) {
 
   const skuRows = skus
     .map((sku) => {
-      const totals = calcSkuAllChannelTotals(sku);
+      const totals = calcSkuAllChannelTotals(sku, months);
       const step2Total = sku.channelMonthQty.reduce((s, e) => s + e.qty, 0);
       return { sku, step2Total, ...totals };
     })
@@ -178,21 +181,27 @@ export function MdSummaryOverview({ skus }: { skus: SkuData[] }) {
   const brandRows = BRANDS.map((brand) => {
     const bs = skus.filter((s) => s.brand === brand);
     if (bs.length === 0) return null;
-    const t = bs.reduce((acc, sku) => addMetrics(acc, calcSkuAllChannelTotals(sku)), ZERO_METRICS);
+    const t = bs.reduce((acc, sku) => addMetrics(acc, calcSkuAllChannelTotals(sku, months)), ZERO_METRICS);
     const cm = t.revenue > 0 ? Math.round((t.profit / t.revenue) * 1000) / 10 : null;
     return { brand, count: bs.length, ...t, cm };
   }).filter(Boolean) as { brand: string; count: number; qty: number; revenue: number; profit: number; cm: number | null }[];
 
   const totalStep1 = skus.reduce((s, sku) => s + sku.totalOrderQty, 0);
 
+  const rangeLabel = months.length > 0
+    ? months.length === 1
+      ? fmtYearMonth(months[0])
+      : `${fmtYearMonth(months[0])} ~ ${fmtYearMonth(months[months.length - 1])}`
+    : '';
+
   return (
     <div className="space-y-5">
-      {/* KPI 카드 */}
+      {rangeLabel && (
+        <p className="text-[11px] text-gray-400 px-0.5">집계 기간: {rangeLabel}</p>
+      )}
+
       <div className="flex gap-3 flex-wrap">
-        <KpiCard
-          label="총 SKU"
-          value={`${skus.length}개`}
-        />
+        <KpiCard label="총 SKU" value={`${skus.length}개`} />
         <KpiCard
           label="STEP2 총 목표량"
           value={allTotals.qty.toLocaleString()}
@@ -211,10 +220,8 @@ export function MdSummaryOverview({ skus }: { skus: SkuData[] }) {
         />
       </div>
 
-      {/* 월별 차트 */}
-      <MonthlyChart skus={skus} />
+      <MonthlyChart skus={skus} months={months} />
 
-      {/* 브랜드별 요약 */}
       {brandRows.length > 1 && (
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
           <div className="px-4 py-2.5 bg-gray-50 border-b border-gray-200">
@@ -261,7 +268,6 @@ export function MdSummaryOverview({ skus }: { skus: SkuData[] }) {
         </div>
       )}
 
-      {/* SKU 상세 테이블 */}
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
         <div className="px-4 py-2.5 bg-gray-50 border-b border-gray-200">
           <h3 className="text-xs font-semibold text-gray-600">SKU별 요약</h3>
@@ -317,8 +323,7 @@ export function MdSummaryOverview({ skus }: { skus: SkuData[] }) {
                           ? <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${cmBadgeCls(cm)}`}>{cm}%</span>
                           : <span className="text-gray-300">–</span>}
                       </td>
-                      <td className="px-4 py-2.5 text-center">
-                      </td>
+                      <td className="px-4 py-2.5 text-center" />
                     </tr>
                   );
                 })}
