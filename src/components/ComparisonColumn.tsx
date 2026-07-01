@@ -1,7 +1,7 @@
 import { useStore } from '../store';
 import { useRef, useEffect, useState, useCallback, type KeyboardEvent } from 'react';
 import type { SkuData } from '../types';
-import { getReleaseMonth, MONTHS } from '../types';
+import { getReleaseMonth, getSkuMonths, isNextYearMonth } from '../types';
 import { GrowthIndicator } from './GrowthIndicator';
 import { NumericInput } from './NumericInput';
 import { revenueMultiplier, calcDynamicMultiplier } from '../utils/calc';
@@ -22,22 +22,20 @@ import {
 
 type CompareMode = 'rolling12' | 'samePeriod';
 
-/** 월별 테이블에 표시할 비교 데이터를 mode에 따라 계산 */
+/** 월별 테이블에 표시할 비교 데이터를 mode에 따라 계산 (출시일 기준 8개월 동적 윈도우) */
 function calcMonthlyDisplayData(
   byYearMonth: Record<number, Record<number, number>>,
   compareMode: CompareMode,
-  releaseMonth: number | null,
+  releaseDate: string | null | undefined,
   releaseYear: number | null,
 ): Partial<Record<number, number>> {
   const result: Partial<Record<number, number>> = {};
   const allYears = Object.keys(byYearMonth).map(Number).sort((a, b) => b - a);
-  for (const m of MONTHS) {
-    const isNextYearMonth = m === 1 || m === 2;
+  const months = getSkuMonths(releaseDate);
+  for (const m of months) {
     if (compareMode === 'samePeriod') {
-      const inSeason = isNextYearMonth || releaseMonth === null || m >= releaseMonth;
-      if (!inSeason) continue;
-      const lookupYear = isNextYearMonth ? releaseYear : (releaseYear ? releaseYear - 1 : null);
-      if (!lookupYear) continue;
+      if (!releaseYear) continue;
+      const lookupYear = isNextYearMonth(m, releaseDate) ? releaseYear : releaseYear - 1;
       const qty = byYearMonth[lookupYear]?.[m];
       if (qty !== undefined) result[m] = qty;
     } else {
@@ -260,7 +258,7 @@ export function ComparisonColumn({ sku, readOnly, onComparisonDataChange, onChan
     });
     persistSku(sku.id);
 
-    const data = calcMonthlyDisplayData(aggregated, mode, rm, ry);
+    const data = calcMonthlyDisplayData(aggregated, mode, sku.releaseDate, ry);
     onComparisonDataChange?.(data, mode, label);
   }
 
@@ -295,7 +293,7 @@ export function ComparisonColumn({ sku, readOnly, onComparisonDataChange, onChan
       });
       persistSku(sku.id);
       setCompareMode('samePeriod');
-      const data = calcMonthlyDisplayData(aggregated, 'samePeriod', rm, ry);
+      const data = calcMonthlyDisplayData(aggregated, 'samePeriod', sku.releaseDate, ry);
       onComparisonDataChange?.(data, 'samePeriod', label);
     } else {
       const { annual, monthly } = calcRolling12(aggregated);
@@ -304,7 +302,7 @@ export function ComparisonColumn({ sku, readOnly, onComparisonDataChange, onChan
       });
       persistSku(sku.id);
       setCompareMode('rolling12');
-      const data = calcMonthlyDisplayData(aggregated, 'rolling12', rm, ry);
+      const data = calcMonthlyDisplayData(aggregated, 'rolling12', sku.releaseDate, ry);
       onComparisonDataChange?.(data, 'rolling12', '직전 12개월');
     }
   }

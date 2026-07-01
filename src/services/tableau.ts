@@ -329,22 +329,31 @@ export function calcRolling12(
   return { annual, monthly: last12.length > 0 ? Math.round(annual / last12.length) : 0 };
 }
 
-// ── 동기간(출시월 ~ 12월) 집계 ─────────────────────────────────────────
+// ── 동기간(출시월 기준 8개월 시즌, 익년 wrap 포함) 집계 ──────────────────
+// SKU 카드 STEP1~3의 getSkuMonths()와 동일한 8개월 윈도우를, 정확히 1년 전
+// 동기간(윈도우 내 각 월을 releaseMonth 기준 wrap 여부에 따라 releaseYear-1 또는
+// releaseYear에서 조회)과 비교한다.
 export function calcSamePeriod(
   byYearMonth: Record<number, Record<number, number>>,
   releaseMonth: number,
   releaseYear: number,
 ): { annual: number; monthly: number; label: string } {
-  // 출시월부터 12월까지 (시즌 구간)
-  const seasonMonths: number[] = [];
-  for (let m = releaseMonth; m <= 12; m++) seasonMonths.push(m);
+  const seasonMonths: { month: number; year: number }[] = [];
+  for (let i = 0; i < 8; i++) {
+    const month = ((releaseMonth - 1 + i) % 12) + 1;
+    const year = month >= releaseMonth ? releaseYear - 1 : releaseYear;
+    seasonMonths.push({ month, year });
+  }
 
-  const prevYear = releaseYear - 1;
-  const prevData = byYearMonth[prevYear] ?? {};
-  const annual = seasonMonths.reduce((s, m) => s + (prevData[m] ?? 0), 0);
-  const monthsWithData = seasonMonths.filter((m) => (prevData[m] ?? 0) > 0).length;
+  const annual = seasonMonths.reduce((s, { month, year }) => s + (byYearMonth[year]?.[month] ?? 0), 0);
+  const monthsWithData = seasonMonths.filter(({ month, year }) => (byYearMonth[year]?.[month] ?? 0) > 0).length;
   const monthly = monthsWithData > 0 ? Math.round(annual / monthsWithData) : 0;
-  const label = `${prevYear}년 ${releaseMonth}~12월`;
+
+  const firstYear = releaseYear - 1;
+  const wrapMonths = seasonMonths.filter(({ month }) => month < releaseMonth);
+  const label = wrapMonths.length > 0
+    ? `${firstYear}년 ${releaseMonth}월~${releaseYear}년 ${wrapMonths[wrapMonths.length - 1].month}월`
+    : `${firstYear}년 ${releaseMonth}~12월`;
   return { annual, monthly, label };
 }
 
@@ -574,9 +583,13 @@ export function calcVariableCostRatio(
   let isExactPeriod = true;
 
   if (mode === 'samePeriod' && releaseMonth !== null && releaseYear !== null) {
-    const prevYear = releaseYear - 1;
+    // 출시월 기준 8개월 시즌(익년 wrap 포함) 전체를 1년 전 동기간과 비교
     periodPairs = [];
-    for (let m = releaseMonth; m <= 12; m++) periodPairs.push({ year: prevYear, month: m });
+    for (let i = 0; i < 8; i++) {
+      const month = ((releaseMonth - 1 + i) % 12) + 1;
+      const year = month >= releaseMonth ? releaseYear - 1 : releaseYear;
+      periodPairs.push({ year, month });
+    }
   } else if (mode === 'rolling12' && explicitRolling12 && explicitRolling12.length > 0) {
     periodPairs = explicitRolling12;
   } else {
