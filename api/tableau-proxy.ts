@@ -16,8 +16,25 @@ const DROP_RES = new Set([
   'transfer-encoding', 'connection', 'content-encoding', 'content-length',
 ]);
 
+const ALLOWED_ORIGINS = new Set([
+  'https://biteme-portal-hub.vercel.app',
+  'https://product-dashboard-delta-taupe.vercel.app',
+]);
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export default async function handler(req: any, res: any): Promise<void> {
+  const origin = req.headers['origin'] as string | undefined;
+  if (origin && ALLOWED_ORIGINS.has(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Accept, X-Tableau-Auth');
+    res.setHeader('Vary', 'Origin');
+  }
+  if (req.method === 'OPTIONS') {
+    res.statusCode = 204;
+    res.end();
+    return;
+  }
   // _path 파라미터에서 Tableau 경로 추출, 나머지는 쿼리스트링으로 전달
   const query = req.query as Record<string, string | string[]>;
   const subpath = (query['_path'] as string) ?? '';

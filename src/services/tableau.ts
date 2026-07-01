@@ -3,7 +3,7 @@
  * SKU별 월간 출고량을 가져와 대응 SKU 검색 자동완성에 활용합니다.
  */
 
-const BASE = '/api/tableau';
+const BASE = ((import.meta.env.VITE_TABLEAU_PROXY_ORIGIN as string | undefined) || '') + '/api/tableau';
 const SITE_ID = 'e37a53a0-ec5f-43c5-8847-f84c92e5a44d';
 const VIEW_ID = '8290e9a5-8596-499b-b45a-40a52f81611d';
 // 채널별 출고 데이터 뷰 – .env.local 의 VITE_TABLEAU_CHANNEL_VIEW_ID 에 설정
