@@ -22,7 +22,12 @@ import {
 
 type CompareMode = 'rolling12' | 'samePeriod';
 
-/** 월별 테이블에 표시할 비교 데이터를 mode에 따라 계산 (출시일 기준 8개월 동적 윈도우) */
+/**
+ * 월별 테이블에 표시할 비교 데이터를 mode에 따라 계산 (출시일 기준 8개월 동적 윈도우)
+ * - 동기간: 출시월 기준 정확한 연도 매핑으로 해당 월 실적을 그대로 표시 (시즈널 비교용)
+ * - 직전 12개월: 대응SKU의 출시월이 제각각이라 컬럼별 연도가 뒤섞이므로, 대응SKU 직전
+ *   실적 개월수만큼의 월평균을 윈도우 전체 월에 균등 배분해서 표시
+ */
 function calcMonthlyDisplayData(
   byYearMonth: Record<number, Record<number, number>>,
   compareMode: CompareMode,
@@ -30,22 +35,19 @@ function calcMonthlyDisplayData(
   releaseYear: number | null,
 ): Partial<Record<number, number>> {
   const result: Partial<Record<number, number>> = {};
-  const allYears = Object.keys(byYearMonth).map(Number).sort((a, b) => b - a);
   const months = getSkuMonths(releaseDate);
-  for (const m of months) {
-    if (compareMode === 'samePeriod') {
-      if (!releaseYear) continue;
-      const lookupYear = isNextYearMonth(m, releaseDate) ? releaseYear : releaseYear - 1;
-      const qty = byYearMonth[lookupYear]?.[m];
-      if (qty !== undefined) result[m] = qty;
-    } else {
-      for (const y of allYears) {
-        if (byYearMonth[y]?.[m] !== undefined) {
-          result[m] = byYearMonth[y][m];
-          break;
-        }
-      }
+  if (compareMode === 'rolling12') {
+    const { monthly } = calcRolling12(byYearMonth);
+    if (monthly > 0) {
+      for (const m of months) result[m] = monthly;
     }
+    return result;
+  }
+  for (const m of months) {
+    if (!releaseYear) continue;
+    const lookupYear = isNextYearMonth(m, releaseDate) ? releaseYear : releaseYear - 1;
+    const qty = byYearMonth[lookupYear]?.[m];
+    if (qty !== undefined) result[m] = qty;
   }
   return result;
 }
@@ -105,7 +107,7 @@ export function ComparisonColumn({ sku, readOnly, onComparisonDataChange, onChan
     setSelectedSkus([]);
     setChannelMonthly(null);
     setTotalMonthly(null);
-    onComparisonDataChange?.({}, defaultMode, defaultMode === 'samePeriod' ? '동기간' : '직전 12개월');
+    onComparisonDataChange?.({}, defaultMode, defaultMode === 'samePeriod' ? '동기간' : '직전 12개월/월평균');
     onChannelDistChange?.(null);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sku.id]);
@@ -230,7 +232,7 @@ export function ComparisonColumn({ sku, readOnly, onComparisonDataChange, onChan
         },
       });
       persistSku(sku.id);
-      onComparisonDataChange?.({}, mode, mode === 'rolling12' ? '직전 12개월' : '');
+      onComparisonDataChange?.({}, mode, mode === 'rolling12' ? '직전 12개월/월평균' : '');
       return;
     }
 
@@ -243,7 +245,7 @@ export function ComparisonColumn({ sku, readOnly, onComparisonDataChange, onChan
       ({ annual, monthly, label } = calcSamePeriod(aggregated, rm, ry));
     } else {
       ({ annual, monthly } = calcRolling12(aggregated));
-      label = '직전 12개월';
+      label = '직전 12개월/월평균';
     }
 
     const displayName = skus.length === 1 ? skus[0].name : `${skus.length}개 SKU 합산`;
@@ -303,7 +305,7 @@ export function ComparisonColumn({ sku, readOnly, onComparisonDataChange, onChan
       persistSku(sku.id);
       setCompareMode('rolling12');
       const data = calcMonthlyDisplayData(aggregated, 'rolling12', sku.releaseDate, ry);
-      onComparisonDataChange?.(data, 'rolling12', '직전 12개월');
+      onComparisonDataChange?.(data, 'rolling12', '직전 12개월/월평균');
     }
   }
 

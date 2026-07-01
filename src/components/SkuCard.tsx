@@ -5,7 +5,7 @@ import { useStore } from '../store';
 import { useAuth } from '../store/auth';
 import { revenueMultiplier, calcDynamicMultiplier } from '../utils/calc';
 import { useState, useRef, useEffect, useMemo, type Dispatch, type SetStateAction, type ChangeEvent } from 'react';
-import { fetchTeamCateData, calcVariableCostRatio, type TeamCateMap, type ChannelByYearMonth } from '../services/tableau';
+import { fetchTeamCateData, calcVariableCostRatio, calcRolling12, type TeamCateMap, type ChannelByYearMonth } from '../services/tableau';
 import { SizeDistColumn } from './SizeDistColumn';
 import { ComparisonColumn } from './ComparisonColumn';
 import { NumericInput } from './NumericInput';
@@ -82,7 +82,7 @@ export function SkuCard({ sku }: Props) {
   // 대응SKU 월별 실적 (ComparisonColumn → MonthlyTable 브릿지)
   const [compMonthlyData, setCompMonthlyData] = useState<Partial<Record<number, number>>>({});
   const [compMode, setCompMode] = useState<'rolling12' | 'samePeriod'>('rolling12');
-  const [compModeLabel, setCompModeLabel] = useState('직전 12개월');
+  const [compModeLabel, setCompModeLabel] = useState('직전 12개월/월평균');
   // 대응SKU 채널 분포 (Tableau 채널별 실적 → STEP2 기본값 산출에 사용)
   const [compChannelDist, setCompChannelDist] = useState<Record<string, number> | null>(null);
   // 대응SKU 채널×연월 원시 데이터 (STEP2 월별 비교행용)
@@ -815,6 +815,7 @@ function MonthlyTable({
   const updateMonthlySplit = useStore((s) => s.updateMonthlySplit);
   const batchInitChannelMonthQty = useStore((s) => s.batchInitChannelMonthQty);
   const setStep2InitBaseline = useStore((s) => s.setStep2InitBaseline);
+  const updateSku = useStore((s) => s.updateSku);
   const persistSku = useStore((s) => s.persistSku);
   const setChannelConfirmed = useStore((s) => s.setChannelConfirmed);
   const { role } = useAuth();
@@ -822,20 +823,27 @@ function MonthlyTable({
   const step1ReadOnly = !perm.step1;
   const step2ReadOnly = !perm.step2;
 
-  // STEP2 탭 진입 시, channelMonthQty가 미초기화 상태면 대응SKU 채널 비중으로 자동 세팅
+  // STEP2 탭 진입 시, channelMonthQty가 미초기화 상태거나 대응SKU가 새로 선택된 경우
+  // 대응SKU 채널 비중으로 자동 세팅 (수동 편집값은 대응SKU가 그대로면 보존)
   useEffect(() => {
     if (activeTab !== 'pricing') return;
     // store 최신값으로 판단 — props sku가 stale할 수 있으므로
     const latestSku = useStore.getState().skus.find((s) => s.id === sku.id) ?? sku;
+    const currentCompareNames = latestSku.comparisonSku.compareSkuNames ?? [];
+    const derivedFrom = latestSku.channelQtyDerivedFromCompareSkus ?? [];
     const isUninitialized = latestSku.channelMonthQty.every((e) => e.qty === 0);
-    if (isUninitialized) {
-      // 신규 초기화: 대응SKU 채널 비중으로 자동 세팅
+    const compareSkuChanged =
+      JSON.stringify([...derivedFrom].sort()) !== JSON.stringify([...currentCompareNames].sort());
+
+    if (isUninitialized || compareSkuChanged) {
+      // 신규 초기화 또는 대응SKU 재선택: 대응SKU 채널 비중으로 자동 세팅
       const step1Total = latestSku.monthlySplit.reduce((s, ms) => s + ms.quantity, 0);
       if (step1Total === 0 && latestSku.totalOrderQty === 0) return;
       const entries = buildChannelMonthEntries(compChannelDist, latestSku);
       if (entries.every((e) => e.qty === 0)) return;
       batchInitChannelMonthQty(sku.id, entries);
       setStep2InitBaseline(sku.id, entries);
+      updateSku(sku.id, { channelQtyDerivedFromCompareSkus: currentCompareNames });
       persistSku(sku.id);
     } else if (!latestSku.step2InitBaselineQty || latestSku.step2InitBaselineQty.length === 0) {
       // 기존 데이터가 있지만 baseline이 없는 경우: 현재 값을 기준값으로 캡처
@@ -1680,21 +1688,21 @@ function PricingChannelTable({
   const setPricingOpt = (channel: Channel, month: Month, optId: string) =>
     setPricingOpts((prev) => ({ ...prev, [`${channel}-${month}`]: optId }));
 
-  // 대응SKU 채널×월 비교 수량 (compMode에 따라 year 매핑)
+  // 대응SKU 채널×월 비교 수량
+  // - 동기간: 출시월 기준 정확한 연도 매핑으로 해당 월 실적을 그대로 표시 (시즈널 비교용)
+  // - 직전 12개월: 컬럼별로 연도가 뒤섞이는 걸 방지하기 위해, 채널별 직전 실적 월평균을
+  //   윈도우 전체 월에 균등 배분해서 표시
   const getCompQty = (channel: Channel, month: Month): number | null => {
     if (!compChannelYM) return null;
     const byYM = compChannelYM[channel];
     if (!byYM) return null;
-    const isNextYrM = isNextYrStep2(month);
     if (compMode === 'samePeriod') {
+      const isNextYrM = isNextYrStep2(month);
       const lookupYear = isNextYrM ? releaseYear : releaseYear - 1;
       return byYM[lookupYear]?.[month] ?? null;
     } else {
-      const allYears = Object.keys(byYM).map(Number).sort((a, b) => b - a);
-      for (const y of allYears) {
-        if (byYM[y]?.[month] !== undefined) return byYM[y][month];
-      }
-      return null;
+      const { monthly } = calcRolling12(byYM);
+      return monthly > 0 ? monthly : null;
     }
   };
 
