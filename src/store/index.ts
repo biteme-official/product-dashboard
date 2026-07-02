@@ -852,16 +852,22 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
     const sku = get().skus.find((s) => s.id === id);
     if (!sku) return;
     // 재활성화/비활성화 시 STEP2 채널비중을 대응SKU 기준으로 다음 진입 때 재계산하도록 초기화
+    // (Firestore는 필드값 undefined를 허용하지 않으므로 빈 배열 사용 — 비교 로직상 undefined와 동치)
     const updated: SkuData = {
       ...sku,
       coupangEnabled: enabled,
-      channelQtyDerivedFromCompareSkus: undefined,
+      channelQtyDerivedFromCompareSkus: [],
       channelMonthQty: enabled
         ? sku.channelMonthQty
         : sku.channelMonthQty.map((e) => (e.channel === '쿠팡' ? { ...e, qty: 0 } : e)),
     };
     set({ skus: get().skus.map((s) => (s.id === id ? updated : s)) });
-    await setDoc(doc(fsdb, SKUS_COL, id), toFirestore(updated));
+    try {
+      await setDoc(doc(fsdb, SKUS_COL, id), toFirestore(updated));
+    } catch (err) {
+      console.error('[setCoupangEnabled] Firestore 저장 실패:', id, err);
+      throw err;
+    }
     writeLog(id, sku.name, useAuth.getState().role ?? 'unknown', [{
       field: 'coupangEnabled', label: '쿠팡 채널 활성화',
       from: formatLogValue(!enabled), to: formatLogValue(enabled),
