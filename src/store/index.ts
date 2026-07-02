@@ -7,7 +7,7 @@ import {
 import { fsdb } from '../lib/firebase';
 import type { AppState, Category, Month, SkuData, MonthlySplit, ColorEntry, ChannelMonthEntry, ChannelMonthQtyEntry, ChannelPricing, TrashItem, ActivityLog, LogChange } from '../types';
 import { useAuth } from './auth';
-import { MAX_SIZES, SIZE_LABELS, MONTHS, CHANNELS, BRANDS, DEFAULT_CHANNEL_RATIOS, DEFAULT_CHANNEL_COMMISSION, DISABLED_CHANNELS, getSkuMonths, type Brand, type Channel } from '../types';
+import { MAX_SIZES, SIZE_LABELS, MONTHS, CHANNELS, BRANDS, DEFAULT_CHANNEL_RATIOS, DEFAULT_CHANNEL_COMMISSION, getDisabledChannels, getSkuMonths, type Brand, type Channel } from '../types';
 import { recalcQuantities, revenueMultiplier, calcDynamicMultiplier } from '../utils/calc';
 
 const SKUS_COL = 'skus';
@@ -286,9 +286,10 @@ function applyMigration(raw: any): SkuData {
       base.channelMonthlySplit = deriveChannelMonthlySplit(base);
     }
   }
-  // 비활성 채널 채널×월 목표량 강제 0
+  // 비활성 채널 채널×월 목표량 강제 0 (쿠팡은 coupangEnabled인 SKU만 예외)
+  const disabledCh = getDisabledChannels(base) as readonly string[];
   base.channelMonthQty = base.channelMonthQty.map((e) =>
-    (DISABLED_CHANNELS as readonly string[]).includes(e.channel) ? { ...e, qty: 0 } : e,
+    disabledCh.includes(e.channel) ? { ...e, qty: 0 } : e,
   );
   return base;
 }
@@ -325,6 +326,7 @@ interface StoreActions {
   setFinalOrderConfirmed: (id: string, confirmed: boolean, finalOrderQty?: Record<string, number>) => Promise<void>;
   persistSku: (id: string) => Promise<void>;
   setChannelConfirmed: (id: string, field: 'step2PlatformConfirmed' | 'step2BrandConfirmed' | 'step2GlobalConfirmed', value: boolean) => Promise<void>;
+  setCoupangEnabled: (id: string, enabled: boolean) => Promise<void>;
   setPriceConfirmed: (id: string, confirmed: boolean) => Promise<void>;
   setScheduleConfirmed: (id: string, confirmed: boolean) => Promise<void>;
   setExpandedIds: (ids: string[]) => void;
@@ -404,11 +406,12 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
       });
       // 비활성 채널에 잔존하는 qty > 0 이면 Firestore에도 0으로 저장 (1회성 마이그레이션)
       // merged를 사용해 보존된 finalOrderConfirmedAt을 같이 write
-      const toMigrate = merged.filter((s) =>
-        (raw.find((r: any) => r.id === s.id)?.channelMonthQty ?? []).some(
-          (e: any) => (DISABLED_CHANNELS as readonly string[]).includes(e.channel) && e.qty > 0,
-        ),
-      );
+      const toMigrate = merged.filter((s) => {
+        const disabledCh = getDisabledChannels(s) as readonly string[];
+        return (raw.find((r: any) => r.id === s.id)?.channelMonthQty ?? []).some(
+          (e: any) => disabledCh.includes(e.channel) && e.qty > 0,
+        );
+      });
       if (toMigrate.length > 0) {
         const batch = writeBatch(fsdb);
         toMigrate.forEach((s) => batch.set(doc(fsdb, SKUS_COL, s.id), toFirestore(s)));
@@ -567,10 +570,10 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
   },
 
   updateChannelMonthQty: (id, channel, month, qty) => {
-    if ((DISABLED_CHANNELS as readonly string[]).includes(channel)) return;
     const skus = get().skus;
     const sku = skus.find((s) => s.id === id);
     if (!sku) return;
+    if ((getDisabledChannels(sku) as readonly string[]).includes(channel)) return;
     const updated: SkuData = {
       ...sku,
       channelMonthQty: sku.channelMonthQty.map((e) =>
@@ -584,17 +587,20 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
     const skus = get().skus;
     const sku = skus.find((s) => s.id === id);
     if (!sku) return;
+    const disabledCh = getDisabledChannels(sku) as readonly string[];
     const safe = entries.map((e) =>
-      (DISABLED_CHANNELS as readonly string[]).includes(e.channel) ? { ...e, qty: 0 } : e,
+      disabledCh.includes(e.channel) ? { ...e, qty: 0 } : e,
     );
     set({ skus: skus.map((s) => (s.id === id ? { ...s, channelMonthQty: safe } : s)) });
   },
 
   setStep2InitBaseline: (id, entries) => {
     const skus = get().skus;
-    if (!skus.find((s) => s.id === id)) return;
+    const sku = skus.find((s) => s.id === id);
+    if (!sku) return;
+    const disabledCh = getDisabledChannels(sku) as readonly string[];
     const safe = entries.map((e) =>
-      (DISABLED_CHANNELS as readonly string[]).includes(e.channel) ? { ...e, qty: 0 } : e,
+      disabledCh.includes(e.channel) ? { ...e, qty: 0 } : e,
     );
     set({ skus: skus.map((s) => (s.id === id ? { ...s, step2InitBaselineQty: safe } : s)) });
   },
@@ -839,6 +845,32 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
     writeLog(id, sku.name, useAuth.getState().role ?? 'unknown', [{
       field, label: CHANNEL_LABELS[field] ?? field,
       from: formatLogValue(!value), to: formatLogValue(value),
+    }]).catch(console.error);
+  },
+
+  setCoupangEnabled: async (id, enabled) => {
+    const sku = get().skus.find((s) => s.id === id);
+    if (!sku) return;
+    // 재활성화/비활성화 시 STEP2 채널비중을 대응SKU 기준으로 다음 진입 때 재계산하도록 초기화
+    // (Firestore는 필드값 undefined를 허용하지 않으므로 빈 배열 사용 — 비교 로직상 undefined와 동치)
+    const updated: SkuData = {
+      ...sku,
+      coupangEnabled: enabled,
+      channelQtyDerivedFromCompareSkus: [],
+      channelMonthQty: enabled
+        ? sku.channelMonthQty
+        : sku.channelMonthQty.map((e) => (e.channel === '쿠팡' ? { ...e, qty: 0 } : e)),
+    };
+    set({ skus: get().skus.map((s) => (s.id === id ? updated : s)) });
+    try {
+      await setDoc(doc(fsdb, SKUS_COL, id), toFirestore(updated));
+    } catch (err) {
+      console.error('[setCoupangEnabled] Firestore 저장 실패:', id, err);
+      throw err;
+    }
+    writeLog(id, sku.name, useAuth.getState().role ?? 'unknown', [{
+      field: 'coupangEnabled', label: '쿠팡 채널 활성화',
+      from: formatLogValue(!enabled), to: formatLogValue(enabled),
     }]).catch(console.error);
   },
 

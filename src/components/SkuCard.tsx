@@ -1,5 +1,5 @@
 import type { SkuData } from '../types';
-import { BRANDS, CHANNELS, B2C_CHANNELS, B2B_CHANNELS, DISABLED_CHANNELS, DEFAULT_CHANNEL_COMMISSION, getReleaseMonth, getSkuMonths, isNextYearMonth, type Month, type Channel } from '../types';
+import { BRANDS, CHANNELS, B2C_CHANNELS, B2B_CHANNELS, getDisabledChannels, DEFAULT_CHANNEL_COMMISSION, getReleaseMonth, getSkuMonths, isNextYearMonth, type Month, type Channel } from '../types';
 import type { ChannelMonthQtyEntry, ChannelPricing } from '../types';
 import { useStore } from '../store';
 import { useAuth } from '../store/auth';
@@ -693,7 +693,8 @@ function buildChannelMonthEntries(
     return CHANNELS.flatMap((channel) => skuMs.map((month) => ({ channel, month, qty: 0 })));
   }
 
-  const isDisabledCh = (ch: string) => (DISABLED_CHANNELS as readonly string[]).includes(ch);
+  const disabledChannels = getDisabledChannels(sku) as readonly string[];
+  const isDisabledCh = (ch: string) => disabledChannels.includes(ch);
   const activeChannels = CHANNELS.filter((ch) => !isDisabledCh(ch));
 
   // 비활성 채널(쿠팡) 제외 후 합산 — 포함하면 해당 비중만큼 합계가 줄어드는 버그 방지
@@ -915,7 +916,11 @@ function MonthlyTable({
         <div className="flex items-center justify-between mb-2">
           <div className="flex flex-col gap-0.5">
             <p className="text-[11px] text-gray-400">대응 SKU의 채널 비중으로 초기 세팅됩니다. 전략에 맞추어 월별 목표량을 수정해주세요.</p>
-            <p className="text-[11px] text-gray-400">쿠팡 - 신상 미등록으로 대응SKU 실적 및 비중에서 제외.</p>
+            <p className="text-[11px] text-gray-400">
+              {sku.coupangEnabled
+                ? '쿠팡 - 이 SKU는 관리자 설정으로 활성화됨. 대응SKU 실적·비중에 포함.'
+                : '쿠팡 - 신상 미등록으로 대응SKU 실적 및 비중에서 제외. (관리 탭에서 SKU별 활성화 가능)'}
+            </p>
             <p className="text-[11px] text-gray-400">태블로 해외 출고량은 글로벌 40% 인케어 60% 임의 분배.</p>
             {(() => {
               if (!sku.finalOrderConfirmedAt) return null;
@@ -974,9 +979,10 @@ function MonthlyTable({
                         return;
                       }
                       captureStep2Backup();
+                      const disabledChannels = getDisabledChannels(sku) as readonly string[];
                       const scaled = sku.channelMonthQty.map((e) => ({
                         ...e,
-                        qty: (DISABLED_CHANNELS as readonly string[]).includes(e.channel)
+                        qty: disabledChannels.includes(e.channel)
                           ? 0
                           : Math.round(e.qty * step1Target / step2Total),
                       }));
@@ -1996,10 +2002,10 @@ function PricingChannelTable({
                                           onChange={(val) => updateChannelMonthQty(sku.id, channel, m, val)}
                                           onBlur={() => persistSku(sku.id)}
                                           onFocus={() => onBeforeEdit?.()}
-                                          disabled={readOnly || (DISABLED_CHANNELS as readonly string[]).includes(channel) || isChannelLockedLive(channel)}
+                                          disabled={readOnly || (getDisabledChannels(sku) as readonly string[]).includes(channel) || isChannelLockedLive(channel)}
                                           placeholder="0"
                                           className={`text-right rounded-md px-1 py-1 text-[11px] border focus:outline-none focus:ring-1 focus:ring-gray-400 ${
-                                            readOnly || (DISABLED_CHANNELS as readonly string[]).includes(channel) || isChannelLockedLive(channel) ? 'bg-gray-50 text-gray-400 cursor-not-allowed border-gray-200' : 'bg-white text-gray-700 border-gray-200 hover:border-gray-400'
+                                            readOnly || (getDisabledChannels(sku) as readonly string[]).includes(channel) || isChannelLockedLive(channel) ? 'bg-gray-50 text-gray-400 cursor-not-allowed border-gray-200' : 'bg-white text-gray-700 border-gray-200 hover:border-gray-400'
                                           }`}
                                           style={{ width: '52px' }}
                                         />

@@ -59,27 +59,15 @@ export function MdViewSection() {
     [skus, activeCategory, activeBrand],
   );
 
-  // SKU × 채널 계산 (channelMonthlySplit 기반 — 시뮬레이션 수량 직접 사용)
+  // SKU × 채널 계산 (STEP2 channelMonthQty 기반 — 실제 채널별 목표수량 합산)
   const skuChannelData = useMemo(
     () =>
       filteredSkus.map((sku) => {
-        const hasCMS = sku.channelMonthlySplit.some((e) => e.ratio > 0);
         const channels = CHANNELS.map((ch: Channel) => {
-          let qty = 0;
-          let revenue = 0;
-          if (hasCMS) {
-            // 시뮬레이션 입력 수량 = round(totalOrderQty × ratio / 100), 월별 합산
-            for (const e of sku.channelMonthlySplit.filter((e) => e.channel === ch)) {
-              const q = Math.round((sku.totalOrderQty * e.ratio) / 100);
-              qty += q;
-              revenue += Math.round(q * sku.price * getChannelRate(ch));
-            }
-          } else {
-            // PM 탭 채널비중 fallback
-            const ratio = sku.channelRatios.find((r) => r.channel === ch)?.ratio ?? 0;
-            qty = Math.round((sku.totalOrderQty * ratio) / 100);
-            revenue = Math.round(qty * sku.price * getChannelRate(ch));
-          }
+          const qty = sku.channelMonthQty
+            .filter((e) => e.channel === ch)
+            .reduce((s, e) => s + e.qty, 0);
+          const revenue = Math.round(qty * sku.price * getChannelRate(ch));
           const profit = Math.round(revenue * (sku.contributionMarginRate / 100));
           return { channel: ch, qty, revenue, profit };
         });

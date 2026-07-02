@@ -7,6 +7,8 @@ import {
   type RolePermission,
 } from '../utils/permissions';
 import { usePermission } from '../contexts/PermissionsContext';
+import { TrashModal } from './TrashModal';
+import { ConfirmLogModal } from './ConfirmLogModal';
 
 const ROLE_LABELS: Record<Role, string> = {
   master:      'MASTER',
@@ -186,6 +188,8 @@ function DataCleanupTab() {
   const cleanupInitialSnapshots = useStore((s) => s.cleanupInitialSnapshots);
   const [status, setStatus] = useState<'idle' | 'running' | 'done' | 'error'>('idle');
   const [count, setCount] = useState(0);
+  const [showTrash, setShowTrash] = useState(false);
+  const [showConfirmLog, setShowConfirmLog] = useState(false);
 
   async function handleCleanup() {
     setStatus('running');
@@ -200,6 +204,24 @@ function DataCleanupTab() {
 
   return (
     <div className="space-y-4">
+      {showTrash && <TrashModal onClose={() => setShowTrash(false)} />}
+      {showConfirmLog && <ConfirmLogModal onClose={() => setShowConfirmLog(false)} />}
+
+      <div className="flex gap-2">
+        <button
+          onClick={() => setShowTrash(true)}
+          className="flex-1 text-xs px-3 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
+        >
+          🗑 휴지통 (최근 삭제된 SKU)
+        </button>
+        <button
+          onClick={() => setShowConfirmLog(true)}
+          className="flex-1 text-xs px-3 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
+        >
+          수정 이력
+        </button>
+      </div>
+
       <p className="text-xs text-gray-500">
         이전 버전에서 Firestore에 저장된 <code className="bg-gray-100 px-1 rounded text-[11px]">_initialSnapshot</code> 필드를
         일괄 삭제합니다. 현재 버전에서는 이 필드가 저장되지 않으며, 기존 문서에 남아있는 중복 데이터를 정리합니다.
@@ -233,10 +255,68 @@ function DataCleanupTab() {
   );
 }
 
-export function PinManager({ onClose }: { onClose: () => void }) {
+function CoupangManageTab() {
+  const skus = useStore((s) => s.skus);
+  const setCoupangEnabled = useStore((s) => s.setCoupangEnabled);
+  const [query, setQuery] = useState('');
+
+  const q = query.trim().toLowerCase();
+  const list = q
+    ? skus.filter((s) => s.name.toLowerCase().includes(q)).slice(0, 30)
+    : skus.filter((s) => s.coupangEnabled);
+
+  return (
+    <div className="space-y-4">
+      <p className="text-xs text-gray-500">
+        쿠팡은 신상 미등록 전략으로 기본 비활성 채널입니다. SKU를 검색해서 개별적으로 쿠팡 채널을 활성화할 수 있습니다 —
+        활성화하면 해당 SKU에 한해 STEP2 채널별 목표량·대응SKU 실적/비중·채널별 요약에 쿠팡이 포함됩니다.
+      </p>
+
+      <input
+        type="text"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder="SKU명 검색"
+        className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400"
+      />
+
+      {!q && (
+        <p className="text-[11px] text-gray-400">검색어가 없으면 현재 쿠팡이 활성화된 SKU 목록만 표시됩니다.</p>
+      )}
+
+      <div className="space-y-1.5 max-h-96 overflow-y-auto">
+        {list.length === 0 && (
+          <p className="text-xs text-gray-400 text-center py-6">
+            {q ? '검색 결과가 없습니다' : '쿠팡이 활성화된 SKU가 없습니다'}
+          </p>
+        )}
+        {list.map((sku) => (
+          <div key={sku.id} className="flex items-center justify-between border border-gray-200 rounded-xl px-3 py-2">
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-gray-800 truncate">{sku.name || '(SKU명 미입력)'}</p>
+              <p className="text-[10px] text-gray-400">{sku.category} · {sku.brand} · {sku.releaseDate || '출시일 미입력'}</p>
+            </div>
+            <button
+              onClick={() => setCoupangEnabled(sku.id, !sku.coupangEnabled)}
+              className={`text-xs px-3 py-1.5 rounded-lg font-semibold transition-colors flex-shrink-0 ${
+                sku.coupangEnabled
+                  ? 'bg-orange-500 text-white hover:bg-orange-600'
+                  : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+              }`}
+            >
+              {sku.coupangEnabled ? '쿠팡 ON' : '쿠팡 OFF'}
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export function AdminSection() {
   const [editing, setEditing] = useState<Role | null>(null);
   const [saved, setSaved] = useState<Role | null>(null);
-  const [activeTab, setActiveTab] = useState<'pin' | 'perm' | 'data'>('pin');
+  const [activeTab, setActiveTab] = useState<'pin' | 'perm' | 'data' | 'coupang'>('pin');
 
   async function handleSave(role: Role, pin: string) {
     await setPin(role, pin);
@@ -246,39 +326,36 @@ export function PinManager({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6 space-y-4 max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between">
-          <h2 className="text-base font-bold text-gray-900">관리자 설정</h2>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 text-lg leading-none"
-          >
-            ✕
-          </button>
-        </div>
+    <section className="max-w-2xl mx-auto p-4 pb-10 space-y-4">
+      <h2 className="text-base font-bold text-gray-900">관리자 설정</h2>
 
-        {/* 탭 */}
-        <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
-          <button
-            onClick={() => setActiveTab('pin')}
-            className={`flex-1 text-xs py-1.5 rounded-md font-semibold transition-all ${activeTab === 'pin' ? 'bg-white shadow text-gray-800' : 'text-gray-500 hover:text-gray-700'}`}
-          >
-            PIN 관리
-          </button>
-          <button
-            onClick={() => setActiveTab('perm')}
-            className={`flex-1 text-xs py-1.5 rounded-md font-semibold transition-all ${activeTab === 'perm' ? 'bg-white shadow text-gray-800' : 'text-gray-500 hover:text-gray-700'}`}
-          >
-            권한 관리
-          </button>
-          <button
-            onClick={() => setActiveTab('data')}
-            className={`flex-1 text-xs py-1.5 rounded-md font-semibold transition-all ${activeTab === 'data' ? 'bg-white shadow text-gray-800' : 'text-gray-500 hover:text-gray-700'}`}
-          >
-            데이터 정리
-          </button>
-        </div>
+      {/* 탭 */}
+      <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
+        <button
+          onClick={() => setActiveTab('pin')}
+          className={`flex-1 text-xs py-1.5 rounded-md font-semibold transition-all ${activeTab === 'pin' ? 'bg-white shadow text-gray-800' : 'text-gray-500 hover:text-gray-700'}`}
+        >
+          PIN 관리
+        </button>
+        <button
+          onClick={() => setActiveTab('perm')}
+          className={`flex-1 text-xs py-1.5 rounded-md font-semibold transition-all ${activeTab === 'perm' ? 'bg-white shadow text-gray-800' : 'text-gray-500 hover:text-gray-700'}`}
+        >
+          권한 관리
+        </button>
+        <button
+          onClick={() => setActiveTab('coupang')}
+          className={`flex-1 text-xs py-1.5 rounded-md font-semibold transition-all ${activeTab === 'coupang' ? 'bg-white shadow text-gray-800' : 'text-gray-500 hover:text-gray-700'}`}
+        >
+          쿠팡 채널
+        </button>
+        <button
+          onClick={() => setActiveTab('data')}
+          className={`flex-1 text-xs py-1.5 rounded-md font-semibold transition-all ${activeTab === 'data' ? 'bg-white shadow text-gray-800' : 'text-gray-500 hover:text-gray-700'}`}
+        >
+          데이터 정리
+        </button>
+      </div>
 
         {activeTab === 'pin' && (
           <>
@@ -331,8 +408,9 @@ export function PinManager({ onClose }: { onClose: () => void }) {
           </>
         )}
 
+        {activeTab === 'coupang' && <CoupangManageTab />}
+
         {activeTab === 'data' && <DataCleanupTab />}
-      </div>
-    </div>
+    </section>
   );
 }

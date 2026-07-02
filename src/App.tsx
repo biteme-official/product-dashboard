@@ -9,15 +9,13 @@ import { MdSummarySection } from './components/MdSummarySection';
 import { BrandFilter } from './components/BrandFilter';
 import { ManualTab } from './components/ManualTab';
 import { LoginScreen } from './components/LoginScreen';
-import { PinManager } from './components/PinManager';
-import { ConfirmLogModal } from './components/ConfirmLogModal';
-import { TrashModal } from './components/TrashModal';
+import { AdminSection } from './components/AdminSection';
 import { parseImportJson, type RawSkuInput } from './utils/importParser';
 import { BulkImportModal } from './components/BulkImportModal';
 import { usePermission } from './contexts/PermissionsContext';
 import { getPortalToken, verifyPortalToken, cleanPortalToken } from './utils/portalAuth';
 
-type MainTab = 'pm' | 'projection' | 'md' | 'manual';
+type MainTab = 'pm' | 'projection' | 'md' | 'manual' | 'admin';
 
 interface NavSnapshot {
   mainTab: MainTab;
@@ -37,6 +35,7 @@ const MAIN_TAB_LABELS: Record<MainTab, string> = {
   projection: 'LIST VIEW',
   md: '채널별 요약',
   manual: '메뉴얼',
+  admin: '관리',
 };
 
 function getNavLabel(snap: NavSnapshot): string {
@@ -101,10 +100,7 @@ function App() {
 
   const [pending, setPending] = useState<PendingImport | null>(null);
   const [importState, setImportState] = useState<'idle' | 'done' | 'error'>('idle');
-  const [showPinManager, setShowPinManager] = useState(false);
-  const [showConfirmLog, setShowConfirmLog] = useState(false);
   const [showBulkImport, setShowBulkImport] = useState(false);
-  const [showTrash, setShowTrash] = useState(false);
   const [backupState, setBackupState] = useState<'idle' | 'done' | 'error' | 'restoring' | 'rolling-back' | 'rolled-back'>('idle');
   const [activeMainTab, setActiveMainTab] = useSessionState<MainTab>('app:mainTab', 'projection');
   const [projectionSubTab, setProjectionSubTab] = useSessionState<string>('app:projectionSubTab', 'list-view');
@@ -272,9 +268,6 @@ function App() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {showPinManager && <PinManager onClose={() => setShowPinManager(false)} />}
-      {showConfirmLog && <ConfirmLogModal onClose={() => setShowConfirmLog(false)} />}
-      {showTrash && <TrashModal onClose={() => setShowTrash(false)} />}
       {showBulkImport && <BulkImportModal onClose={() => setShowBulkImport(false)} />}
       {/* 헤더 */}
       <header className="bg-white border-b border-gray-200 px-3 sm:px-6 py-3 flex items-center gap-2 flex-wrap">
@@ -345,29 +338,6 @@ function App() {
             </>
           )}
 
-          {role === 'master' && (
-            <>
-              <button
-                onClick={() => setShowTrash(true)}
-                title="최근 삭제된 SKU (15일 보관)"
-                className="text-xs px-2.5 py-1 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-100 transition-colors"
-              >
-                🗑 휴지통
-              </button>
-              <button
-                onClick={() => setShowConfirmLog(true)}
-                className="text-xs px-2.5 py-1 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-100 transition-colors"
-              >
-                수정 이력
-              </button>
-              <button
-                onClick={() => setShowPinManager(true)}
-                className="text-xs px-2.5 py-1 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-100 transition-colors"
-              >
-                ⚙ PIN 관리
-              </button>
-            </>
-          )}
           <button
             onClick={logout}
             className="text-xs px-2.5 py-1 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-100 transition-colors"
@@ -447,6 +417,18 @@ function App() {
           >
             메뉴얼
           </button>
+          {role === 'master' && (
+            <button
+              onClick={() => { pushNavHistory(); setActiveMainTab('admin'); }}
+              className={`px-3 py-1.5 text-xs font-medium rounded-t-lg border-b-2 transition-all ${
+                activeMainTab === 'admin'
+                  ? 'border-gray-400 text-gray-700 bg-gray-50'
+                  : 'border-transparent text-gray-400 hover:text-gray-500 hover:bg-gray-50'
+              }`}
+            >
+              관리
+            </button>
+          )}
         </div>
 
         {/* 프로젝션 서브탭 */}
@@ -490,6 +472,8 @@ function App() {
       <main className={activeMainTab === 'projection' ? '' : 'max-w-screen-xl mx-auto'}>
         {activeMainTab === 'manual' ? (
           <ManualTab />
+        ) : activeMainTab === 'admin' ? (
+          role === 'master' ? <AdminSection /> : null
         ) : activeMainTab === 'pm' ? (
           <SkuOrderSection
             mode="sku"
