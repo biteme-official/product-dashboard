@@ -1,6 +1,6 @@
 import * as XLSX from 'xlsx';
 import type { SkuData, Channel } from '../types';
-import { B2C_CHANNELS, B2B_CHANNELS, MONTHS } from '../types';
+import { B2C_CHANNELS, B2B_CHANNELS, getSkuMonths, isNextYearMonth } from '../types';
 
 function todayYymmdd(): string {
   const d = new Date();
@@ -283,7 +283,8 @@ export function exportSimulationXlsx(params: SimExportParams): void {
   const C_PROFIT = 12; // M 예상공헌이익
   const C_CM     = 13; // N CM%
 
-  const MONTH_LABELS = ['7월','8월','9월','10월','11월','12월','1월(익년)','2월(익년)'];
+  const skuMonths = getSkuMonths(sku.releaseDate);
+  const MONTH_LABELS = skuMonths.map((m) => `${m}월${isNextYearMonth(m, sku.releaseDate) ? '(익년)' : ''}`);
   const DEFAULT_OPT_CH: Partial<Record<Channel, string>> = {
     '쿠팡': 'B2B 상시 운영', 'B2B': 'B2B 상시 운영',
     '사입및페어': 'B2B 상시 운영', '글로벌': '글로벌 공급가', '일본': '일본 공급가',
@@ -301,7 +302,7 @@ export function exportSimulationXlsx(params: SimExportParams): void {
   MONTH_LABELS.forEach((lb, i) => sv(R_COMP_M_HDR, C_M[i], lb));
   sv(R_COMP_M_HDR, C_QTOT, '합계');
   sv(R_COMP_M_DATA, 0, '출고수량');
-  MONTHS.forEach((m, i) => sv(R_COMP_M_DATA, C_M[i], compMonthlyData[m] ?? 0));
+  skuMonths.forEach((m, i) => sv(R_COMP_M_DATA, C_M[i], compMonthlyData[m] ?? 0));
   sf(R_COMP_M_DATA, C_QTOT,
     `SUM(${cl(C_M[0])}${ex(R_COMP_M_DATA)}:${cl(C_M[7])}${ex(R_COMP_M_DATA)})`);
 
@@ -328,7 +329,7 @@ export function exportSimulationXlsx(params: SimExportParams): void {
     const cp = sku.channelPricing?.find((p) => p.channel === ch);
     const base = (cp?.price && cp.price > 0) ? cp.price : sku.price;
     sv(r, C_LABEL, ch);
-    MONTHS.forEach((m, mi) => {
+    skuMonths.forEach((m, mi) => {
       const optId = pricingOpts[`${ch}-${m}`] ?? DEFAULT_OPT_CH[ch] ?? '';
       sv(r, C_M[mi], simScenarioPrice(optId, base, usdKrw, jpyKrw));
     });
@@ -361,7 +362,7 @@ export function exportSimulationXlsx(params: SimExportParams): void {
     sv(r, C_LABEL, ch);
 
     // 월별 수량 (값 — 사용자가 수정하는 셀)
-    MONTHS.forEach((m, mi) => {
+    skuMonths.forEach((m, mi) => {
       const qty = sku.channelMonthQty.find((e) => e.channel === ch && e.month === m)?.qty ?? 0;
       sv(r, C_M[mi], qty);
     });

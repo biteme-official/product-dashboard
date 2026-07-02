@@ -163,6 +163,7 @@ export interface SkuData {
   isPriceConfirmed?: boolean;                       // 가격 확정 여부 (master만 변경 가능)
   channelOpenSchedule?: ChannelOpenScheduleEntry; // 채널별 오픈일정
   step2InitBaselineQty?: ChannelMonthQtyEntry[]; // 초기화 시 계산된 수량 (비교 기준값, 영구 보존)
+  channelQtyDerivedFromCompareSkus?: string[]; // channelMonthQty를 마지막으로 자동세팅한 대응SKU 목록 (재선택 감지용)
   finalOrderQty?: Record<string, number>;
   finalOrderConfirmedAt?: string | null;
   step2PlatformConfirmed?: boolean;
