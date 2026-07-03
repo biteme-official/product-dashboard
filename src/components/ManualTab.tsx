@@ -28,23 +28,31 @@ export function ManualTab() {
     <div className="max-w-4xl mx-auto px-4 py-6 space-y-10 text-sm text-gray-700">
 
       {/* 목차 */}
-      <section className="bg-gray-50 border border-gray-200 rounded-xl p-4">
-        <h2 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">목차</h2>
-        <div className="flex flex-wrap gap-1.5">
-          {TOC_ITEMS.map((item) => (
-            <button
-              key={item.id}
-              onClick={() => scrollTo(item.id)}
-              className="text-[11px] px-2.5 py-1 rounded-full bg-white border border-gray-200 text-gray-600 hover:bg-indigo-50 hover:border-indigo-300 hover:text-indigo-700 transition-colors"
-            >
-              {item.label}
-            </button>
-          ))}
+      <section className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+        <div className="px-4 py-2.5 bg-gray-50 border-b border-gray-200">
+          <h2 className="text-xs font-bold text-gray-500 uppercase tracking-widest">목차</h2>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 border-t border-l border-gray-200">
+          {TOC_ITEMS.map((item) => {
+            const [, num, title] = item.label.match(/^(\d+)\.\s*(.*)$/) ?? [null, '', item.label];
+            return (
+              <button
+                key={item.id}
+                onClick={() => scrollTo(item.id)}
+                className="flex items-center gap-2.5 px-4 py-2.5 border-b border-r border-gray-200 text-left text-xs text-gray-600 hover:bg-indigo-50 hover:text-indigo-700 transition-colors"
+              >
+                <span className="flex-shrink-0 w-5 h-5 rounded bg-gray-100 text-gray-400 text-[10px] font-bold flex items-center justify-center">
+                  {num}
+                </span>
+                <span className="truncate">{title}</span>
+              </button>
+            );
+          })}
         </div>
       </section>
 
       {/* 1. 개요 */}
-      <section id="manual-s1">
+      <section id="manual-s1" className="scroll-mt-20">
         <h2 className="text-base font-bold text-gray-900 mb-3 pb-1 border-b border-gray-200">1. 개요</h2>
         <p className="text-xs text-gray-600 mb-3">
           Product Dashboard는 신규 SKU(제품)를 출시하기 전, 전략팀·MD팀·마케팅팀·CPO가 한 화면에서
@@ -73,7 +81,7 @@ export function ManualTab() {
       </section>
 
       {/* 2. 사용자 역할 및 권한 */}
-      <section id="manual-s2">
+      <section id="manual-s2" className="scroll-mt-20">
         <h2 className="text-base font-bold text-gray-900 mb-3 pb-1 border-b border-gray-200">2. 사용자 역할 및 권한</h2>
         <p className="text-xs text-gray-500 mb-2">역할별로 4자리 PIN 코드를 입력해 로그인합니다.</p>
         <table className="w-full border-collapse text-xs">
@@ -98,7 +106,7 @@ export function ManualTab() {
       </section>
 
       {/* 3. 화면 구성 */}
-      <section id="manual-s3">
+      <section id="manual-s3" className="scroll-mt-20">
         <h2 className="text-base font-bold text-gray-900 mb-3 pb-1 border-b border-gray-200">3. 화면 구성</h2>
         <p className="text-xs font-semibold text-gray-600 mb-2">상단 메인 탭</p>
         <table className="w-full border-collapse text-xs mb-4">
@@ -152,7 +160,7 @@ export function ManualTab() {
       </section>
 
       {/* 4. 데이터 소스 */}
-      <section id="manual-s4">
+      <section id="manual-s4" className="scroll-mt-20">
         <h2 className="text-base font-bold text-gray-900 mb-3 pb-1 border-b border-gray-200">4. 데이터 소스</h2>
         <table className="w-full border-collapse text-xs mb-2">
           <thead>
@@ -173,7 +181,7 @@ export function ManualTab() {
       </section>
 
       {/* 5. 채널·카테고리 매핑 */}
-      <section id="manual-s5">
+      <section id="manual-s5" className="scroll-mt-20">
         <h2 className="text-base font-bold text-gray-900 mb-3 pb-1 border-b border-gray-200">5. 채널·카테고리 매핑</h2>
 
         <p className="text-xs font-semibold text-gray-600 mb-2">Tableau 원본 채널명 → 대시보드 채널명</p>
@@ -230,7 +238,7 @@ export function ManualTab() {
       </section>
 
       {/* 6. 집계 기간 모드 */}
-      <section id="manual-s6">
+      <section id="manual-s6" className="scroll-mt-20">
         <h2 className="text-base font-bold text-gray-900 mb-3 pb-1 border-b border-gray-200">6. 집계 기간 모드</h2>
         <table className="w-full border-collapse text-xs">
           <thead>
@@ -257,7 +265,7 @@ export function ManualTab() {
       </section>
 
       {/* 7. STEP 1 */}
-      <section id="manual-s7">
+      <section id="manual-s7" className="scroll-mt-20">
         <h2 className="text-base font-bold text-gray-900 mb-3 pb-1 border-b border-gray-200">7. STEP 1 — 월별 발주 계획 (PM 담당)</h2>
         <p className="text-xs text-gray-600 mb-3">7월부터 익년 2월까지 8개월을 기준으로 월별 발주 수량을 입력합니다. 입력한 월별 수량은 STEP 2 초기값의 기준이 됩니다.</p>
         <table className="w-full border-collapse text-xs">
@@ -289,7 +297,7 @@ export function ManualTab() {
       </section>
 
       {/* 8. STEP 2 */}
-      <section id="manual-s8">
+      <section id="manual-s8" className="scroll-mt-20">
         <h2 className="text-base font-bold text-gray-900 mb-3 pb-1 border-b border-gray-200">8. STEP 2 — 채널별 목표량 설정 (MD 담당)</h2>
         <p className="text-xs text-gray-600 mb-3">MD가 각 채널별·월별 목표 수량을 직접 설정하고, 판매가 시나리오를 설정해 예상 순매출과 공헌이익을 실시간으로 확인합니다.</p>
 
@@ -377,7 +385,7 @@ export function ManualTab() {
       </section>
 
       {/* 9. STEP 3 */}
-      <section id="manual-s9">
+      <section id="manual-s9" className="scroll-mt-20">
         <h2 className="text-base font-bold text-gray-900 mb-3 pb-1 border-b border-gray-200">9. STEP 3 — 채널별 수량 확인 (MD 확인용)</h2>
         <p className="text-xs text-gray-600 mb-3">STEP 2에서 입력한 채널별 목표량을 기반으로, 월별·옵션별 최종 수량을 확인합니다. 별도 재무 계산은 없습니다.</p>
         <table className="w-full border-collapse text-xs">
@@ -398,7 +406,7 @@ export function ManualTab() {
       </section>
 
       {/* 10. 프라이싱 시나리오 */}
-      <section id="manual-s10">
+      <section id="manual-s10" className="scroll-mt-20">
         <h2 className="text-base font-bold text-gray-900 mb-3 pb-1 border-b border-gray-200">10. 프라이싱 시나리오</h2>
         <p className="text-xs text-gray-600 mb-3">
           SKU 카드 내 [프라이싱 시나리오] 버튼, 또는 LIST VIEW의 [프라이싱] 버튼을 클릭하면 해당 SKU의 모든 판매가 시나리오를 한눈에 확인할 수 있는 모달이 열립니다.
@@ -480,7 +488,7 @@ export function ManualTab() {
       </section>
 
       {/* 11. 마케팅 브리프 */}
-      <section id="manual-s11">
+      <section id="manual-s11" className="scroll-mt-20">
         <h2 className="text-base font-bold text-gray-900 mb-3 pb-1 border-b border-gray-200">11. 마케팅 브리프 (Marketing Brief)</h2>
         <p className="text-xs text-gray-600 mb-3">
           SKU 카드에서 [마케팅 브리프] 버튼을 클릭하면 SKU별 마케팅 전략을 작성할 수 있습니다.
@@ -520,7 +528,7 @@ export function ManualTab() {
       </section>
 
       {/* 12. 대응 SKU 패널 */}
-      <section id="manual-s12">
+      <section id="manual-s12" className="scroll-mt-20">
         <h2 className="text-base font-bold text-gray-900 mb-3 pb-1 border-b border-gray-200">12. 대응 SKU 패널</h2>
         <p className="text-xs text-gray-600 mb-3">새 SKU와 비교할 기존 SKU를 설정하면 Tableau에서 데이터를 자동으로 불러와 참고 지표로 활용합니다.</p>
         <table className="w-full border-collapse text-xs mb-3">
@@ -553,7 +561,7 @@ export function ManualTab() {
       </section>
 
       {/* 13. 핵심 계산 수식 */}
-      <section id="manual-s13">
+      <section id="manual-s13" className="scroll-mt-20">
         <h2 className="text-base font-bold text-gray-900 mb-3 pb-1 border-b border-gray-200">13. 핵심 계산 수식</h2>
         <table className="w-full border-collapse text-xs">
           <thead>
@@ -599,7 +607,7 @@ export function ManualTab() {
       </section>
 
       {/* 14. 환율 자동 갱신 */}
-      <section id="manual-s14">
+      <section id="manual-s14" className="scroll-mt-20">
         <h2 className="text-base font-bold text-gray-900 mb-3 pb-1 border-b border-gray-200">14. 환율 자동 갱신</h2>
         <table className="w-full border-collapse text-xs mb-2">
           <thead>
@@ -621,7 +629,7 @@ export function ManualTab() {
       </section>
 
       {/* 15. 데이터 저장 및 동기화 */}
-      <section id="manual-s15">
+      <section id="manual-s15" className="scroll-mt-20">
         <h2 className="text-base font-bold text-gray-900 mb-3 pb-1 border-b border-gray-200">15. 데이터 저장 및 동기화</h2>
         <p className="text-xs font-semibold text-gray-600 mb-2">Firestore 저장 항목 (새로고침 후에도 유지)</p>
         <p className="text-xs text-gray-500 mb-3">SKU 기본 정보 / 사이즈·컬러 구성 및 수량 / 월별 발주 계획 / 채널별 월별 목표 수량 / 채널별 판매가 시나리오 설정 / 발주 확정 상태 및 확정 이력 / 마케팅 브리프 내용</p>
@@ -660,7 +668,7 @@ export function ManualTab() {
       </section>
 
       {/* 16. 채널별 요약 뷰 */}
-      <section id="manual-s16">
+      <section id="manual-s16" className="scroll-mt-20">
         <h2 className="text-base font-bold text-gray-900 mb-3 pb-1 border-b border-gray-200">16. 채널별 요약 뷰</h2>
         <p className="text-xs text-gray-600 mb-3">모든 SKU의 채널별 출고·매출 현황을 요약 테이블로 확인할 수 있습니다.</p>
         <table className="w-full border-collapse text-xs">
@@ -678,7 +686,7 @@ export function ManualTab() {
       </section>
 
       {/* 17. UI 동작 */}
-      <section id="manual-s17">
+      <section id="manual-s17" className="scroll-mt-20">
         <h2 className="text-base font-bold text-gray-900 mb-3 pb-1 border-b border-gray-200">17. UI 동작 — 페이지 상태 유지</h2>
         <p className="text-xs text-gray-600 mb-2">새로고침 후에도 직전 상태가 복원됩니다. sessionStorage 기반으로 브라우저 탭 단위로 유지되며, 탭을 닫으면 초기화됩니다.</p>
         <table className="w-full border-collapse text-xs">
@@ -697,7 +705,7 @@ export function ManualTab() {
       </section>
 
       {/* 18. 향후 개선 방향 */}
-      <section id="manual-s18">
+      <section id="manual-s18" className="scroll-mt-20">
         <h2 className="text-base font-bold text-gray-900 mb-3 pb-1 border-b border-gray-200">18. 향후 개선 방향</h2>
         <ul className="text-xs text-gray-600 space-y-1 list-disc list-inside">
           <li>Tableau 팀카테 뷰에 2025년 이전 데이터 추가 → 변동비율 계산 정확도 향상 [가능여부 검토중]</li>
