@@ -24,7 +24,9 @@ type MonthChartPoint = {
   channels: Record<string, { revenue: number; profit: number }>;
 };
 
-function buildMonthlyChartData(skus: SkuData[], months: YearMonth[], varCostMap: VarCostRatioMap): MonthChartPoint[] {
+function buildMonthlyChartData(
+  skus: SkuData[], months: YearMonth[], varCostMap: VarCostRatioMap, usdKrw: number, jpyKrw: number,
+): MonthChartPoint[] {
   return months.map((ym, idx) => {
     const showYear = idx === 0 || months[idx - 1].year !== ym.year;
     const label = showYear
@@ -38,7 +40,7 @@ function buildMonthlyChartData(skus: SkuData[], months: YearMonth[], varCostMap:
     for (const channel of CHANNELS) {
       const metrics = skus.reduce((acc, sku) => {
         if (!isSkuActiveForYearMonth(sku, ym)) return acc;
-        return addMetrics(acc, calcChannelMonthMetrics(sku, channel as Channel, ym.month, varCostMap));
+        return addMetrics(acc, calcChannelMonthMetrics(sku, channel as Channel, ym.month, varCostMap, usdKrw, jpyKrw));
       }, ZERO_METRICS);
       channels[channel] = { revenue: metrics.revenue, profit: metrics.profit };
       totalRevenue += metrics.revenue;
@@ -92,8 +94,10 @@ function ChartTooltip({ active, payload, data }: {
   );
 }
 
-function MonthlyChart({ skus, months, varCostMap }: { skus: SkuData[]; months: YearMonth[]; varCostMap: VarCostRatioMap }) {
-  const data = buildMonthlyChartData(skus, months, varCostMap);
+function MonthlyChart({ skus, months, varCostMap, usdKrw, jpyKrw }: {
+  skus: SkuData[]; months: YearMonth[]; varCostMap: VarCostRatioMap; usdKrw: number; jpyKrw: number;
+}) {
+  const data = buildMonthlyChartData(skus, months, varCostMap, usdKrw, jpyKrw);
   if (data.every((d) => d.revenue === 0)) return null;
 
   const fmtWon = (v: number) => (v === 0 ? '0' : formatWon(v));
@@ -164,8 +168,10 @@ function KpiCard({ label, value, sub, warn }: { label: string; value: string; su
   );
 }
 
-export function MdSummaryOverview({ skus, months, varCostMap }: { skus: SkuData[]; months: YearMonth[]; varCostMap: VarCostRatioMap }) {
-  const allTotals = skus.reduce((acc, sku) => addMetrics(acc, calcSkuAllChannelTotals(sku, months, varCostMap)), ZERO_METRICS);
+export function MdSummaryOverview({ skus, months, varCostMap, usdKrw, jpyKrw }: {
+  skus: SkuData[]; months: YearMonth[]; varCostMap: VarCostRatioMap; usdKrw: number; jpyKrw: number;
+}) {
+  const allTotals = skus.reduce((acc, sku) => addMetrics(acc, calcSkuAllChannelTotals(sku, months, varCostMap, usdKrw, jpyKrw)), ZERO_METRICS);
   const totalCm = allTotals.revenue > 0
     ? Math.round((allTotals.profit / allTotals.revenue) * 1000) / 10
     : null;
@@ -173,7 +179,7 @@ export function MdSummaryOverview({ skus, months, varCostMap }: { skus: SkuData[
 
   const skuRows = skus
     .map((sku) => {
-      const totals = calcSkuAllChannelTotals(sku, months, varCostMap);
+      const totals = calcSkuAllChannelTotals(sku, months, varCostMap, usdKrw, jpyKrw);
       const step2Total = sku.channelMonthQty.reduce((s, e) => s + e.qty, 0);
       return { sku, step2Total, ...totals };
     })
@@ -182,7 +188,7 @@ export function MdSummaryOverview({ skus, months, varCostMap }: { skus: SkuData[
   const brandRows = BRANDS.map((brand) => {
     const bs = skus.filter((s) => s.brand === brand);
     if (bs.length === 0) return null;
-    const t = bs.reduce((acc, sku) => addMetrics(acc, calcSkuAllChannelTotals(sku, months, varCostMap)), ZERO_METRICS);
+    const t = bs.reduce((acc, sku) => addMetrics(acc, calcSkuAllChannelTotals(sku, months, varCostMap, usdKrw, jpyKrw)), ZERO_METRICS);
     const cm = t.revenue > 0 ? Math.round((t.profit / t.revenue) * 1000) / 10 : null;
     return { brand, count: bs.length, ...t, cm };
   }).filter(Boolean) as { brand: string; count: number; qty: number; revenue: number; profit: number; cm: number | null }[];
@@ -221,7 +227,7 @@ export function MdSummaryOverview({ skus, months, varCostMap }: { skus: SkuData[
         />
       </div>
 
-      <MonthlyChart skus={skus} months={months} varCostMap={varCostMap} />
+      <MonthlyChart skus={skus} months={months} varCostMap={varCostMap} usdKrw={usdKrw} jpyKrw={jpyKrw} />
 
       {brandRows.length > 1 && (
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">

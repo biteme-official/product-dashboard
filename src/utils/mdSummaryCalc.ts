@@ -1,37 +1,19 @@
 import { CATEGORIES, CHANNELS, getReleaseMonth, getSkuMonths, isSkuActiveForYearMonth } from '../types';
 import type { SkuData, Channel, Month, YearMonth } from '../types';
 import { calcVariableCostRatio, type TeamCateMap } from '../services/tableau';
-import { round10 } from './pricingScenarios';
+import { PRICING_SCENARIOS, PRICING_DEFAULT_OPT } from './pricingScenarios';
 
 export type MonthMetrics = { qty: number; revenue: number; profit: number };
 export const ZERO_METRICS: MonthMetrics = { qty: 0, revenue: 0, profit: 0 };
 
-const calcOpenSpecialPrice = (base: number) =>
-  Math.floor((round10(base * 0.80) - 901) / 1000) * 1000 + 900;
-
-const SCENARIO_CALC: Record<string, (b: number) => number> = {
-  '오픈특가':              (b) => calcOpenSpecialPrice(b),
-  '신상위크':              (b) => { const op = calcOpenSpecialPrice(b); return op <= 10000 ? round10(op * 0.95) : Math.max(0, op - 1000); },
-  '라이브 할인':           (b) => { const op = calcOpenSpecialPrice(b); const sw = op <= 10000 ? round10(op * 0.95) : Math.max(0, op - 1000); return round10(sw - Math.min(Math.round(sw * 0.05), 1000)); },
-  '선단독':                (b) => { const op = calcOpenSpecialPrice(b); return op <= 10000 ? round10(op * 0.95) : Math.max(0, op - 1000); },
-  '상시 최대할인율':       (b) => round10(b * 0.85),
-  '특가 최대할인율':       (b) => round10(b * 0.80),
-  '시즌오프(의류전용)':    (b) => round10(b * 0.75),
-  'B2B 오픈 할인':         (b) => round10(b * 0.65 * 0.90),
-  'B2B 상시 운영':         (b) => round10(b * 0.65),
-  '사입 공급가':           (b) => round10(b * 0.50),
-  '해외 공급가':           (b) => round10(b * 0.50),
-};
-
-export const DEFAULT_CHANNEL_OPT: Partial<Record<Channel, string>> = {
-  '쿠팡':      'B2B 상시 운영',
-  'B2B':       'B2B 상시 운영',
-  '사입및페어': 'B2B 상시 운영',
-};
-
-export function calcScenarioPrice(optId: string, base: number): number {
+/**
+ * SKU카드 STEP2(PricingChannelTable.calcRow)와 동일하게 PRICING_SCENARIOS를 그대로 사용.
+ * 시나리오 공식이 여기서 따로 복제되지 않으므로 pricingScenarios.ts만 고치면 양쪽에 반영된다.
+ */
+export function calcScenarioPrice(optId: string, base: number, usdRate?: number, jpyRate?: number): number {
   if (!optId) return base;
-  return SCENARIO_CALC[optId]?.(base) ?? base;
+  const s = PRICING_SCENARIOS.find((x) => x.id === optId);
+  return s ? s.calcKrwPrice(base, usdRate, jpyRate) : base;
 }
 
 /**
@@ -68,13 +50,14 @@ export function isMonthActive(sku: SkuData, month: Month): boolean {
 
 export function calcChannelMonthMetrics(
   sku: SkuData, channel: Channel, month: Month, varCostMap: VarCostRatioMap = {},
+  usdRate?: number, jpyRate?: number,
 ): MonthMetrics {
   const qty = sku.channelMonthQty.find((e) => e.channel === channel && e.month === month)?.qty ?? 0;
   if (qty === 0) return ZERO_METRICS;
   const cp = sku.channelPricing?.find((p) => p.channel === channel);
   const effectivePrice = cp && cp.price > 0 ? cp.price : sku.price;
-  const optId = sku.pricingOpts?.[`${channel}-${month}`] ?? DEFAULT_CHANNEL_OPT[channel] ?? '';
-  const scenarioPrice = calcScenarioPrice(optId, effectivePrice);
+  const optId = sku.pricingOpts?.[`${channel}-${month}`] ?? PRICING_DEFAULT_OPT[channel] ?? '';
+  const scenarioPrice = calcScenarioPrice(optId, effectivePrice, usdRate, jpyRate);
   const revenue = Math.round((scenarioPrice / 1.1) * qty);
   // 공헌이익 = 순매출 − 원가 − 변동비(Tableau 팀카테 역산, fallback 25%) — STEP2/SkuCard와 동일 공식
   const varRatio = varCostMap[varCostKey(sku.category, channel)] ?? 0.25;
@@ -88,18 +71,20 @@ export function calcChannelMonthMetrics(
  */
 export function calcSkuChannelTotals(
   sku: SkuData, channel: Channel, months: YearMonth[], varCostMap: VarCostRatioMap = {},
+  usdRate?: number, jpyRate?: number,
 ): MonthMetrics {
   return months.reduce((acc, ym) => {
     if (!isSkuActiveForYearMonth(sku, ym)) return acc;
-    return addMetrics(acc, calcChannelMonthMetrics(sku, channel, ym.month, varCostMap));
+    return addMetrics(acc, calcChannelMonthMetrics(sku, channel, ym.month, varCostMap, usdRate, jpyRate));
   }, ZERO_METRICS);
 }
 
 export function calcSkuAllChannelTotals(
   sku: SkuData, months: YearMonth[], varCostMap: VarCostRatioMap = {},
+  usdRate?: number, jpyRate?: number,
 ): MonthMetrics & { cm: number | null } {
   const totals = [...CHANNELS].reduce(
-    (acc, ch) => addMetrics(acc, calcSkuChannelTotals(sku, ch, months, varCostMap)),
+    (acc, ch) => addMetrics(acc, calcSkuChannelTotals(sku, ch, months, varCostMap, usdRate, jpyRate)),
     ZERO_METRICS,
   );
   const cm = totals.revenue > 0 ? Math.round((totals.profit / totals.revenue) * 1000) / 10 : null;

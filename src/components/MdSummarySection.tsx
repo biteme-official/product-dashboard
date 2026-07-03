@@ -6,6 +6,7 @@ import { MdSummaryOverview } from './MdSummaryOverview';
 import { MdChannelDetail } from './MdChannelDetail';
 import { fetchTeamCateData, type TeamCateMap } from '../services/tableau';
 import { buildVarCostRatioMap } from '../utils/mdSummaryCalc';
+import { useExchangeRates } from '../utils/useExchangeRates';
 
 type TabId = '전체 요약' | Channel;
 const TABS: TabId[] = ['전체 요약', ...CHANNELS];
@@ -116,6 +117,8 @@ export function MdSummarySection({ categoryFilter }: Props) {
   const [teamCateMap, setTeamCateMap] = useState<TeamCateMap | null>(null);
   useEffect(() => { fetchTeamCateData().then(setTeamCateMap).catch(() => {}); }, []);
   const varCostMap = useMemo(() => buildVarCostRatioMap(teamCateMap), [teamCateMap]);
+  // 시나리오 가격 계산용 실시간 환율 (STEP2/SkuCard와 동일 소스)
+  const { usdKrw, jpyKrw } = useExchangeRates();
 
   const categoryFiltered = useMemo(() =>
     skus.filter((s) => {
@@ -316,9 +319,9 @@ export function MdSummarySection({ categoryFilter }: Props) {
 
       {/* 탭 콘텐츠 */}
       {activeTab === '전체 요약' ? (
-        <MdSummaryOverview skus={filtered} months={visibleMonths} varCostMap={varCostMap} />
+        <MdSummaryOverview skus={filtered} months={visibleMonths} varCostMap={varCostMap} usdKrw={usdKrw} jpyKrw={jpyKrw} />
       ) : (
-        <MdChannelDetail skus={filtered} channel={activeTab as Channel} months={visibleMonths} varCostMap={varCostMap} />
+        <MdChannelDetail skus={filtered} channel={activeTab as Channel} months={visibleMonths} varCostMap={varCostMap} usdKrw={usdKrw} jpyKrw={jpyKrw} />
       )}
     </div>
   );

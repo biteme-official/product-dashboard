@@ -735,6 +735,11 @@ export function ManualTab() {
           </tbody>
         </table>
         <p className="mt-2 text-xs text-gray-400">* 공헌이익 계산은 섹션 13과 동일하게 Tableau 팀카테 역산 변동비율을 사용합니다 (없으면 25% fallback). 단, 이 뷰는 SKU 카드별 비교기간(직전 12개월/동기간) 선택을 알 수 없으므로 항상 "직전 12개월" 기준으로 고정 계산됩니다 — 카드에서 동기간으로 보고 있는 값과 소폭 차이가 날 수 있습니다.</p>
+        <p className="mt-3 text-xs text-gray-600 bg-indigo-50 border border-indigo-100 rounded-lg px-3 py-2">
+          <strong className="text-indigo-700">이 뷰와 STEP2(SKU카드) 계산의 일치 범위:</strong><br />
+          <strong>판매가 시나리오 공식과 환율은 STEP2와 완전히 동일합니다.</strong> 채널별 요약 뷰는 시나리오 계산을 따로 복제하지 않고 STEP2와 같은 <code className="text-[11px] bg-white px-1 py-0.5 rounded border border-indigo-100">pricingScenarios.ts</code>를 그대로 가져다 쓰고, 환율도 같은 실시간 환율(useExchangeRates)을 사용하므로 오픈특가·글로벌공급가·일본공급가 등 어떤 시나리오를 걸어둬도 STEP2에 뜨는 단가와 항상 같습니다.<br />
+          <strong>다만 변동비율만은 근사치입니다.</strong> STEP2는 SKU 1건마다 그 SKU에 설정된 대응SKU·비교기간을 반영해서 변동비율을 계산하지만, 이 요약 뷰는 SKU 수백 건을 한 번에 보여줘야 해서 <strong>카테고리×채널 단위로 미리 계산해둔 공통 값</strong>(직전 12개월 고정)을 모든 SKU에 동일하게 적용합니다. 그래서 순매출은 STEP2와 100% 일치해도, <strong>공헌이익·CM%는 대응SKU를 "동기간"으로 설정해둔 SKU에서 소폭 차이가 날 수 있습니다.</strong>
+        </p>
       </section>
 
       {/* 17. UI 동작 */}
