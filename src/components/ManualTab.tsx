@@ -511,8 +511,8 @@ export function ManualTab() {
             </Tr>
             <Tr>
               <Td>일본 공급가</Td>
-              <Td>round10( (base ÷ 950 × 1.3) ÷ 2 × JPY/KRW )</Td>
-              <Td>JPY ¥ = (base ÷ 950 × 1.3) ÷ 2</Td>
+              <Td>round10( (base ÷ JPY/KRW × 1.3) ÷ 2 × JPY/KRW )</Td>
+              <Td>JPY ¥ = (base ÷ JPY/KRW × 1.3) ÷ 2</Td>
             </Tr>
           </tbody>
         </table>
