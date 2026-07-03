@@ -9,6 +9,7 @@ import {
 import { usePermission } from '../contexts/PermissionsContext';
 import { TrashModal } from './TrashModal';
 import { ConfirmLogModal } from './ConfirmLogModal';
+import { subscribeAdminMemo, saveAdminMemo } from '../utils/adminMemo';
 
 const ROLE_LABELS: Record<Role, string> = {
   master:      'MASTER',
@@ -313,10 +314,81 @@ function CoupangManageTab() {
   );
 }
 
+const MEMO_DRAFT = `[2026-07-03] STEP1 카테고리 B2C 비중 fallback — 죽은 코드 (선택 정리)
+
+SKU카드에서 STEP2/3 입력 전에 잠깐 보여주는 "예상 순매출" 미리보기 계산에
+카테고리별 B2C 비중(의류60%·용품55%·잡화65%·장난감35%·식품65%) fallback이 남아있음
+(calc.ts의 CHANNEL_B2C_RATIO / revenueMultiplier).
+
+이 fallback은 채널비중(channelRatios) 합이 0일 때만 발동하는데, 그걸 편집하는
+유일한 화면(ChannelSimSection.tsx)이 앱 어디에도 렌더링되지 않는 고아 컴포넌트라
+현재 UI로는 절대 트리거될 수 없음 — 사실상 죽은 코드. 기능에는 영향 없어서
+지금 당장 안 고쳐도 무방함.
+
+▶ 정리 원할 시 클로드코드에게 이렇게 요청:
+"ChannelSimSection.tsx랑 관련 store 액션(updateChannelRatio/resetChannelRatios),
+calc.ts의 CHANNEL_B2C_RATIO/revenueMultiplier fallback까지 근본적으로 정리해줘"
+`;
+
+function AdminMemoTab() {
+  const [content, setContent] = useState('');
+  const [updatedAt, setUpdatedAt] = useState<string | null>(null);
+  const [status, setStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const hasLoadedRef = useRef(false);
+
+  useEffect(() => {
+    const unsub = subscribeAdminMemo((memo) => {
+      if (!hasLoadedRef.current) {
+        setContent(memo.content || MEMO_DRAFT);
+        hasLoadedRef.current = true;
+      }
+      setUpdatedAt(memo.updatedAt);
+    });
+    return unsub;
+  }, []);
+
+  async function handleSave() {
+    setStatus('saving');
+    await saveAdminMemo(content);
+    setStatus('saved');
+    setTimeout(() => setStatus('idle'), 2000);
+  }
+
+  return (
+    <div className="space-y-3">
+      <p className="text-xs text-gray-400">
+        MASTER만 볼 수 있는 자유 메모장입니다. 코드/데이터 관련 이슈나 나중에 클로드코드에게 시킬 작업을 적어두는 용도.
+      </p>
+      <textarea
+        value={content}
+        onChange={(e) => setContent(e.target.value)}
+        rows={16}
+        className="w-full px-3 py-2 text-xs font-mono text-gray-700 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-y"
+        placeholder="메모를 입력하세요…"
+      />
+      <div className="flex items-center gap-2">
+        <button
+          onClick={handleSave}
+          disabled={status === 'saving'}
+          className="text-xs px-3 py-1.5 rounded-lg border border-indigo-300 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          {status === 'saving' ? '저장 중…' : '저장'}
+        </button>
+        {status === 'saved' && <span className="text-xs text-green-600 font-medium">저장됨 ✓</span>}
+        {updatedAt && (
+          <span className="text-[10px] text-gray-400 ml-auto">
+            마지막 저장: {new Date(updatedAt).toLocaleString('ko-KR')}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function AdminSection() {
   const [editing, setEditing] = useState<Role | null>(null);
   const [saved, setSaved] = useState<Role | null>(null);
-  const [activeTab, setActiveTab] = useState<'pin' | 'perm' | 'data' | 'coupang'>('pin');
+  const [activeTab, setActiveTab] = useState<'pin' | 'perm' | 'data' | 'coupang' | 'memo'>('pin');
 
   async function handleSave(role: Role, pin: string) {
     await setPin(role, pin);
@@ -354,6 +426,12 @@ export function AdminSection() {
           className={`flex-1 text-xs py-1.5 rounded-md font-semibold transition-all ${activeTab === 'data' ? 'bg-white shadow text-gray-800' : 'text-gray-500 hover:text-gray-700'}`}
         >
           데이터 정리
+        </button>
+        <button
+          onClick={() => setActiveTab('memo')}
+          className={`flex-1 text-xs py-1.5 rounded-md font-semibold transition-all ${activeTab === 'memo' ? 'bg-white shadow text-gray-800' : 'text-gray-500 hover:text-gray-700'}`}
+        >
+          관리자 메모
         </button>
       </div>
 
@@ -411,6 +489,8 @@ export function AdminSection() {
         {activeTab === 'coupang' && <CoupangManageTab />}
 
         {activeTab === 'data' && <DataCleanupTab />}
+
+        {activeTab === 'memo' && <AdminMemoTab />}
     </section>
   );
 }

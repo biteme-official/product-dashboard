@@ -133,7 +133,7 @@ export function ManualTab() {
             <Tr><Td>SKU 리스트</Td><Td>전체</Td><Td>SKU 카드 목록. 각 SKU별 3단계 계획 진행. 카드↔목록(테이블) 뷰 토글 가능 (프로젝션의 LIST VIEW와는 별개 기능)</Td></Tr>
             <Tr><Td>채널별 요약</Td><Td>MD·전략</Td><Td>전체 SKU의 채널별 출고·매출 요약 뷰</Td></Tr>
             <Tr><Td>메뉴얼</Td><Td>전체</Td><Td>대시보드 사용 방법 가이드 (현재 페이지)</Td></Tr>
-            <Tr><Td>관리</Td><Td>MASTER 전용</Td><Td>PIN 관리 / 권한 관리 / 쿠팡 채널 / 데이터 정리 4개 서브탭</Td></Tr>
+            <Tr><Td>관리</Td><Td>MASTER 전용</Td><Td>PIN 관리 / 권한 관리 / 쿠팡 채널 / 데이터 정리 / 관리자 메모 5개 서브탭</Td></Tr>
           </tbody>
         </table>
 
