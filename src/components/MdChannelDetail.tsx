@@ -7,6 +7,7 @@ import { isSkuActiveForYearMonth } from '../types';
 import {
   calcChannelMonthMetrics, calcSkuChannelTotals, addMetrics,
   formatWon, cmBadgeCls, ZERO_METRICS,
+  type VarCostRatioMap,
 } from '../utils/mdSummaryCalc';
 
 type MonthChartPoint = { label: string; revenue: number; profit: number };
@@ -89,9 +90,9 @@ function ChannelMonthlyChart({ data }: { data: MonthChartPoint[] }) {
   );
 }
 
-export function MdChannelDetail({ skus, channel, months }: { skus: SkuData[]; channel: Channel; months: YearMonth[] }) {
+export function MdChannelDetail({ skus, channel, months, varCostMap }: { skus: SkuData[]; channel: Channel; months: YearMonth[]; varCostMap: VarCostRatioMap }) {
   const channelTotal = skus.reduce(
-    (acc, sku) => addMetrics(acc, calcSkuChannelTotals(sku, channel, months)),
+    (acc, sku) => addMetrics(acc, calcSkuChannelTotals(sku, channel, months, varCostMap)),
     ZERO_METRICS,
   );
   const cm = channelTotal.revenue > 0
@@ -102,7 +103,7 @@ export function MdChannelDetail({ skus, channel, months }: { skus: SkuData[]; ch
   const monthTotals = months.map((ym) => {
     const metrics = skus.reduce((acc, sku) => {
       if (!isSkuActiveForYearMonth(sku, ym)) return acc;
-      return addMetrics(acc, calcChannelMonthMetrics(sku, channel, ym.month));
+      return addMetrics(acc, calcChannelMonthMetrics(sku, channel, ym.month, varCostMap));
     }, ZERO_METRICS);
     return { ym, metrics };
   });
@@ -118,7 +119,7 @@ export function MdChannelDetail({ skus, channel, months }: { skus: SkuData[]; ch
 
   const skuRows = skus
     .map((sku) => {
-      const totals = calcSkuChannelTotals(sku, channel, months);
+      const totals = calcSkuChannelTotals(sku, channel, months, varCostMap);
       return { sku, totals };
     })
     .sort((a, b) => b.totals.revenue - a.totals.revenue);
@@ -197,7 +198,7 @@ export function MdChannelDetail({ skus, channel, months }: { skus: SkuData[]; ch
                           <td key={`${ym.year}-${ym.month}`} className="px-1 py-2.5 text-center text-gray-300">–</td>
                         );
                       }
-                      const metrics = calcChannelMonthMetrics(sku, channel, ym.month);
+                      const metrics = calcChannelMonthMetrics(sku, channel, ym.month, varCostMap);
                       return (
                         <td key={`${ym.year}-${ym.month}`} className={`px-1 py-2.5 text-center tabular-nums ${metrics.qty === 0 ? 'text-gray-300' : 'text-gray-700 font-medium'}`}>
                           {metrics.qty === 0 ? '0' : metrics.qty.toLocaleString()}
@@ -267,7 +268,7 @@ export function MdChannelDetail({ skus, channel, months }: { skus: SkuData[]; ch
                     {months.map((ym) => {
                       const active = isSkuActiveForYearMonth(sku, ym);
                       if (!active) return <td key={`${ym.year}-${ym.month}`} className="px-1 py-2.5 text-center text-gray-300">–</td>;
-                      const metrics = calcChannelMonthMetrics(sku, channel, ym.month);
+                      const metrics = calcChannelMonthMetrics(sku, channel, ym.month, varCostMap);
                       return (
                         <td key={`${ym.year}-${ym.month}`} className={`px-1 py-2.5 text-center tabular-nums ${metrics.revenue === 0 ? 'text-gray-300' : 'text-gray-700'}`}>
                           {metrics.revenue === 0 ? '–' : formatWon(metrics.revenue)}
@@ -275,7 +276,7 @@ export function MdChannelDetail({ skus, channel, months }: { skus: SkuData[]; ch
                       );
                     })}
                     <td className="px-2 py-2.5 text-right tabular-nums font-medium text-gray-700">
-                      {formatWon(calcSkuChannelTotals(sku, channel, months).revenue)}
+                      {formatWon(calcSkuChannelTotals(sku, channel, months, varCostMap).revenue)}
                     </td>
                   </tr>
                 ))}

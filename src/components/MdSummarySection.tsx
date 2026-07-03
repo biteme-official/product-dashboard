@@ -4,6 +4,8 @@ import { CHANNELS, getYearMonthRange, fmtYearMonth } from '../types';
 import { useStore } from '../store';
 import { MdSummaryOverview } from './MdSummaryOverview';
 import { MdChannelDetail } from './MdChannelDetail';
+import { fetchTeamCateData, type TeamCateMap } from '../services/tableau';
+import { buildVarCostRatioMap } from '../utils/mdSummaryCalc';
 
 type TabId = '전체 요약' | Channel;
 const TABS: TabId[] = ['전체 요약', ...CHANNELS];
@@ -109,6 +111,11 @@ export function MdSummarySection({ categoryFilter }: Props) {
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const { skus, activeBrand } = useStore();
+
+  // 팀카테 변동비 데이터 로드 (STEP2/SkuCard와 동일한 Tableau 역산 기준 사용)
+  const [teamCateMap, setTeamCateMap] = useState<TeamCateMap | null>(null);
+  useEffect(() => { fetchTeamCateData().then(setTeamCateMap).catch(() => {}); }, []);
+  const varCostMap = useMemo(() => buildVarCostRatioMap(teamCateMap), [teamCateMap]);
 
   const categoryFiltered = useMemo(() =>
     skus.filter((s) => {
@@ -309,9 +316,9 @@ export function MdSummarySection({ categoryFilter }: Props) {
 
       {/* 탭 콘텐츠 */}
       {activeTab === '전체 요약' ? (
-        <MdSummaryOverview skus={filtered} months={visibleMonths} />
+        <MdSummaryOverview skus={filtered} months={visibleMonths} varCostMap={varCostMap} />
       ) : (
-        <MdChannelDetail skus={filtered} channel={activeTab as Channel} months={visibleMonths} />
+        <MdChannelDetail skus={filtered} channel={activeTab as Channel} months={visibleMonths} varCostMap={varCostMap} />
       )}
     </div>
   );

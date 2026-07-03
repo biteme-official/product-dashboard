@@ -8,6 +8,7 @@ import {
   calcChannelMonthMetrics, addMetrics,
   formatWon, cmBadgeCls, ZERO_METRICS,
   calcSkuAllChannelTotals,
+  type VarCostRatioMap,
 } from '../utils/mdSummaryCalc';
 
 const CHANNEL_COLORS: Record<string, string> = {
@@ -23,7 +24,7 @@ type MonthChartPoint = {
   channels: Record<string, { revenue: number; profit: number }>;
 };
 
-function buildMonthlyChartData(skus: SkuData[], months: YearMonth[]): MonthChartPoint[] {
+function buildMonthlyChartData(skus: SkuData[], months: YearMonth[], varCostMap: VarCostRatioMap): MonthChartPoint[] {
   return months.map((ym, idx) => {
     const showYear = idx === 0 || months[idx - 1].year !== ym.year;
     const label = showYear
@@ -37,7 +38,7 @@ function buildMonthlyChartData(skus: SkuData[], months: YearMonth[]): MonthChart
     for (const channel of CHANNELS) {
       const metrics = skus.reduce((acc, sku) => {
         if (!isSkuActiveForYearMonth(sku, ym)) return acc;
-        return addMetrics(acc, calcChannelMonthMetrics(sku, channel as Channel, ym.month));
+        return addMetrics(acc, calcChannelMonthMetrics(sku, channel as Channel, ym.month, varCostMap));
       }, ZERO_METRICS);
       channels[channel] = { revenue: metrics.revenue, profit: metrics.profit };
       totalRevenue += metrics.revenue;
@@ -91,8 +92,8 @@ function ChartTooltip({ active, payload, data }: {
   );
 }
 
-function MonthlyChart({ skus, months }: { skus: SkuData[]; months: YearMonth[] }) {
-  const data = buildMonthlyChartData(skus, months);
+function MonthlyChart({ skus, months, varCostMap }: { skus: SkuData[]; months: YearMonth[]; varCostMap: VarCostRatioMap }) {
+  const data = buildMonthlyChartData(skus, months, varCostMap);
   if (data.every((d) => d.revenue === 0)) return null;
 
   const fmtWon = (v: number) => (v === 0 ? '0' : formatWon(v));
@@ -163,8 +164,8 @@ function KpiCard({ label, value, sub, warn }: { label: string; value: string; su
   );
 }
 
-export function MdSummaryOverview({ skus, months }: { skus: SkuData[]; months: YearMonth[] }) {
-  const allTotals = skus.reduce((acc, sku) => addMetrics(acc, calcSkuAllChannelTotals(sku, months)), ZERO_METRICS);
+export function MdSummaryOverview({ skus, months, varCostMap }: { skus: SkuData[]; months: YearMonth[]; varCostMap: VarCostRatioMap }) {
+  const allTotals = skus.reduce((acc, sku) => addMetrics(acc, calcSkuAllChannelTotals(sku, months, varCostMap)), ZERO_METRICS);
   const totalCm = allTotals.revenue > 0
     ? Math.round((allTotals.profit / allTotals.revenue) * 1000) / 10
     : null;
@@ -172,7 +173,7 @@ export function MdSummaryOverview({ skus, months }: { skus: SkuData[]; months: Y
 
   const skuRows = skus
     .map((sku) => {
-      const totals = calcSkuAllChannelTotals(sku, months);
+      const totals = calcSkuAllChannelTotals(sku, months, varCostMap);
       const step2Total = sku.channelMonthQty.reduce((s, e) => s + e.qty, 0);
       return { sku, step2Total, ...totals };
     })
@@ -181,7 +182,7 @@ export function MdSummaryOverview({ skus, months }: { skus: SkuData[]; months: Y
   const brandRows = BRANDS.map((brand) => {
     const bs = skus.filter((s) => s.brand === brand);
     if (bs.length === 0) return null;
-    const t = bs.reduce((acc, sku) => addMetrics(acc, calcSkuAllChannelTotals(sku, months)), ZERO_METRICS);
+    const t = bs.reduce((acc, sku) => addMetrics(acc, calcSkuAllChannelTotals(sku, months, varCostMap)), ZERO_METRICS);
     const cm = t.revenue > 0 ? Math.round((t.profit / t.revenue) * 1000) / 10 : null;
     return { brand, count: bs.length, ...t, cm };
   }).filter(Boolean) as { brand: string; count: number; qty: number; revenue: number; profit: number; cm: number | null }[];
@@ -220,7 +221,7 @@ export function MdSummaryOverview({ skus, months }: { skus: SkuData[]; months: Y
         />
       </div>
 
-      <MonthlyChart skus={skus} months={months} />
+      <MonthlyChart skus={skus} months={months} varCostMap={varCostMap} />
 
       {brandRows.length > 1 && (
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
