@@ -4,7 +4,10 @@ import { CHANNELS, getYearMonthRange, fmtYearMonth } from '../types';
 import { useStore } from '../store';
 import { MdSummaryOverview } from './MdSummaryOverview';
 import { MdChannelDetail } from './MdChannelDetail';
-import { fetchTeamCateData, type TeamCateMap } from '../services/tableau';
+import {
+  fetchTeamCateData, classifyTableauError, TABLEAU_ERROR_MESSAGES,
+  type TeamCateMap, type TableauErrorReason,
+} from '../services/tableau';
 import { buildVarCostRatioMap } from '../utils/mdSummaryCalc';
 import { useExchangeRates } from '../utils/useExchangeRates';
 
@@ -115,7 +118,12 @@ export function MdSummarySection({ categoryFilter }: Props) {
 
   // 팀카테 변동비 데이터 로드 (STEP2/SkuCard와 동일한 Tableau 역산 기준 사용)
   const [teamCateMap, setTeamCateMap] = useState<TeamCateMap | null>(null);
-  useEffect(() => { fetchTeamCateData().then(setTeamCateMap).catch(() => {}); }, []);
+  const [teamCateError, setTeamCateError] = useState<TableauErrorReason | null>(null);
+  useEffect(() => {
+    fetchTeamCateData()
+      .then((m) => { setTeamCateMap(m); setTeamCateError(null); })
+      .catch((err) => { console.error('[팀카테 변동비 로드 실패]', err); setTeamCateError(classifyTableauError(err)); });
+  }, []);
   const varCostMap = useMemo(() => buildVarCostRatioMap(teamCateMap), [teamCateMap]);
   // 시나리오 가격 계산용 실시간 환율 (STEP2/SkuCard와 동일 소스)
   const { usdKrw, jpyKrw } = useExchangeRates();
@@ -216,6 +224,12 @@ export function MdSummarySection({ categoryFilter }: Props) {
 
   return (
     <div className="space-y-3">
+      {teamCateError && (
+        <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-xs text-red-600">
+          <span>⚠ Tableau 팀카테 변동비 데이터 로드 실패 — {TABLEAU_ERROR_MESSAGES[teamCateError]}. 모든 SKU에 기본값 25%가 임시 적용됩니다.</span>
+        </div>
+      )}
+
       {/* 채널 탭 바 + 월 범위 슬라이더 */}
       <div className="flex items-center gap-3 bg-white rounded-xl border border-gray-200 p-1 shadow-sm">
         <div className="flex gap-1 overflow-x-auto scrollbar-none flex-1 min-w-0">

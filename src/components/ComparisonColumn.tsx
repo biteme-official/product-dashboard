@@ -82,6 +82,7 @@ export function ComparisonColumn({ sku, readOnly, onComparisonDataChange, onChan
   // 채널별 데이터
   const [channelMap, setChannelMap] = useState<ChannelDataMap | null>(null);
   const [channelConfigured, setChannelConfigured] = useState(true); // VIEW_ID 설정 여부
+  const [channelError, setChannelError] = useState<TableauErrorReason | null>(null);
   const [channelPeriodQty, setChannelPeriodQty] = useState<Record<string, number> | null>(null);
   // 채널별 실제 출고 월수 기준 월평균 (rolling12: last12.length, samePeriod: monthsWithData)
   const [channelMonthly, setChannelMonthly] = useState<Record<string, number> | null>(null);
@@ -128,12 +129,14 @@ export function ComparisonColumn({ sku, readOnly, onComparisonDataChange, onChan
 
   // 채널 데이터 로드 (VIEW_ID 설정된 경우만, retryTick 변경 시 재시도)
   useEffect(() => {
+    setChannelError(null);
     fetchChannelShipments()
       .then((map) => {
         if (map === null) { setChannelConfigured(false); return; }
+        setChannelConfigured(true);
         setChannelMap(map);
       })
-      .catch((err) => { console.error('[채널 데이터 로드 실패]', err); setChannelConfigured(false); });
+      .catch((err) => { console.error('[채널 데이터 로드 실패]', err); setChannelError(classifyTableauError(err)); });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [retryTick]);
 
@@ -533,6 +536,7 @@ export function ComparisonColumn({ sku, readOnly, onComparisonDataChange, onChan
           channelMonthly={channelMonthly}
           totalMonthly={totalMonthly}
           configured={channelConfigured}
+          loadError={channelError}
           compareMode={compareMode}
           samePeriodLabel={samePeriodLabel}
           releaseMonth={releaseMonth}
@@ -646,12 +650,13 @@ const CH_COLORS: Record<string, string> = {
 };
 
 function ChannelDistChart({
-  channelQty, channelMonthly, totalMonthly, configured, compareMode, samePeriodLabel, releaseMonth, releaseYear: _releaseYear,
+  channelQty, channelMonthly, totalMonthly, configured, loadError, compareMode, samePeriodLabel, releaseMonth, releaseYear: _releaseYear,
 }: {
   channelQty: Record<string, number> | null;
   channelMonthly: Record<string, number> | null;
   totalMonthly: number | null;
   configured: boolean;
+  loadError: TableauErrorReason | null;
   compareMode: 'rolling12' | 'samePeriod';
   samePeriodLabel: string | null;
   releaseMonth: number | null;
@@ -672,7 +677,11 @@ function ChannelDistChart({
         )}
       </div>
 
-      {!configured ? (
+      {loadError ? (
+        <div className="text-[10px] text-red-400 text-center py-2">
+          {TABLEAU_ERROR_MESSAGES[loadError]}
+        </div>
+      ) : !configured ? (
         <div className="text-[10px] text-gray-400 text-center py-2">
           채널 데이터 미연결
           <div className="mt-0.5 text-gray-300">VITE_TABLEAU_CHANNEL_VIEW_ID 설정 필요</div>

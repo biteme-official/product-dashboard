@@ -5,7 +5,10 @@ import { useStore } from '../store';
 import { useAuth } from '../store/auth';
 import { revenueMultiplier, calcDynamicMultiplier } from '../utils/calc';
 import { useState, useRef, useEffect, useMemo, type Dispatch, type SetStateAction, type ChangeEvent } from 'react';
-import { fetchTeamCateData, calcVariableCostRatio, calcRolling12, type TeamCateMap, type ChannelByYearMonth } from '../services/tableau';
+import {
+  fetchTeamCateData, calcVariableCostRatio, calcRolling12, classifyTableauError, TABLEAU_ERROR_MESSAGES,
+  type TeamCateMap, type ChannelByYearMonth, type TableauErrorReason,
+} from '../services/tableau';
 import { SizeDistColumn } from './SizeDistColumn';
 import { ComparisonColumn } from './ComparisonColumn';
 import { NumericInput } from './NumericInput';
@@ -752,7 +755,12 @@ function MonthlyTable({
 
   // 팀카테 변동비 데이터 로드
   const [teamCateMap, setTeamCateMap] = useState<TeamCateMap | null>(null);
-  useEffect(() => { fetchTeamCateData().then(setTeamCateMap).catch(() => {}); }, []);
+  const [teamCateError, setTeamCateError] = useState<TableauErrorReason | null>(null);
+  useEffect(() => {
+    fetchTeamCateData()
+      .then((m) => { setTeamCateMap(m); setTeamCateError(null); })
+      .catch((err) => { console.error('[팀카테 변동비 로드 실패]', err); setTeamCateError(classifyTableauError(err)); });
+  }, []);
 
   const releaseYear = sku.releaseDate ? parseInt(sku.releaseDate.split('-')[0], 10) : 2026;
 
@@ -1060,6 +1068,7 @@ function MonthlyTable({
           onBeforeEdit={captureStep2Backup}
           varCostByChannel={varCostByChannel}
           varCostResults={varCostResults}
+          teamCateError={teamCateError}
           compChannelYM={compChannelYM}
           compMode={compMode}
           compModeLabel={compModeLabel}
@@ -1623,6 +1632,7 @@ function PricingChannelTable({
   onBeforeEdit,
   varCostByChannel = {},
   varCostResults = {},
+  teamCateError = null,
   compChannelYM,
   compMode,
   compModeLabel,
@@ -1636,6 +1646,7 @@ function PricingChannelTable({
   setPricingOpts: Dispatch<SetStateAction<Record<string, string>>>;
   onTotalsChange?: (totals: { revenue: number; profit: number }) => void;
   onBeforeEdit?: () => void;
+  teamCateError?: TableauErrorReason | null;
   varCostByChannel?: Record<string, number>;
   varCostResults?: Record<string, { ratio: number; isFallback: boolean }>;
   compChannelYM?: ChannelByYearMonth | null;
@@ -1861,7 +1872,15 @@ function PricingChannelTable({
               <td className="px-2 py-1.5 text-center tabular-nums text-[11px] truncate">
                 {(() => {
                   const r = varCostResults[channel];
-                  if (!r) return <span className="text-gray-400 font-semibold">25.0%</span>;
+                  if (!r) {
+                    return teamCateError ? (
+                      <span className="text-red-400 font-semibold" title={`Tableau 팀카테 데이터 로드 실패 — ${TABLEAU_ERROR_MESSAGES[teamCateError]}`}>
+                        25.0%!
+                      </span>
+                    ) : (
+                      <span className="text-gray-400 font-semibold" title="카테고리·채널 매핑 없음 또는 데이터 없음 — 기본값 25% 적용">25.0%</span>
+                    );
+                  }
                   const pct = (r.ratio * 100).toFixed(1);
                   return r.isFallback
                     ? <span className="text-orange-400 font-semibold" title="지정 기간 데이터 없음 — 가용 최신 데이터로 근사">~{pct}%</span>
