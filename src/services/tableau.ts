@@ -620,6 +620,28 @@ export function calcVariableCostRatio(
   return { ratio: (rev - cost - contrib) / rev, isFallback: false };
 }
 
+// ── 에러 원인 분류 (사용자에게 짧고 이해하기 쉬운 원인 표시용) ──────────────
+export type TableauErrorReason = 'auth' | 'timeout' | 'notfound' | 'server' | 'network' | 'unknown';
+
+export const TABLEAU_ERROR_MESSAGES: Record<TableauErrorReason, string> = {
+  auth:     'PAT 인증 실패 (토큰 만료/설정 확인)',
+  timeout:  '응답 시간 초과 (Tableau 지연)',
+  notfound: '뷰를 찾을 수 없음 (뷰/사이트 ID 확인)',
+  server:   'Tableau·프록시 서버 오류',
+  network:  '네트워크 연결 안 됨',
+  unknown:  '알 수 없는 오류 (콘솔 확인)',
+};
+
+export function classifyTableauError(err: unknown): TableauErrorReason {
+  if (err instanceof DOMException && err.name === 'AbortError') return 'timeout';
+  const msg = err instanceof Error ? err.message : String(err);
+  if (/auth failed:\s*401/i.test(msg) || /auth failed/i.test(msg)) return 'auth';
+  if (/:\s*404\b/.test(msg)) return 'notfound';
+  if (/:\s*(500|502|503|504)\b/.test(msg)) return 'server';
+  if (/Failed to fetch|NetworkError|network/i.test(msg)) return 'network';
+  return 'unknown';
+}
+
 export function invalidateCache(): void {
   shipmentCache = null;
   shipmentCacheAt = 0;

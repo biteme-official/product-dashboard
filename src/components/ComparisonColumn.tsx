@@ -15,9 +15,12 @@ import {
   aggregateByYearMonth,
   calcChannelPeriodQty,
   aggregateChannelByYearMonth,
+  classifyTableauError,
+  TABLEAU_ERROR_MESSAGES,
   type SkuShipmentInfo,
   type ChannelDataMap,
   type ChannelByYearMonth,
+  type TableauErrorReason,
 } from '../services/tableau';
 
 type CompareMode = 'rolling12' | 'samePeriod';
@@ -72,7 +75,7 @@ export function ComparisonColumn({ sku, readOnly, onComparisonDataChange, onChan
 
   // Tableau 전체 데이터
   const [allSkus, setAllSkus] = useState<SkuShipmentInfo[]>([]);
-  const [loadError, setLoadError] = useState(false);
+  const [loadError, setLoadError] = useState<TableauErrorReason | null>(null);
   const [loading, setLoading] = useState(false);
   const [retryTick, setRetryTick] = useState(0);
 
@@ -117,8 +120,8 @@ export function ComparisonColumn({ sku, readOnly, onComparisonDataChange, onChan
     setLoading(true);
     setAllSkus([]);
     fetchSkuShipments()
-      .then((data) => { setAllSkus(data); setLoadError(false); })
-      .catch(() => setLoadError(true))
+      .then((data) => { setAllSkus(data); setLoadError(null); })
+      .catch((err) => { console.error('[대응SKU 로드 실패]', err); setLoadError(classifyTableauError(err)); })
       .finally(() => setLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [retryTick]);
@@ -341,7 +344,9 @@ export function ComparisonColumn({ sku, readOnly, onComparisonDataChange, onChan
           {loading && <span className="text-[10px] text-indigo-400 animate-pulse">로딩 중…</span>}
           {loadError && !loading && (
             <span className="flex items-center gap-1.5">
-              <span className="text-[10px] text-red-400">연결 실패</span>
+              <span className="text-[10px] text-red-400" title={TABLEAU_ERROR_MESSAGES[loadError]}>
+                {TABLEAU_ERROR_MESSAGES[loadError]}
+              </span>
               <button
                 onClick={() => { invalidateCache(); setRetryTick(t => t + 1); }}
                 className="text-[10px] px-1.5 py-0.5 rounded bg-red-50 border border-red-200 text-red-500 hover:bg-red-100 transition-colors"
