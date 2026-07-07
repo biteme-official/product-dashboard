@@ -166,6 +166,10 @@ export interface SkuData {
   marketingBrief?: MarketingBrief;
   marketingMonthQty?: { [month: number]: number }; // 마케팅 채널 월별 수량 (원가×수량 = 비용)
   isPriceConfirmed?: boolean;                       // 가격 확정 여부 (master만 변경 가능)
+  specialMaxRate?: 20 | 15 | 10;                    // 특가 최대할인율(%), 기본 20 (master만 변경 가능)
+  regularMaxRate?: 15 | 10 | 5;                     // 상시 최대할인율(%), 기본 15 (master만 변경 가능)
+  seasonOffRate?: 25 | 30;                          // 시즌오프(의류전용) 할인율(%), 기본 25 (master만 변경 가능)
+  pricingMemo?: string;                             // 프라이싱 모달 B2C 시나리오 메모 (master/platform_md/brand_md만 변경 가능)
   channelOpenSchedule?: ChannelOpenScheduleEntry; // 채널별 오픈일정
   step2InitBaselineQty?: ChannelMonthQtyEntry[]; // 초기화 시 계산된 수량 (비교 기준값, 영구 보존)
   channelQtyDerivedFromCompareSkus?: string[]; // channelMonthQty를 마지막으로 자동세팅한 대응SKU 목록 (재선택 감지용)

@@ -123,6 +123,10 @@ function buildEmptySku(category: Category): SkuData {
     step2PlatformConfirmed: false,
     step2BrandConfirmed: false,
     step2GlobalConfirmed: false,
+    specialMaxRate: 20,
+    regularMaxRate: 15,
+    seasonOffRate: 25,
+    pricingMemo: '',
   };
   return { ...base, isExpanded: true, _initialSnapshot: JSON.parse(JSON.stringify(base)) };
 }
@@ -216,6 +220,10 @@ function applyMigration(raw: any): SkuData {
     ...raw,
     pricingOpts: raw.pricingOpts ?? {},
     pricingUsdRate: raw.pricingUsdRate ?? 1400,
+    specialMaxRate: raw.specialMaxRate ?? 20,
+    regularMaxRate: raw.regularMaxRate ?? 15,
+    seasonOffRate: raw.seasonOffRate ?? 25,
+    pricingMemo: raw.pricingMemo ?? '',
     isExpanded: false,
     finalOrderConfirmedAt: raw.finalOrderConfirmedAt ?? null,
     // toFirestore에서 분리 저장한 메타 키 복원
@@ -329,6 +337,8 @@ interface StoreActions {
   setCoupangEnabled: (id: string, enabled: boolean) => Promise<void>;
   setPriceConfirmed: (id: string, confirmed: boolean) => Promise<void>;
   setScheduleConfirmed: (id: string, confirmed: boolean) => Promise<void>;
+  setPricingRates: (id: string, patch: { specialMaxRate?: 20 | 15 | 10; regularMaxRate?: 15 | 10 | 5; seasonOffRate?: 25 | 30 }) => Promise<void>;
+  setPricingMemo: (id: string, memo: string) => Promise<void>;
   setExpandedIds: (ids: string[]) => void;
   cleanupInitialSnapshots: () => Promise<number>;
   loadActivityLogs: (maxItems?: number) => Promise<ActivityLog[]>;
@@ -895,6 +905,36 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
     writeLog(id, sku.name, useAuth.getState().role ?? 'unknown', [{
       field: 'scheduleConfirmed', label: '일정 확정',
       from: formatLogValue(!confirmed), to: formatLogValue(confirmed),
+    }]).catch(console.error);
+  },
+
+  setPricingRates: async (id, patch) => {
+    const sku = get().skus.find((s) => s.id === id);
+    if (!sku) return;
+    const updated = { ...sku, ...patch };
+    set({ skus: get().skus.map((s) => (s.id === id ? updated : s)) });
+    await setDoc(doc(fsdb, SKUS_COL, id), toFirestore(updated));
+    const labels: Record<string, string> = {
+      specialMaxRate: '특가 최대할인율', regularMaxRate: '상시 최대할인율', seasonOffRate: '시즌오프 할인율',
+    };
+    const changes = (Object.keys(patch) as (keyof typeof patch)[]).map((field) => ({
+      field, label: labels[field],
+      from: formatLogValue(sku[field as keyof SkuData]), to: formatLogValue(patch[field]),
+    }));
+    writeLog(id, sku.name, useAuth.getState().role ?? 'unknown', changes).catch(console.error);
+  },
+
+  setPricingMemo: async (id, memo) => {
+    const sku = get().skus.find((s) => s.id === id);
+    if (!sku) return;
+    const prevMemo = sku.pricingMemo ?? '';
+    if (prevMemo === memo) return;
+    const updated = { ...sku, pricingMemo: memo };
+    set({ skus: get().skus.map((s) => (s.id === id ? updated : s)) });
+    await setDoc(doc(fsdb, SKUS_COL, id), toFirestore(updated));
+    writeLog(id, sku.name, useAuth.getState().role ?? 'unknown', [{
+      field: 'pricingMemo', label: '프라이싱 메모',
+      from: formatLogValue(prevMemo), to: formatLogValue(memo),
     }]).catch(console.error);
   },
 

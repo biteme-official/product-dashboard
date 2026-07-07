@@ -478,7 +478,10 @@ export function ManualTab() {
         </p>
 
         <p className="text-xs font-semibold text-gray-600 mb-2">B2C 시나리오 계산식</p>
-        <p className="text-xs text-gray-500 mb-2">* round10(x) = x를 10원 단위 반올림 &nbsp;|&nbsp; 오픈특가 = floor((round10(base × 0.80) − 901) ÷ 1000) × 1000 + 900</p>
+        <p className="text-xs text-gray-500 mb-1">* ceil10(x) = x를 10원 단위 올림 (B2B 오픈 할인·B2B 상시 운영만 예외적으로 round10 유지) &nbsp;|&nbsp; 오픈특가 = floor((ceil10(base × (1 − 특가최대할인율)) − 901) ÷ 1000) × 1000 + 900</p>
+        <p className="text-xs text-gray-500 mb-2">
+          특가 최대할인율(20%/15%/10%) · 상시 최대할인율(15%/10%/5%) · 시즌오프 할인율(25%/30%)은 SKU별로 프라이싱 모달에서 직접 선택 가능합니다 (master만 변경 가능, 변경 시 해당 SKU에만 반영). 아래 계산식의 기본값은 20%/15%/25% 기준입니다.
+        </p>
         <table className="w-full border-collapse text-xs mb-4">
           <thead>
             <tr className="bg-gray-100">
@@ -488,13 +491,13 @@ export function ManualTab() {
             </tr>
           </thead>
           <tbody>
-            <Tr><Td>오픈특가</Td><Td>floor((round10(base × 0.80) − 901) ÷ 1000) × 1000 + 900</Td><Td>항상 활성</Td></Tr>
-            <Tr><Td>신상위크</Td><Td>오픈특가 ≤ 10,000: round10(오픈특가 × 0.95) / 오픈특가 {'>'} 10,000: max(0, 오픈특가 − 1,000)</Td><Td>[신상위크] 토글 활성 시</Td></Tr>
-            <Tr><Td>라이브 할인</Td><Td>기준가(신상위크 or 오픈특가)에서 min(round(기준가×0.05), 1,000) 차감 후 round10</Td><Td>[신상위크] ON → 신상위크 기준 / [라이브] ON → 오픈특가 기준</Td></Tr>
-            <Tr><Td>선단독</Td><Td>오픈특가 ≤ 10,000: round10(오픈특가 × 0.95) / 오픈특가 {'>'} 10,000: max(0, 오픈특가 − 1,000)</Td><Td>[선단독] 토글 활성 시</Td></Tr>
-            <Tr><Td>상시 최대할인율</Td><Td>round10(base × 0.85)</Td><Td>항상 활성</Td></Tr>
-            <Tr><Td>특가 최대할인율</Td><Td>round10(base × 0.80)</Td><Td>항상 활성</Td></Tr>
-            <Tr><Td>시즌오프 (의류전용)</Td><Td>round10(base × 0.75)</Td><Td>항상 활성</Td></Tr>
+            <Tr><Td>오픈특가</Td><Td>floor((ceil10(base × (1 − 특가최대할인율)) − 901) ÷ 1000) × 1000 + 900</Td><Td>항상 활성 · 특가 최대할인율 연동</Td></Tr>
+            <Tr><Td>신상위크</Td><Td>오픈특가 ≤ 10,000: ceil10(오픈특가 × 0.95) / 오픈특가 {'>'} 10,000: max(0, 오픈특가 − 1,000)</Td><Td>[신상위크] 토글 활성 시</Td></Tr>
+            <Tr><Td>라이브 할인</Td><Td>기준가(신상위크 or 오픈특가)에서 min(round(기준가×0.05), 1,000) 차감 후 ceil10</Td><Td>[신상위크] ON → 신상위크 기준 / [라이브] ON → 오픈특가 기준</Td></Tr>
+            <Tr><Td>선단독</Td><Td>오픈특가 ≤ 10,000: ceil10(오픈특가 × 0.95) / 오픈특가 {'>'} 10,000: max(0, 오픈특가 − 1,000)</Td><Td>[선단독] 토글 활성 시</Td></Tr>
+            <Tr><Td>상시 최대할인율</Td><Td>ceil10(base × (1 − 상시최대할인율))</Td><Td>항상 활성 · 15%/10%/5% 중 SKU별 선택</Td></Tr>
+            <Tr><Td>특가 최대할인율</Td><Td>ceil10(base × (1 − 특가최대할인율))</Td><Td>항상 활성 · 20%/15%/10% 중 SKU별 선택</Td></Tr>
+            <Tr><Td>시즌오프 (의류전용)</Td><Td>ceil10(base × (1 − 시즌오프할인율))</Td><Td>항상 활성 · 25%/30% 중 SKU별 선택</Td></Tr>
           </tbody>
         </table>
 
@@ -508,17 +511,17 @@ export function ManualTab() {
             </tr>
           </thead>
           <tbody>
-            <Tr><Td>B2B 오픈 할인</Td><Td>round10(base × 0.65 × 0.90)</Td><Td>—</Td></Tr>
-            <Tr><Td>B2B 상시 운영</Td><Td>round10(base × 0.65)</Td><Td>—</Td></Tr>
-            <Tr><Td>사입 공급가</Td><Td>round10(base × 0.50)</Td><Td>—</Td></Tr>
+            <Tr><Td>B2B 오픈 할인</Td><Td>round10(base × 0.65 × 0.90)</Td><Td>— (반올림 유지)</Td></Tr>
+            <Tr><Td>B2B 상시 운영</Td><Td>round10(base × 0.65)</Td><Td>— (반올림 유지)</Td></Tr>
+            <Tr><Td>사입 공급가</Td><Td>ceil10(base × 0.50)</Td><Td>—</Td></Tr>
             <Tr>
               <Td>글로벌 공급가</Td>
-              <Td>round10( (base ÷ 1250 × 1.6) ÷ 2 × USD/KRW )</Td>
+              <Td>ceil10( (base ÷ 1250 × 1.6) ÷ 2 × USD/KRW )</Td>
               <Td>USD $ = (base ÷ 1250 × 1.6) ÷ 2</Td>
             </Tr>
             <Tr>
               <Td>일본 공급가</Td>
-              <Td>round10( (base ÷ JPY/KRW × 1.3) ÷ 2 × JPY/KRW )</Td>
+              <Td>ceil10( (base ÷ JPY/KRW × 1.3) ÷ 2 × JPY/KRW )</Td>
               <Td>JPY ¥ = (base ÷ JPY/KRW × 1.3) ÷ 2</Td>
             </Tr>
           </tbody>

@@ -1,7 +1,7 @@
 import { CATEGORIES, CHANNELS, getReleaseMonth, getSkuMonths, isSkuActiveForYearMonth } from '../types';
 import type { SkuData, Channel, Month, YearMonth } from '../types';
 import { calcVariableCostRatio, type TeamCateMap } from '../services/tableau';
-import { PRICING_SCENARIOS, PRICING_DEFAULT_OPT } from './pricingScenarios';
+import { PRICING_SCENARIOS, PRICING_DEFAULT_OPT, type PricingRates } from './pricingScenarios';
 
 export type MonthMetrics = { qty: number; revenue: number; profit: number };
 export const ZERO_METRICS: MonthMetrics = { qty: 0, revenue: 0, profit: 0 };
@@ -10,10 +10,10 @@ export const ZERO_METRICS: MonthMetrics = { qty: 0, revenue: 0, profit: 0 };
  * SKU카드 STEP2(PricingChannelTable.calcRow)와 동일하게 PRICING_SCENARIOS를 그대로 사용.
  * 시나리오 공식이 여기서 따로 복제되지 않으므로 pricingScenarios.ts만 고치면 양쪽에 반영된다.
  */
-export function calcScenarioPrice(optId: string, base: number, usdRate?: number, jpyRate?: number): number {
+export function calcScenarioPrice(optId: string, base: number, usdRate?: number, jpyRate?: number, rates?: PricingRates): number {
   if (!optId) return base;
   const s = PRICING_SCENARIOS.find((x) => x.id === optId);
-  return s ? s.calcKrwPrice(base, usdRate, jpyRate) : base;
+  return s ? s.calcKrwPrice(base, usdRate, jpyRate, undefined, rates) : base;
 }
 
 /**
@@ -57,7 +57,12 @@ export function calcChannelMonthMetrics(
   const cp = sku.channelPricing?.find((p) => p.channel === channel);
   const effectivePrice = cp && cp.price > 0 ? cp.price : sku.price;
   const optId = sku.pricingOpts?.[`${channel}-${month}`] ?? PRICING_DEFAULT_OPT[channel] ?? '';
-  const scenarioPrice = calcScenarioPrice(optId, effectivePrice, usdRate, jpyRate);
+  const rates: PricingRates = {
+    specialMaxRate: sku.specialMaxRate ?? 20,
+    regularMaxRate: sku.regularMaxRate ?? 15,
+    seasonOffRate: sku.seasonOffRate ?? 25,
+  };
+  const scenarioPrice = calcScenarioPrice(optId, effectivePrice, usdRate, jpyRate, rates);
   const revenue = Math.round((scenarioPrice / 1.1) * qty);
   // 공헌이익 = 순매출 − 원가 − 변동비(Tableau 팀카테 역산, fallback 25%) — STEP2/SkuCard와 동일 공식
   const varRatio = varCostMap[varCostKey(sku.category, channel)] ?? 0.25;

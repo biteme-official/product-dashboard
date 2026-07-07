@@ -1,7 +1,7 @@
 import * as XLSX from 'xlsx';
 import type { SkuData, Channel } from '../types';
 import { B2C_CHANNELS, B2B_CHANNELS, getSkuMonths, isNextYearMonth } from '../types';
-import { round10 } from './pricingScenarios';
+import { PRICING_SCENARIOS, type PricingRates } from './pricingScenarios';
 
 function todayYymmdd(): string {
   const d = new Date();
@@ -197,25 +197,11 @@ function colLetter(c: number): string {
   return s;
 }
 
-/** 현재 설정된 시나리오에 따른 단가 계산 (SkuCard 내부 로직 복제) */
-function simScenarioPrice(optId: string, base: number, usdKrw: number, jpyKrw: number): number {
+/** 현재 설정된 시나리오에 따른 단가 계산 (SkuCard/pricingScenarios.ts와 동일 로직 재사용) */
+function simScenarioPrice(optId: string, base: number, usdKrw: number, jpyKrw: number, rates: PricingRates): number {
   if (!optId) return base;
-  const openSpecial = (b: number) => Math.floor((round10(b * 0.8) - 901) / 1000) * 1000 + 900;
-  const map: Record<string, (b: number) => number> = {
-    '오픈특가':           openSpecial,
-    '신상위크':           (b) => { const op = openSpecial(b); return op <= 10000 ? round10(op * 0.95) : Math.max(0, op - 1000); },
-    '라이브 할인':        (b) => { const op = openSpecial(b); const sw = op <= 10000 ? round10(op * 0.95) : Math.max(0, op - 1000); return round10(sw - Math.min(Math.round(sw * 0.05), 1000)); },
-    '선단독':             (b) => { const op = openSpecial(b); return op <= 10000 ? round10(op * 0.95) : Math.max(0, op - 1000); },
-    '상시 최대할인율':    (b) => round10(b * 0.85),
-    '특가 최대할인율':    (b) => round10(b * 0.80),
-    '시즌오프(의류전용)': (b) => round10(b * 0.75),
-    'B2B 오픈 할인':      (b) => round10(b * 0.65 * 0.90),
-    'B2B 상시 운영':      (b) => round10(b * 0.65),
-    '사입 공급가':        (b) => round10(b * 0.50),
-    '글로벌 공급가':      (b) => round10((b / 1250 * 1.6) / 2 * usdKrw),
-    '일본 공급가':        (b) => round10((b / jpyKrw * 1.3) / 2 * jpyKrw),
-  };
-  return map[optId]?.(base) ?? base;
+  const s = PRICING_SCENARIOS.find((x) => x.id === optId);
+  return s ? s.calcKrwPrice(base, usdKrw, jpyKrw, undefined, rates) : base;
 }
 
 export function exportSimulationXlsx(params: SimExportParams): void {
@@ -285,6 +271,11 @@ export function exportSimulationXlsx(params: SimExportParams): void {
 
   const skuMonths = getSkuMonths(sku.releaseDate);
   const MONTH_LABELS = skuMonths.map((m) => `${m}월${isNextYearMonth(m, sku.releaseDate) ? '(익년)' : ''}`);
+  const skuPricingRates: PricingRates = {
+    specialMaxRate: sku.specialMaxRate ?? 20,
+    regularMaxRate: sku.regularMaxRate ?? 15,
+    seasonOffRate: sku.seasonOffRate ?? 25,
+  };
   const DEFAULT_OPT_CH: Partial<Record<Channel, string>> = {
     '쿠팡': 'B2B 상시 운영', 'B2B': 'B2B 상시 운영',
     '사입및페어': 'B2B 상시 운영', '글로벌': '글로벌 공급가', '일본': '일본 공급가',
@@ -331,7 +322,7 @@ export function exportSimulationXlsx(params: SimExportParams): void {
     sv(r, C_LABEL, ch);
     skuMonths.forEach((m, mi) => {
       const optId = pricingOpts[`${ch}-${m}`] ?? DEFAULT_OPT_CH[ch] ?? '';
-      sv(r, C_M[mi], simScenarioPrice(optId, base, usdKrw, jpyKrw));
+      sv(r, C_M[mi], simScenarioPrice(optId, base, usdKrw, jpyKrw, skuPricingRates));
     });
   });
 

@@ -1723,11 +1723,17 @@ function PricingChannelTable({
     }
   };
 
+  const skuPricingRates = {
+    specialMaxRate: sku.specialMaxRate ?? 20,
+    regularMaxRate: sku.regularMaxRate ?? 15,
+    seasonOffRate: sku.seasonOffRate ?? 25,
+  };
+
   /** basePrice 기준으로 시나리오 KRW 가격을 반환 (시나리오 없으면 base 그대로) */
   const calcScenarioPrice = (optId: string, base: number): number => {
     if (!optId) return base;
     const s = PRICING_SCENARIOS.find((x) => x.id === optId);
-    return s ? s.calcKrwPrice(base, usdKrw, jpyKrw) : base;
+    return s ? s.calcKrwPrice(base, usdKrw, jpyKrw, undefined, skuPricingRates) : base;
   };
 
   const getPricing = (channel: Channel): ChannelPricing => {
@@ -1927,7 +1933,7 @@ function PricingChannelTable({
                         <option value="">-- 전략 선택 --</option>
                         {PRICING_SCENARIOS.map((s) => {
                           const bPrice = cp.price > 0 ? cp.price : sku.price;
-                          const suffix = s.hint ?? (bPrice > 0 ? `${Math.round((1 - s.calcKrwPrice(bPrice) / bPrice) * 100)}%` : '');
+                          const suffix = s.hint ?? (bPrice > 0 ? `${Math.round((1 - s.calcKrwPrice(bPrice, usdKrw, jpyKrw, undefined, skuPricingRates) / bPrice) * 100)}%` : '');
                           return <option key={s.id} value={s.id}>{s.label} ({suffix})</option>;
                         })}
                       </select>
@@ -2075,7 +2081,7 @@ function PricingChannelTable({
                                     >
                                       <option value="">채널가</option>
                                       {PRICING_SCENARIOS.map((s) => {
-                                        const suffix = s.hint ?? (basePrice > 0 ? `${Math.round((1 - s.calcKrwPrice(basePrice) / basePrice) * 100)}%` : '');
+                                        const suffix = s.hint ?? (basePrice > 0 ? `${Math.round((1 - s.calcKrwPrice(basePrice, usdKrw, jpyKrw, undefined, skuPricingRates) / basePrice) * 100)}%` : '');
                                         return <option key={s.id} value={s.id}>{s.label} ({suffix})</option>;
                                       })}
                                     </select>

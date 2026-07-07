@@ -1,13 +1,30 @@
 import { useState } from 'react';
 import type { SkuData } from '../types';
 import { useExchangeRates } from '../utils/useExchangeRates';
-import { PRICING_SCENARIOS } from '../utils/pricingScenarios';
+import { useStore } from '../store';
+import { useAuth } from '../store/auth';
+import {
+  PRICING_SCENARIOS, type PricingRates,
+  SPECIAL_MAX_RATE_OPTIONS, REGULAR_MAX_RATE_OPTIONS, SEASON_OFF_RATE_OPTIONS,
+} from '../utils/pricingScenarios';
 
 const B2C_SCENARIO_IDS = ['오픈특가', '신상위크', '라이브 할인', '선단독', '상시 최대할인율', '특가 최대할인율', '시즌오프(의류전용)'];
 const B2B_SCENARIO_IDS = ['B2B 오픈 할인', 'B2B 상시 운영', '사입 공급가', '글로벌 공급가', '일본 공급가'];
 
 // 기본 비활성: 프로모션 선택 전에는 흐리게 표시
 const PROMO_DIMMED_IDS = new Set(['신상위크', '라이브 할인', '선단독']);
+
+// 클릭 시 할인율 선택 드롭다운을 노출하는 시나리오 (SKU별 정책값)
+const RATE_FIELD_BY_SCENARIO_ID: Record<string, keyof PricingRates> = {
+  '특가 최대할인율': 'specialMaxRate',
+  '상시 최대할인율': 'regularMaxRate',
+  '시즌오프(의류전용)': 'seasonOffRate',
+};
+const RATE_OPTIONS_BY_FIELD: Record<keyof PricingRates, readonly number[]> = {
+  specialMaxRate: SPECIAL_MAX_RATE_OPTIONS,
+  regularMaxRate: REGULAR_MAX_RATE_OPTIONS,
+  seasonOffRate: SEASON_OFF_RATE_OPTIONS,
+};
 
 function fmtPct(v: number | null, dim: boolean) {
   if (v === null || !isFinite(v)) return <span className="text-gray-300">–</span>;
@@ -16,8 +33,84 @@ function fmtPct(v: number | null, dim: boolean) {
   return <span className={rounded > 0 ? 'text-gray-900 font-medium' : 'text-gray-400'}>{rounded}%</span>;
 }
 
+/** 퍼센티지 클릭 시 뜨는 작은 선택 모달 (표 영역에 클리핑되지 않도록 화면 중앙에 fixed로 배치) */
+function RateOptionModal({
+  label, field, value, options, onSelect, onClose,
+}: {
+  label: string;
+  field: keyof PricingRates;
+  value: number;
+  options: readonly number[];
+  onSelect: (field: keyof PricingRates, value: number) => void;
+  onClose: () => void;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="bg-white rounded-xl shadow-xl w-36 overflow-hidden">
+        <div className="px-3 py-2 border-b border-gray-100 bg-gray-50">
+          <p className="text-[11px] font-semibold text-gray-500 whitespace-nowrap">{label}</p>
+        </div>
+        <div className="py-1">
+          {options.map((opt) => (
+            <button
+              key={opt}
+              type="button"
+              onClick={() => { onSelect(field, opt); onClose(); }}
+              className={`block w-full text-left px-3 py-2 text-xs whitespace-nowrap bg-white hover:bg-indigo-50 ${
+                opt === value ? 'text-indigo-600 font-semibold' : 'text-gray-700'
+              }`}
+            >
+              {opt}%
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function RateLabel({
+  label, field, value, canEdit, onSelect,
+}: {
+  label: string;
+  field: keyof PricingRates;
+  value: number;
+  canEdit: boolean;
+  onSelect: (field: keyof PricingRates, value: number) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const options = RATE_OPTIONS_BY_FIELD[field];
+
+  if (!canEdit) {
+    return <span className="font-medium text-gray-700">{label} <span className="text-gray-400 font-normal">({value}%)</span></span>;
+  }
+
+  return (
+    <span className="font-medium text-gray-700">
+      {label}{' '}
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="text-indigo-500 font-semibold underline decoration-dotted underline-offset-2 hover:text-indigo-600 focus:outline-none"
+      >
+        ({value}%)
+      </button>
+      {open && (
+        <RateOptionModal
+          label={label} field={field} value={value} options={options}
+          onSelect={onSelect} onClose={() => setOpen(false)}
+        />
+      )}
+    </span>
+  );
+}
+
 function ScenarioTable({
   scenarioIds, base, regularPrice, cost, usdKrw, jpyKrw, activeIds, promoNewWeek = false, hintOverrides = {},
+  rates, canEditRates = false, onSelectRate,
 }: {
   scenarioIds: string[];
   base: number;
@@ -28,6 +121,9 @@ function ScenarioTable({
   activeIds?: Set<string>;  // undefined = 전부 활성 (B2B)
   promoNewWeek?: boolean;
   hintOverrides?: Record<string, string>;
+  rates: Required<PricingRates>;
+  canEditRates?: boolean;
+  onSelectRate?: (field: keyof PricingRates, value: number) => void;
 }) {
   return (
     <table className="w-full text-xs">
@@ -49,7 +145,7 @@ function ScenarioTable({
           const isDimTarget = PROMO_DIMMED_IDS.has(id);
           const dim = activeIds !== undefined && isDimTarget && !activeIds.has(id);
 
-          const actualPrice = scenario.calcKrwPrice(base, usdKrw, jpyKrw, promoNewWeek);
+          const actualPrice = scenario.calcKrwPrice(base, usdKrw, jpyKrw, promoNewWeek, rates);
           const discountVsPrice = base > 0 ? (1 - actualPrice / base) * 100 : null;
           const discountVsRegular = regularPrice > 0 ? (1 - actualPrice / regularPrice) * 100 : null;
           const costRate = actualPrice > 0 ? (cost / actualPrice) * 100 : null;
@@ -59,12 +155,24 @@ function ScenarioTable({
             ? 'border-b border-gray-50 last:border-0 opacity-40'
             : 'border-b border-gray-50 last:border-0 hover:bg-gray-50/40 transition-colors';
 
+          const rateField = RATE_FIELD_BY_SCENARIO_ID[id];
+
           return (
             <tr key={id} className={rowCls}>
               <td className="px-3 py-2.5 whitespace-nowrap">
-                <span className={dim ? 'text-gray-400' : 'font-medium text-gray-700'}>
-                  {scenario.label}
-                </span>
+                {rateField && onSelectRate ? (
+                  <RateLabel
+                    label={scenario.label}
+                    field={rateField}
+                    value={rates[rateField]}
+                    canEdit={canEditRates}
+                    onSelect={onSelectRate}
+                  />
+                ) : (
+                  <span className={dim ? 'text-gray-400' : 'font-medium text-gray-700'}>
+                    {scenario.label}
+                  </span>
+                )}
                 {(hintOverrides[id] ?? scenario.hint) && (
                   <span className="ml-1.5 text-[10px] text-gray-400 font-normal">({hintOverrides[id] ?? scenario.hint})</span>
                 )}
@@ -105,6 +213,22 @@ function costRateCls(rate: number, dim: boolean): string {
 
 export function PricingModal({ sku, onClose }: { sku: SkuData; onClose: () => void }) {
   const { usdKrw, jpyKrw } = useExchangeRates();
+  const role = useAuth((s) => s.role);
+  const setPricingRates = useStore((s) => s.setPricingRates);
+  const setPricingMemo = useStore((s) => s.setPricingMemo);
+  const liveSku = useStore((s) => s.skus.find((x) => x.id === sku.id)) ?? sku;
+  const isMaster = role === 'master';
+  const canEditPricingMemo = role === 'master' || role === 'platform_md' || role === 'brand_md';
+
+  const [memoSkuId, setMemoSkuId] = useState(sku.id);
+  const [memoDraft, setMemoDraft] = useState(liveSku.pricingMemo ?? '');
+  if (sku.id !== memoSkuId) {
+    setMemoSkuId(sku.id);
+    setMemoDraft(liveSku.pricingMemo ?? '');
+  }
+  const commitMemo = () => {
+    if (memoDraft !== (liveSku.pricingMemo ?? '')) setPricingMemo(sku.id, memoDraft).catch(console.error);
+  };
 
   const [promoNewWeek, setPromoNewWeek] = useState(false);   // 신상위크
   const [promoLive, setPromoLive] = useState(false);          // 라이브 (단독)
@@ -127,7 +251,16 @@ export function PricingModal({ sku, onClose }: { sku: SkuData; onClose: () => vo
     ? Math.round((sku.cost / sku.price) * 1000) / 10
     : null;
 
-  const tableProps = { base: sku.price, regularPrice: sku.regularPrice, cost: sku.cost, usdKrw, jpyKrw };
+  const rates: Required<PricingRates> = {
+    specialMaxRate: liveSku.specialMaxRate ?? 20,
+    regularMaxRate: liveSku.regularMaxRate ?? 15,
+    seasonOffRate: liveSku.seasonOffRate ?? 25,
+  };
+  const handleSelectRate = (field: keyof PricingRates, value: number) => {
+    setPricingRates(sku.id, { [field]: value }).catch(console.error);
+  };
+
+  const tableProps = { base: sku.price, regularPrice: sku.regularPrice, cost: sku.cost, usdKrw, jpyKrw, rates };
 
   return (
     <div
@@ -208,10 +341,35 @@ export function PricingModal({ sku, onClose }: { sku: SkuData; onClose: () => vo
                 >
                   선단독
                 </button>
+                <div className="w-px h-3.5 bg-sky-200" />
+                <span className="text-[10px] text-sky-400">
+                  {isMaster ? '할인율 항목 클릭 시 이 SKU만 변경됩니다' : '할인율 변경은 master만 가능'}
+                </span>
               </div>
             </div>
+            {(canEditPricingMemo || memoDraft) && (
+              <div className="px-4 py-2 bg-amber-50 border-b border-amber-100 flex items-center gap-2">
+                <span className="text-[10px] font-semibold text-amber-600 whitespace-nowrap">메모</span>
+                <input
+                  type="text"
+                  value={memoDraft}
+                  onChange={(e) => setMemoDraft(e.target.value)}
+                  onBlur={commitMemo}
+                  readOnly={!canEditPricingMemo}
+                  maxLength={200}
+                  placeholder={canEditPricingMemo ? '이 SKU 프라이싱 관련 메모…' : ''}
+                  className={`flex-1 min-w-0 bg-transparent text-xs focus:outline-none ${
+                    canEditPricingMemo ? 'text-gray-700 placeholder-amber-300' : 'text-gray-500 cursor-default'
+                  }`}
+                />
+              </div>
+            )}
             <div className="overflow-x-auto">
-              <ScenarioTable scenarioIds={B2C_SCENARIO_IDS} {...tableProps} activeIds={b2cActiveIds} promoNewWeek={promoNewWeek} hintOverrides={b2cHintOverrides} />
+              <ScenarioTable
+                scenarioIds={B2C_SCENARIO_IDS} {...tableProps}
+                activeIds={b2cActiveIds} promoNewWeek={promoNewWeek} hintOverrides={b2cHintOverrides}
+                canEditRates={isMaster} onSelectRate={handleSelectRate}
+              />
             </div>
           </div>
 
