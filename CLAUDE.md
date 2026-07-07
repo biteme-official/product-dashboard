@@ -7,6 +7,7 @@
 - 배포: Vercel (GitHub 연동 자동배포 — main push 시 Production, PR 시 Preview) — product-dashboard-delta-taupe.vercel.app
 - Maintainer: @bmahsang, @bmyennie — main 직접 commit/push, PR 머지, Production 배포 가능
 - Developer: 그 외 구성원 — 아래 "절대 금지"가 예외 없이 전부 적용됨
+- ⚠️ 이 프로젝트는 @bmyennie가 단독 운영 — PR 리뷰/머지 요청을 @bmahsang에게 보내지 않음. @bmyennie가 직접 확인 후 바로 머지
 
 ## 🚨 절대 금지 (Developer 기준 / Maintainer 예외는 각 항목에 표시)
 
@@ -77,7 +78,7 @@
 
 ### 3. 사용자 OK 시 Draft → Ready for review 전환
 
-### 4. Maintainer에게 리뷰 요청 자동 발송
+### 4. ~~Maintainer에게 리뷰 요청 자동 발송~~ → 이 프로젝트는 생략 (@bmyennie 단독 운영, @bmahsang에게 리뷰/머지 요청 보내지 않음). Ready 전환 후 @bmyennie가 바로 머지
 
 ## 🚫 Maintainer 전용 작업 (Developer는 거부)
 
@@ -87,7 +88,7 @@
 - 다른 사람 PR Approve
 - Release 생성
 
-→ Developer 요청 시 거부, @bmahsang 또는 @bmyennie에게 요청하도록 안내
+→ Developer 요청 시 거부, @bmyennie에게 요청하도록 안내 (이 프로젝트는 @bmahsang에게 요청하지 않음)
 
 ## 📝 기획서/문서 정리
 
