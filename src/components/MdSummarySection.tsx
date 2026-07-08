@@ -117,10 +117,13 @@ export function MdSummarySection({ categoryFilter }: Props) {
   // 팀카테 변동비 데이터 로드 (STEP2/SkuCard와 동일한 Tableau 역산 기준 사용)
   const [teamCateMap, setTeamCateMap] = useState<TeamCateMap | null>(null);
   const [teamCateError, setTeamCateError] = useState<TableauErrorReason | null>(null);
+  const [teamCateLoading, setTeamCateLoading] = useState(true);
   useEffect(() => {
+    setTeamCateLoading(true);
     fetchTeamCateData()
       .then((m) => { setTeamCateMap(m); setTeamCateError(null); })
-      .catch((err) => { console.error('[팀카테 변동비 로드 실패]', err); setTeamCateError(classifyTableauError(err)); });
+      .catch((err) => { console.error('[팀카테 변동비 로드 실패]', err); setTeamCateError(classifyTableauError(err)); })
+      .finally(() => setTeamCateLoading(false));
   }, []);
   const varCostMap = useMemo(() => buildVarCostRatioMap(teamCateMap), [teamCateMap]);
   // 시나리오 가격 계산용 실시간 환율 (STEP2/SkuCard와 동일 소스)
@@ -229,9 +232,17 @@ export function MdSummarySection({ categoryFilter }: Props) {
 
   return (
     <div className="space-y-3">
-      {teamCateError && (
+      {teamCateError ? (
         <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-xs text-red-600">
           <span>⚠ Tableau 팀카테 변동비 데이터 로드 실패 — {TABLEAU_ERROR_MESSAGES[teamCateError]}. 모든 SKU에 기본값 25%가 임시 적용됩니다.</span>
+        </div>
+      ) : !teamCateLoading && (
+        <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 text-xs text-blue-600 w-fit">
+          <span className="relative flex h-2 w-2">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500" />
+          </span>
+          <span>Tableau 변동비 비중 연동중</span>
         </div>
       )}
 

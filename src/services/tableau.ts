@@ -511,21 +511,36 @@ function parseRevenueCostCSV(csv: string, map: TeamCateMap): void {
   }
 }
 
+// 팀카테 뷰(sheet0+sheet1 조인 집계)는 SKU/채널 뷰보다 무거워 20초 기본 타임아웃을
+// 종종 넘긴다 — 여유를 두고, 시간초과 자체도 502/503/504와 동일하게 1회 재시도한다.
+const TEAM_CATE_TIMEOUT_MS = 30_000;
+
 async function loadTeamCateData(retry = true): Promise<TeamCateMap> {
   const token = await getAuthToken();
-  const [profitRes, revenueRes] = await Promise.all([
-    fetchWithTimeout(`${BASE}/api/3.21/sites/${SITE_ID}/views/${TEAM_CATE_PROFIT_VIEW_ID}/data?maxAge=60`,
-      { headers: { 'X-Tableau-Auth': token } }),
-    fetchWithTimeout(`${BASE}/api/3.21/sites/${SITE_ID}/views/${TEAM_CATE_REVENUE_VIEW_ID}/data?maxAge=60`,
-      { headers: { 'X-Tableau-Auth': token } }),
-  ]);
+  let profitRes: Response, revenueRes: Response;
+  try {
+    [profitRes, revenueRes] = await Promise.all([
+      fetchWithTimeout(`${BASE}/api/3.21/sites/${SITE_ID}/views/${TEAM_CATE_PROFIT_VIEW_ID}/data?maxAge=60`,
+        { headers: { 'X-Tableau-Auth': token } }, TEAM_CATE_TIMEOUT_MS),
+      fetchWithTimeout(`${BASE}/api/3.21/sites/${SITE_ID}/views/${TEAM_CATE_REVENUE_VIEW_ID}/data?maxAge=60`,
+        { headers: { 'X-Tableau-Auth': token } }, TEAM_CATE_TIMEOUT_MS),
+    ]);
+  } catch (err) {
+    // AbortError(시간초과)도 502/503/504처럼 일시적 지연으로 간주해 1회 재시도
+    if (retry && err instanceof DOMException && err.name === 'AbortError') {
+      await new Promise(r => setTimeout(r, 1500));
+      return loadTeamCateData(false);
+    }
+    throw err;
+  }
   if ((profitRes.status === 401 || revenueRes.status === 401) && retry) {
     authToken = null;
     authTokenExpiresAt = 0;
     authPromise = null;
     return loadTeamCateData(false);
   }
-  if ((profitRes.status === 502 || profitRes.status === 503 || revenueRes.status === 502 || revenueRes.status === 503) && retry) {
+  const isRetryableStatus = (s: number) => s === 502 || s === 503 || s === 504;
+  if ((isRetryableStatus(profitRes.status) || isRetryableStatus(revenueRes.status)) && retry) {
     await new Promise(r => setTimeout(r, 1500));
     return loadTeamCateData(false);
   }
