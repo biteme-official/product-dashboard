@@ -84,16 +84,31 @@ export function calcSkuChannelTotals(
   }, ZERO_METRICS);
 }
 
+/**
+ * channels 생략 시 전체 채널(CHANNELS) 합산 — "전체 요약" 뷰에서 그대로 사용.
+ * channels를 넘기면 그 부분집합만 합산 — 채널 다중선택 뷰(MdChannelDetail)에서 재사용.
+ */
 export function calcSkuAllChannelTotals(
   sku: SkuData, months: YearMonth[], varCostMap: VarCostRatioMap = {},
-  usdRate?: number, jpyRate?: number,
+  usdRate?: number, jpyRate?: number, channels: readonly Channel[] = CHANNELS,
 ): MonthMetrics & { cm: number | null } {
-  const totals = [...CHANNELS].reduce(
+  const totals = [...channels].reduce(
     (acc, ch) => addMetrics(acc, calcSkuChannelTotals(sku, ch, months, varCostMap, usdRate, jpyRate)),
     ZERO_METRICS,
   );
   const cm = totals.revenue > 0 ? Math.round((totals.profit / totals.revenue) * 1000) / 10 : null;
   return { ...totals, cm };
+}
+
+/** 여러 채널의 특정 월 지표 합산 — calcChannelMonthMetrics의 다중 채널 버전 */
+export function calcChannelsMonthMetrics(
+  sku: SkuData, channels: readonly Channel[], month: Month, varCostMap: VarCostRatioMap = {},
+  usdRate?: number, jpyRate?: number,
+): MonthMetrics {
+  return channels.reduce(
+    (acc, ch) => addMetrics(acc, calcChannelMonthMetrics(sku, ch, month, varCostMap, usdRate, jpyRate)),
+    ZERO_METRICS,
+  );
 }
 
 export function addMetrics(a: MonthMetrics, b: MonthMetrics): MonthMetrics {
