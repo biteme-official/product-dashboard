@@ -11,9 +11,6 @@ import {
 import { buildVarCostRatioMap } from '../utils/mdSummaryCalc';
 import { useExchangeRates } from '../utils/useExchangeRates';
 
-type TabId = '전체 요약' | Channel;
-const TABS: TabId[] = ['전체 요약', ...CHANNELS];
-
 interface Props {
   categoryFilter: Category | '전체';
 }
@@ -108,7 +105,8 @@ function RangeSlider({ min, max, start, end, labels, onChange }: RangeSliderProp
 
 /* ── 메인 컴포넌트 ───────────────────────────────────────────────────── */
 export function MdSummarySection({ categoryFilter }: Props) {
-  const [activeTab, setActiveTab] = useState<TabId>('전체 요약');
+  // 빈 Set = "전체 요약" (채널 미선택 상태). 1개 이상 선택 시 해당 채널들만 합산한 상세 뷰로 전환.
+  const [selectedChannels, setSelectedChannels] = useState<Set<Channel>>(new Set());
   const [selectedSkuIds, setSelectedSkuIds] = useState<Set<string>>(new Set());
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -200,7 +198,14 @@ export function MdSummarySection({ categoryFilter }: Props) {
 
   useEffect(() => {
     setSelectedSkuIds(new Set());
+    setSelectedChannels(new Set());
   }, [categoryFilter, activeBrand]);
+
+  function toggleChannel(ch: Channel) {
+    const next = new Set(selectedChannels);
+    if (next.has(ch)) next.delete(ch); else next.add(ch);
+    setSelectedChannels(next);
+  }
 
   const visibleSkus = categoryFiltered.filter((s) =>
     searchQuery === '' || s.name.toLowerCase().includes(searchQuery.toLowerCase()),
@@ -233,17 +238,27 @@ export function MdSummarySection({ categoryFilter }: Props) {
       {/* 채널 탭 바 + 월 범위 슬라이더 */}
       <div className="flex items-center gap-3 bg-white rounded-xl border border-gray-200 p-1 shadow-sm">
         <div className="flex gap-1 overflow-x-auto scrollbar-none flex-1 min-w-0">
-          {TABS.map((tab) => (
+          <button
+            onClick={() => setSelectedChannels(new Set())}
+            className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap flex-shrink-0 ${
+              selectedChannels.size === 0
+                ? 'bg-indigo-600 text-white shadow-sm'
+                : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
+            }`}
+          >
+            전체 요약
+          </button>
+          {CHANNELS.map((ch) => (
             <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
+              key={ch}
+              onClick={() => toggleChannel(ch)}
               className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap flex-shrink-0 ${
-                activeTab === tab
+                selectedChannels.has(ch)
                   ? 'bg-indigo-600 text-white shadow-sm'
                   : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
               }`}
             >
-              {tab}
+              {ch}
             </button>
           ))}
         </div>
@@ -332,10 +347,10 @@ export function MdSummarySection({ categoryFilter }: Props) {
       </div>
 
       {/* 탭 콘텐츠 */}
-      {activeTab === '전체 요약' ? (
+      {selectedChannels.size === 0 ? (
         <MdSummaryOverview skus={filtered} months={visibleMonths} varCostMap={varCostMap} usdKrw={usdKrw} jpyKrw={jpyKrw} />
       ) : (
-        <MdChannelDetail skus={filtered} channel={activeTab as Channel} months={visibleMonths} varCostMap={varCostMap} usdKrw={usdKrw} jpyKrw={jpyKrw} />
+        <MdChannelDetail skus={filtered} channels={[...selectedChannels]} months={visibleMonths} varCostMap={varCostMap} usdKrw={usdKrw} jpyKrw={jpyKrw} />
       )}
     </div>
   );
