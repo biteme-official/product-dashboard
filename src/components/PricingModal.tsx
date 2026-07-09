@@ -275,7 +275,7 @@ export function PricingModal({ sku, onClose }: { sku: SkuData; onClose: () => vo
           <div>
             <p className="text-[11px] text-gray-400 font-medium">{sku.brand} · {sku.category}</p>
             <h2 className="text-sm font-bold text-gray-900 leading-tight mt-0.5">
-              {sku.name || '(SKU명 미입력)'} — 프라이싱 시나리오
+              {sku.skuName || '(SKU명 미입력)'} — 프라이싱 시나리오
             </h2>
           </div>
           <button

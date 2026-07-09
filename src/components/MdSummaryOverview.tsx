@@ -301,8 +301,8 @@ export function MdSummaryOverview({ skus, months, varCostMap, usdKrw, jpyKrw }: 
                   const isUnset = step2Total === 0;
                   return (
                     <tr key={sku.id} className="border-b border-gray-50 last:border-0 hover:bg-indigo-50/20 transition-colors">
-                      <td className="px-4 py-2.5 font-medium text-gray-800 max-w-[220px] truncate" title={sku.name}>
-                        {sku.name || <span className="text-gray-300">(미입력)</span>}
+                      <td className="px-4 py-2.5 font-medium text-gray-800 max-w-[220px] truncate" title={sku.skuName}>
+                        {sku.skuName || <span className="text-gray-300">(미입력)</span>}
                       </td>
                       <td className="px-4 py-2.5">
                         <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${

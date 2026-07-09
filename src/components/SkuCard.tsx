@@ -140,7 +140,7 @@ export function SkuCard({ sku }: Props) {
             onClick={() => toggleExpanded(sku.id)}
             className="font-semibold text-gray-900 truncate flex-1 min-w-0 text-sm text-left hover:text-indigo-700 transition-colors"
           >
-            {sku.name || '(SKU명 미입력)'}
+            {sku.skuName || '(SKU명 미입력)'}
           </button>
 
           {canEdit && (
@@ -498,8 +498,8 @@ function BasicInfoColumn({ sku, readOnly }: { sku: SkuData; readOnly?: boolean }
         <label className="block text-xs text-gray-500 mb-1">SKU명</label>
         <input
           type="text"
-          value={sku.name}
-          onChange={(e) => handleChange({ name: e.target.value })}
+          value={sku.skuName}
+          onChange={(e) => handleChange({ skuName: e.target.value })}
           onBlur={handleBlur}
           disabled={readOnly}
           placeholder="SKU명 입력"

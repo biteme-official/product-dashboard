@@ -13,10 +13,10 @@ class MdDashboardDb extends Dexie {
   constructor() {
     super('md-dashboard-db');
     this.version(1).stores({
-      skus: 'id, category, name',
+      skus: 'id, category, skuName',
     });
     this.version(2).stores({
-      skus: 'id, category, name',
+      skus: 'id, category, skuName',
       images: 'skuId',
     });
   }

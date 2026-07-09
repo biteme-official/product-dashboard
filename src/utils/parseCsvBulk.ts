@@ -14,7 +14,7 @@ export interface ParsedRow {
   errors: string[];
   sku?: Omit<SkuData, '_initialSnapshot' | 'isExpanded'>;
   raw: {
-    category: string; brand: string; skuType: string; name: string;
+    category: string; brand: string; skuType: string; skuName: string;
     releaseDate: string; sizeCount: string; cost: string;
     price: string; regularPrice: string; moq: string;
   };
@@ -48,7 +48,7 @@ export function parseCsvBulk(text: string): ParsedRow[] {
     ] = cells.map((c) => c.trim());
 
     const raw = {
-      category: rawCat, brand: rawBrand, skuType: rawType, name: rawName,
+      category: rawCat, brand: rawBrand, skuType: rawType, skuName: rawName,
       releaseDate: rawDate, sizeCount: rawSize, cost: rawCost,
       price: rawPrice, regularPrice: rawRegular, moq: rawMoq,
     };
@@ -89,7 +89,7 @@ export function parseCsvBulk(text: string): ParsedRow[] {
     const sku: Omit<SkuData, '_initialSnapshot' | 'isExpanded'> = {
       id: uuidv4(),
       category: rawCat as Category,
-      name: rawName,
+      skuName: rawName,
       brand: rawBrand as Brand,
       skuType: rawType as SkuType,
       releaseDate: rawDate,

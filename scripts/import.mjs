@@ -54,10 +54,10 @@ const err = (i, name, msg) => {
 };
 
 skus.forEach((sku, i) => {
-  const n = sku.name ?? '(이름없음)';
+  const n = sku.skuName ?? '(이름없음)';
 
-  if (!sku.name)
-    err(i, n, 'name은 필수입니다.');
+  if (!sku.skuName)
+    err(i, n, 'skuName은 필수입니다.');
 
   if (!sku.category || !VALID_CATEGORIES.includes(sku.category))
     err(i, n, `category는 [${VALID_CATEGORIES.join(', ')}] 중 하나여야 합니다. 현재: "${sku.category}"`);

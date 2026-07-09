@@ -108,7 +108,7 @@ export function MarketingBriefModal({ sku, onClose }: { sku: SkuData; onClose: (
           <div>
             <p className="text-[11px] text-gray-400 font-medium">{sku.brand}</p>
             <h2 className="text-base font-bold text-gray-900 leading-tight">
-              {sku.name || '(SKU명 미입력)'}
+              {sku.skuName || '(SKU명 미입력)'}
             </h2>
           </div>
           <div className="flex items-center gap-2">

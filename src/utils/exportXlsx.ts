@@ -151,7 +151,7 @@ export function exportSkuOrderXlsx(sku: SkuData): void {
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, '발주량 상세');
 
-  const skuName = sku.name.trim() || 'SKU';
+  const skuName = sku.skuName.trim() || 'SKU';
   XLSX.writeFile(wb, `${todayYymmdd()}_${skuName}_발주량 상세.xlsx`);
 }
 
@@ -159,7 +159,7 @@ export function exportBulkOrderXlsx(skus: SkuData[], category: string): void {
   const allRows: (string | number)[][] = [];
 
   skus.forEach((sku, i) => {
-    allRows.push([sku.name.trim() || '(SKU명 미입력)']);
+    allRows.push([sku.skuName.trim() || '(SKU명 미입력)']);
     // PM 확인 최종 발주량 기준, 없으면 사이즈/컬러 기반 fallback
     const rows = buildFinalOrderRows(sku) ?? buildSkuOrderRows(sku);
     allRows.push(...rows);
@@ -283,7 +283,7 @@ export function exportSimulationXlsx(params: SimExportParams): void {
 
   // ── Section 1 ──────────────────────────────────────────────────────────
   sv(R_S1_TITLE, 0, '▶ SKU 기본 정보');
-  sv(R_INFO, 0, 'SKU명');        sv(R_INFO, 1, sku.name || '(미입력)');
+  sv(R_INFO, 0, 'SKU명');        sv(R_INFO, 1, sku.skuName || '(미입력)');
   sv(R_INFO, 3, '원가(원)');    sv(R_INFO, C_COST, sku.cost);
   sv(R_INFO, 6, '판매가(원)'); sv(R_INFO, C_PRICE, sku.price);
 
@@ -506,7 +506,7 @@ export function exportSimulationXlsx(params: SimExportParams): void {
   ];
 
   const wb = XLSX.utils.book_new();
-  const sheetName = (sku.name || 'SKU').trim().slice(0, 31) || 'SKU';
+  const sheetName = (sku.skuName || 'SKU').trim().slice(0, 31) || 'SKU';
   XLSX.utils.book_append_sheet(wb, ws, sheetName);
-  XLSX.writeFile(wb, `${todayYymmdd()}_${sku.name || 'SKU'}_시뮬레이션.xlsx`);
+  XLSX.writeFile(wb, `${todayYymmdd()}_${sku.skuName || 'SKU'}_시뮬레이션.xlsx`);
 }

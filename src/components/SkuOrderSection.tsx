@@ -48,11 +48,11 @@ function isPast(dateStr: string | null | undefined): boolean {
 
 // ── 정렬 함수 (컴포넌트 외부로 분리하여 useMemo 안전 사용) ─────────────────────
 function sortByDateThenName(a: SkuData, b: SkuData): number {
-  if (!a.releaseDate && !b.releaseDate) return a.name.localeCompare(b.name, 'ko');
+  if (!a.releaseDate && !b.releaseDate) return a.skuName.localeCompare(b.skuName, 'ko');
   if (!a.releaseDate) return 1;
   if (!b.releaseDate) return -1;
   const dateCmp = a.releaseDate.localeCompare(b.releaseDate);
-  return dateCmp !== 0 ? dateCmp : a.name.localeCompare(b.name, 'ko');
+  return dateCmp !== 0 ? dateCmp : a.skuName.localeCompare(b.skuName, 'ko');
 }
 
 function sortForListView(a: SkuData, b: SkuData): number {
@@ -67,7 +67,7 @@ function sortForListView(a: SkuData, b: SkuData): number {
   if (brandCmp !== 0) return brandCmp;
   const catCmp = a.category.localeCompare(b.category, 'ko');
   if (catCmp !== 0) return catCmp;
-  return a.name.localeCompare(b.name, 'ko');
+  return a.skuName.localeCompare(b.skuName, 'ko');
 }
 
 export function SkuOrderSection({
@@ -234,7 +234,7 @@ export function SkuOrderSection({
 
   const sourceSkus = isProjection ? allFilteredSkus : filteredSkus;
   const displaySkus = searchQuery.trim()
-    ? sourceSkus.filter((s) => s.name.includes(searchQuery.trim()))
+    ? sourceSkus.filter((s) => s.skuName.includes(searchQuery.trim()))
     : sourceSkus;
 
   const isAtMax = categorySkus.length >= 100;
@@ -323,7 +323,7 @@ export function SkuOrderSection({
                             className="w-3.5 h-3.5 accent-emerald-600 flex-shrink-0"
                           />
                           <span className="text-xs text-gray-700 truncate">
-                            {sku.name || <span className="text-gray-300">(SKU명 미입력)</span>}
+                            {sku.skuName || <span className="text-gray-300">(SKU명 미입력)</span>}
                           </span>
                         </label>
                       ))}
@@ -533,7 +533,7 @@ export function SkuOrderSection({
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 flex-shrink-0 bg-white sticky top-0 rounded-t-2xl sm:rounded-t-2xl">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-semibold text-gray-800 truncate">
-                  {gallerySelectedSku.name || '(SKU명 미입력)'}
+                  {gallerySelectedSku.skuName || '(SKU명 미입력)'}
                 </span>
                 <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${catCls(gallerySelectedSku.category)}`}>
                   {gallerySelectedSku.category}
@@ -723,9 +723,9 @@ function SkuListTable({ skus, onNavigateToSku }: { skus: SkuData[]; onNavigateTo
                     <button
                       onClick={() => onNavigateToSku?.(sku)}
                       className="font-medium text-gray-800 truncate block w-full text-left hover:text-indigo-600 hover:underline underline-offset-2 transition-colors"
-                      title={sku.name || undefined}
+                      title={sku.skuName || undefined}
                     >
-                      {sku.name || <span className="text-gray-300">(미입력)</span>}
+                      {sku.skuName || <span className="text-gray-300">(미입력)</span>}
                     </button>
                   </td>
                   {/* 오픈일 — 확정 시 [확정] 뱃지만 표시 (토글 없음) */}
@@ -1112,9 +1112,9 @@ function ChannelScheduleTable({ skus, onNavigateToSku }: { skus: SkuData[]; onNa
                   <button
                     onClick={() => onNavigateToSku?.(sku)}
                     className="font-medium text-gray-800 truncate block w-full text-left hover:text-indigo-600 hover:underline underline-offset-2 transition-colors"
-                    title={sku.name || undefined}
+                    title={sku.skuName || undefined}
                   >
-                    {sku.name || <span className="text-gray-300">(미입력)</span>}
+                    {sku.skuName || <span className="text-gray-300">(미입력)</span>}
                   </button>
                 </td>
                 {/* 입고예정일 / 촬영예정일 — 읽기 전용 */}
@@ -1351,7 +1351,7 @@ function SkuGalleryCard({ sku, onClick }: { sku: SkuData; onClick: () => void })
         {sku.imageUrl ? (
           <img
             src={sku.imageUrl}
-            alt={sku.name}
+            alt={sku.skuName}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
           />
         ) : (
@@ -1370,7 +1370,7 @@ function SkuGalleryCard({ sku, onClick }: { sku: SkuData; onClick: () => void })
       </div>
       <div className="p-2.5 space-y-1">
         <p className="text-xs font-semibold text-gray-800 truncate leading-tight">
-          {sku.name || <span className="text-gray-300">(미입력)</span>}
+          {sku.skuName || <span className="text-gray-300">(미입력)</span>}
         </p>
         <div className="flex items-center justify-between gap-1">
           <span className="text-[11px] text-gray-500">

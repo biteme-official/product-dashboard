@@ -6,7 +6,7 @@ import { recalcQuantities } from './calc';
 /** 가져오기용 간략 입력 포맷 */
 export interface RawSkuInput {
   category: Category;
-  name: string;
+  skuName: string;
   skuType?: SkuType;
   releaseDate?: string;
   price?: number;
@@ -94,7 +94,7 @@ function parseOne(raw: RawSkuInput): SkuData {
   const base = {
     id: uuidv4(),
     category: raw.category,
-    name: raw.name,
+    skuName: raw.skuName,
     skuType: raw.skuType ?? '미해당' as SkuType,
     releaseDate: raw.releaseDate ?? '',
     price,

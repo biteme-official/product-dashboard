@@ -1,7 +1,7 @@
 [
   {
     "category": "의류",
-    "name": "테스트 패딩 2025FW",
+    "skuName": "테스트 패딩 2025FW",
     "skuType": "시즈널",
     "releaseDate": "2025-10-01",
     "price": 89000,
@@ -29,7 +29,7 @@
   },
   {
     "category": "의류",
-    "name": "테스트 티셔츠 2025SS",
+    "skuName": "테스트 티셔츠 2025SS",
     "skuType": "스테디",
     "price": 35000,
     "cost": 8500,

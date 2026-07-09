@@ -135,7 +135,7 @@ export function MonthlySalesSection() {
                   <td className="px-3 py-2 border-r border-gray-100">
                     <div className="flex flex-col gap-0.5">
                       <span className="font-medium text-gray-800 leading-tight truncate">
-                        {sku.name || '(미입력)'}
+                        {sku.skuName || '(미입력)'}
                       </span>
                       <div className="flex gap-1">
                         {isWarning && (

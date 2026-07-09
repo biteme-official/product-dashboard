@@ -263,7 +263,7 @@ function CoupangManageTab() {
 
   const q = query.trim().toLowerCase();
   const list = q
-    ? skus.filter((s) => s.name.toLowerCase().includes(q)).slice(0, 30)
+    ? skus.filter((s) => s.skuName.toLowerCase().includes(q)).slice(0, 30)
     : skus.filter((s) => s.coupangEnabled);
 
   return (
@@ -294,7 +294,7 @@ function CoupangManageTab() {
         {list.map((sku) => (
           <div key={sku.id} className="flex items-center justify-between border border-gray-200 rounded-xl px-3 py-2">
             <div className="min-w-0">
-              <p className="text-xs font-medium text-gray-800 truncate">{sku.name || '(SKU명 미입력)'}</p>
+              <p className="text-xs font-medium text-gray-800 truncate">{sku.skuName || '(SKU명 미입력)'}</p>
               <p className="text-[10px] text-gray-400">{sku.category} · {sku.brand} · {sku.releaseDate || '출시일 미입력'}</p>
             </div>
             <button

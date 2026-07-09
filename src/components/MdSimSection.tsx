@@ -126,7 +126,7 @@ export function MdSimSection() {
               >
                 {eligibleSkus.map((s) => (
                   <option key={s.id} value={s.id}>
-                    [{s.brand}] {s.name || '(SKU명 미입력)'}
+                    [{s.brand}] {s.skuName || '(SKU명 미입력)'}
                   </option>
                 ))}
               </select>

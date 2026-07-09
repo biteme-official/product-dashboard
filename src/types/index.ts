@@ -135,7 +135,7 @@ export interface MonthlySplit {
 export interface SkuData {
   id: string;
   category: Category;
-  name: string;
+  skuName: string;
   skuType: SkuType;
   releaseDate: string;              // 'YYYY-MM-DD'
   arrivalDate?: string;             // 입고예정일

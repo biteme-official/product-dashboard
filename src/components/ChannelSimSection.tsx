@@ -160,7 +160,7 @@ export function ChannelSimSection() {
                 )}
                 {eligibleSkus.map((s) => (
                   <option key={s.id} value={s.id}>
-                    [{s.category}] {s.name || '(SKU명 미입력)'}
+                    [{s.category}] {s.skuName || '(SKU명 미입력)'}
                   </option>
                 ))}
               </select>

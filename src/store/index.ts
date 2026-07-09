@@ -24,7 +24,7 @@ const savedSkuState: Record<string, SkuData> = {};
 
 // diff 대상 필드만 추적 (배열/객체는 제외)
 const TRACKED_FIELDS: Partial<Record<keyof SkuData, string>> = {
-  name: 'SKU명',
+  skuName: 'SKU명',
   category: '카테고리',
   brand: '브랜드',
   releaseDate: '출시일',
@@ -81,7 +81,7 @@ function buildEmptySku(category: Category): SkuData {
   const base: Omit<SkuData, '_initialSnapshot' | 'isExpanded'> = {
     id: uuidv4(),
     category,
-    name: '',
+    skuName: '',
     skuType: '미해당',
     releaseDate: '',
     price: 0,
@@ -447,10 +447,10 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
     const copy: SkuData = {
       ...JSON.parse(JSON.stringify(source)),
       id: newId,
-      name: source.name ? `${source.name} (복사)` : '(복사)',
+      skuName: source.skuName ? `${source.skuName} (복사)` : '(복사)',
       isExpanded: true,
     };
-    copy._initialSnapshot = { ...copy._initialSnapshot, id: newId, name: copy.name };
+    copy._initialSnapshot = { ...copy._initialSnapshot, id: newId, skuName: copy.skuName };
     const idx = skus.findIndex((s) => s.id === id);
     const next = [...skus.slice(0, idx + 1), copy, ...skus.slice(idx + 1)];
     set({ skus: next });
@@ -464,7 +464,7 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
     const expiresAt = new Date(now.getTime() + TRASH_DAYS * 24 * 60 * 60 * 1000);
     await addDoc(collection(fsdb, TRASH_COL), {
       skuId: id,
-      skuName: sku.name || '(SKU명 미입력)',
+      skuName: sku.skuName || '(SKU명 미입력)',
       category: sku.category,
       brand: sku.brand,
       deletedAt: now.toISOString(),
@@ -802,7 +802,7 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
       ...(finalOrderQty !== undefined ? { finalOrderQty } : {}),
     };
     set({ skus: get().skus.map((s) => (s.id === id ? { ...s, ...patch } : s)) });
-    writeLog(id, sku.name, useAuth.getState().role ?? 'unknown', [{
+    writeLog(id, sku.skuName, useAuth.getState().role ?? 'unknown', [{
       field: 'finalOrderConfirmedAt', label: '발주 확정',
       from: formatLogValue(!!sku.finalOrderConfirmedAt), to: formatLogValue(confirmed),
     }]).catch(console.error);
@@ -823,7 +823,7 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
       }
       if (changes.length > 0) {
         const role = useAuth.getState().role ?? 'unknown';
-        writeLog(id, sku.name, role, changes).catch(console.error);
+        writeLog(id, sku.skuName, role, changes).catch(console.error);
       }
     }
 
@@ -852,7 +852,7 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
       step2BrandConfirmed: '브랜드 확정',
       step2GlobalConfirmed: '글로벌 확정',
     };
-    writeLog(id, sku.name, useAuth.getState().role ?? 'unknown', [{
+    writeLog(id, sku.skuName, useAuth.getState().role ?? 'unknown', [{
       field, label: CHANNEL_LABELS[field] ?? field,
       from: formatLogValue(!value), to: formatLogValue(value),
     }]).catch(console.error);
@@ -878,7 +878,7 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
       console.error('[setCoupangEnabled] Firestore 저장 실패:', id, err);
       throw err;
     }
-    writeLog(id, sku.name, useAuth.getState().role ?? 'unknown', [{
+    writeLog(id, sku.skuName, useAuth.getState().role ?? 'unknown', [{
       field: 'coupangEnabled', label: '쿠팡 채널 활성화',
       from: formatLogValue(!enabled), to: formatLogValue(enabled),
     }]).catch(console.error);
@@ -890,7 +890,7 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
     const updated = { ...sku, isPriceConfirmed: confirmed };
     set({ skus: get().skus.map((s) => (s.id === id ? updated : s)) });
     await setDoc(doc(fsdb, SKUS_COL, id), toFirestore(updated));
-    writeLog(id, sku.name, useAuth.getState().role ?? 'unknown', [{
+    writeLog(id, sku.skuName, useAuth.getState().role ?? 'unknown', [{
       field: 'isPriceConfirmed', label: '가격 확정',
       from: formatLogValue(!confirmed), to: formatLogValue(confirmed),
     }]).catch(console.error);
@@ -902,7 +902,7 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
     const updated = { ...sku, scheduleConfirmed: confirmed };
     set({ skus: get().skus.map((s) => (s.id === id ? updated : s)) });
     await setDoc(doc(fsdb, SKUS_COL, id), toFirestore(updated));
-    writeLog(id, sku.name, useAuth.getState().role ?? 'unknown', [{
+    writeLog(id, sku.skuName, useAuth.getState().role ?? 'unknown', [{
       field: 'scheduleConfirmed', label: '일정 확정',
       from: formatLogValue(!confirmed), to: formatLogValue(confirmed),
     }]).catch(console.error);
@@ -921,7 +921,7 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
       field, label: labels[field],
       from: formatLogValue(sku[field as keyof SkuData]), to: formatLogValue(patch[field]),
     }));
-    writeLog(id, sku.name, useAuth.getState().role ?? 'unknown', changes).catch(console.error);
+    writeLog(id, sku.skuName, useAuth.getState().role ?? 'unknown', changes).catch(console.error);
   },
 
   setPricingMemo: async (id, memo) => {
@@ -932,7 +932,7 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
     const updated = { ...sku, pricingMemo: memo };
     set({ skus: get().skus.map((s) => (s.id === id ? updated : s)) });
     await setDoc(doc(fsdb, SKUS_COL, id), toFirestore(updated));
-    writeLog(id, sku.name, useAuth.getState().role ?? 'unknown', [{
+    writeLog(id, sku.skuName, useAuth.getState().role ?? 'unknown', [{
       field: 'pricingMemo', label: '프라이싱 메모',
       from: formatLogValue(prevMemo), to: formatLogValue(memo),
     }]).catch(console.error);

@@ -290,8 +290,8 @@ export function MdViewSection() {
                   className={`border-b border-gray-100 ${i % 2 === 0 ? 'bg-white' : 'bg-gray-50/40'}`}
                 >
                   <td className="px-3 py-2 border-r border-gray-200 font-medium text-gray-700">
-                    <span className="block max-w-[180px] truncate" title={sku.name}>
-                      {sku.name || '(SKU명 미입력)'}
+                    <span className="block max-w-[180px] truncate" title={sku.skuName}>
+                      {sku.skuName || '(SKU명 미입력)'}
                     </span>
                   </td>
                   <td className="px-3 py-2 text-right tabular-nums border-r border-gray-200">

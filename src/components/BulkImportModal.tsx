@@ -121,7 +121,7 @@ export function BulkImportModal({ onClose }: { onClose: () => void }) {
                           <td className="px-2 py-1.5 text-gray-700">{row.raw.category}</td>
                           <td className="px-2 py-1.5 text-gray-700">{row.raw.brand}</td>
                           <td className="px-2 py-1.5 text-gray-700">{row.raw.skuType}</td>
-                          <td className="px-2 py-1.5 text-gray-700 font-medium">{row.raw.name || <span className="text-gray-300">(없음)</span>}</td>
+                          <td className="px-2 py-1.5 text-gray-700 font-medium">{row.raw.skuName || <span className="text-gray-300">(없음)</span>}</td>
                           <td className="px-2 py-1.5 text-center tabular-nums text-gray-600">{row.raw.releaseDate || '–'}</td>
                           <td className="px-2 py-1.5 text-center tabular-nums text-gray-600">{row.raw.sizeCount}</td>
                           <td className="px-2 py-1.5 text-right tabular-nums text-gray-600">{row.raw.cost ? Number(row.raw.cost.replace(/,/g, '')).toLocaleString() : '–'}</td>

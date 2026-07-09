@@ -41,7 +41,7 @@ function buildSnapshot(
 const paddingBase = {
   id: 'dummy-padding-001',
   category: '의류' as const,
-  name: '패딩 점퍼',
+  skuName: '패딩 점퍼',
   skuType: '시즈널' as const,
   releaseDate: '2024-10-01',
   price: 79000,
@@ -76,7 +76,7 @@ const paddingBase = {
 const tshirtBase = {
   id: 'dummy-tshirt-001',
   category: '의류' as const,
-  name: '베이직 티셔츠',
+  skuName: '베이직 티셔츠',
   skuType: '스테디' as const,
   releaseDate: '2024-04-15',
   price: 32000,

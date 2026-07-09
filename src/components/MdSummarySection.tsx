@@ -211,7 +211,7 @@ export function MdSummarySection({ categoryFilter }: Props) {
   }
 
   const visibleSkus = categoryFiltered.filter((s) =>
-    searchQuery === '' || s.name.toLowerCase().includes(searchQuery.toLowerCase()),
+    searchQuery === '' || s.skuName.toLowerCase().includes(searchQuery.toLowerCase()),
   );
 
   const filtered = selectedSkuIds.size === 0
@@ -348,7 +348,7 @@ export function MdSummarySection({ categoryFilter }: Props) {
                       onChange={() => toggleSku(sku.id)}
                       className="w-3.5 h-3.5 rounded accent-indigo-600 flex-shrink-0"
                     />
-                    <span className="text-xs text-gray-600 truncate">{sku.name}</span>
+                    <span className="text-xs text-gray-600 truncate">{sku.skuName}</span>
                   </label>
                 ))
               )}
