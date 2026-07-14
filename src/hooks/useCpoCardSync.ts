@@ -53,7 +53,12 @@ export function useCpoCardSync(): void {
         .filter((c) => !trashedIds.has(c.id))
         .forEach((c) => {
           inFlight.current.add(c.id);
-          createSkuFromCpo(c);
+          try {
+            createSkuFromCpo(c);
+          } catch (err) {
+            // 한 건이 실패해도 나머지 후보 생성은 계속 진행되어야 함
+            console.error('[useCpoCardSync] 카드 생성 실패, 다음 후보 계속 진행:', c.id, err);
+          }
         });
     })();
 

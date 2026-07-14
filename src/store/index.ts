@@ -165,8 +165,9 @@ function buildSkuFromCpo(cpo: CpoProject): SkuData {
     skuType,
     skuName: cpo.skuName || '',
     releaseDate: cpo.releaseDate || '',
-    arrivalDate: cpo.arrivalDate || undefined,
-    shootingDate: cpo.shootingDate || undefined,
+    // Firestore는 필드값 undefined를 거부함(문서 전체 저장 실패) — 값 없으면 아예 키를 안 넣음
+    ...(cpo.arrivalDate ? { arrivalDate: cpo.arrivalDate } : {}),
+    ...(cpo.shootingDate ? { shootingDate: cpo.shootingDate } : {}),
     moq: cpo.moq || 0,
     sizeCount,
     sizes,
@@ -488,11 +489,17 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
   createSkuFromCpo: (cpo) => {
     // 이미 로컬에 있으면(다른 탭/레이스에서 먼저 생겼으면) 건너뜀 — 중복 생성 방지
     if (get().skus.some((s) => s.id === cpo.id)) return;
-    const newSku = buildSkuFromCpo(cpo);
-    set({ skus: [...get().skus, newSku] });
-    setDoc(doc(fsdb, SKUS_COL, newSku.id), toFirestore(newSku)).catch((err) => {
-      console.error('[createSkuFromCpo] Firestore 저장 실패:', newSku.id, err);
-    });
+    try {
+      const newSku = buildSkuFromCpo(cpo);
+      set({ skus: [...get().skus, newSku] });
+      // setDoc은 잘못된 값(예: undefined 필드)이 있으면 프로미스가 아니라 즉시 예외를 던짐 —
+      // try/catch로 감싸지 않으면 이 한 건 때문에 나머지 후보들의 생성까지 통째로 막힘(실제 발생했던 버그)
+      setDoc(doc(fsdb, SKUS_COL, newSku.id), toFirestore(newSku)).catch((err) => {
+        console.error('[createSkuFromCpo] Firestore 저장 실패:', newSku.id, err);
+      });
+    } catch (err) {
+      console.error('[createSkuFromCpo] SKU 생성 실패:', cpo.id, err);
+    }
   },
 
   duplicateSku: (id) => {
