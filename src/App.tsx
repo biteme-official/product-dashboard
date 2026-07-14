@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useStore } from './store';
 import { useAuth } from './store/auth';
+import { useCpoSync } from './store/cpoSync';
 import type { SkuData, Category } from './types';
 import type { Brand } from './types';
 import { CategoryTabs } from './components/CategoryTabs';
@@ -75,6 +76,7 @@ const ROLE_META: Record<import('./utils/pin').Role, { label: string; color: stri
 
 function App() {
   const loadSkus = useStore((s) => s.loadSkus);
+  const loadCpoSync = useCpoSync((s) => s.loadCpoSync);
   const importSkus = useStore((s) => s.importSkus);
   const replaceAllSkus = useStore((s) => s.replaceAllSkus);
   const skus = useStore((s) => s.skus);
@@ -226,6 +228,10 @@ function App() {
   useEffect(() => {
     return loadSkus(); // Firestore onSnapshot unsubscribe on unmount
   }, [loadSkus]);
+
+  useEffect(() => {
+    return loadCpoSync(); // CPO 대시보드 읽기전용 구독 unsubscribe on unmount
+  }, [loadCpoSync]);
 
   // pending-import.json 감지
   useEffect(() => {
