@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { useStore } from '../store';
+import { useVisibleSkus } from '../hooks/useVisibleSkus';
 import { useAuth } from '../store/auth';
 import { SkuCard } from './SkuCard';
 import { PricingModal } from './PricingModal';
@@ -95,7 +96,7 @@ export function SkuOrderSection({
   onSearchQueryChange?: (v: string) => void;
   onNavigateToSku?: (sku: SkuData) => void;
 }) {
-  const skus = useStore((s) => s.skus);
+  const skus = useVisibleSkus();
   const activeCategory = useStore((s) => s.activeCategory);
   const activeBrand = useStore((s) => s.activeBrand);
   const addSku = useStore((s) => s.addSku);

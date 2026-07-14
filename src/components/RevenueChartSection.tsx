@@ -4,6 +4,7 @@ import {
   LabelList, ResponsiveContainer,
 } from 'recharts';
 import { useStore } from '../store';
+import { useVisibleSkus } from '../hooks/useVisibleSkus';
 import { MONTHS, CHANNELS, type Month, type Channel } from '../types';
 import { getChannelRate } from '../utils/calc';
 
@@ -97,7 +98,7 @@ function makeLabel(channel: Channel) {
 }
 
 export function RevenueChartSection() {
-  const skus = useStore((s) => s.skus);
+  const skus = useVisibleSkus();
   const activeCategory = useStore((s) => s.activeCategory);
   const activeBrand    = useStore((s) => s.activeBrand);
   const [selectedChannel, setSelectedChannel] = useState<Channel | null>(null);

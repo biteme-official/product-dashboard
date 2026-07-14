@@ -1,5 +1,6 @@
 import { useRef } from 'react';
 import { useStore } from '../store';
+import { useVisibleSkus } from '../hooks/useVisibleSkus';
 import { useAuth } from '../store/auth';
 import { isMdRole } from '../utils/pin';
 import { MONTHS, getSkuMonths, type Month } from '../types';
@@ -27,7 +28,7 @@ const IS_NEXT_YEAR: Record<Month, boolean> = {
 };
 
 export function MonthlySalesSection() {
-  const skus = useStore((s) => s.skus);
+  const skus = useVisibleSkus();
   const activeCategory = useStore((s) => s.activeCategory);
   const activeBrand = useStore((s) => s.activeBrand);
   const updateMonthlySplit = useStore((s) => s.updateMonthlySplit);

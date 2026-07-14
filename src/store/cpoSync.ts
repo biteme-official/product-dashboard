@@ -38,6 +38,7 @@ export const useCpoSync = create<CpoSyncState & CpoSyncActions>((set) => ({
               map[d.id] = { ...(d.data() as Omit<CpoProject, 'id'>), id: d.id };
             });
             set({ cpoProjects: map, cpoLoaded: true });
+            console.info(`[cpoSync] CPO 프로젝트 ${snapshot.docs.length}건 수신 완료`);
           },
           (err) => console.error('[cpoSync] projects 구독 실패 — CPO 값 표시가 비어있을 수 있음', err),
         );
@@ -49,6 +50,7 @@ export const useCpoSync = create<CpoSyncState & CpoSyncActions>((set) => ({
               map[d.id] = { ...(d.data() as Omit<CpoUser, 'id'>), id: d.id };
             });
             set({ cpoUsers: map });
+            console.info(`[cpoSync] CPO 사용자 ${snapshot.docs.length}건 수신 완료`);
           },
           (err) => console.error('[cpoSync] users 구독 실패 — 담당자 이름 표시가 비어있을 수 있음', err),
         );

@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useStore } from '../store';
+import { useVisibleSkus } from '../hooks/useVisibleSkus';
 import { useAuth } from '../store/auth';
 import { isMdRole } from '../utils/pin';
 import { MONTHS, CHANNELS, B2C_CHANNELS, type Month, type Channel } from '../types';
@@ -24,7 +25,7 @@ function formatWon(value: number): string {
 }
 
 export function ChannelSimSection() {
-  const skus = useStore((s) => s.skus);
+  const skus = useVisibleSkus();
   const activeCategory = useStore((s) => s.activeCategory);
   const activeBrand = useStore((s) => s.activeBrand);
   const updateChannelRatio = useStore((s) => s.updateChannelRatio);

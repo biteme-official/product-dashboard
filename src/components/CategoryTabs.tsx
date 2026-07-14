@@ -1,5 +1,6 @@
 import { CATEGORIES, type Category } from '../types';
 import { useStore } from '../store';
+import { useVisibleSkus } from '../hooks/useVisibleSkus';
 
 type UncontrolledProps = { showAll?: false; value?: never; onChange?: never };
 type ControlledProps = { showAll: true; value: Category | '전체'; onChange: (c: Category | '전체') => void };
@@ -8,7 +9,7 @@ type Props = UncontrolledProps | ControlledProps;
 export function CategoryTabs({ showAll, value, onChange }: Props = {}) {
   const activeCategory = useStore((s) => s.activeCategory);
   const setActiveCategory = useStore((s) => s.setActiveCategory);
-  const skus = useStore((s) => s.skus);
+  const skus = useVisibleSkus();
 
   const isControlled = showAll === true;
   const currentValue = isControlled ? value : activeCategory;

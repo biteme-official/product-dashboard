@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { useStore } from '../store';
+import { useVisibleSkus } from '../hooks/useVisibleSkus';
 import { CHANNELS, B2C_CHANNELS, type Channel } from '../types';
 import { getChannelRate } from '../utils/calc';
 
@@ -45,7 +46,7 @@ function KpiCard({
 }
 
 export function MdViewSection() {
-  const skus = useStore((s) => s.skus);
+  const skus = useVisibleSkus();
   const activeCategory = useStore((s) => s.activeCategory);
   const activeBrand = useStore((s) => s.activeBrand);
 

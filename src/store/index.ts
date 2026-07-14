@@ -7,11 +7,12 @@ import {
 import { fsdb } from '../lib/firebase';
 import type { AppState, Category, Month, SkuData, MonthlySplit, ColorEntry, ChannelMonthEntry, ChannelMonthQtyEntry, ChannelPricing, TrashItem, ActivityLog, LogChange } from '../types';
 import { useAuth } from './auth';
-import { MAX_SIZES, SIZE_LABELS, MONTHS, CHANNELS, BRANDS, DEFAULT_CHANNEL_RATIOS, DEFAULT_CHANNEL_COMMISSION, getDisabledChannels, getSkuMonths, type Brand, type Channel } from '../types';
+import { MAX_SIZES, SIZE_LABELS, MONTHS, CHANNELS, BRANDS, CATEGORIES, SKU_TYPES, DEFAULT_CHANNEL_RATIOS, DEFAULT_CHANNEL_COMMISSION, getDisabledChannels, getSkuMonths, type Brand, type Channel } from '../types';
+import type { CpoProject } from '../types/cpo';
 import { recalcQuantities, revenueMultiplier, calcDynamicMultiplier } from '../utils/calc';
 
-const SKUS_COL = 'skus';
-const TRASH_COL = 'trash';
+export const SKUS_COL = 'skus';
+export const TRASH_COL = 'trash';
 const TRASH_DAYS = 15;
 const LOGS_COL = 'activityLogs';
 
@@ -129,6 +130,50 @@ function buildEmptySku(category: Category): SkuData {
     pricingMemo: '',
   };
   return { ...base, isExpanded: true, _initialSnapshot: JSON.parse(JSON.stringify(base)) };
+}
+
+/**
+ * CPO 프로젝트가 새로 '기획/아이디어' 등 활성 상태가 됐을 때, Product에 없던 SKU 카드를
+ * 자동으로 만들기 위한 초기값. category/brand/skuType/releaseDate/arrivalDate/shootingDate/moq/
+ * sizes/colors만 CPO 값으로 시딩하고, 나머지(채널비중·프라이싱 시나리오 등)는 buildEmptySku와 동일한
+ * Product 기본값 — CPO엔 없는 Product 전용 데이터라 시딩할 원본 자체가 없음.
+ */
+function buildSkuFromCpo(cpo: CpoProject): SkuData {
+  const category = (CATEGORIES as string[]).includes(cpo.category) ? (cpo.category as Category) : CATEGORIES[0];
+  const brand = (BRANDS as readonly string[]).includes(cpo.brand) ? (cpo.brand as Brand) : BRANDS[0];
+  const skuType = (SKU_TYPES as readonly string[]).includes(cpo.skuType) ? (cpo.skuType as import('../types').SkuType) : SKU_TYPES[2];
+  const base = buildEmptySku(category);
+
+  const sizeCount = Math.min(Math.max(cpo.sizes?.length ?? 1, 1), MAX_SIZES);
+  const labels = SIZE_LABELS[sizeCount] ?? SIZE_LABELS[1];
+  const evenRatio = Math.round(100 / sizeCount);
+  const sizes = Array.from({ length: MAX_SIZES }, (_, i) => ({
+    label: i < sizeCount ? labels[i] : '-',
+    ratio: i < sizeCount ? evenRatio : 0,
+    quantity: 0,
+    isActive: i < sizeCount,
+  }));
+
+  const hasColors = (cpo.colors?.length ?? 0) > 0;
+  const colors = (cpo.colors ?? []).map((c) => ({ id: c.id, name: c.name, quantity: 0 }));
+
+  const seeded: SkuData = {
+    ...base,
+    id: cpo.id,
+    category,
+    brand,
+    skuType,
+    skuName: cpo.skuName || '',
+    releaseDate: cpo.releaseDate || '',
+    arrivalDate: cpo.arrivalDate || undefined,
+    shootingDate: cpo.shootingDate || undefined,
+    moq: cpo.moq || 0,
+    sizeCount,
+    sizes,
+    hasColors,
+    colors,
+  };
+  return { ...seeded, isExpanded: false, _initialSnapshot: JSON.parse(JSON.stringify({ ...seeded, isExpanded: false, _initialSnapshot: undefined })) };
 }
 
 function recalcMonthlySplit(sku: SkuData, overrideSplit?: MonthlySplit[]): MonthlySplit[] {
@@ -308,6 +353,7 @@ interface StoreActions {
   setListView: (v: boolean) => void;
   loadSkus: () => () => void;
   addSku: () => void;
+  createSkuFromCpo: (cpo: CpoProject) => void;
   duplicateSku: (id: string) => void;
   deleteSku: (id: string, deletedBy: string) => Promise<void>;
   loadTrash: () => Promise<TrashItem[]>;
@@ -437,6 +483,16 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
     const newSku = buildEmptySku(activeCategory);
     set({ skus: [...skus, newSku] });
     setDoc(doc(fsdb, SKUS_COL, newSku.id), toFirestore(newSku));
+  },
+
+  createSkuFromCpo: (cpo) => {
+    // 이미 로컬에 있으면(다른 탭/레이스에서 먼저 생겼으면) 건너뜀 — 중복 생성 방지
+    if (get().skus.some((s) => s.id === cpo.id)) return;
+    const newSku = buildSkuFromCpo(cpo);
+    set({ skus: [...get().skus, newSku] });
+    setDoc(doc(fsdb, SKUS_COL, newSku.id), toFirestore(newSku)).catch((err) => {
+      console.error('[createSkuFromCpo] Firestore 저장 실패:', newSku.id, err);
+    });
   },
 
   duplicateSku: (id) => {

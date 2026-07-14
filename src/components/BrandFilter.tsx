@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useStore } from '../store';
+import { useVisibleSkus } from '../hooks/useVisibleSkus';
 import { BRANDS, type Brand, type Category } from '../types';
 
 interface Props {
@@ -7,7 +8,7 @@ interface Props {
 }
 
 export function BrandFilter({ categoryFilter }: Props = {}) {
-  const skus = useStore((s) => s.skus);
+  const skus = useVisibleSkus();
   const activeCategory = useStore((s) => s.activeCategory);
   const activeBrand = useStore((s) => s.activeBrand);
   const setActiveBrand = useStore((s) => s.setActiveBrand);
