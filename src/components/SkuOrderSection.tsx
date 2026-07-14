@@ -3,7 +3,7 @@ import { useStore } from '../store';
 import { useVisibleSkus } from '../hooks/useVisibleSkus';
 import { useAuth } from '../store/auth';
 import { useCpoSync } from '../store/cpoSync';
-import { cpoPricingDeepLink } from '../types/cpo';
+import { cpoPricingDeepLink, CPO_STATUS_STYLES } from '../types/cpo';
 import { SkuCard } from './SkuCard';
 import { PricingModal } from './PricingModal';
 import { NumericInput } from './NumericInput';
@@ -683,6 +683,7 @@ function SkuListTable({ skus, onNavigateToSku }: { skus: SkuData[]; onNavigateTo
               <th className="px-3 py-2.5 text-left font-semibold text-gray-600 whitespace-nowrap">카테고리</th>
               <th className="px-3 py-2.5 text-left font-semibold text-gray-600 whitespace-nowrap">브랜드</th>
               <th className="px-3 py-2.5 text-left font-semibold text-gray-600">SKU명</th>
+              <th className="px-3 py-2.5 text-left font-semibold text-gray-600 whitespace-nowrap">상태</th>
               <th className="px-3 py-2.5 text-left font-semibold text-gray-600 whitespace-nowrap">오픈일</th>
               <th className="px-3 py-2.5 text-center font-semibold text-gray-600 whitespace-nowrap">자사몰 세팅</th>
               <th className="px-3 py-2.5 text-left font-semibold text-gray-600 whitespace-nowrap">입고예정일</th>
@@ -732,6 +733,18 @@ function SkuListTable({ skus, onNavigateToSku }: { skus: SkuData[]; onNavigateTo
                     >
                       {sku.skuName || <span className="text-gray-300">(미입력)</span>}
                     </button>
+                  </td>
+                  {/* CPO 진행상태 — 읽기전용, CPO 대시보드가 원본 */}
+                  <td className="px-3 py-2 whitespace-nowrap">
+                    {cpoProjects[sku.id] ? (
+                      <span
+                        className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold border whitespace-nowrap ${CPO_STATUS_STYLES[cpoProjects[sku.id].status]?.bg ?? 'bg-gray-100'} ${CPO_STATUS_STYLES[cpoProjects[sku.id].status]?.text ?? 'text-gray-600'} ${CPO_STATUS_STYLES[cpoProjects[sku.id].status]?.border ?? 'border-gray-200'}`}
+                      >
+                        {cpoProjects[sku.id].status}
+                      </span>
+                    ) : (
+                      <span className="text-gray-300 text-[12px]">–</span>
+                    )}
                   </td>
                   {/* 오픈일 — 확정 시 [확정] 뱃지만 표시 (토글 없음) */}
                   <td className="px-3 py-2 whitespace-nowrap">

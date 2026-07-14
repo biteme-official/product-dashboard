@@ -4,7 +4,7 @@ import type { ChannelMonthQtyEntry, ChannelPricing } from '../types';
 import { useStore } from '../store';
 import { useAuth } from '../store/auth';
 import { useCpoSync } from '../store/cpoSync';
-import { getConfirmedPricingScenario, cpoPricingDeepLink } from '../types/cpo';
+import { getConfirmedPricingScenario, cpoPricingDeepLink, CPO_STATUS_STYLES, resolveManagerNames } from '../types/cpo';
 import { revenueMultiplier, calcDynamicMultiplier } from '../utils/calc';
 import { useState, useRef, useEffect, useMemo, type Dispatch, type SetStateAction, type ChangeEvent } from 'react';
 import {
@@ -478,9 +478,12 @@ function BasicInfoColumn({ sku, readOnly }: { sku: SkuData; readOnly?: boolean }
 
   // CPO에 대응 기획이 있으면 판매가/원가/정가는 그쪽이 원본 — Product에선 잠그고 표시만 함
   const cpoProject = useCpoSync((s) => s.cpoProjects[sku.id]);
+  const cpoUsers = useCpoSync((s) => s.cpoUsers);
   const cpoScenario = cpoProject ? getConfirmedPricingScenario(cpoProject.pricing) : null;
   const cpoCost = cpoProject && cpoProject.pricing?.cost > 0 ? cpoProject.pricing.cost : null;
   const priceLockedByCpo = !!cpoProject;
+  const cpoStatusStyle = cpoProject ? CPO_STATUS_STYLES[cpoProject.status] : null;
+  const managerNames = cpoProject ? resolveManagerNames(cpoProject.planningManagerIds, cpoUsers) : [];
 
   const inputCls = `w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed`;
   const selectCls = `w-full px-2 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed`;
@@ -498,6 +501,20 @@ function BasicInfoColumn({ sku, readOnly }: { sku: SkuData; readOnly?: boolean }
   return (
     <div className="space-y-3">
       <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">기본 정보</h3>
+
+      {/* CPO 진행상태 · 기획 담당자 — 읽기전용, CPO 대시보드가 원본 */}
+      {cpoProject && (
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <span
+            className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold border whitespace-nowrap ${cpoStatusStyle?.bg ?? 'bg-gray-100'} ${cpoStatusStyle?.text ?? 'text-gray-600'} ${cpoStatusStyle?.border ?? 'border-gray-200'}`}
+          >
+            {cpoProject.status}
+          </span>
+          <span className="text-[11px] text-gray-500 truncate">
+            기획 담당자: {managerNames.length > 0 ? managerNames.join(', ') : '–'}
+          </span>
+        </div>
+      )}
 
       {/* 썸네일 — SKU명 위에 배치 */}
       <ThumbnailSection skuId={sku.id} imageUrl={sku.imageUrl} readOnly={readOnly} />
