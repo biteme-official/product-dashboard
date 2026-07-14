@@ -87,6 +87,11 @@ export function cpoPricingDeepLink(projectId: string): string {
   return `${CPO_APP_URL}/#project/${projectId}?pricing=1`;
 }
 
+/** CPO 프로젝트 상세 페이지로 이동하는 기본 딥링크 (기획서 등 특정 섹션 스크롤 파라미터는 아직 없음) */
+export function cpoProjectDeepLink(projectId: string): string {
+  return `${CPO_APP_URL}/#project/${projectId}`;
+}
+
 /** planningManagerIds → CPO users 컬렉션 기준 이름 목록 (없으면 '?') */
 export function resolveManagerNames(managerIds: string[], cpoUsers: Record<string, CpoUser>): string[] {
   return managerIds.map((id) => cpoUsers[id]?.name ?? '?');
