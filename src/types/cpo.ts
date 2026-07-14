@@ -64,3 +64,11 @@ export function getConfirmedPricingScenario(pricing: CpoProjectPricing | undefin
   if (!pricing?.pricingScenarios) return null;
   return pricing.pricingScenarios.find((s) => s.confirmed) ?? null;
 }
+
+/** CPO 대시보드 배포 주소 (cpo-dashboard-alpha.vercel.app) */
+export const CPO_APP_URL = 'https://cpo-dashboard-alpha.vercel.app';
+
+/** CPO 프로젝트 상세의 프라이싱 섹션으로 자동 스크롤하는 딥링크 (CPO App.tsx의 buildHash와 동일 형식) */
+export function cpoPricingDeepLink(projectId: string): string {
+  return `${CPO_APP_URL}/#project/${projectId}?pricing=1`;
+}

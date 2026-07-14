@@ -3,6 +3,8 @@ import { BRANDS, CHANNELS, B2C_CHANNELS, B2B_CHANNELS, getDisabledChannels, DEFA
 import type { ChannelMonthQtyEntry, ChannelPricing } from '../types';
 import { useStore } from '../store';
 import { useAuth } from '../store/auth';
+import { useCpoSync } from '../store/cpoSync';
+import { getConfirmedPricingScenario, cpoPricingDeepLink } from '../types/cpo';
 import { revenueMultiplier, calcDynamicMultiplier } from '../utils/calc';
 import { useState, useRef, useEffect, useMemo, type Dispatch, type SetStateAction, type ChangeEvent } from 'react';
 import {
@@ -474,6 +476,12 @@ function BasicInfoColumn({ sku, readOnly }: { sku: SkuData; readOnly?: boolean }
   const [briefOpen, setBriefOpen] = useState(false);
   const [pricingModalOpen, setPricingModalOpen] = useState(false);
 
+  // CPO에 대응 기획이 있으면 판매가/원가/정가는 그쪽이 원본 — Product에선 잠그고 표시만 함
+  const cpoProject = useCpoSync((s) => s.cpoProjects[sku.id]);
+  const cpoScenario = cpoProject ? getConfirmedPricingScenario(cpoProject.pricing) : null;
+  const cpoCost = cpoProject && cpoProject.pricing?.cost > 0 ? cpoProject.pricing.cost : null;
+  const priceLockedByCpo = !!cpoProject;
+
   const inputCls = `w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed`;
   const selectCls = `w-full px-2 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed`;
 
@@ -627,52 +635,99 @@ function BasicInfoColumn({ sku, readOnly }: { sku: SkuData; readOnly?: boolean }
       </button>
       {pricingModalOpen && <PricingModal sku={sku} onClose={() => setPricingModalOpen(false)} />}
 
-      <div className="grid grid-cols-2 gap-2">
-        <div>
-          <label className="block text-xs text-gray-500 mb-1">판매가 (₩)</label>
-          <NumericInput
-            value={sku.price}
-            onChange={(v) => handleChange({ price: v })}
-            onBlur={handleBlur}
-            disabled={readOnly || !!sku.isPriceConfirmed}
-            placeholder="0"
-            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed"
-          />
-        </div>
-        <div>
-          <label className="block text-xs text-gray-500 mb-1">원가 (₩)</label>
-          <NumericInput
-            value={sku.cost}
-            onChange={(v) => handleChange({ cost: v })}
-            onBlur={handleBlur}
-            disabled={readOnly}
-            placeholder="0"
-            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed"
-          />
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-2">
-        <div>
-          <label className="block text-xs text-gray-500 mb-1">정가 (₩)</label>
-          <NumericInput
-            value={sku.regularPrice}
-            onChange={(v) => handleChange({ regularPrice: v })}
-            onBlur={handleBlur}
-            disabled={readOnly || !!sku.isPriceConfirmed}
-            placeholder="0"
-            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed"
-          />
-        </div>
-        <div>
-          <label className="block text-xs text-gray-500 mb-1">상시할인율</label>
-          <div className="w-full px-3 py-2 text-sm border border-gray-100 rounded-lg bg-gray-50 text-gray-700 tabular-nums">
-            {sku.regularPrice > 0 && sku.price > 0
-              ? `${Math.round((1 - sku.price / sku.regularPrice) * 100)}%`
-              : <span className="text-gray-300">—</span>}
+      {priceLockedByCpo ? (
+        <>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">판매가 (₩)</label>
+              <div className="w-full px-3 py-2 text-sm border border-gray-100 rounded-lg bg-gray-50 text-gray-700 tabular-nums">
+                {cpoScenario ? `₩${sku.price.toLocaleString()}` : <span className="text-gray-300">CPO 미확정</span>}
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">원가 (₩)</label>
+              <div className="w-full px-3 py-2 text-sm border border-gray-100 rounded-lg bg-gray-50 text-gray-700 tabular-nums">
+                {cpoCost !== null ? `₩${sku.cost.toLocaleString()}` : <span className="text-gray-300">CPO 미입력</span>}
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">정가 (₩)</label>
+              <div className="w-full px-3 py-2 text-sm border border-gray-100 rounded-lg bg-gray-50 text-gray-700 tabular-nums">
+                {cpoScenario ? `₩${sku.regularPrice.toLocaleString()}` : <span className="text-gray-300">CPO 미확정</span>}
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">상시할인율</label>
+              <div className="w-full px-3 py-2 text-sm border border-gray-100 rounded-lg bg-gray-50 text-gray-700 tabular-nums">
+                {sku.regularPrice > 0 && sku.price > 0
+                  ? `${Math.round((1 - sku.price / sku.regularPrice) * 100)}%`
+                  : <span className="text-gray-300">—</span>}
+              </div>
+            </div>
+          </div>
+
+          <a
+            href={cpoPricingDeepLink(sku.id)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors"
+          >
+            기획 대시보드에서 수정 가능 <span aria-hidden="true">↗</span>
+          </a>
+        </>
+      ) : (
+        <>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">판매가 (₩)</label>
+              <NumericInput
+                value={sku.price}
+                onChange={(v) => handleChange({ price: v })}
+                onBlur={handleBlur}
+                disabled={readOnly || !!sku.isPriceConfirmed}
+                placeholder="0"
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">원가 (₩)</label>
+              <NumericInput
+                value={sku.cost}
+                onChange={(v) => handleChange({ cost: v })}
+                onBlur={handleBlur}
+                disabled={readOnly}
+                placeholder="0"
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">정가 (₩)</label>
+              <NumericInput
+                value={sku.regularPrice}
+                onChange={(v) => handleChange({ regularPrice: v })}
+                onBlur={handleBlur}
+                disabled={readOnly || !!sku.isPriceConfirmed}
+                placeholder="0"
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">상시할인율</label>
+              <div className="w-full px-3 py-2 text-sm border border-gray-100 rounded-lg bg-gray-50 text-gray-700 tabular-nums">
+                {sku.regularPrice > 0 && sku.price > 0
+                  ? `${Math.round((1 - sku.price / sku.regularPrice) * 100)}%`
+                  : <span className="text-gray-300">—</span>}
+              </div>
+            </div>
+          </div>
+        </>
+      )}
 
     </div>
   );
