@@ -687,7 +687,7 @@ function BasicInfoColumn({ sku, readOnly }: { sku: SkuData; readOnly?: boolean }
                 value={sku.price}
                 onChange={(v) => handleChange({ price: v })}
                 onBlur={handleBlur}
-                disabled={readOnly || !!sku.isPriceConfirmed}
+                disabled={readOnly}
                 placeholder="0"
                 className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed"
               />
@@ -712,7 +712,7 @@ function BasicInfoColumn({ sku, readOnly }: { sku: SkuData; readOnly?: boolean }
                 value={sku.regularPrice}
                 onChange={(v) => handleChange({ regularPrice: v })}
                 onBlur={handleBlur}
-                disabled={readOnly || !!sku.isPriceConfirmed}
+                disabled={readOnly}
                 placeholder="0"
                 className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed"
               />

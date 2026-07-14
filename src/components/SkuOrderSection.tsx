@@ -2,6 +2,8 @@ import { useState, useRef, useEffect, useMemo } from 'react';
 import { useStore } from '../store';
 import { useVisibleSkus } from '../hooks/useVisibleSkus';
 import { useAuth } from '../store/auth';
+import { useCpoSync } from '../store/cpoSync';
+import { cpoPricingDeepLink } from '../types/cpo';
 import { SkuCard } from './SkuCard';
 import { PricingModal } from './PricingModal';
 import { NumericInput } from './NumericInput';
@@ -597,6 +599,7 @@ function SkuListTable({ skus, onNavigateToSku }: { skus: SkuData[]; onNavigateTo
   const updateSku = useStore((s) => s.updateSku);
   const persistSku = useStore((s) => s.persistSku);
   const setPriceConfirmed = useStore((s) => s.setPriceConfirmed);
+  const cpoProjects = useCpoSync((s) => s.cpoProjects);
   const { role } = useAuth();
   const { skuBasic } = usePermission(role);
   const canEdit = skuBasic;
@@ -706,6 +709,7 @@ function SkuListTable({ skus, onNavigateToSku }: { skus: SkuData[]; onNavigateTo
             {skus.map((sku, i) => {
               const dr = discountRate(sku);
               const cr = costRate(sku);
+              const cpoDeepLink = cpoProjects[sku.id] ? cpoPricingDeepLink(sku.id) : undefined;
               const formattedDate = formatReleaseDate(sku.releaseDate);
               const isProjectionLocked = sku.scheduleConfirmed ?? false;
               return (
@@ -861,19 +865,19 @@ function SkuListTable({ skus, onNavigateToSku }: { skus: SkuData[]; onNavigateTo
                     )}
                   </td>
                   <td className="px-2 py-1.5 text-right whitespace-nowrap">
-                    <ListPriceCell sku={sku} field="cost" editingCell={editingCell} canEdit={canEdit}
+                    <ListPriceCell sku={sku} field="cost" editingCell={editingCell} canEdit={canEdit && !cpoDeepLink} cpoDeepLink={cpoDeepLink}
                       onStartEdit={startEdit} onCommit={commitEdit} onCancel={cancelEdit}
                       onUpdate={(v) => updateSku(sku.id, { cost: v })} />
                   </td>
                   <td className="px-2 py-1.5 text-right whitespace-nowrap">
                     <ListPriceCell sku={sku} field="price" editingCell={editingCell}
-                      canEdit={canEdit && !(sku.isPriceConfirmed ?? false)}
+                      canEdit={canEdit && !cpoDeepLink} cpoDeepLink={cpoDeepLink}
                       onStartEdit={startEdit} onCommit={commitEdit} onCancel={cancelEdit}
                       onUpdate={(v) => updateSku(sku.id, { price: v })} />
                   </td>
                   <td className="px-2 py-1.5 text-right whitespace-nowrap">
                     <ListPriceCell sku={sku} field="regularPrice" editingCell={editingCell}
-                      canEdit={canEdit && !(sku.isPriceConfirmed ?? false)}
+                      canEdit={canEdit && !cpoDeepLink} cpoDeepLink={cpoDeepLink}
                       onStartEdit={startEdit} onCommit={commitEdit} onCancel={cancelEdit}
                       onUpdate={(v) => updateSku(sku.id, { regularPrice: v })} />
                   </td>
@@ -903,11 +907,13 @@ function SkuListTable({ skus, onNavigateToSku }: { skus: SkuData[]; onNavigateTo
   );
 }
 
-function ListPriceCell({ sku, field, editingCell, canEdit, onStartEdit, onCommit, onCancel, onUpdate }: {
+function ListPriceCell({ sku, field, editingCell, canEdit, cpoDeepLink, onStartEdit, onCommit, onCancel, onUpdate }: {
   sku: SkuData;
   field: PriceField;
   editingCell: EditingCell | null;
   canEdit: boolean;
+  /** CPO에 대응 기획이 있으면 그쪽이 원본 — 있으면 편집 대신 이 링크로 이동 안내 */
+  cpoDeepLink?: string;
   onStartEdit: (skuId: string, field: PriceField, originalValue: number) => void;
   onCommit: (skuId: string) => void;
   onCancel: (skuId: string, field: PriceField, originalValue: number) => void;
@@ -929,6 +935,24 @@ function ListPriceCell({ sku, field, editingCell, canEdit, onStartEdit, onCommit
         autoFocus
         className="w-24 px-2 py-1 text-[12px] text-right border border-indigo-400 rounded focus:outline-none focus:ring-1 focus:ring-indigo-300 bg-white"
       />
+    );
+  }
+
+  if (cpoDeepLink) {
+    return (
+      <span className="relative group inline-block">
+        <span className="tabular-nums text-[12px] text-gray-500">
+          {value === 0 ? '–' : value.toLocaleString()}
+        </span>
+        <a
+          href={cpoDeepLink}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="hidden group-hover:flex absolute z-20 right-0 top-full mt-1 items-center gap-1 px-2 py-1 text-[11px] font-medium rounded-md border border-indigo-200 bg-white text-indigo-600 shadow-md hover:bg-indigo-50 whitespace-nowrap"
+        >
+          기획 대시보드에서 수정 ↗
+        </a>
+      </span>
     );
   }
 
