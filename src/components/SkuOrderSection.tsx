@@ -921,6 +921,19 @@ function ListPriceCell({ sku, field, editingCell, canEdit, cpoDeepLink, onStartE
 }) {
   const isEditing = editingCell?.skuId === sku.id && editingCell?.field === field;
   const value = sku[field] as number;
+  const [popoverOpen, setPopoverOpen] = useState(false);
+  const cellRef = useRef<HTMLSpanElement>(null);
+
+  useEffect(() => {
+    if (!popoverOpen) return;
+    function handleOutside(e: MouseEvent) {
+      if (cellRef.current && !cellRef.current.contains(e.target as Node)) {
+        setPopoverOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleOutside);
+    return () => document.removeEventListener('mousedown', handleOutside);
+  }, [popoverOpen]);
 
   if (isEditing) {
     return (
@@ -940,18 +953,24 @@ function ListPriceCell({ sku, field, editingCell, canEdit, cpoDeepLink, onStartE
 
   if (cpoDeepLink) {
     return (
-      <span className="relative group inline-block">
-        <span className="tabular-nums text-[12px] text-gray-500">
+      <span ref={cellRef} className="relative inline-block">
+        <span
+          onClick={() => setPopoverOpen((v) => !v)}
+          className="tabular-nums text-[12px] text-gray-500 cursor-pointer hover:text-indigo-600"
+        >
           {value === 0 ? '–' : value.toLocaleString()}
         </span>
-        <a
-          href={cpoDeepLink}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="hidden group-hover:flex absolute z-20 right-0 top-full mt-1 items-center gap-1 px-2 py-1 text-[11px] font-medium rounded-md border border-indigo-200 bg-white text-indigo-600 shadow-md hover:bg-indigo-50 whitespace-nowrap"
-        >
-          기획 대시보드에서 수정 ↗
-        </a>
+        {popoverOpen && (
+          <a
+            href={cpoDeepLink}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={() => setPopoverOpen(false)}
+            className="absolute z-20 right-0 top-full mt-1 flex items-center gap-1 px-2 py-1 text-[11px] font-medium rounded-md border border-indigo-200 bg-white text-indigo-600 shadow-md hover:bg-indigo-50 whitespace-nowrap"
+          >
+            기획 대시보드에서 수정 ↗
+          </a>
+        )}
       </span>
     );
   }
