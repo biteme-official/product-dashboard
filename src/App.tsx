@@ -31,6 +31,7 @@ interface NavSnapshot {
   listCatFilter: Set<string>;
   listBrandFilter: Set<string>;
   listMonthFilter: Set<string>;
+  excludeOpenComplete: boolean;
   searchQuery: string;
   scrollY: number;
 }
@@ -124,6 +125,7 @@ function App() {
   const [listCatFilter, setListCatFilter] = useState<Set<string>>(new Set());
   const [listBrandFilter, setListBrandFilter] = useState<Set<string>>(new Set());
   const [listMonthFilter, setListMonthFilter] = useState<Set<string>>(new Set());
+  const [excludeOpenComplete, setExcludeOpenComplete] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
   // 로그인 시(role이 null→유효값으로 전환) 프로젝션 List view로 초기화
@@ -145,6 +147,7 @@ function App() {
       listCatFilter: new Set(listCatFilter),
       listBrandFilter: new Set(listBrandFilter),
       listMonthFilter: new Set(listMonthFilter),
+      excludeOpenComplete,
       searchQuery,
       scrollY: window.scrollY,
     };
@@ -163,6 +166,7 @@ function App() {
     setListCatFilter(new Set(prev.listCatFilter));
     setListBrandFilter(new Set(prev.listBrandFilter));
     setListMonthFilter(new Set(prev.listMonthFilter));
+    setExcludeOpenComplete(prev.excludeOpenComplete);
     setSearchQuery(prev.searchQuery);
     setTimeout(() => window.scrollTo({ top: prev.scrollY }), 50);
   }
@@ -500,10 +504,12 @@ function App() {
             listCatFilter={listCatFilter}
             listBrandFilter={listBrandFilter}
             listMonthFilter={listMonthFilter}
+            excludeOpenComplete={excludeOpenComplete}
             searchQuery={searchQuery}
             onListCatFilterChange={setListCatFilter}
             onListBrandFilterChange={setListBrandFilter}
             onListMonthFilterChange={setListMonthFilter}
+            onExcludeOpenCompleteChange={setExcludeOpenComplete}
             onSearchQueryChange={setSearchQuery}
             onNavigateToSku={handleNavigateToSku}
           />

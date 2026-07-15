@@ -79,10 +79,12 @@ export function SkuOrderSection({
   listCatFilter = new Set<string>(),
   listBrandFilter = new Set<string>(),
   listMonthFilter = new Set<string>(),
+  excludeOpenComplete = false,
   searchQuery = '',
   onListCatFilterChange = () => {},
   onListBrandFilterChange = () => {},
   onListMonthFilterChange = () => {},
+  onExcludeOpenCompleteChange = () => {},
   onSearchQueryChange = () => {},
   onNavigateToSku,
 }: {
@@ -91,10 +93,12 @@ export function SkuOrderSection({
   listCatFilter?: Set<string>;
   listBrandFilter?: Set<string>;
   listMonthFilter?: Set<string>;
+  excludeOpenComplete?: boolean;
   searchQuery?: string;
   onListCatFilterChange?: (v: Set<string>) => void;
   onListBrandFilterChange?: (v: Set<string>) => void;
   onListMonthFilterChange?: (v: Set<string>) => void;
+  onExcludeOpenCompleteChange?: (v: boolean) => void;
   onSearchQueryChange?: (v: string) => void;
   onNavigateToSku?: (sku: SkuData) => void;
 }) {
@@ -102,6 +106,7 @@ export function SkuOrderSection({
   const activeCategory = useStore((s) => s.activeCategory);
   const activeBrand = useStore((s) => s.activeBrand);
   const addSku = useStore((s) => s.addSku);
+  const cpoProjects = useCpoSync((s) => s.cpoProjects);
   const isProjection = mode === 'projection';
 
   const { role } = useAuth();
@@ -149,9 +154,26 @@ export function SkuOrderSection({
   function toggleCat(val: string) { onListCatFilterChange(toggleFilterItem(listCatFilter, val)); }
   function toggleBrand(val: string) { onListBrandFilterChange(toggleFilterItem(listBrandFilter, val)); }
   function toggleMonth(val: string) { onListMonthFilterChange(toggleFilterItem(listMonthFilter, val)); }
-  function resetFilters() { onListCatFilterChange(new Set()); onListBrandFilterChange(new Set()); onListMonthFilterChange(new Set()); }
+  function resetFilters() {
+    onListCatFilterChange(new Set());
+    onListBrandFilterChange(new Set());
+    onListMonthFilterChange(new Set());
+    onExcludeOpenCompleteChange(false);
+  }
 
-  const hasListFilter = listCatFilter.size > 0 || listBrandFilter.size > 0 || listMonthFilter.size > 0;
+  const hasListFilter =
+    listCatFilter.size > 0 || listBrandFilter.size > 0 || listMonthFilter.size > 0 || excludeOpenComplete;
+
+  // 오픈월 드롭다운: 연도별로 묶어서 표시 (데이터가 있는 월만)
+  const monthsByYear = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const ym of availableMonths) {
+      const year = ym.slice(0, 4);
+      if (!map.has(year)) map.set(year, []);
+      map.get(year)!.push(ym);
+    }
+    return [...map.entries()];
+  }, [availableMonths]);
 
   const [monthDropdownOpen, setMonthDropdownOpen] = useState(false);
   const monthDropdownRef = useRef<HTMLDivElement>(null);
@@ -229,10 +251,11 @@ export function SkuOrderSection({
             if (!s.releaseDate) return false;
             if (!listMonthFilter.has(s.releaseDate.substring(0, 7))) return false;
           }
+          if (excludeOpenComplete && cpoProjects[s.id]?.status === '오픈/완료') return false;
           return true;
         })
         .sort(sortForListView),
-    [skus, listCatFilter, listBrandFilter, listMonthFilter],
+    [skus, listCatFilter, listBrandFilter, listMonthFilter, excludeOpenComplete, cpoProjects],
   );
 
   const sourceSkus = isProjection ? allFilteredSkus : filteredSkus;
@@ -395,6 +418,16 @@ export function SkuOrderSection({
                   </button>
                 ))}
               </div>
+              <button
+                onClick={() => onExcludeOpenCompleteChange(!excludeOpenComplete)}
+                className={`px-2.5 py-0.5 rounded-full text-[11px] font-medium border transition-colors shrink-0 ${
+                  excludeOpenComplete
+                    ? 'bg-rose-50 text-rose-600 border-rose-200'
+                    : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'
+                }`}
+              >
+                오픈/완료 제외
+              </button>
               <div className="ml-auto flex items-center gap-2 shrink-0">
                 <span className="text-[11px] font-semibold tabular-nums text-gray-500 whitespace-nowrap">
                   {displaySkus.length}개
@@ -428,20 +461,44 @@ export function SkuOrderSection({
                       </svg>
                     </button>
                     {monthDropdownOpen && (
-                      <div className="absolute right-0 top-full mt-1.5 min-w-[140px] bg-white border border-gray-200 rounded-xl shadow-lg z-50 overflow-hidden">
+                      <div className="absolute right-0 top-full mt-1.5 min-w-[160px] bg-white border border-gray-200 rounded-xl shadow-lg z-50 overflow-hidden">
                         <div className="px-2 py-1.5 border-b border-gray-100 flex items-center justify-between">
                           <span className="text-[11px] font-semibold text-gray-500">오픈월 선택</span>
                           {listMonthFilter.size > 0 && (
                             <button onClick={() => onListMonthFilterChange(new Set())} className="text-[10px] text-gray-400 hover:text-rose-500 transition-colors">초기화</button>
                           )}
                         </div>
-                        <div className="py-1">
-                          {availableMonths.map((ym) => (
-                            <label key={ym} className="flex items-center gap-2 px-3 py-1.5 cursor-pointer hover:bg-gray-50 transition-colors">
-                              <input type="checkbox" checked={listMonthFilter.has(ym)} onChange={() => toggleMonth(ym)} className="w-3.5 h-3.5 accent-indigo-600 shrink-0" />
-                              <span className={`text-[12px] ${listMonthFilter.has(ym) ? 'text-indigo-700 font-medium' : 'text-gray-600'}`}>{formatYearMonth(ym)}</span>
-                            </label>
-                          ))}
+                        <div className="py-1 max-h-[320px] overflow-y-auto">
+                          {monthsByYear.map(([year, months]) => {
+                            const allSelected = months.every((ym) => listMonthFilter.has(ym));
+                            const someSelected = months.some((ym) => listMonthFilter.has(ym));
+                            function toggleYear() {
+                              const next = new Set(listMonthFilter);
+                              if (allSelected) months.forEach((ym) => next.delete(ym));
+                              else months.forEach((ym) => next.add(ym));
+                              onListMonthFilterChange(next);
+                            }
+                            return (
+                              <div key={year}>
+                                <label className="flex items-center gap-2 px-3 py-1.5 cursor-pointer hover:bg-gray-50 transition-colors bg-gray-50/70">
+                                  <input
+                                    type="checkbox"
+                                    checked={allSelected}
+                                    ref={(el) => { if (el) el.indeterminate = !allSelected && someSelected; }}
+                                    onChange={toggleYear}
+                                    className="w-3.5 h-3.5 accent-indigo-600 shrink-0"
+                                  />
+                                  <span className={`text-[11px] font-bold ${someSelected ? 'text-indigo-700' : 'text-gray-600'}`}>{year}년</span>
+                                </label>
+                                {months.map((ym) => (
+                                  <label key={ym} className="flex items-center gap-2 pl-7 pr-3 py-1.5 cursor-pointer hover:bg-gray-50 transition-colors">
+                                    <input type="checkbox" checked={listMonthFilter.has(ym)} onChange={() => toggleMonth(ym)} className="w-3.5 h-3.5 accent-indigo-600 shrink-0" />
+                                    <span className={`text-[12px] ${listMonthFilter.has(ym) ? 'text-indigo-700 font-medium' : 'text-gray-600'}`}>{formatYearMonth(ym)}</span>
+                                  </label>
+                                ))}
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
                     )}
