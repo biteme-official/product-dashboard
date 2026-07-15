@@ -10,6 +10,8 @@ import { useAuth } from './auth';
 import { MAX_SIZES, SIZE_LABELS, MONTHS, CHANNELS, BRANDS, CATEGORIES, SKU_TYPES, DEFAULT_CHANNEL_RATIOS, DEFAULT_CHANNEL_COMMISSION, getDisabledChannels, getSkuMonths, type Brand, type Channel } from '../types';
 import type { CpoProject } from '../types/cpo';
 import { recalcQuantities, revenueMultiplier, calcDynamicMultiplier } from '../utils/calc';
+import { writeProductSyncDates } from '../lib/cpoFirebase';
+import { useCpoSync, markLocalDateEdit, SYNCED_DATE_FIELDS } from './cpoSync';
 
 export const SKUS_COL = 'skus';
 export const TRASH_COL = 'trash';
@@ -901,6 +903,27 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
     } catch (err) {
       console.error('[persistSku] Firestore 저장 실패:', id, err);
       throw err;
+    }
+
+    // CPO 연동 SKU면, 오픈일/입고예정일/촬영예정일 중 CPO와 달라진 값만 CPO의
+    // productSync 문서로 보낸다 — CPO 앱이 이 컬렉션을 감지해서 실제 projects
+    // 문서에 병합한다(STEP4 4단계, cpo-dashboard 저장소 구현).
+    const cpoProject = useCpoSync.getState().cpoProjects[id];
+    if (cpoProject) {
+      const datePatch: Partial<Record<(typeof SYNCED_DATE_FIELDS)[number], string>> = {};
+      for (const field of SYNCED_DATE_FIELDS) {
+        const localVal = sku[field] ?? '';
+        const cpoVal = cpoProject[field] ?? '';
+        if (localVal && localVal !== cpoVal) {
+          datePatch[field] = localVal;
+          markLocalDateEdit(id, field);
+        }
+      }
+      if (Object.keys(datePatch).length > 0) {
+        writeProductSyncDates(id, datePatch).catch((err) =>
+          console.error('[persistSku] CPO productSync 기록 실패:', id, err),
+        );
+      }
     }
   },
 

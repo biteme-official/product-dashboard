@@ -1,10 +1,11 @@
 import { initializeApp } from 'firebase/app';
-import { getFirestore } from 'firebase/firestore';
+import { doc, getFirestore, setDoc } from 'firebase/firestore';
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 
-// CPO 대시보드(cpo-dashboard-34fd4) 전용 2nd Firebase app — 읽기 전용 구독용.
+// CPO 대시보드(cpo-dashboard-34fd4) 전용 2nd Firebase app — 기본은 읽기 전용 구독용.
 // apiKey는 Firebase 설계상 비밀값이 아님(브라우저 번들에 항상 노출됨) — 실제 접근 통제는
-// CPO의 firestore.rules가 담당. Product는 이 값으로 쓰기(write)를 하지 않음(STEP4 1~3단계 범위).
+// CPO의 firestore.rules가 담당. STEP4 4단계부터 productSync 컬렉션 한정으로 쓰기도 허용됨
+// (firestore.rules가 releaseDate/arrivalDate/shootingDate 3개 필드만 hasOnly로 제한).
 const cpoFirebaseConfig = {
   apiKey: 'AIzaSyDojxF2ELIqa4DzuBdip2065xsbuFcgzQg',
   authDomain: 'cpo-dashboard-34fd4.firebaseapp.com',
@@ -30,4 +31,20 @@ export function ensureCpoAuth(): Promise<void> {
       }
     });
   });
+}
+
+export type ProductSyncDatePatch = Partial<{
+  releaseDate: string;
+  arrivalDate: string;
+  shootingDate: string;
+}>;
+
+/**
+ * 오픈일/입고예정일/촬영예정일을 Product에서 고쳤을 때 CPO로 보내는 요청 채널.
+ * CPO의 `projects` 컬렉션에 직접 쓰지 않고 `productSync/{skuId}` 문서로만 쓴다 — CPO 앱이
+ * 이 컬렉션 변경을 감지해서 실제 projects 문서에 병합한다(cpo-dashboard 저장소 구현).
+ */
+export function writeProductSyncDates(skuId: string, patch: ProductSyncDatePatch): Promise<void> {
+  if (Object.keys(patch).length === 0) return Promise.resolve();
+  return setDoc(doc(cpoFsdb, 'productSync', skuId), patch, { merge: true });
 }
