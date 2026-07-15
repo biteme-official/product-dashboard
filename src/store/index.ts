@@ -914,7 +914,9 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
       for (const field of SYNCED_DATE_FIELDS) {
         const localVal = sku[field] ?? '';
         const cpoVal = cpoProject[field] ?? '';
-        if (localVal && localVal !== cpoVal) {
+        // localVal이 빈 문자열(사용자가 날짜를 지운 경우)도 유효한 편집이라 그대로 보내야 함
+        // — truthy 체크를 넣으면 "삭제"라는 사실 자체가 CPO로 전달되지 않는다.
+        if (localVal !== cpoVal) {
           datePatch[field] = localVal;
           markLocalDateEdit(id, field);
         }

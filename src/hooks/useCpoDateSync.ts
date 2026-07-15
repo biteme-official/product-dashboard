@@ -28,7 +28,9 @@ export function useCpoDateSync(): void {
       for (const field of SYNCED_DATE_FIELDS) {
         const cpoVal = cpo[field] ?? '';
         const localVal = sku[field] ?? '';
-        if (!cpoVal || cpoVal === localVal) continue;
+        // cpoVal이 빈 문자열(CPO에서 날짜를 지운 경우)도 유효한 값이라 반영해야 함
+        // — truthy 체크를 넣으면 CPO 쪽 삭제가 Product에 영영 반영되지 않는다.
+        if (cpoVal === localVal) continue;
         if (isLocalDateEditPending(sku.id, field)) continue;
         patch[field] = cpoVal;
       }
