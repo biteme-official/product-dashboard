@@ -105,6 +105,7 @@ export function SkuOrderSection({
   const skus = useVisibleSkus();
   const activeCategory = useStore((s) => s.activeCategory);
   const activeBrand = useStore((s) => s.activeBrand);
+  const excludeOpenCompletePm = useStore((s) => s.excludeOpenCompletePm);
   const addSku = useStore((s) => s.addSku);
   const cpoProjects = useCpoSync((s) => s.cpoProjects);
   const isProjection = mode === 'projection';
@@ -238,6 +239,7 @@ export function SkuOrderSection({
   const categorySkus = skus.filter((s) => s.category === activeCategory);
   const filteredSkus = categorySkus
     .filter((s) => activeBrand === '전체' || s.brand === activeBrand)
+    .filter((s) => !excludeOpenCompletePm || cpoProjects[s.id]?.status !== '오픈/완료')
     .sort(sortByDateThenName);
 
   // LIST VIEW: 로컬 필터 적용 (카테고리·브랜드·오픈월 조합 필터링)

@@ -244,6 +244,7 @@ export interface AppState {
   activeCategory: Category;
   activeBrand: Brand | '전체';
   isListView: boolean;
+  excludeOpenCompletePm: boolean;
   skus: SkuData[];
 }
 

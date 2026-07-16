@@ -354,6 +354,7 @@ interface StoreActions {
   setActiveCategory: (category: Category) => void;
   setActiveBrand: (brand: Brand | '전체') => void;
   setListView: (v: boolean) => void;
+  setExcludeOpenCompletePm: (v: boolean) => void;
   loadSkus: () => () => void;
   addSku: () => void;
   createSkuFromCpo: (cpo: CpoProject) => void;
@@ -407,6 +408,7 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
   activeCategory: readSession<Category>('store:activeCategory', '의류'),
   activeBrand: readSession<Brand | '전체'>('store:activeBrand', '전체'),
   isListView: readSession<boolean>('store:isListView', false),
+  excludeOpenCompletePm: readSession<boolean>('store:excludeOpenCompletePm', false),
   skus: [],
 
   setActiveCategory: (category) => {
@@ -422,6 +424,10 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
   setListView: (v) => {
     writeSession('store:isListView', v);
     set({ isListView: v });
+  },
+  setExcludeOpenCompletePm: (v) => {
+    writeSession('store:excludeOpenCompletePm', v);
+    set({ excludeOpenCompletePm: v });
   },
 
   // Firestore 실시간 리스너 — 반환값(unsubscribe)을 App.tsx useEffect cleanup으로 사용

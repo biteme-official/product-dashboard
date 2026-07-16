@@ -474,7 +474,7 @@ function App() {
         {activeMainTab === 'pm' && (
           <>
             <CategoryTabs />
-            <BrandFilter />
+            <BrandFilter pmFilters />
           </>
         )}
         {activeMainTab === 'md' && (
