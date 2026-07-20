@@ -625,6 +625,15 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
   },
 
   updateSku: (id, patch) => {
+    // CPO 동기화 대상 필드(SYNCED_FIELDS)는 로컬에서 바뀌는 그 순간 바로 보호 마킹을 걸어야
+    // 한다. 날짜는 클릭 즉시 persistSku까지 같이 호출돼서 문제가 없었지만, SKU명처럼
+    // "타이핑 중 여러 번 로컬 상태만 바뀌고, blur돼야 persistSku가 호출되는" 필드는 그 사이
+    // 매 키 입력마다 skus가 바뀌어 useCpoFieldSync 이펙트가 재실행되는데, 아직 마킹 전이라
+    // "아직 CPO에 반영 안 된 로컬 편집"을 그 즉시 CPO의 옛날 값으로 되돌려버렸다(SKU명을
+    // 타이핑하는 족족 원래 값으로 스냅백되던 버그의 원인, 2026-07-20 발견).
+    for (const field of SYNCED_FIELDS) {
+      if (field in patch) markLocalFieldEdit(id, field, (patch as Record<string, string>)[field] ?? '');
+    }
     const skus = get().skus;
     const next = skus.map((s) => {
       if (s.id !== id) return s;
