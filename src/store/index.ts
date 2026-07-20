@@ -915,7 +915,7 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
         // — truthy 체크를 넣으면 "삭제"라는 사실 자체가 CPO로 전달되지 않는다.
         if (localVal !== cpoVal) {
           datePatch[field] = localVal;
-          markLocalDateEdit(id, field);
+          markLocalDateEdit(id, field, localVal);
         }
       }
       if (Object.keys(datePatch).length > 0) {
