@@ -10,8 +10,8 @@ import { useAuth } from './auth';
 import { MAX_SIZES, SIZE_LABELS, MONTHS, CHANNELS, BRANDS, CATEGORIES, SKU_TYPES, DEFAULT_CHANNEL_RATIOS, DEFAULT_CHANNEL_COMMISSION, getDisabledChannels, getSkuMonths, type Brand, type Channel } from '../types';
 import type { CpoProject } from '../types/cpo';
 import { recalcQuantities, revenueMultiplier, calcDynamicMultiplier } from '../utils/calc';
-import { writeProductSyncDates } from '../lib/cpoFirebase';
-import { useCpoSync, markLocalDateEdit, SYNCED_DATE_FIELDS } from './cpoSync';
+import { writeProductSyncFields } from '../lib/cpoFirebase';
+import { useCpoSync, markLocalFieldEdit, SYNCED_FIELDS } from './cpoSync';
 
 export const SKUS_COL = 'skus';
 export const TRASH_COL = 'trash';
@@ -898,28 +898,30 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
       }
     }
 
-    // CPO 연동 SKU면, 오픈일/입고예정일/촬영예정일 중 CPO와 달라진 값만 CPO의
+    // CPO 연동 SKU면, 오픈일/입고예정일/촬영예정일/SKU명 중 CPO와 달라진 값만 CPO의
     // productSync 문서로 보낸다 — CPO 앱이 이 컬렉션을 감지해서 실제 projects
     // 문서에 병합한다(STEP4 4단계, cpo-dashboard 저장소 구현).
-    // ⚠️ markLocalDateEdit은 반드시 아래 setDoc(await) 이전, 즉 persistSku 호출과 동기적으로
+    // ⚠️ markLocalFieldEdit은 반드시 아래 setDoc(await) 이전, 즉 persistSku 호출과 동기적으로
     // 실행되어야 한다. 예전엔 setDoc await 이후에 호출했는데, 그 사이(네트워크 왕복 시간) 동안
-    // useCpoDateSync 이펙트가 "아직 옛날 값인 CPO"를 보고 방금 로컬에서 고친 값을 되돌려버리는
+    // useCpoFieldSync 이펙트가 "아직 옛날 값인 CPO"를 보고 방금 로컬에서 고친 값을 되돌려버리는
     // 레이스가 있었다(리스트 뷰에서 날짜 클릭 직후 초기화되던 버그의 원인).
     const cpoProject = useCpoSync.getState().cpoProjects[id];
     if (cpoProject) {
-      const datePatch: Partial<Record<(typeof SYNCED_DATE_FIELDS)[number], string>> = {};
-      for (const field of SYNCED_DATE_FIELDS) {
+      const syncPatch: Partial<Record<(typeof SYNCED_FIELDS)[number], string>> = {};
+      for (const field of SYNCED_FIELDS) {
         const localVal = sku[field] ?? '';
         const cpoVal = cpoProject[field] ?? '';
-        // localVal이 빈 문자열(사용자가 날짜를 지운 경우)도 유효한 편집이라 그대로 보내야 함
-        // — truthy 체크를 넣으면 "삭제"라는 사실 자체가 CPO로 전달되지 않는다.
+        // skuName은 날짜와 달리 "빈 값"이 유효한 편집이 아님(이름을 지우는 건 정상 시나리오가
+        // 아니라 타이핑 중 blur된 사고에 가까움) — 빈 문자열로는 절대 CPO를 덮어쓰지 않는다.
+        // 날짜 필드는 반대로 빈 문자열도 유효한 삭제 요청이라 그대로 보내야 한다.
+        if (field === 'skuName' && localVal.trim() === '') continue;
         if (localVal !== cpoVal) {
-          datePatch[field] = localVal;
-          markLocalDateEdit(id, field, localVal);
+          syncPatch[field] = localVal;
+          markLocalFieldEdit(id, field, localVal);
         }
       }
-      if (Object.keys(datePatch).length > 0) {
-        writeProductSyncDates(id, datePatch).catch((err) =>
+      if (Object.keys(syncPatch).length > 0) {
+        writeProductSyncFields(id, syncPatch).catch((err) =>
           console.error('[persistSku] CPO productSync 기록 실패:', id, err),
         );
       }

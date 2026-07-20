@@ -33,18 +33,21 @@ export function ensureCpoAuth(): Promise<void> {
   });
 }
 
-export type ProductSyncDatePatch = Partial<{
+export type ProductSyncFieldPatch = Partial<{
   releaseDate: string;
   arrivalDate: string;
   shootingDate: string;
+  skuName: string;
 }>;
 
 /**
- * 오픈일/입고예정일/촬영예정일을 Product에서 고쳤을 때 CPO로 보내는 요청 채널.
+ * 오픈일/입고예정일/촬영예정일/SKU명을 Product에서 고쳤을 때 CPO로 보내는 요청 채널.
  * CPO의 `projects` 컬렉션에 직접 쓰지 않고 `productSync/{skuId}` 문서로만 쓴다 — CPO 앱이
  * 이 컬렉션 변경을 감지해서 실제 projects 문서에 병합한다(cpo-dashboard 저장소 구현).
+ * CPO의 firestore.rules가 이 문서에 쓸 수 있는 필드를 hasOnly()로 제한하므로, 여기 필드를
+ * 늘릴 땐 그쪽 규칙도 같이 넓혀야 실제로 반영된다.
  */
-export function writeProductSyncDates(skuId: string, patch: ProductSyncDatePatch): Promise<void> {
+export function writeProductSyncFields(skuId: string, patch: ProductSyncFieldPatch): Promise<void> {
   if (Object.keys(patch).length === 0) return Promise.resolve();
   return setDoc(doc(cpoFsdb, 'productSync', skuId), patch, { merge: true });
 }
