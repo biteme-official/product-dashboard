@@ -2,11 +2,21 @@ import { v4 as uuidv4, } from 'uuid';
 import { useState, useRef } from 'react';
 import { useStore } from '../store';
 import { useAuth } from '../store/auth';
+import { useCpoSync } from '../store/cpoSync';
 import { usePermission } from '../contexts/PermissionsContext';
 import type { SkuData } from '../types';
 import { buildSizesFromCount, recalcQuantities } from '../utils/calc';
 import { exportSkuOrderXlsx, copySkuOrderToClipboard } from '../utils/exportXlsx';
 import { NumericInput } from './NumericInput';
+
+/** CPO 연동 뱃지 — 이름/개수가 CPO에서 관리되는 필드 옆에 붙는다 */
+function CpoSyncedBadge() {
+  return (
+    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-sky-50 text-sky-600 border border-sky-200 font-medium">
+      CPO 연동
+    </span>
+  );
+}
 
 /** 복사 버튼: 누르면 TSV를 클립보드에 올리고 1.5초간 "복사됨!" 표시 */
 function CopyButton({ sku }: { sku: SkuData }) {
@@ -55,6 +65,10 @@ interface Props {
 export function SizeDistColumn({ sku, readOnly }: Props) {
   const updateSku = useStore((s) => s.updateSku);
   const persistSku = useStore((s) => s.persistSku);
+  // 이 SKU에 매칭되는 CPO 프로젝트가 있으면 컬러명/사이즈 개수는 CPO가 정본 —
+  // Product에서 직접 편집하게 두면 다음 동기화 때 되돌려쓰기(원상복구) 버그가 재현된다.
+  // CPO 연동이 없는(Product 전용) SKU는 기존처럼 자유 편집.
+  const cpoLinked = useCpoSync((s) => !!s.cpoProjects[sku.id]);
 
   const activeSizes = sku.sizes.filter((s) => s.isActive);
   const sumRatios = activeSizes.reduce((sum, s) => sum + s.ratio, 0);
@@ -67,7 +81,7 @@ export function SizeDistColumn({ sku, readOnly }: Props) {
 
   function handleBlur() { persistSku(sku.id); }
 
-  // ── 사이즈 개수 변경 ──
+  // ── 사이즈 개수 변경 (CPO 연동 SKU는 호출되지 않음 — select가 disabled) ──
   function handleSizeCountChange(newCount: number) {
     const newSizes = buildSizesFromCount(sku.sizes, newCount, sku.totalOrderQty);
     updateSku(sku.id, { sizeCount: newCount, sizes: newSizes });
@@ -117,35 +131,41 @@ export function SizeDistColumn({ sku, readOnly }: Props) {
         <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
           발주량 &amp; 사이즈 분배
         </h3>
-        <div className={`flex rounded-lg border border-gray-200 overflow-hidden text-xs ${readOnly ? 'opacity-50 pointer-events-none' : ''}`}>
-          <button
-            onClick={() => !readOnly && sku.hasColors && toggleColors()}
-            className={`px-3 py-1 transition-colors ${
-              !sku.hasColors ? 'bg-indigo-600 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'
-            }`}
-          >
-            단색
-          </button>
-          <button
-            onClick={() => !readOnly && !sku.hasColors && toggleColors()}
-            className={`px-3 py-1 transition-colors ${
-              sku.hasColors ? 'bg-indigo-600 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'
-            }`}
-          >
-            컬러
-          </button>
+        <div className="flex items-center gap-1.5">
+          {cpoLinked && <CpoSyncedBadge />}
+          <div className={`flex rounded-lg border border-gray-200 overflow-hidden text-xs ${readOnly || cpoLinked ? 'opacity-50 pointer-events-none' : ''}`}>
+            <button
+              onClick={() => !readOnly && sku.hasColors && toggleColors()}
+              className={`px-3 py-1 transition-colors ${
+                !sku.hasColors ? 'bg-indigo-600 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'
+              }`}
+            >
+              단색
+            </button>
+            <button
+              onClick={() => !readOnly && !sku.hasColors && toggleColors()}
+              className={`px-3 py-1 transition-colors ${
+                sku.hasColors ? 'bg-indigo-600 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'
+              }`}
+            >
+              컬러
+            </button>
+          </div>
         </div>
       </div>
 
       {/* 사이즈 개수 / MOQ / 목표소진월수 */}
       <div className="grid grid-cols-3 gap-2">
         <div>
-          <label className="block text-xs text-gray-500 mb-1">사이즈</label>
+          <label className="flex items-center gap-1 text-xs text-gray-500 mb-1">
+            사이즈
+            {cpoLinked && <CpoSyncedBadge />}
+          </label>
           <select
             value={sku.sizeCount}
             onChange={(e) => handleSizeCountChange(Number(e.target.value))}
             onBlur={handleBlur}
-            disabled={readOnly}
+            disabled={readOnly || cpoLinked}
             className="w-full px-2 py-2 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-400 bg-white disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed"
           >
             {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
@@ -203,7 +223,10 @@ export function SizeDistColumn({ sku, readOnly }: Props) {
       {sku.hasColors && (
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
-            <label className="text-xs text-gray-500">컬러별 수량</label>
+            <label className="flex items-center gap-1 text-xs text-gray-500">
+              컬러별 수량
+              {cpoLinked && <CpoSyncedBadge />}
+            </label>
             <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
               sku.totalOrderQty > 0 ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-400'
             }`}>
@@ -216,13 +239,13 @@ export function SizeDistColumn({ sku, readOnly }: Props) {
                 ? Math.round((color.quantity / sku.totalOrderQty) * 100)
                 : null;
               return (
-                <div key={color.id} className="flex items-center gap-1.5">
+                <div key={color.id} className={`flex items-center gap-1.5 ${color.archived ? 'opacity-50' : ''}`}>
                   <input
                     type="text"
-                    value={color.name}
+                    value={color.archived ? `${color.name} (삭제됨)` : color.name}
                     onChange={(e) => handleColorChange(color.id, { name: e.target.value })}
                     onBlur={handleBlur}
-                    disabled={readOnly}
+                    disabled={readOnly || cpoLinked}
                     placeholder="컬러명"
                     className="flex-1 min-w-0 px-2 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-400 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed"
                   />
@@ -237,9 +260,11 @@ export function SizeDistColumn({ sku, readOnly }: Props) {
                   <span className="w-9 text-right text-[11px] tabular-nums flex-shrink-0 text-indigo-400 font-medium">
                     {pct !== null ? `${pct}%` : ''}
                   </span>
-                  {!readOnly && (
+                  {/* CPO 연동 SKU는 컬러 추가/삭제를 CPO에서만 함 — archived 항목만 정리 차원에서 영구삭제 허용 */}
+                  {!readOnly && (!cpoLinked || color.archived) && (
                     <button
                       onClick={() => removeColor(color.id)}
+                      title={color.archived ? '영구 삭제' : undefined}
                       className="text-lg leading-none text-gray-300 hover:text-red-400 transition-colors flex-shrink-0"
                     >
                       ×
@@ -249,7 +274,7 @@ export function SizeDistColumn({ sku, readOnly }: Props) {
               );
             })}
           </div>
-          {!readOnly && (
+          {!readOnly && !cpoLinked && (
             <button
               onClick={addColor}
               className="w-full py-1.5 text-xs border border-dashed border-indigo-200 text-indigo-500 rounded-lg hover:bg-indigo-50 transition-colors"
@@ -363,7 +388,7 @@ function Step2OrderTable({ sku, sumRatios }: { sku: SkuData; sumRatios: number }
 
   const step2Total = liveChannelMonthQty.reduce((s, e) => s + e.qty, 0);
   const activeSizes = sku.sizes.filter((s) => s.isActive && s.ratio > 0);
-  const activeColors = sku.hasColors ? sku.colors.filter((c) => c.name || c.quantity > 0) : [];
+  const activeColors = sku.hasColors ? sku.colors.filter((c) => !c.archived && (c.name || c.quantity > 0)) : [];
   const colorTotal = activeColors.reduce((s, c) => s + c.quantity, 0);
   const hasColors = activeColors.length > 0 && colorTotal > 0;
   const hasSizes = activeSizes.length > 0 && sumRatios > 0;
@@ -613,7 +638,7 @@ function Step2OrderTable({ sku, sumRatios }: { sku: SkuData; sumRatios: number }
 // ── 컬러×사이즈 결과 테이블 (자동 계산, 읽기전용) ──
 function ColorSizeResultTable({ sku, sumRatios }: { sku: SkuData; sumRatios: number }) {
   const activeSizes = sku.sizes.filter((s) => s.isActive);
-  const activeColors = sku.colors.filter((c) => c.name || c.quantity > 0);
+  const activeColors = sku.colors.filter((c) => !c.archived && (c.name || c.quantity > 0));
 
   if (activeColors.length === 0 || activeSizes.length === 0 || sumRatios === 0) return null;
 
@@ -724,7 +749,7 @@ function FinalOrderTable({ sku, sumRatios }: { sku: SkuData; sumRatios: number }
 
   const step2Total = liveChannelMonthQty.reduce((s, e) => s + e.qty, 0);
   const activeSizes = sku.sizes.filter((s) => s.isActive && s.ratio > 0);
-  const activeColors = sku.hasColors ? sku.colors.filter((c) => c.name || c.quantity > 0) : [];
+  const activeColors = sku.hasColors ? sku.colors.filter((c) => !c.archived && (c.name || c.quantity > 0)) : [];
   const colorTotal = activeColors.reduce((s, c) => s + c.quantity, 0);
   const hasColors = activeColors.length > 0 && colorTotal > 0;
   const hasSizes = activeSizes.length > 0 && sumRatios > 0;

@@ -77,6 +77,7 @@ export interface ColorEntry {
   id: string;
   name: string;
   quantity: number;
+  archived?: boolean;    // CPO에서 삭제된 컬러 — 목록엔 남기되(수량 데이터 보존) 계산에서는 제외
 }
 
 export interface SizeRatio {

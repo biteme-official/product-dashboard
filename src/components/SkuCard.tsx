@@ -1454,7 +1454,7 @@ function ChannelMonthTable({ sku, monthlySplit: _monthlySplit, skuMonths, releas
   // 옵션 목록 계산
   // 컬러+사이즈 모두 있으면 "컬러 사이즈" 조합, 컬러만 있으면 컬러별, 없으면 사이즈별
   const activeSizes = sku.sizes.filter((s) => s.isActive && s.ratio > 0);
-  const activeColors = sku.hasColors ? sku.colors.filter((c) => c.quantity > 0) : [];
+  const activeColors = sku.hasColors ? sku.colors.filter((c) => !c.archived && c.quantity > 0) : [];
   const colorTotal = activeColors.reduce((s, c) => s + c.quantity, 0);
   const multiSize = activeSizes.length > 1;
   const multiColor = activeColors.length > 1 && colorTotal > 0;
@@ -2001,7 +2001,7 @@ function PricingChannelTable({
               const totalCell = 'px-3 py-2 text-right tabular-nums text-[11px] font-bold whitespace-nowrap border-l border-gray-200 bg-gray-100';
               // 옵션별 비중 계산 (STEP3와 동일 로직)
               const activeSizes = sku.sizes.filter((s) => s.isActive && s.ratio > 0);
-              const activeColors = sku.hasColors ? sku.colors.filter((c) => c.quantity > 0) : [];
+              const activeColors = sku.hasColors ? sku.colors.filter((c) => !c.archived && c.quantity > 0) : [];
               const colorTotal = activeColors.reduce((s, c) => s + c.quantity, 0);
               const multiSize = activeSizes.length > 1;
               const multiColor = activeColors.length > 1 && colorTotal > 0;
