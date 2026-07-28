@@ -7,6 +7,7 @@ import { useCpoCardSync } from './hooks/useCpoCardSync';
 import { useCpoPriceSync } from './hooks/useCpoPriceSync';
 import { useCpoFieldSync } from './hooks/useCpoFieldSync';
 import { useCpoOptionSync } from './hooks/useCpoOptionSync';
+import { useCpoThumbnailSync } from './hooks/useCpoThumbnailSync';
 import type { SkuData, Category } from './types';
 import type { Brand } from './types';
 import { CategoryTabs } from './components/CategoryTabs';
@@ -87,6 +88,7 @@ function App() {
   useCpoPriceSync();
   useCpoFieldSync();
   useCpoOptionSync();
+  useCpoThumbnailSync();
   const importSkus = useStore((s) => s.importSkus);
   const replaceAllSkus = useStore((s) => s.replaceAllSkus);
   const skus = useVisibleSkus();

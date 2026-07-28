@@ -51,6 +51,7 @@ export interface CpoProject {
   pricing: CpoProjectPricing;
   status: CpoProjectStatus;
   planningManagerIds: string[];
+  thumbnailUrl?: string;
 }
 
 export interface CpoUser {
