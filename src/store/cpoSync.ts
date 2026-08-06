@@ -3,7 +3,11 @@ import { collection, onSnapshot } from 'firebase/firestore';
 import { cpoFsdb, ensureCpoAuth } from '../lib/cpoFirebase';
 import type { CpoProject, CpoUser } from '../types/cpo';
 
-// releaseDate/arrivalDate/shootingDate(날짜 3종) + skuName — CPO⇄Product 양방향 동기화 대상.
+// releaseDate/arrivalDate/shootingDate(날짜 3종) + skuName — CPO↔Product 동기화 대상 필드 목록.
+// 이 중 releaseDate/arrivalDate/skuName은 양방향(Product에서 고치면 CPO로도 보냄), shootingDate는
+// 2026-08-06부터 CPO→Product 단방향(Product는 받아오기만 하고, 편집 UI 자체가 잠김 — SkuCard.tsx/
+// SkuOrderSection.tsx, persistSku에서 shootingDate만 제외). 촬영일은 CPO 쪽에서만 편집되는 값이라,
+// Product 로컬에 남은 옛 값이 CPO의 삭제를 도로 덮어써버리는 문제가 있었다(store/index.ts 주석 참고).
 // CPO의 productSync/{skuId} 문서 write는 firestore.rules의 hasOnly()로 이 필드들만 허용됨
 // (cpo-dashboard 저장소, Firebase 콘솔에서 수동 게시 필요) — 여기 추가한다고 CPO가 자동으로
 // 받아주는 게 아니라 그쪽 규칙도 같이 넓혀야 함.

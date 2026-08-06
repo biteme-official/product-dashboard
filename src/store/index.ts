@@ -907,17 +907,25 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
       }
     }
 
-    // CPO 연동 SKU면, 오픈일/입고예정일/촬영예정일/SKU명 중 CPO와 달라진 값만 CPO의
+    // CPO 연동 SKU면, 오픈일/입고예정일/SKU명 중 CPO와 달라진 값만 CPO의
     // productSync 문서로 보낸다 — CPO 앱이 이 컬렉션을 감지해서 실제 projects
     // 문서에 병합한다(STEP4 4단계, cpo-dashboard 저장소 구현).
     // ⚠️ markLocalFieldEdit은 반드시 아래 setDoc(await) 이전, 즉 persistSku 호출과 동기적으로
     // 실행되어야 한다. 예전엔 setDoc await 이후에 호출했는데, 그 사이(네트워크 왕복 시간) 동안
     // useCpoFieldSync 이펙트가 "아직 옛날 값인 CPO"를 보고 방금 로컬에서 고친 값을 되돌려버리는
     // 레이스가 있었다(리스트 뷰에서 날짜 클릭 직후 초기화되던 버그의 원인).
+    //
+    // 촬영예정일은 CPO 전용 편집 필드로 바뀌어(2026-08-06) 이 방향으로 보내지 않는다 — Product는
+    // useCpoFieldSync로 값을 받아오기만 한다. 예전엔 여기서도 보냈는데, CPO가 촬영일을 지워도
+    // Product 로컬에 남아있던 옛 값이 이 SKU의 다른 필드가 저장될 때마다 되살아나 CPO 쪽 삭제가
+    // 계속 무효화되는 버그가 있었다(진짜 원인은 cpoSync.ts의 값 기준 보호 락이 "CPO가 값을
+    // 지운" 경우엔 절대 안 풀리는 것이었지만, 애초에 이 필드를 Product에서 CPO로 보낼 이유가
+    // 없으므로 아예 편집 자체를 CPO 전용으로 막았다).
     const cpoProject = useCpoSync.getState().cpoProjects[id];
     if (cpoProject) {
       const syncPatch: Partial<Record<(typeof SYNCED_FIELDS)[number], string>> = {};
       for (const field of SYNCED_FIELDS) {
+        if (field === 'shootingDate') continue;
         const localVal = sku[field] ?? '';
         const cpoVal = cpoProject[field] ?? '';
         // skuName은 날짜와 달리 "빈 값"이 유효한 편집이 아님(이름을 지우는 건 정상 시나리오가
