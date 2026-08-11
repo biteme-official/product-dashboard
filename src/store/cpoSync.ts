@@ -54,6 +54,24 @@ export function isLocalFieldEditPending(skuId: string, field: SyncedField, cpoVa
   return true;
 }
 
+/**
+ * persistSku()가 "이 필드를 CPO로 밀어보낼지" 판단할 때 쓴다 — 값이 다르다고 무조건 밀어보내면
+ * 안 된다(아래 참고). 순수 조회만 하고 값 비교/삭제 등 부수효과는 없다.
+ *
+ * 배경: persistSku()는 가격 입력 blur, 옵션 동기화 등 이 필드와 무관한 이유로도 수시로 호출된다.
+ * 그때마다 sku[field]를 cpoProjects[field]와 비교해서 다르면 무조건 CPO로 밀어보냈었는데,
+ * "CPO에서 방금 값이 바뀌어서 아직 이 훅(useCpoFieldSync)이 로컬을 따라잡지 못한 그 찰나"에
+ * 하필 다른 이유로 persistSku가 불리면 "아직 안 따라잡은 옛날 로컬 값"을 방금 사용자가 CPO에서
+ * 고친 값 위에 그대로 되돌려써버리는 레이스가 있었다(2026-08-11 발견 — "CPO에서 고쳤는데
+ * Product 창을 열어두고 있으면 오히려 CPO 값이 원상복구된다"는 증상으로 보고됨).
+ * 진짜 로컬 편집(updateSku가 markLocalFieldEdit으로 남긴 마킹)이 있을 때만 밀어보내도록 좁혀서
+ * 해결 — useCpoFieldSync 자신이 CPO 값을 반영하려고 부르는 updateSku는 이 마킹을 남기지 않는다
+ * (updateSku의 skipCpoEditMark 옵션 참고).
+ */
+export function hasPendingLocalFieldEdit(skuId: string, field: SyncedField): boolean {
+  return pendingFieldEdits.has(pendingKey(skuId, field));
+}
+
 interface CpoSyncState {
   /** CPO 프로젝트 id → 데이터. 아직 로딩 전이면 빈 객체. */
   cpoProjects: Record<string, CpoProject>;

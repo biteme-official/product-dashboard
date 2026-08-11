@@ -865,9 +865,9 @@ function SkuListTable({ skus, onNavigateToSku }: { skus: SkuData[]; onNavigateTo
                       </span>
                     )}
                   </td>
-                  {/* 입고예정일 — master/pm 클릭 시 캘린더 팝업 */}
+                  {/* 입고예정일 — CPO 연동 SKU는 CPO 전용 편집 필드라 여기서는 표시만 함 */}
                   <td className="px-3 py-2 whitespace-nowrap">
-                    {canEditDate ? (
+                    {canEditDate && !cpoProjects[sku.id] ? (
                       <button
                         onClick={(e) => openDateCalendar(sku, 'arrivalDate', e)}
                         className={`text-[12px] tabular-nums transition-colors hover:text-indigo-600 hover:underline underline-offset-2 decoration-dashed ${
@@ -900,10 +900,7 @@ function SkuListTable({ skus, onNavigateToSku }: { skus: SkuData[]; onNavigateTo
                         {formatReleaseDate(sku.shootingDate) ?? '날짜 설정'}
                       </button>
                     ) : (
-                      <span
-                        className={`text-[12px] tabular-nums ${isPast(sku.shootingDate) ? 'text-gray-400' : 'text-gray-500'}`}
-                        title={cpoProjects[sku.id] ? 'CPO에서 관리' : undefined}
-                      >
+                      <span className={`text-[12px] tabular-nums ${isPast(sku.shootingDate) ? 'text-gray-400' : 'text-gray-500'}`}>
                         {formatReleaseDate(sku.shootingDate) ?? <span className="text-gray-300">–</span>}
                       </span>
                     )}

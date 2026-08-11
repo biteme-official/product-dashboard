@@ -11,7 +11,7 @@ import { MAX_SIZES, SIZE_LABELS, MONTHS, CHANNELS, BRANDS, CATEGORIES, SKU_TYPES
 import type { CpoProject } from '../types/cpo';
 import { recalcQuantities, revenueMultiplier, calcDynamicMultiplier } from '../utils/calc';
 import { writeProductSyncFields } from '../lib/cpoFirebase';
-import { useCpoSync, markLocalFieldEdit, SYNCED_FIELDS } from './cpoSync';
+import { useCpoSync, markLocalFieldEdit, hasPendingLocalFieldEdit, SYNCED_FIELDS } from './cpoSync';
 
 export const SKUS_COL = 'skus';
 export const TRASH_COL = 'trash';
@@ -365,7 +365,7 @@ interface StoreActions {
   resetSku: (id: string) => void;
   toggleExpanded: (id: string) => void;
   expandOnly: (id: string) => void;
-  updateSku: (id: string, patch: Partial<SkuData>) => void;
+  updateSku: (id: string, patch: Partial<SkuData>, opts?: { skipCpoEditMark?: boolean }) => void;
   updateMonthlySplit: (id: string, month: Month, ratio: number) => void;
   updateChannelMonthQty: (id: string, channel: Channel, month: Month, qty: number) => void;
   batchInitChannelMonthQty: (id: string, entries: ChannelMonthQtyEntry[]) => void;
@@ -624,15 +624,22 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
     });
   },
 
-  updateSku: (id, patch) => {
+  updateSku: (id, patch, opts) => {
     // CPO 동기화 대상 필드(SYNCED_FIELDS)는 로컬에서 바뀌는 그 순간 바로 보호 마킹을 걸어야
     // 한다. 날짜는 클릭 즉시 persistSku까지 같이 호출돼서 문제가 없었지만, SKU명처럼
     // "타이핑 중 여러 번 로컬 상태만 바뀌고, blur돼야 persistSku가 호출되는" 필드는 그 사이
     // 매 키 입력마다 skus가 바뀌어 useCpoFieldSync 이펙트가 재실행되는데, 아직 마킹 전이라
     // "아직 CPO에 반영 안 된 로컬 편집"을 그 즉시 CPO의 옛날 값으로 되돌려버렸다(SKU명을
     // 타이핑하는 족족 원래 값으로 스냅백되던 버그의 원인, 2026-07-20 발견).
-    for (const field of SYNCED_FIELDS) {
-      if (field in patch) markLocalFieldEdit(id, field, (patch as Record<string, string>)[field] ?? '');
+    //
+    // opts.skipCpoEditMark: useCpoFieldSync가 "CPO 값을 로컬에 반영"하려고 이 함수를 부를 때만
+    // true로 넘어온다 — 이건 사용자의 진짜 로컬 편집이 아니라 CPO 값의 echo이므로, 여기서
+    // 마킹을 남기면 persistSku()의 hasPendingLocalFieldEdit 판단이 "방금 CPO에서 받은 값"을
+    // "사용자가 방금 편집한 값"과 구분 못 하게 된다(2026-08-11 발견 레이스의 근본 원인).
+    if (!opts?.skipCpoEditMark) {
+      for (const field of SYNCED_FIELDS) {
+        if (field in patch) markLocalFieldEdit(id, field, (patch as Record<string, string>)[field] ?? '');
+      }
     }
     const skus = get().skus;
     const next = skus.map((s) => {
@@ -915,24 +922,31 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
     // useCpoFieldSync 이펙트가 "아직 옛날 값인 CPO"를 보고 방금 로컬에서 고친 값을 되돌려버리는
     // 레이스가 있었다(리스트 뷰에서 날짜 클릭 직후 초기화되던 버그의 원인).
     //
-    // 촬영예정일은 CPO 전용 편집 필드로 바뀌어(2026-08-06) 이 방향으로 보내지 않는다 — Product는
-    // useCpoFieldSync로 값을 받아오기만 한다. 예전엔 여기서도 보냈는데, CPO가 촬영일을 지워도
-    // Product 로컬에 남아있던 옛 값이 이 SKU의 다른 필드가 저장될 때마다 되살아나 CPO 쪽 삭제가
-    // 계속 무효화되는 버그가 있었다(진짜 원인은 cpoSync.ts의 값 기준 보호 락이 "CPO가 값을
-    // 지운" 경우엔 절대 안 풀리는 것이었지만, 애초에 이 필드를 Product에서 CPO로 보낼 이유가
-    // 없으므로 아예 편집 자체를 CPO 전용으로 막았다).
+    // 촬영예정일·입고예정일은 CPO 전용 편집 필드라(촬영일 2026-08-06, 입고예정일 2026-08-11) 이
+    // 방향으로 보내지 않는다 — Product는 useCpoFieldSync로 값을 받아오기만 한다. 예전엔 촬영일도
+    // 여기서 보냈는데, CPO가 촬영일을 지워도 Product 로컬에 남아있던 옛 값이 이 SKU의 다른 필드가
+    // 저장될 때마다 되살아나 CPO 쪽 삭제가 계속 무효화되는 버그가 있었다(진짜 원인은 cpoSync.ts의
+    // 값 기준 보호 락이 "CPO가 값을 지운" 경우엔 절대 안 풀리는 것이었지만, 애초에 이 필드를
+    // Product에서 CPO로 보낼 이유가 없으므로 아예 편집 자체를 CPO 전용으로 막았다). 입고예정일도
+    // 같은 이유로 편집 UI 자체를 잠갔다(SkuCard.tsx/SkuOrderSection.tsx) — CPO에서 막 수정한
+    // 직후 Product 쪽 다른 필드 저장이 옛 로컬 값을 CPO로 되돌려쓰는 레이스가 있었음(2026-08-11).
     const cpoProject = useCpoSync.getState().cpoProjects[id];
     if (cpoProject) {
       const syncPatch: Partial<Record<(typeof SYNCED_FIELDS)[number], string>> = {};
       for (const field of SYNCED_FIELDS) {
-        if (field === 'shootingDate') continue;
+        if (field === 'shootingDate' || field === 'arrivalDate') continue;
         const localVal = sku[field] ?? '';
         const cpoVal = cpoProject[field] ?? '';
         // skuName은 날짜와 달리 "빈 값"이 유효한 편집이 아님(이름을 지우는 건 정상 시나리오가
         // 아니라 타이핑 중 blur된 사고에 가까움) — 빈 문자열로는 절대 CPO를 덮어쓰지 않는다.
         // 날짜 필드는 반대로 빈 문자열도 유효한 삭제 요청이라 그대로 보내야 한다.
         if (field === 'skuName' && localVal.trim() === '') continue;
-        if (localVal !== cpoVal) {
+        // 값이 다르다는 것만으로는 "사용자가 방금 로컬에서 고쳤다"를 보장 못 한다 — CPO가 방금
+        // 바뀌었는데 useCpoFieldSync가 아직 로컬을 따라잡기 전, 가격 입력 blur 등 이 필드와
+        // 무관한 이유로 persistSku가 불리면 "안 따라잡은 옛날 로컬 값"을 그대로 CPO에 되돌려써서
+        // 방금 CPO에서 한 수정이 원상복구되는 버그가 있었다(2026-08-11). hasPendingLocalFieldEdit로
+        // "진짜 로컬 편집이 있었던 필드"만 밀어보내도록 좁힌다.
+        if (localVal !== cpoVal && hasPendingLocalFieldEdit(id, field)) {
           syncPatch[field] = localVal;
           markLocalFieldEdit(id, field, localVal);
         }

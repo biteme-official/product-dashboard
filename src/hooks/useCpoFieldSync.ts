@@ -41,7 +41,10 @@ export function useCpoFieldSync(): void {
       }
       if (Object.keys(patch).length === 0) return;
 
-      updateSku(sku.id, patch);
+      // skipCpoEditMark: 이건 CPO 값을 그대로 반영하는 것뿐이지 사용자의 로컬 편집이 아니다 —
+      // 마킹을 남기면 persistSku()가 이걸 "로컬에서 방금 고친 값"으로 착각해 CPO로 되돌려보낼
+      // 수 있다(2026-08-11 레이스 수정, store/index.ts의 hasPendingLocalFieldEdit 참고).
+      updateSku(sku.id, patch, { skipCpoEditMark: true });
       persistSku(sku.id).catch((err) =>
         console.error('[useCpoFieldSync] CPO 필드 동기화 저장 실패', sku.id, err),
       );

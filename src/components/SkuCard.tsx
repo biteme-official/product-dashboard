@@ -633,13 +633,11 @@ function BasicInfoColumn({ sku, readOnly }: { sku: SkuData; readOnly?: boolean }
             value={sku.arrivalDate ?? ''}
             onChange={(v) => handleChange({ arrivalDate: v })}
             onBlur={handleBlur}
-            disabled={readOnly}
+            disabled={readOnly || !!cpoProject}
           />
         </div>
         <div>
-          <label className="block text-xs text-gray-500 mb-1">
-            촬영예정일{cpoProject && <span className="text-gray-400 font-normal"> · CPO에서 관리</span>}
-          </label>
+          <label className="block text-xs text-gray-500 mb-1">촬영예정일</label>
           <DateField
             value={sku.shootingDate ?? ''}
             onChange={(v) => handleChange({ shootingDate: v })}
