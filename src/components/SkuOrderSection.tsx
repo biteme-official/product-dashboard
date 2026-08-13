@@ -26,6 +26,13 @@ function catCls(cat: string): string {
   return CATEGORY_COLORS[cat] ?? 'bg-gray-100 text-gray-600';
 }
 
+// LIST VIEW / 채널별 오픈일정 정렬용 카테고리 우선순위 (가나다순 아님)
+const CATEGORY_SORT_ORDER = ['식품', '장난감', '용품', '잡화', '의류'];
+function categorySortIndex(cat: string): number {
+  const idx = CATEGORY_SORT_ORDER.indexOf(cat);
+  return idx === -1 ? CATEGORY_SORT_ORDER.length : idx;
+}
+
 // ── 날짜 포맷: "M/D (요일)" ────────────────────────────────────────────────────
 function formatReleaseDate(dateStr: string | undefined | null): string | null {
   if (!dateStr) return null;
@@ -68,7 +75,7 @@ function sortForListView(a: SkuData, b: SkuData): number {
   }
   const brandCmp = a.brand.localeCompare(b.brand, 'ko');
   if (brandCmp !== 0) return brandCmp;
-  const catCmp = a.category.localeCompare(b.category, 'ko');
+  const catCmp = categorySortIndex(a.category) - categorySortIndex(b.category);
   if (catCmp !== 0) return catCmp;
   return a.skuName.localeCompare(b.skuName, 'ko');
 }
