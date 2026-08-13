@@ -8,10 +8,12 @@ export interface CalendarPopupProps {
   left: number;
   containerRef: React.RefObject<HTMLDivElement | null>;
   onSelect: (dateStr: string) => void;
+  onNone?: () => void;
 }
 
-export function CalendarPopup({ selectedDate, top, left, containerRef, onSelect }: CalendarPopupProps) {
-  const initDate = selectedDate ? new Date(selectedDate + 'T00:00:00') : new Date();
+export function CalendarPopup({ selectedDate, top, left, containerRef, onSelect, onNone }: CalendarPopupProps) {
+  const parsedInit = selectedDate ? new Date(selectedDate + 'T00:00:00') : null;
+  const initDate = parsedInit && !isNaN(parsedInit.getTime()) ? parsedInit : new Date();
   const [viewYear, setViewYear] = useState(initDate.getFullYear());
   const [viewMonth, setViewMonth] = useState(initDate.getMonth());
 
@@ -120,14 +122,25 @@ export function CalendarPopup({ selectedDate, top, left, containerRef, onSelect 
         })}
       </div>
 
-      {selectedDate && (
-        <div className="mt-2 pt-2 border-t border-gray-100 text-center">
-          <button
-            onClick={() => onSelect('')}
-            className="text-[11px] text-gray-400 hover:text-rose-500 transition-colors"
-          >
-            날짜 초기화
-          </button>
+      {(selectedDate || onNone) && (
+        <div className="mt-2 pt-2 border-t border-gray-100 flex items-center justify-center gap-2">
+          {selectedDate && (
+            <button
+              onClick={() => onSelect('')}
+              className="text-[11px] text-gray-400 hover:text-rose-500 transition-colors"
+            >
+              날짜 초기화
+            </button>
+          )}
+          {selectedDate && onNone && <span className="text-[11px] text-gray-200">·</span>}
+          {onNone && (
+            <button
+              onClick={onNone}
+              className="text-[11px] text-gray-400 hover:text-indigo-500 transition-colors"
+            >
+              미판매로 표시
+            </button>
+          )}
         </div>
       )}
     </div>

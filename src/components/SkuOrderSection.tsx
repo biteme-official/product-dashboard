@@ -1190,6 +1190,11 @@ function ChannelScheduleTable({ skus, onNavigateToSku }: { skus: SkuData[]; onNa
             saveDate(scheduleCal.skuId, scheduleCal.channel, dateStr || null);
             setScheduleCal(null);
           }}
+          onNone={() => {
+            if (!scheduleCal) return;
+            saveDate(scheduleCal.skuId, scheduleCal.channel, NONE);
+            setScheduleCal(null);
+          }}
         />
       )}
       <div className="bg-white border border-gray-200 rounded-xl overflow-auto h-full">
