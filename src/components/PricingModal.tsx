@@ -230,10 +230,15 @@ export function PricingModal({ sku, onClose }: { sku: SkuData; onClose: () => vo
     if (memoDraft !== (liveSku.pricingMemo ?? '')) setPricingMemo(sku.id, memoDraft).catch(console.error);
   };
 
-  const [promoOpenSpecial, setPromoOpenSpecial] = useState(true); // 오픈특가
-  const [promoNewWeek, setPromoNewWeek] = useState(false);   // 신상위크
-  const [promoLive, setPromoLive] = useState(false);          // 라이브 (단독)
-  const [promoExclusive, setPromoExclusive] = useState(false); // 선단독
+  const setPricingPromo = useStore((s) => s.setPricingPromo);
+  const promoOpenSpecial = liveSku.pricingPromoOpenSpecial ?? true;  // 오픈특가
+  const promoNewWeek = liveSku.pricingPromoNewWeek ?? false;         // 신상위크
+  const promoLive = liveSku.pricingPromoLive ?? false;               // 라이브 (단독)
+  const promoExclusive = liveSku.pricingPromoExclusive ?? false;     // 선단독
+  const togglePromo = (
+    field: 'pricingPromoOpenSpecial' | 'pricingPromoNewWeek' | 'pricingPromoLive' | 'pricingPromoExclusive',
+    current: boolean,
+  ) => setPricingPromo(sku.id, { [field]: !current }).catch(console.error);
 
   // B2C에서 활성화된 시나리오 ID 집합
   const b2cActiveIds = new Set<string>();
@@ -314,7 +319,7 @@ export function PricingModal({ sku, onClose }: { sku: SkuData; onClose: () => vo
               <span className="text-[11px] text-sky-500 font-medium">오픈 프로모션 선택</span>
               <div className="flex items-center gap-2 flex-wrap">
                 <button
-                  onClick={() => setPromoOpenSpecial((v) => !v)}
+                  onClick={() => togglePromo('pricingPromoOpenSpecial', promoOpenSpecial)}
                   className={`px-2.5 py-1 rounded-md text-[11px] font-semibold border transition-colors ${
                     promoOpenSpecial
                       ? 'bg-indigo-500 text-white border-indigo-500 shadow-sm'
@@ -324,7 +329,7 @@ export function PricingModal({ sku, onClose }: { sku: SkuData; onClose: () => vo
                   오픈특가
                 </button>
                 <button
-                  onClick={() => setPromoNewWeek((v) => !v)}
+                  onClick={() => togglePromo('pricingPromoNewWeek', promoNewWeek)}
                   className={`px-2.5 py-1 rounded-md text-[11px] font-semibold border transition-colors ${
                     promoNewWeek
                       ? 'bg-red-500 text-white border-red-500 shadow-sm'
@@ -334,7 +339,7 @@ export function PricingModal({ sku, onClose }: { sku: SkuData; onClose: () => vo
                   신상위크
                 </button>
                 <button
-                  onClick={() => setPromoLive((v) => !v)}
+                  onClick={() => togglePromo('pricingPromoLive', promoLive)}
                   className={`px-2.5 py-1 rounded-md text-[11px] font-semibold border transition-colors ${
                     promoLive
                       ? 'bg-orange-500 text-white border-orange-500 shadow-sm'
@@ -344,7 +349,7 @@ export function PricingModal({ sku, onClose }: { sku: SkuData; onClose: () => vo
                   라이브
                 </button>
                 <button
-                  onClick={() => setPromoExclusive((v) => !v)}
+                  onClick={() => togglePromo('pricingPromoExclusive', promoExclusive)}
                   className={`px-2.5 py-1 rounded-md text-[11px] font-semibold border transition-colors ${
                     promoExclusive
                       ? 'bg-emerald-500 text-white border-emerald-500 shadow-sm'

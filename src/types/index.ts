@@ -171,6 +171,10 @@ export interface SkuData {
   regularMaxRate?: 15 | 10 | 5;                     // 상시 최대할인율(%), 기본 15 (master만 변경 가능)
   seasonOffRate?: 25 | 30;                          // 시즌오프(의류전용) 할인율(%), 기본 25 (master만 변경 가능)
   pricingMemo?: string;                             // 프라이싱 모달 B2C 시나리오 메모 (master/platform_md/brand_md만 변경 가능)
+  pricingPromoOpenSpecial?: boolean;                // 프라이싱 모달 B2C 오픈특가 프로모션 on/off, 기본 true
+  pricingPromoNewWeek?: boolean;                    // 프라이싱 모달 B2C 신상위크 프로모션 on/off, 기본 false
+  pricingPromoLive?: boolean;                       // 프라이싱 모달 B2C 라이브 프로모션 on/off, 기본 false
+  pricingPromoExclusive?: boolean;                  // 프라이싱 모달 B2C 선단독 프로모션 on/off, 기본 false
   channelOpenSchedule?: ChannelOpenScheduleEntry; // 채널별 오픈일정
   step2InitBaselineQty?: ChannelMonthQtyEntry[]; // 초기화 시 계산된 수량 (비교 기준값, 영구 보존)
   channelQtyDerivedFromCompareSkus?: string[]; // channelMonthQty를 마지막으로 자동세팅한 대응SKU 목록 (재선택 감지용)
