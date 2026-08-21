@@ -1,9 +1,12 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import type { Channel, Category, YearMonth } from '../types';
+import type { YearMonth } from '../types';
+import type { Channel } from '../types';
 import { CHANNELS, getYearMonthRange, fmtYearMonth } from '../types';
-import { useStore } from '../store';
+import { useVisibleSkus } from '../hooks/useVisibleSkus';
+import { useCpoSync } from '../store/cpoSync';
 import { MdSummaryOverview } from './MdSummaryOverview';
 import { MdChannelDetail } from './MdChannelDetail';
+import { SkuFilterBar } from './SkuFilterBar';
 import {
   fetchTeamCateData, classifyTableauError, TABLEAU_ERROR_MESSAGES,
   type TeamCateMap, type TableauErrorReason,
@@ -12,7 +15,14 @@ import { buildVarCostRatioMap } from '../utils/mdSummaryCalc';
 import { useExchangeRates } from '../utils/useExchangeRates';
 
 interface Props {
-  categoryFilter: Category | '전체';
+  catFilter: Set<string>;
+  onCatFilterChange: (v: Set<string>) => void;
+  brandFilter: Set<string>;
+  onBrandFilterChange: (v: Set<string>) => void;
+  monthFilter: Set<string>;
+  onMonthFilterChange: (v: Set<string>) => void;
+  excludeOpenComplete: boolean;
+  onExcludeOpenCompleteChange: (v: boolean) => void;
 }
 
 /* ── 듀얼 범위 슬라이더 ───────────────────────────────────────────────── */
@@ -104,7 +114,12 @@ function RangeSlider({ min, max, start, end, labels, onChange }: RangeSliderProp
 }
 
 /* ── 메인 컴포넌트 ───────────────────────────────────────────────────── */
-export function MdSummarySection({ categoryFilter }: Props) {
+export function MdSummarySection({
+  catFilter, onCatFilterChange,
+  brandFilter, onBrandFilterChange,
+  monthFilter, onMonthFilterChange,
+  excludeOpenComplete, onExcludeOpenCompleteChange,
+}: Props) {
   // 빈 Set = "전체 요약" (채널 미선택 상태). 1개 이상 선택 시 해당 채널들만 합산한 상세 뷰로 전환.
   const [selectedChannels, setSelectedChannels] = useState<Set<Channel>>(new Set());
   const [selectedSkuIds, setSelectedSkuIds] = useState<Set<string>>(new Set());
@@ -112,7 +127,10 @@ export function MdSummarySection({ categoryFilter }: Props) {
   const [searchQuery, setSearchQuery] = useState('');
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const { skus, activeBrand } = useStore();
+  // pm/프로젝션 탭과 동일하게 CPO 상태가 Cancel/Holding이거나 오픈일 미정인 SKU는 제외
+  // (기존에는 useStore().skus를 그대로 써서 이 SKU들까지 매출/공헌이익 합계에 포함되던 버그)
+  const skus = useVisibleSkus();
+  const cpoProjects = useCpoSync((s) => s.cpoProjects);
 
   // 팀카테 변동비 데이터 로드 (STEP2/SkuCard와 동일한 Tableau 역산 기준 사용)
   const [teamCateMap, setTeamCateMap] = useState<TeamCateMap | null>(null);
@@ -129,13 +147,20 @@ export function MdSummarySection({ categoryFilter }: Props) {
   // 시나리오 가격 계산용 실시간 환율 (STEP2/SkuCard와 동일 소스)
   const { usdKrw, jpyKrw } = useExchangeRates();
 
+  // 필터 파이프라인: 카테고리 → 브랜드 → 오픈월(SKU 출시월) → 오픈/완료 제외
+  // 이 결과(categoryFiltered)가 KPI 합계·브랜드별 요약·SKU별 표·아래 SKU 다중선택 드롭다운의 유일한 기준 SKU 집합.
   const categoryFiltered = useMemo(() =>
     skus.filter((s) => {
-      if (categoryFilter !== '전체' && s.category !== categoryFilter) return false;
-      if (activeBrand !== '전체' && s.brand !== activeBrand) return false;
+      if (catFilter.size > 0 && !catFilter.has(s.category)) return false;
+      if (brandFilter.size > 0 && !brandFilter.has(s.brand)) return false;
+      if (monthFilter.size > 0) {
+        if (!s.releaseDate) return false;
+        if (!monthFilter.has(s.releaseDate.substring(0, 7))) return false;
+      }
+      if (excludeOpenComplete && cpoProjects[s.id]?.status === '오픈/완료') return false;
       return true;
     }),
-    [skus, categoryFilter, activeBrand],
+    [skus, catFilter, brandFilter, monthFilter, excludeOpenComplete, cpoProjects],
   );
 
   const allYearMonths: YearMonth[] = useMemo(
@@ -202,7 +227,7 @@ export function MdSummarySection({ categoryFilter }: Props) {
   useEffect(() => {
     setSelectedSkuIds(new Set());
     setSelectedChannels(new Set());
-  }, [categoryFilter, activeBrand]);
+  }, [catFilter, brandFilter, monthFilter, excludeOpenComplete]);
 
   function toggleChannel(ch: Channel) {
     const next = new Set(selectedChannels);
@@ -246,7 +271,21 @@ export function MdSummarySection({ categoryFilter }: Props) {
         </div>
       )}
 
-      {/* 채널 탭 바 + 월 범위 슬라이더 */}
+      {/* 카테고리·브랜드·오픈월(SKU 출시월) 필터 바 — 프로젝션 탭과 동일 컴포넌트 재사용 */}
+      <SkuFilterBar
+        skus={skus}
+        catFilter={catFilter}
+        onCatFilterChange={onCatFilterChange}
+        brandFilter={brandFilter}
+        onBrandFilterChange={onBrandFilterChange}
+        monthFilter={monthFilter}
+        onMonthFilterChange={onMonthFilterChange}
+        excludeOpenComplete={excludeOpenComplete}
+        onExcludeOpenCompleteChange={onExcludeOpenCompleteChange}
+        resultCount={categoryFiltered.length}
+      />
+
+      {/* 채널 탭 바 + 집계 기간(월 범위) 슬라이더 — 위 "오픈월"과 달리 매출을 합산할 기간을 고르는 것 */}
       <div className="flex items-center gap-3 bg-white rounded-xl border border-gray-200 p-1 shadow-sm">
         <div className="flex gap-1 overflow-x-auto scrollbar-none flex-1 min-w-0">
           <button
@@ -279,7 +318,8 @@ export function MdSummarySection({ categoryFilter }: Props) {
         )}
 
         {allYearMonths.length > 1 && (
-          <div className="flex-shrink-0 pr-1">
+          <div className="flex items-center gap-2 flex-shrink-0 pr-1">
+            <span className="text-[11px] text-gray-400 font-semibold whitespace-nowrap">집계기간</span>
             <RangeSlider
               min={0}
               max={allYearMonths.length - 1}

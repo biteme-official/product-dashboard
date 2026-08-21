@@ -34,6 +34,10 @@ interface NavSnapshot {
   listBrandFilter: Set<string>;
   listMonthFilter: Set<string>;
   excludeOpenComplete: boolean;
+  mdCatFilter: Set<string>;
+  mdBrandFilter: Set<string>;
+  mdMonthFilter: Set<string>;
+  mdExcludeOpenComplete: boolean;
   searchQuery: string;
   scrollY: number;
 }
@@ -118,7 +122,6 @@ function App() {
   const [backupState, setBackupState] = useState<'idle' | 'done' | 'error' | 'restoring' | 'rolling-back' | 'rolled-back'>('idle');
   const [activeMainTab, setActiveMainTab] = useSessionState<MainTab>('app:mainTab', 'projection');
   const [projectionSubTab, setProjectionSubTab] = useSessionState<string>('app:projectionSubTab', 'list-view');
-  const [mdCategory, setMdCategory] = useState<Category | '전체'>('전체');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const prevRoleRef = useRef<typeof role>(null);
 
@@ -131,6 +134,12 @@ function App() {
   const [listMonthFilter, setListMonthFilter] = useState<Set<string>>(new Set());
   const [excludeOpenComplete, setExcludeOpenComplete] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // 채널별 요약 탭 필터 상태 (프로젝션 필터와 동일한 패턴으로 리프트)
+  const [mdCatFilter, setMdCatFilter] = useState<Set<string>>(new Set());
+  const [mdBrandFilter, setMdBrandFilter] = useState<Set<string>>(new Set());
+  const [mdMonthFilter, setMdMonthFilter] = useState<Set<string>>(new Set());
+  const [mdExcludeOpenComplete, setMdExcludeOpenComplete] = useState(false);
 
   // 로그인 시(role이 null→유효값으로 전환) 프로젝션 List view로 초기화
   useEffect(() => {
@@ -152,6 +161,10 @@ function App() {
       listBrandFilter: new Set(listBrandFilter),
       listMonthFilter: new Set(listMonthFilter),
       excludeOpenComplete,
+      mdCatFilter: new Set(mdCatFilter),
+      mdBrandFilter: new Set(mdBrandFilter),
+      mdMonthFilter: new Set(mdMonthFilter),
+      mdExcludeOpenComplete,
       searchQuery,
       scrollY: window.scrollY,
     };
@@ -171,6 +184,10 @@ function App() {
     setListBrandFilter(new Set(prev.listBrandFilter));
     setListMonthFilter(new Set(prev.listMonthFilter));
     setExcludeOpenComplete(prev.excludeOpenComplete);
+    setMdCatFilter(new Set(prev.mdCatFilter));
+    setMdBrandFilter(new Set(prev.mdBrandFilter));
+    setMdMonthFilter(new Set(prev.mdMonthFilter));
+    setMdExcludeOpenComplete(prev.mdExcludeOpenComplete);
     setSearchQuery(prev.searchQuery);
     setTimeout(() => window.scrollTo({ top: prev.scrollY }), 50);
   }
@@ -474,17 +491,11 @@ function App() {
           </div>
         )}
 
-        {/* 카테고리 탭 + 브랜드 필터 (SKU 리스트, 채널별 요약) */}
+        {/* 카테고리 탭 + 브랜드 필터 (SKU 리스트 전용 — 채널별 요약은 자체 필터 바를 콘텐츠 영역에서 렌더링) */}
         {activeMainTab === 'pm' && (
           <>
             <CategoryTabs />
             <BrandFilter pmFilters />
-          </>
-        )}
-        {activeMainTab === 'md' && (
-          <>
-            <CategoryTabs showAll={true} value={mdCategory} onChange={setMdCategory} />
-            <BrandFilter categoryFilter={mdCategory} />
           </>
         )}
       </div>
@@ -519,7 +530,16 @@ function App() {
           />
         ) : (
           <div className="px-4 py-4">
-            <MdSummarySection categoryFilter={mdCategory} />
+            <MdSummarySection
+              catFilter={mdCatFilter}
+              brandFilter={mdBrandFilter}
+              monthFilter={mdMonthFilter}
+              excludeOpenComplete={mdExcludeOpenComplete}
+              onCatFilterChange={setMdCatFilter}
+              onBrandFilterChange={setMdBrandFilter}
+              onMonthFilterChange={setMdMonthFilter}
+              onExcludeOpenCompleteChange={setMdExcludeOpenComplete}
+            />
           </div>
         )}
       </main>
