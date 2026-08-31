@@ -114,6 +114,15 @@ export interface ChannelPricing {
   commissionRate: number; // 수수료% (0~100)
 }
 
+/** 프라이싱 모달 수동 모드에서 시나리오명·실제가격을 직접 입력하는 행 (할인율/원가율은 계속 자동 계산) */
+export interface ManualScenarioEntry {
+  id: string;             // 자동모드 시나리오 id 그대로 유지(프로모션 버튼 연동용) 또는 신규 추가 시 crypto.randomUUID()
+  section: 'B2C' | 'B2B';
+  label: string;
+  price: number;
+  isCustom?: boolean;     // "+ 시나리오 항목 추가"로 만든 행인지 (true면 삭제 가능)
+}
+
 export const DEFAULT_CHANNEL_COMMISSION: Record<Channel, number> = {
   '자사몰': 3,
   '스스': 5.5,
@@ -175,6 +184,8 @@ export interface SkuData {
   pricingPromoNewWeek?: boolean;                    // 프라이싱 모달 B2C 신상위크 프로모션 on/off, 기본 false
   pricingPromoLive?: boolean;                       // 프라이싱 모달 B2C 라이브 프로모션 on/off, 기본 false
   pricingPromoExclusive?: boolean;                  // 프라이싱 모달 B2C 선단독 프로모션 on/off, 기본 false
+  pricingMode?: 'auto' | 'manual';                  // 프라이싱 모달 자동/수동 모드, 기본 auto
+  manualScenarios?: ManualScenarioEntry[];          // 수동 모드 시나리오명·실제가격 (최초 전환 시 자동계산값 스냅샷, 이후 독립)
   channelOpenSchedule?: ChannelOpenScheduleEntry; // 채널별 오픈일정
   step2InitBaselineQty?: ChannelMonthQtyEntry[]; // 초기화 시 계산된 수량 (비교 기준값, 영구 보존)
   channelQtyDerivedFromCompareSkus?: string[]; // channelMonthQty를 마지막으로 자동세팅한 대응SKU 목록 (재선택 감지용)

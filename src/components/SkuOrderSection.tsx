@@ -13,6 +13,7 @@ import { SkuFilterBar, SearchInput } from './SkuFilterBar';
 import { catCls } from '../utils/categoryColors';
 import type { SkuData, ChannelOpenScheduleEntry } from '../types';
 import { usePermission } from '../contexts/PermissionsContext';
+import { canEditPricing } from '../utils/pin';
 
 type ViewMode = 'list' | 'gallery';
 
@@ -459,6 +460,7 @@ function SkuListTable({ skus, onNavigateToSku }: { skus: SkuData[]; onNavigateTo
   const { skuBasic } = usePermission(role);
   const canEdit = skuBasic;
   const canEditDate = skuBasic;
+  const canConfirmPrice = canEditPricing(role); // 가격확정/해제 — 마스터/PM/플랫폼MD/브랜드MD
 
   const [editingCell, setEditingCell] = useState<EditingCell | null>(null);
   const [pricingSkuId, setPricingSkuId] = useState<string | null>(null);
@@ -709,9 +711,9 @@ function SkuListTable({ skus, onNavigateToSku }: { skus: SkuData[]; onNavigateTo
                       프라이싱
                     </button>
                   </td>
-                  {/* 가격확정 */}
+                  {/* 가격확정 — 확정/해제 모두 마스터/PM/플랫폼MD/브랜드MD만 가능 */}
                   <td className="px-2 py-1.5 text-center">
-                    {canEdit ? (
+                    {canConfirmPrice ? (
                       <button
                         onClick={() => setPriceConfirmed(sku.id, !(sku.isPriceConfirmed ?? false))}
                         className={`px-2 py-0.5 text-[11px] font-semibold rounded-full border transition-colors whitespace-nowrap ${
