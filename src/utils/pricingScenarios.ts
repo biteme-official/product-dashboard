@@ -10,6 +10,8 @@ export interface PricingScenario {
   id: string;
   label: string;
   hint?: string;
+  /** true면 프라이싱 모달 수동 모드에서도 편집 불가 — 자동계산 값이 그대로 표시됨 */
+  manualLocked?: boolean;
   calcKrwPrice: (base: number, usdRate?: number, jpyRate?: number, promoNewWeek?: boolean, rates?: PricingRates) => number;
   foreignAmt?: (base: number, usdRate?: number, jpyRate?: number) => { symbol: string; amount: number; decimals: number } | null;
 }
@@ -70,7 +72,7 @@ export const PRICING_SCENARIOS: PricingScenario[] = [
   { id: 'B2B 상시 운영',      label: 'B2B 상시 운영',                               calcKrwPrice: (b) => round10(b * 0.65) },
   { id: '사입 공급가',        label: '사입 공급가',                                 calcKrwPrice: (b) => ceil10(b * 0.50) },
   {
-    id: '글로벌 공급가', label: '글로벌 공급가', hint: 'USD 공급가',
+    id: '글로벌 공급가', label: '글로벌 공급가', hint: 'USD 공급가', manualLocked: true,
     calcKrwPrice: (b, usdRate = 1400) => ceil10((b / 1250 * 1.6) / 2 * usdRate),
     foreignAmt: (b) => ({ symbol: 'USD $', amount: Math.round((b / 1250 * 1.6) / 2 * 100) / 100, decimals: 2 }),
   },

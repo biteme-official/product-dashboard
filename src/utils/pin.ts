@@ -10,6 +10,12 @@ export const MD_ROLES: readonly Role[] = ['platform_md', 'brand_md', 'global'] a
 export const isMdRole = (role: Role | null | undefined): boolean =>
   !!(role && (MD_ROLES as readonly string[]).includes(role));
 
+/** 프라이싱 표(할인율·자동/수동 시나리오·메모)와 가격확정 해제를 편집할 수 있는 역할 */
+export const PRICING_EDIT_ROLES: readonly Role[] = ['master', 'pm', 'platform_md', 'brand_md'] as const;
+
+export const canEditPricing = (role: Role | null | undefined): boolean =>
+  !!(role && (PRICING_EDIT_ROLES as readonly string[]).includes(role));
+
 const PINS_DOC = doc(fsdb, 'config', 'pins');
 
 async function sha256hex(text: string): Promise<string> {
