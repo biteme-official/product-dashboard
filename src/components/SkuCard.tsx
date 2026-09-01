@@ -526,7 +526,7 @@ function BasicInfoColumn({ sku, readOnly }: { sku: SkuData; readOnly?: boolean }
           value={sku.skuName}
           onChange={(e) => handleChange({ skuName: e.target.value })}
           onBlur={handleBlur}
-          disabled={readOnly}
+          disabled={readOnly || !!cpoProject}
           placeholder="SKU명 입력"
           className={inputCls}
         />

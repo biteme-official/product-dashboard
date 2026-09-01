@@ -943,13 +943,14 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
     if (cpoProject) {
       const syncPatch: Partial<Record<(typeof SYNCED_FIELDS)[number], string>> = {};
       for (const field of SYNCED_FIELDS) {
-        if (field === 'shootingDate' || field === 'arrivalDate') continue;
+        // shootingDate/arrivalDate와 같은 이유로 skuName도 CPO 전용 단방향 필드로 전환
+        // (2026-09-01) — Product에서 편집 UI 자체를 막았으니(SkuCard.tsx) 이 방향으로 보낼
+        // 로컬 편집이 애초에 발생하지 않는다. 예전엔 여기서 CPO로 되돌려보내다가, 그 write가
+        // 실패(할당량 초과 등)하면 다음 onSnapshot이 로컬을 되돌리고 → useCpoFieldSync가 다시
+        // "차이 있음"으로 감지해 재시도하는 무한 루프의 한 축이 됐다(산리오 베베/기모 SKU 3건).
+        if (field === 'shootingDate' || field === 'arrivalDate' || field === 'skuName') continue;
         const localVal = sku[field] ?? '';
         const cpoVal = cpoProject[field] ?? '';
-        // skuName은 날짜와 달리 "빈 값"이 유효한 편집이 아님(이름을 지우는 건 정상 시나리오가
-        // 아니라 타이핑 중 blur된 사고에 가까움) — 빈 문자열로는 절대 CPO를 덮어쓰지 않는다.
-        // 날짜 필드는 반대로 빈 문자열도 유효한 삭제 요청이라 그대로 보내야 한다.
-        if (field === 'skuName' && localVal.trim() === '') continue;
         // 값이 다르다는 것만으로는 "사용자가 방금 로컬에서 고쳤다"를 보장 못 한다 — CPO가 방금
         // 바뀌었는데 useCpoFieldSync가 아직 로컬을 따라잡기 전, 가격 입력 blur 등 이 필드와
         // 무관한 이유로 persistSku가 불리면 "안 따라잡은 옛날 로컬 값"을 그대로 CPO에 되돌려써서
