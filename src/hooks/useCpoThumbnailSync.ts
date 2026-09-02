@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useStore } from '../store';
 import { useCpoSync } from '../store/cpoSync';
+import { useSyncCooldown } from './useSyncCooldown';
 
 /**
  * CPO가 등록한 썸네일(thumbnailUrl)을 Product SKU의 imageUrl에 단방향으로 반영한다.
@@ -21,12 +22,14 @@ export function useCpoThumbnailSync(): void {
   const cpoProjects = useCpoSync((s) => s.cpoProjects);
   const updateSku = useStore((s) => s.updateSku);
   const persistSku = useStore((s) => s.persistSku);
+  const shouldAttempt = useSyncCooldown(5 * 60 * 1000); // SKU당 5분에 한 번만 저장 재시도
 
   useEffect(() => {
     skus.forEach((sku) => {
       const cpoThumbnailUrl = cpoProjects[sku.id]?.thumbnailUrl;
       if (!cpoThumbnailUrl) return;
       if (cpoThumbnailUrl === sku.imageUrl) return;
+      if (!shouldAttempt(sku.id)) return; // 쿨다운 중 — 무한 재시도 방지
 
       updateSku(sku.id, { imageUrl: cpoThumbnailUrl });
       persistSku(sku.id).catch((err) =>

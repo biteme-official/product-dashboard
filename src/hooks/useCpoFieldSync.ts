@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useStore } from '../store';
 import { useCpoSync, isLocalFieldEditPending, SYNCED_FIELDS } from '../store/cpoSync';
+import { useSyncCooldown } from './useSyncCooldown';
 
 /**
  * 오픈일/입고예정일/촬영예정일/SKU명 4개 필드는 CPO⇄Product 양방향 수정 대상이다.
@@ -20,6 +21,7 @@ export function useCpoFieldSync(): void {
   const cpoProjects = useCpoSync((s) => s.cpoProjects);
   const updateSku = useStore((s) => s.updateSku);
   const persistSku = useStore((s) => s.persistSku);
+  const shouldAttempt = useSyncCooldown(5 * 60 * 1000); // SKU당 5분에 한 번만 저장 재시도
 
   useEffect(() => {
     skus.forEach((sku) => {
@@ -40,6 +42,7 @@ export function useCpoFieldSync(): void {
         patch[field] = cpoVal;
       }
       if (Object.keys(patch).length === 0) return;
+      if (!shouldAttempt(sku.id)) return; // 쿨다운 중 — 무한 재시도 방지
 
       // skipCpoEditMark: 이건 CPO 값을 그대로 반영하는 것뿐이지 사용자의 로컬 편집이 아니다 —
       // 마킹을 남기면 persistSku()가 이걸 "로컬에서 방금 고친 값"으로 착각해 CPO로 되돌려보낼

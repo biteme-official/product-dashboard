@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useStore } from '../store';
 import { useCpoSync } from '../store/cpoSync';
 import { getConfirmedPricingScenario } from '../types/cpo';
+import { useSyncCooldown } from './useSyncCooldown';
 
 /**
  * CPO에 확정된 판매가/정가/원가가 있는 SKU는 그 값을 Product의 skus 문서에도 그대로 복사해서
@@ -18,6 +19,7 @@ export function useCpoPriceSync(): void {
   const cpoProjects = useCpoSync((s) => s.cpoProjects);
   const updateSku = useStore((s) => s.updateSku);
   const persistSku = useStore((s) => s.persistSku);
+  const shouldAttempt = useSyncCooldown(5 * 60 * 1000); // SKU당 5분에 한 번만 저장 재시도
 
   useEffect(() => {
     skus.forEach((sku) => {
@@ -34,6 +36,7 @@ export function useCpoPriceSync(): void {
         patch.cost = cpo.pricing.cost;
       }
       if (Object.keys(patch).length === 0) return;
+      if (!shouldAttempt(sku.id)) return; // 쿨다운 중 — 무한 재시도 방지
 
       updateSku(sku.id, patch);
       persistSku(sku.id).catch((err) =>
