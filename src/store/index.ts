@@ -364,9 +364,7 @@ interface StoreActions {
   setListView: (v: boolean) => void;
   setExcludeOpenCompletePm: (v: boolean) => void;
   loadSkus: () => () => void;
-  addSku: () => void;
   createSkuFromCpo: (cpo: CpoProject) => void;
-  duplicateSku: (id: string) => void;
   deleteSku: (id: string, deletedBy: string) => Promise<void>;
   loadTrash: () => Promise<TrashItem[]>;
   restoreFromTrash: (trashId: string) => Promise<void>;
@@ -495,14 +493,6 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
     return unsub;
   },
 
-  addSku: () => {
-    const { skus, activeCategory } = get();
-    if (skus.filter((s) => s.category === activeCategory).length >= 100) return;
-    const newSku = buildEmptySku(activeCategory);
-    set({ skus: [...skus, newSku] });
-    setDoc(doc(fsdb, SKUS_COL, newSku.id), toFirestore(newSku));
-  },
-
   createSkuFromCpo: (cpo) => {
     // 이미 로컬에 있으면(다른 탭/레이스에서 먼저 생겼으면) 건너뜀 — 중복 생성 방지
     if (get().skus.some((s) => s.id === cpo.id)) return;
@@ -517,24 +507,6 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
     } catch (err) {
       console.error('[createSkuFromCpo] SKU 생성 실패:', cpo.id, err);
     }
-  },
-
-  duplicateSku: (id) => {
-    const skus = get().skus;
-    const source = skus.find((s) => s.id === id);
-    if (!source) return;
-    const newId = uuidv4();
-    const copy: SkuData = {
-      ...JSON.parse(JSON.stringify(source)),
-      id: newId,
-      skuName: source.skuName ? `${source.skuName} (복사)` : '(복사)',
-      isExpanded: true,
-    };
-    copy._initialSnapshot = { ...copy._initialSnapshot, id: newId, skuName: copy.skuName };
-    const idx = skus.findIndex((s) => s.id === id);
-    const next = [...skus.slice(0, idx + 1), copy, ...skus.slice(idx + 1)];
-    set({ skus: next });
-    setDoc(doc(fsdb, SKUS_COL, copy.id), toFirestore(copy));
   },
 
   deleteSku: async (id, deletedBy) => {

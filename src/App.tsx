@@ -4,6 +4,7 @@ import { useAuth } from './store/auth';
 import { useCpoSync } from './store/cpoSync';
 import { useVisibleSkus } from './hooks/useVisibleSkus';
 import { useCpoCardSync } from './hooks/useCpoCardSync';
+import { useCpoDeleteSync } from './hooks/useCpoDeleteSync';
 import { useCpoPriceSync } from './hooks/useCpoPriceSync';
 import { useCpoFieldSync } from './hooks/useCpoFieldSync';
 import { useCpoOptionSync } from './hooks/useCpoOptionSync';
@@ -89,6 +90,7 @@ function App() {
   const loadSkus = useStore((s) => s.loadSkus);
   const loadCpoSync = useCpoSync((s) => s.loadCpoSync);
   useCpoCardSync();
+  useCpoDeleteSync();
   useCpoPriceSync();
   useCpoFieldSync();
   useCpoOptionSync();

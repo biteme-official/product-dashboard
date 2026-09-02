@@ -73,15 +73,12 @@ interface Props {
 
 export function SkuCard({ sku }: Props) {
   const toggleExpanded = useStore((s) => s.toggleExpanded);
-  const deleteSku = useStore((s) => s.deleteSku);
-  const duplicateSku = useStore((s) => s.duplicateSku);
   const updateSku = useStore((s) => s.updateSku);
   const persistSku = useStore((s) => s.persistSku);
   const { role } = useAuth();
   const perm = usePermission(role);
   const canEdit = perm.skuBasic;
   const isFinalized = !!sku.finalOrderConfirmedAt;
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
 
   // 대응SKU 월별 실적 (ComparisonColumn → MonthlyTable 브릿지)
@@ -145,30 +142,6 @@ export function SkuCard({ sku }: Props) {
             {sku.skuName || '(SKU명 미입력)'}
           </button>
 
-          {canEdit && (
-            <div className="flex items-center gap-1 flex-shrink-0">
-              <button
-                onClick={() => duplicateSku(sku.id)}
-                title="이 SKU를 복사합니다"
-                className="text-xs px-2 py-1 rounded-lg border border-sky-300 text-sky-700 bg-sky-50 hover:bg-sky-100 transition-colors"
-              >
-                복사
-              </button>
-              {showDeleteConfirm ? (
-                <div className="flex items-center gap-1">
-                  <button onClick={() => deleteSku(sku.id, role ?? 'master').catch((e) => { console.error('삭제 실패:', e); alert('삭제 중 오류가 발생했습니다. Firestore 규칙을 확인해주세요.'); })} className="text-xs px-2 py-1 rounded bg-red-500 text-white hover:bg-red-600">삭제</button>
-                  <button onClick={() => setShowDeleteConfirm(false)} className="text-xs px-2 py-1 rounded bg-gray-200 text-gray-700 hover:bg-gray-300">취소</button>
-                </div>
-              ) : (
-                <button
-                  onClick={() => setShowDeleteConfirm(true)}
-                  className="text-xs px-2 py-1 rounded-lg border border-red-200 text-red-500 bg-red-50 hover:bg-red-100 transition-colors"
-                >
-                  삭제
-                </button>
-              )}
-            </div>
-          )}
         </div>
 
         {/* 2행: 배지 + 수치 요약 */}

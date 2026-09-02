@@ -99,12 +99,9 @@ export function SkuOrderSection({
   const activeCategory = useStore((s) => s.activeCategory);
   const activeBrand = useStore((s) => s.activeBrand);
   const excludeOpenCompletePm = useStore((s) => s.excludeOpenCompletePm);
-  const addSku = useStore((s) => s.addSku);
   const cpoProjects = useCpoSync((s) => s.cpoProjects);
   const isProjection = mode === 'projection';
 
-  const { role } = useAuth();
-  const canEdit = usePermission(role).skuBasic;
   const [bulkOpen, setBulkOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -202,7 +199,6 @@ export function SkuOrderSection({
     ? sourceSkus.filter((s) => s.skuName.includes(searchQuery.trim()))
     : sourceSkus;
 
-  const isAtMax = categorySkus.length >= 100;
   const gallerySelectedSku = gallerySkuId ? skus.find((s) => s.id === gallerySkuId) ?? null : null;
 
   return (
@@ -360,11 +356,6 @@ export function SkuOrderSection({
               <p className="text-gray-400 text-sm mb-3">
                 [{activeCategory}] 카테고리에 등록된 SKU가 없습니다.
               </p>
-              {canEdit && (
-                <button onClick={addSku} className="px-4 py-2 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 transition-colors">
-                  + 첫 SKU 추가
-                </button>
-              )}
             </div>
           ) : (
             <>
@@ -388,20 +379,6 @@ export function SkuOrderSection({
                     </div>
                   ))}
                 </div>
-              )}
-
-              {canEdit && (
-                <button
-                  onClick={addSku}
-                  disabled={isAtMax}
-                  className={`w-full py-2.5 rounded-xl border-2 border-dashed text-sm font-medium transition-colors ${
-                    isAtMax
-                      ? 'border-gray-200 text-gray-300 cursor-not-allowed'
-                      : 'border-indigo-300 text-indigo-600 hover:border-indigo-400 hover:bg-indigo-50'
-                  }`}
-                >
-                  {isAtMax ? '최대 100개 도달' : '+ SKU 추가'}
-                </button>
               )}
             </>
           )}
