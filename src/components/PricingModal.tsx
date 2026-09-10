@@ -530,7 +530,7 @@ export function PricingModal({ sku, onClose }: { sku: SkuData; onClose: () => vo
 
           {/* 가격 확정 잠금 안내 */}
           {isPriceLocked && (
-            <div className="flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 flex-wrap">
+            <div className="flex items-center gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2 flex-wrap">
               <span className="text-[12px] font-semibold text-amber-700 flex items-center gap-1.5 whitespace-nowrap">
                 🔒 가격이 확정되어 프라이싱을 수정할 수 없습니다
               </span>
@@ -538,7 +538,7 @@ export function PricingModal({ sku, onClose }: { sku: SkuData; onClose: () => vo
                 <button
                   type="button"
                   onClick={() => setPriceConfirmed(sku.id, false).catch(console.error)}
-                  className="ml-auto px-2.5 py-1 rounded-md text-[11px] font-semibold border border-amber-300 bg-white text-amber-700 hover:bg-amber-100 transition-colors whitespace-nowrap"
+                  className="ml-auto px-2.5 py-0.5 rounded-md text-[11px] font-semibold border border-amber-300 bg-white text-amber-700 hover:bg-amber-100 transition-colors whitespace-nowrap"
                 >
                   확정 해제
                 </button>
@@ -549,13 +549,13 @@ export function PricingModal({ sku, onClose }: { sku: SkuData; onClose: () => vo
           )}
 
           {/* 자동/수동 모드 */}
-          <div className="rounded-xl border border-indigo-100 bg-indigo-50/40 px-4 py-3 flex items-center gap-3 flex-wrap">
+          <div className="rounded-xl border border-indigo-100 bg-indigo-50/40 px-3.5 py-2 flex items-center gap-2.5 flex-wrap">
             {canEditPricing ? (
               <div className="inline-flex rounded-full p-0.5 bg-white border border-indigo-200 shadow-sm">
                 <button
                   type="button"
                   onClick={() => setMode('auto')}
-                  className={`px-3 py-1 rounded-full text-[11px] font-bold transition-colors ${
+                  className={`px-3 py-0.5 rounded-full text-[11px] font-bold transition-colors ${
                     pricingMode === 'auto' ? 'bg-indigo-600 text-white' : 'text-indigo-500 hover:bg-indigo-50'
                   }`}
                 >
@@ -564,7 +564,7 @@ export function PricingModal({ sku, onClose }: { sku: SkuData; onClose: () => vo
                 <button
                   type="button"
                   onClick={() => setMode('manual')}
-                  className={`px-3 py-1 rounded-full text-[11px] font-bold transition-colors ${
+                  className={`px-3 py-0.5 rounded-full text-[11px] font-bold transition-colors ${
                     pricingMode === 'manual' ? 'bg-indigo-600 text-white' : 'text-indigo-500 hover:bg-indigo-50'
                   }`}
                 >
@@ -572,7 +572,7 @@ export function PricingModal({ sku, onClose }: { sku: SkuData; onClose: () => vo
                 </button>
               </div>
             ) : (
-              <span className="px-3 py-1 rounded-full text-[11px] font-bold bg-white border border-indigo-200 text-indigo-500">
+              <span className="px-3 py-0.5 rounded-full text-[11px] font-bold bg-white border border-indigo-200 text-indigo-500">
                 {pricingMode === 'auto' ? '자동' : '수동'}
               </span>
             )}
