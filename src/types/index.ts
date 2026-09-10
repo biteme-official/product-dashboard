@@ -179,7 +179,7 @@ export interface SkuData {
   specialMaxRate?: 20 | 15 | 10;                    // 특가 최대할인율(%), 기본 20 (master만 변경 가능)
   regularMaxRate?: 15 | 10 | 5;                     // 상시 최대할인율(%), 기본 15 (master만 변경 가능)
   seasonOffRate?: 25 | 30;                          // 시즌오프(의류전용) 할인율(%), 기본 25 (master만 변경 가능)
-  hiddenRateFields?: ('specialMaxRate' | 'regularMaxRate' | 'seasonOffRate')[]; // 프라이싱 모달에서 숨긴 할인율 행 (master/PM/플랫폼MD/브랜드MD만 변경 가능)
+  hiddenPricingScenarios?: string[]; // 프라이싱 모달에서 숨긴 시나리오 행 id 목록 (참고용 표시 숨김 — 계산·STEP2 옵션에는 영향 없음, master/PM/플랫폼MD/브랜드MD만 변경 가능)
   pricingMemo?: string;                             // 프라이싱 모달 B2C 시나리오 메모 (master/platform_md/brand_md만 변경 가능)
   pricingPromoOpenSpecial?: boolean;                // 프라이싱 모달 B2C 오픈특가 프로모션 on/off, 기본 true
   pricingPromoNewWeek?: boolean;                    // 프라이싱 모달 B2C 신상위크 프로모션 on/off, 기본 false

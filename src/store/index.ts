@@ -10,6 +10,7 @@ import { useAuth } from './auth';
 import { MAX_SIZES, SIZE_LABELS, MONTHS, CHANNELS, BRANDS, CATEGORIES, SKU_TYPES, DEFAULT_CHANNEL_RATIOS, DEFAULT_CHANNEL_COMMISSION, getDisabledChannels, getSkuMonths, type Brand, type Channel } from '../types';
 import type { CpoProject } from '../types/cpo';
 import { recalcQuantities, revenueMultiplier, calcDynamicMultiplier } from '../utils/calc';
+import { PRICING_SCENARIOS } from '../utils/pricingScenarios';
 import { writeProductSyncFields } from '../lib/cpoFirebase';
 import { useCpoSync, markLocalFieldEdit, hasPendingLocalFieldEdit, SYNCED_FIELDS } from './cpoSync';
 
@@ -129,7 +130,7 @@ function buildEmptySku(category: Category): SkuData {
     specialMaxRate: 20,
     regularMaxRate: 15,
     seasonOffRate: 25,
-    hiddenRateFields: [],
+    hiddenPricingScenarios: [],
     pricingMemo: '',
     pricingPromoOpenSpecial: true,
     pricingPromoNewWeek: false,
@@ -276,7 +277,7 @@ function applyMigration(raw: any): SkuData {
     specialMaxRate: raw.specialMaxRate ?? 20,
     regularMaxRate: raw.regularMaxRate ?? 15,
     seasonOffRate: raw.seasonOffRate ?? 25,
-    hiddenRateFields: raw.hiddenRateFields ?? [],
+    hiddenPricingScenarios: raw.hiddenPricingScenarios ?? [],
     pricingMemo: raw.pricingMemo ?? '',
     pricingPromoOpenSpecial: raw.pricingPromoOpenSpecial ?? true,
     pricingPromoNewWeek: raw.pricingPromoNewWeek ?? false,
@@ -396,7 +397,7 @@ interface StoreActions {
   setPriceConfirmed: (id: string, confirmed: boolean) => Promise<void>;
   setScheduleConfirmed: (id: string, confirmed: boolean) => Promise<void>;
   setPricingRates: (id: string, patch: { specialMaxRate?: 20 | 15 | 10; regularMaxRate?: 15 | 10 | 5; seasonOffRate?: 25 | 30 }) => Promise<void>;
-  setRateFieldHidden: (id: string, field: 'specialMaxRate' | 'regularMaxRate' | 'seasonOffRate', hidden: boolean) => Promise<void>;
+  setPricingScenarioHidden: (id: string, scenarioId: string, hidden: boolean) => Promise<void>;
   setPricingMemo: (id: string, memo: string) => Promise<void>;
   setPricingPromo: (id: string, patch: { pricingPromoOpenSpecial?: boolean; pricingPromoNewWeek?: boolean; pricingPromoLive?: boolean; pricingPromoExclusive?: boolean }) => Promise<void>;
   setExpandedIds: (ids: string[]) => void;
@@ -1040,21 +1041,19 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
     writeLog(id, sku.skuName, useAuth.getState().role ?? 'unknown', changes).catch(console.error);
   },
 
-  setRateFieldHidden: async (id, field, hidden) => {
+  setPricingScenarioHidden: async (id, scenarioId, hidden) => {
     const sku = get().skus.find((s) => s.id === id);
     if (!sku) return;
-    const prevHidden = sku.hiddenRateFields ?? [];
+    const prevHidden = sku.hiddenPricingScenarios ?? [];
     const nextHidden = hidden
-      ? (prevHidden.includes(field) ? prevHidden : [...prevHidden, field])
-      : prevHidden.filter((f) => f !== field);
-    const updated = { ...sku, hiddenRateFields: nextHidden };
+      ? (prevHidden.includes(scenarioId) ? prevHidden : [...prevHidden, scenarioId])
+      : prevHidden.filter((s) => s !== scenarioId);
+    const updated = { ...sku, hiddenPricingScenarios: nextHidden };
     set({ skus: get().skus.map((s) => (s.id === id ? updated : s)) });
     await setDoc(doc(fsdb, SKUS_COL, id), toFirestore(updated));
-    const labels: Record<string, string> = {
-      specialMaxRate: '특가 최대할인율', regularMaxRate: '상시 최대할인율', seasonOffRate: '시즌오프 할인율',
-    };
+    const label = PRICING_SCENARIOS.find((s) => s.id === scenarioId)?.label ?? scenarioId;
     writeLog(id, sku.skuName, useAuth.getState().role ?? 'unknown', [{
-      field: 'hiddenRateFields', label: `${labels[field]} 행 표시`,
+      field: 'hiddenPricingScenarios', label: `${label} 행 표시`,
       from: formatLogValue(!hidden), to: formatLogValue(hidden),
     }]).catch(console.error);
   },
