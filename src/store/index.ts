@@ -129,6 +129,7 @@ function buildEmptySku(category: Category): SkuData {
     specialMaxRate: 20,
     regularMaxRate: 15,
     seasonOffRate: 25,
+    hiddenRateFields: [],
     pricingMemo: '',
     pricingPromoOpenSpecial: true,
     pricingPromoNewWeek: false,
@@ -275,6 +276,7 @@ function applyMigration(raw: any): SkuData {
     specialMaxRate: raw.specialMaxRate ?? 20,
     regularMaxRate: raw.regularMaxRate ?? 15,
     seasonOffRate: raw.seasonOffRate ?? 25,
+    hiddenRateFields: raw.hiddenRateFields ?? [],
     pricingMemo: raw.pricingMemo ?? '',
     pricingPromoOpenSpecial: raw.pricingPromoOpenSpecial ?? true,
     pricingPromoNewWeek: raw.pricingPromoNewWeek ?? false,
@@ -394,6 +396,7 @@ interface StoreActions {
   setPriceConfirmed: (id: string, confirmed: boolean) => Promise<void>;
   setScheduleConfirmed: (id: string, confirmed: boolean) => Promise<void>;
   setPricingRates: (id: string, patch: { specialMaxRate?: 20 | 15 | 10; regularMaxRate?: 15 | 10 | 5; seasonOffRate?: 25 | 30 }) => Promise<void>;
+  setRateFieldHidden: (id: string, field: 'specialMaxRate' | 'regularMaxRate' | 'seasonOffRate', hidden: boolean) => Promise<void>;
   setPricingMemo: (id: string, memo: string) => Promise<void>;
   setPricingPromo: (id: string, patch: { pricingPromoOpenSpecial?: boolean; pricingPromoNewWeek?: boolean; pricingPromoLive?: boolean; pricingPromoExclusive?: boolean }) => Promise<void>;
   setExpandedIds: (ids: string[]) => void;
@@ -1035,6 +1038,25 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
       from: formatLogValue(sku[field as keyof SkuData]), to: formatLogValue(patch[field]),
     }));
     writeLog(id, sku.skuName, useAuth.getState().role ?? 'unknown', changes).catch(console.error);
+  },
+
+  setRateFieldHidden: async (id, field, hidden) => {
+    const sku = get().skus.find((s) => s.id === id);
+    if (!sku) return;
+    const prevHidden = sku.hiddenRateFields ?? [];
+    const nextHidden = hidden
+      ? (prevHidden.includes(field) ? prevHidden : [...prevHidden, field])
+      : prevHidden.filter((f) => f !== field);
+    const updated = { ...sku, hiddenRateFields: nextHidden };
+    set({ skus: get().skus.map((s) => (s.id === id ? updated : s)) });
+    await setDoc(doc(fsdb, SKUS_COL, id), toFirestore(updated));
+    const labels: Record<string, string> = {
+      specialMaxRate: '특가 최대할인율', regularMaxRate: '상시 최대할인율', seasonOffRate: '시즌오프 할인율',
+    };
+    writeLog(id, sku.skuName, useAuth.getState().role ?? 'unknown', [{
+      field: 'hiddenRateFields', label: `${labels[field]} 행 표시`,
+      from: formatLogValue(!hidden), to: formatLogValue(hidden),
+    }]).catch(console.error);
   },
 
   setPricingMemo: async (id, memo) => {

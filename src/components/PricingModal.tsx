@@ -26,6 +26,11 @@ const RATE_OPTIONS_BY_FIELD: Record<keyof PricingRates, readonly number[]> = {
   regularMaxRate: REGULAR_MAX_RATE_OPTIONS,
   seasonOffRate: SEASON_OFF_RATE_OPTIONS,
 };
+const RATE_FIELD_LABELS: Record<keyof PricingRates, string> = {
+  specialMaxRate: '특가 최대할인율',
+  regularMaxRate: '상시 최대할인율',
+  seasonOffRate: '시즌오프 할인율',
+};
 
 // 프라이싱 모달 수동 모드에서도 편집 불가 — 할인율 클릭선택 3종 + PricingScenario.manualLocked 시나리오(글로벌 공급가 등)
 const MANUAL_LOCKED_IDS = new Set<string>([
@@ -131,6 +136,7 @@ function ScenarioTable({
   rates, canEditRates = false, onSelectRate,
   mode = 'auto', manualRows = [], canEditManual = false,
   onManualLabelChange, onManualPriceChange, onAddManualRow, onRemoveManualRow,
+  hiddenRateFields, onToggleRateHidden,
 }: {
   scenarioIds: string[];
   section: 'B2C' | 'B2B';
@@ -152,6 +158,8 @@ function ScenarioTable({
   onManualPriceChange?: (rowId: string, value: number) => void;
   onAddManualRow?: (section: 'B2C' | 'B2B') => void;
   onRemoveManualRow?: (rowId: string) => void;
+  hiddenRateFields?: Set<keyof PricingRates>;
+  onToggleRateHidden?: (field: keyof PricingRates, hidden: boolean) => void;
 }) {
   const manualById = new Map(manualRows.map((r) => [r.id, r]));
   const customRows = mode === 'manual' ? manualRows.filter((r) => r.isCustom) : [];
@@ -181,7 +189,19 @@ function ScenarioTable({
       <tr key={key} className={rowCls}>
         <td className="px-3 py-2.5 whitespace-nowrap">
           {rateField && onSelectRate ? (
-            <RateLabel label={label} field={rateField} value={rates[rateField]} canEdit={canEditRates} onSelect={onSelectRate} />
+            <>
+              <RateLabel label={label} field={rateField} value={rates[rateField]} canEdit={canEditRates} onSelect={onSelectRate} />
+              {canEditRates && onToggleRateHidden && (
+                <button
+                  type="button"
+                  onClick={() => onToggleRateHidden(rateField, true)}
+                  className="ml-1.5 align-middle text-gray-300 hover:text-rose-500 text-[13px]"
+                  title="행 숨기기"
+                >
+                  ×
+                </button>
+              )}
+            </>
           ) : editable && rowId ? (
             <input
               type="text"
@@ -263,6 +283,7 @@ function ScenarioTable({
           const isDimTarget = PROMO_DIMMED_IDS.has(id);
           const dim = mode === 'auto' && activeIds !== undefined && isDimTarget && !activeIds.has(id);
           const rateField = RATE_FIELD_BY_SCENARIO_ID[id];
+          if (rateField && hiddenRateFields?.has(rateField)) return null;
           const isLocked = MANUAL_LOCKED_IDS.has(id);
           const manualRow = mode === 'manual' && !isLocked ? manualById.get(id) : undefined;
           const overridden = !!manualRow;
@@ -290,6 +311,25 @@ function ScenarioTable({
           rowId: row.id,
           isCustom: true,
         }))}
+        {hiddenRateFields && hiddenRateFields.size > 0 && canEditRates && onToggleRateHidden && (
+          <tr>
+            <td colSpan={5} className="px-3 py-2">
+              <div className="flex items-center gap-2 flex-wrap text-[11px] text-gray-400">
+                <span>숨긴 항목:</span>
+                {[...hiddenRateFields].map((field) => (
+                  <button
+                    key={field}
+                    type="button"
+                    onClick={() => onToggleRateHidden(field, false)}
+                    className="px-2 py-0.5 rounded-full border border-gray-200 hover:border-indigo-300 hover:text-indigo-500 transition-colors"
+                  >
+                    {RATE_FIELD_LABELS[field]} 복원
+                  </button>
+                ))}
+              </div>
+            </td>
+          </tr>
+        )}
         {mode === 'manual' && canEditManual && (
           <tr>
             <td colSpan={5} className="px-3 py-2">
@@ -312,6 +352,7 @@ export function PricingModal({ sku, onClose }: { sku: SkuData; onClose: () => vo
   const { usdKrw, jpyKrw } = useExchangeRates();
   const role = useAuth((s) => s.role);
   const setPricingRates = useStore((s) => s.setPricingRates);
+  const setRateFieldHidden = useStore((s) => s.setRateFieldHidden);
   const setPricingMemo = useStore((s) => s.setPricingMemo);
   const setPriceConfirmed = useStore((s) => s.setPriceConfirmed);
   const updateSku = useStore((s) => s.updateSku);
@@ -369,6 +410,10 @@ export function PricingModal({ sku, onClose }: { sku: SkuData; onClose: () => vo
   };
   const handleSelectRate = (field: keyof PricingRates, value: number) => {
     setPricingRates(sku.id, { [field]: value }).catch(console.error);
+  };
+  const hiddenRateFields = new Set(liveSku.hiddenRateFields ?? []);
+  const handleToggleRateHidden = (field: keyof PricingRates, hidden: boolean) => {
+    setRateFieldHidden(sku.id, field, hidden).catch(console.error);
   };
 
   // ── 자동/수동 모드 ──
@@ -624,6 +669,7 @@ export function PricingModal({ sku, onClose }: { sku: SkuData; onClose: () => vo
                 scenarioIds={B2C_SCENARIO_IDS} section="B2C" {...tableProps}
                 activeIds={b2cActiveIds} promoNewWeek={promoNewWeek} hintOverrides={b2cHintOverrides}
                 canEditRates={canEditPricing} onSelectRate={handleSelectRate}
+                hiddenRateFields={hiddenRateFields} onToggleRateHidden={handleToggleRateHidden}
                 manualRows={manualDraft.filter((r) => r.section === 'B2C')}
                 {...manualTableProps}
               />
