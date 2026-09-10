@@ -430,20 +430,44 @@ export function PricingModal({ sku, onClose }: { sku: SkuData; onClose: () => vo
     setManualDraft(liveSku.manualScenarios ?? []);
   }
 
+  // 언마운트(모달 닫힘) 시 대기 중인 디바운스 저장을 즉시 flush하기 위해 최신값을 ref로 추적
+  const manualDraftRef = useRef(manualDraft);
+  const manualDraftSkuIdRef = useRef(sku.id);
+  useEffect(() => {
+    manualDraftRef.current = manualDraft;
+    manualDraftSkuIdRef.current = sku.id;
+  });
+  const pendingManualSaveRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const isFirstManualRender = useRef(true);
   useEffect(() => {
     if (isFirstManualRender.current) {
       isFirstManualRender.current = false;
       return;
     }
-    const timer = setTimeout(() => {
+    pendingManualSaveRef.current = setTimeout(() => {
+      pendingManualSaveRef.current = null;
       updateSku(sku.id, { manualScenarios: manualDraft });
       persistSku(sku.id).catch(console.error);
     }, 800);
-    return () => clearTimeout(timer);
+    return () => {
+      if (pendingManualSaveRef.current) clearTimeout(pendingManualSaveRef.current);
+    };
     // manualDraft 변경에만 반응 — sku.id/updateSku/persistSku는 안정적
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [manualDraft]);
+
+  // 입력 직후 0.8초 안에 모달을 닫으면 위 디바운스 타이머가 취소되기만 하고 저장은 안 되어
+  // 마지막 수정이 조용히 유실되던 버그 — 언마운트 시 대기 중인 저장이 있으면 즉시 flush한다.
+  useEffect(() => () => {
+    if (pendingManualSaveRef.current) {
+      clearTimeout(pendingManualSaveRef.current);
+      pendingManualSaveRef.current = null;
+      updateSku(manualDraftSkuIdRef.current, { manualScenarios: manualDraftRef.current });
+      persistSku(manualDraftSkuIdRef.current).catch(console.error);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const setMode = (mode: 'auto' | 'manual') => {
     if (mode === 'manual' && manualDraft.length === 0) {
