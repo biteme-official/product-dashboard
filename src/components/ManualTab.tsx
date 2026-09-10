@@ -124,9 +124,11 @@ export function ManualTab() {
           같은 역할(내부 값은 항상 <code className="bg-white px-1 py-0.5 rounded border border-amber-200">'pm'</code>)이니
           둘 다 보이면 당황하지 마세요. 3장에서 설명하는 "CPO 대시보드 연동" 기능과는 전혀 무관한, 순수 표시상의 차이입니다.
         </Callout>
-        <p className="mt-2 text-xs text-gray-400">* 위 권한은 고정 값이 아니라 <strong>관리 탭 &gt; 권한 관리</strong>에서 역할별로 5개 항목(SKU 기본정보 / STEP1 / STEP2 / 오픈일정 확정 / 발주 확정)을 언제든 켜고 끌 수 있습니다. master 행만 항상 전체 편집 가능으로 고정됩니다.</p>
-        <p className="mt-1 text-xs text-gray-400">* 프라이싱 시나리오(할인율 선택·자동/수동 전환·가격확정)는 마스터·PM·플랫폼MD·브랜드MD 4개 역할만 편집할 수 있습니다 — 11장 참고.</p>
-        <p className="mt-1 text-xs text-gray-400">* STEP2 채널 확정 버튼은 "STEP2 권한 보유 여부"만 확인하므로, 역할과 담당 채널 그룹이 다르더라도(예: 글로벌 담당이 브랜드 확정) 버튼 자체는 노출될 수 있습니다.</p>
+        <NoteList className="mt-2" items={[
+          <>위 권한은 고정 값이 아니라 <strong>관리 탭 &gt; 권한 관리</strong>에서 역할별로 5개 항목(SKU 기본정보 / STEP1 / STEP2 / 오픈일정 확정 / 발주 확정)을 언제든 켜고 끌 수 있습니다. master 행만 항상 전체 편집 가능으로 고정됩니다.</>,
+          <>프라이싱 시나리오(할인율 선택·자동/수동 전환·가격확정)는 마스터·PM·플랫폼MD·브랜드MD 4개 역할만 편집할 수 있습니다 — 11장 참고.</>,
+          <>STEP2 채널 확정 버튼은 "STEP2 권한 보유 여부"만 확인하므로, 역할과 담당 채널 그룹이 다르더라도(예: 글로벌 담당이 브랜드 확정) 버튼 자체는 노출될 수 있습니다.</>,
+        ]} />
       </section>
 
       {/* 3. CPO 대시보드 연동 (신규) */}
@@ -238,9 +240,10 @@ export function ManualTab() {
         <p className="text-xs font-semibold text-gray-600 mb-2">프로젝션 &gt; LIST VIEW</p>
         <p className="text-xs text-gray-600 mb-2">
           전체 SKU를 테이블 형태로 조회. 오픈일 → 브랜드 → 카테고리(식품 → 장난감 → 용품 → 잡화 → 의류 고정 순서) → SKU명
-          순으로 자동 정렬. 카테고리 · 브랜드('그외' 옵션 항상 노출) · 오픈/완료 제외 토글 · 오픈월(연도별로 묶여 있고,
-          연도 헤더를 누르면 그 해 전체 월을 한 번에 선택) · 검색어 필터를 지원합니다.
+          순으로 자동 정렬.
         </p>
+        <p className="text-xs text-gray-500 mb-1.5">지원 필터</p>
+        <ChipList items={['카테고리', "브랜드 ('그외' 항상 노출)", '오픈/완료 제외', '오픈월 (연도별 그룹, 연도 헤더 클릭 시 일괄선택)', '검색어']} />
         <table className="w-full border-collapse text-xs mb-4">
           <thead>
             <tr className="bg-gray-100">
@@ -421,9 +424,16 @@ export function ManualTab() {
         <p className="text-xs text-gray-600 mb-3">MD가 각 채널별·월별 목표 수량을 직접 설정하고, 판매가 시나리오를 설정해 예상 순매출과 공헌이익을 실시간으로 확인합니다.</p>
 
         <p className="text-xs font-semibold text-gray-600 mb-2">자동 초기값 세팅 순서</p>
-        <p className="text-xs text-gray-500 mb-2">① 대응 SKU 설정 시 → 채널별 출고 비중 기준으로 배분 &nbsp;② 대응 SKU 없을 시 → 고정 기본 채널비중 사용 &nbsp;③ STEP 1 월별 수량 기준으로 월별 배분</p>
-        <p className="text-xs text-gray-400 mb-1">* 고정 기본 채널비중: 자사몰 20% · 스스 30% · 위탁 5% · 쿠팡 10% · B2B 15% · 사입및페어 5% · 글로벌 5% · 일본 10% — 카테고리와 무관하게 모든 SKU에 동일하게 적용됩니다.</p>
-        <p className="text-xs text-gray-400 mb-3">* 쿠팡이 비활성화된 SKU는 이 자동 배분 대상에서 제외됩니다 (대응SKU 실적·비중 계산에도 미포함). 관리 탭에서 쿠팡을 활성화한 SKU만 배분에 포함됩니다.</p>
+        <StepFlow steps={[
+          { label: '대응 SKU 설정 시', desc: '채널별 출고 비중 기준으로 배분' },
+          { label: '대응 SKU 없을 시', desc: '고정 기본 채널비중 사용 (아래)' },
+          { label: '항상', desc: 'STEP 1 월별 수량 기준으로 월별 배분' },
+        ]} />
+        <p className="text-xs text-gray-500 mb-1.5">고정 기본 채널비중 (카테고리와 무관하게 모든 SKU에 동일 적용)</p>
+        <ChipList items={['자사몰 20%', '스스 30%', '위탁 5%', '쿠팡 10%', 'B2B 15%', '사입및페어 5%', '글로벌 5%', '일본 10%']} className="mb-2" />
+        <NoteList items={[
+          <>쿠팡이 비활성화된 SKU는 이 자동 배분 대상에서 제외됩니다 (대응SKU 실적·비중 계산에도 미포함). 관리 탭에서 쿠팡을 활성화한 SKU만 배분에 포함됩니다.</>,
+        ]} />
 
         <p className="text-xs font-semibold text-gray-600 mb-2">채널 요약 테이블 (토글 닫힌 상태)</p>
         <table className="w-full border-collapse text-xs mb-4">
@@ -557,43 +567,45 @@ export function ManualTab() {
           STEP 2에서 채널별로 설정한 시나리오와 달리, 여기서는 <strong>전체 B2C/B2B 시나리오를 동시에 조회</strong>하는 참고용 뷰입니다.
         </p>
 
-        <p className="text-xs font-semibold text-gray-600 mb-1">모달 상단 KPI</p>
-        <p className="text-xs text-gray-500 mb-3">원가 / 판매가 / 정가 / 상시할인율 / 원가율이 표시됩니다. 모든 시나리오의 base 가격은 SKU 판매가 기준입니다.</p>
+        <FeatureGrid>
+          <FeatureCard title="모달 상단 KPI">
+            원가 / 판매가 / 정가 / 상시할인율 / 원가율이 표시됩니다. 모든 시나리오의 base 가격은 SKU 판매가 기준입니다.
+          </FeatureCard>
 
-        <p className="text-xs font-semibold text-gray-600 mb-2">자동 · 수동 모드</p>
-        <p className="text-xs text-gray-500 mb-2">
-          모달 상단의 [자동]/[수동] 토글로 SKU별 표시 방식을 바꿀 수 있습니다. <strong>자동</strong>은 아래 계산식 그대로의
-          값을 보여주고, <strong>수동</strong>으로 처음 전환하는 순간 그 시점의 자동계산값을 한 번 스냅샷해서 채워 넣은 뒤부터는
-          시나리오명·실제가격을 자유롭게 직접 고칠 수 있습니다(이후 자동값이 바뀌어도 수동 값은 영향받지 않고 독립적으로 유지·저장).
-          단, 상시/특가/시즌오프 할인율 3종과 글로벌 공급가는 수동 모드에서도 계속 자동 계산 값으로 고정됩니다.
-          시나리오 행을 자유롭게 추가·삭제할 수도 있습니다(+ 시나리오 항목 추가 / 행 옆 × 버튼).
-        </p>
-        <p className="text-xs text-gray-400 mb-3">* 자동/수동 전환과 수동 값 편집은 마스터·PM·플랫폼MD·브랜드MD만 가능합니다.</p>
+          <FeatureCard title="자동 · 수동 모드">
+            모달 상단의 [자동]/[수동] 토글로 SKU별 표시 방식을 바꿀 수 있습니다. <strong>자동</strong>은 아래 계산식
+            그대로의 값을 보여주고, <strong>수동</strong>으로 처음 전환하는 순간 그 시점의 자동계산값을 한 번 스냅샷해서
+            채워 넣은 뒤부터는 시나리오명·실제가격을 자유롭게 직접 고칠 수 있습니다(이후 자동값이 바뀌어도 수동 값은
+            영향받지 않고 독립적으로 유지·저장). 단, 상시/특가/시즌오프 할인율 3종과 글로벌 공급가는 수동 모드에서도
+            계속 자동 계산 값으로 고정됩니다. 시나리오 행을 자유롭게 추가·삭제할 수도 있습니다(+ 시나리오 항목 추가 /
+            행 옆 × 버튼). 자동/수동 전환과 수동 값 편집은 마스터·PM·플랫폼MD·브랜드MD만 가능합니다.
+          </FeatureCard>
 
-        <p className="text-xs font-semibold text-gray-600 mb-2">가격확정 시 잠금</p>
-        <p className="text-xs text-gray-500 mb-3">
-          SKU 카드의 가격확정 토글을 켜면 이 모달의 시나리오 표 전체(할인율 선택·자동/수동 전환·수동 값 편집)가 잠기고
-          상단에 "🔒 가격이 확정되어 프라이싱을 수정할 수 없습니다" 안내와 [확정 해제] 버튼이 뜹니다(확정·해제 모두
-          마스터·PM·플랫폼MD·브랜드MD만 가능). CPO 연동 SKU의 판매가·원가·정가 잠금(3장)과는 별개의 메커니즘이라
-          동시에 걸려 있을 수 있습니다.
-        </p>
+          <FeatureCard title="가격확정 시 잠금">
+            SKU 카드의 가격확정 토글을 켜면 이 모달의 시나리오 표 전체(할인율 선택·자동/수동 전환·수동 값 편집)가
+            잠기고 상단에 "🔒 가격이 확정되어 프라이싱을 수정할 수 없습니다" 안내와 [확정 해제] 버튼이 뜹니다(확정·해제
+            모두 마스터·PM·플랫폼MD·브랜드MD만 가능). CPO 연동 SKU의 판매가·원가·정가 잠금(3장)과는 별개의
+            메커니즘이라 동시에 걸려 있을 수 있습니다.
+          </FeatureCard>
 
-        <p className="text-xs font-semibold text-gray-600 mb-2">메모</p>
-        <p className="text-xs text-gray-500 mb-3">B2C 표 상단에 이 SKU의 프라이싱 관련 자유 메모를 남길 수 있습니다(최대 200자, 마스터·PM·플랫폼MD·브랜드MD만 입력 가능, 다른 역할은 열람만).</p>
+          <FeatureCard title="메모">
+            B2C 표 상단에 이 SKU의 프라이싱 관련 자유 메모를 남길 수 있습니다(최대 200자, 마스터·PM·플랫폼MD·브랜드MD만
+            입력 가능, 다른 역할은 열람만).
+          </FeatureCard>
 
-        <p className="text-xs font-semibold text-gray-600 mb-2">행 숨기기 · 복원</p>
-        <p className="text-xs text-gray-500 mb-3">
-          상시 최대할인율·특가 최대할인율·시즌오프 할인율·사입 공급가·글로벌 공급가·일본 공급가 6개 행은 이 SKU에서만
-          안 보이게 숨길 수 있습니다(행 옆 × 버튼 → "숨긴 항목: OOO 복원" 칩을 눌러 언제든 되돌리기 가능). 이 SKU를
-          보는 화면(이 모달)에만 영향을 주는 표시 옵션이라, STEP 2 채널별 판매가 선택지나 실제 계산에는 아무 영향이
-          없습니다.
-        </p>
+          <FeatureCard title="행 숨기기 · 복원">
+            상시 최대할인율·특가 최대할인율·시즌오프 할인율·사입 공급가·글로벌 공급가·일본 공급가 6개 행은 이
+            SKU에서만 안 보이게 숨길 수 있습니다(행 옆 × 버튼 → "숨긴 항목: OOO 복원" 칩을 눌러 언제든 되돌리기 가능).
+            이 모달에만 영향을 주는 표시 옵션이라, STEP 2 채널별 판매가 선택지나 실제 계산에는 아무 영향이 없습니다.
+          </FeatureCard>
 
-        <p className="text-xs font-semibold text-gray-600 mb-2">B2C 시나리오 — 오픈 프로모션 토글</p>
-        <p className="text-xs text-gray-500 mb-2">
-          B2C 테이블 상단에 <span className="text-red-600 font-medium">[신상위크]</span> · <span className="text-orange-500 font-medium">[라이브]</span> · <span className="text-emerald-600 font-medium">[선단독]</span> 토글 버튼이 있습니다.
-          기본 상태에서 신상위크·라이브 할인·선단독 행은 비활성화(흐리게)로 표시됩니다. [신상위크] 버튼은 신상위크+라이브 할인을 동시 활성화하며, [라이브] 버튼은 라이브 할인만 단독 활성화합니다. 세 토글은 독립적으로 작동하며, 선택 상태는 Firestore에 저장되어 새로고침 후에도 유지됩니다.
-        </p>
+          <FeatureCard title="B2C 오픈 프로모션 토글">
+            B2C 테이블 상단에 <span className="text-red-600 font-medium">[신상위크]</span> · <span className="text-orange-500 font-medium">[라이브]</span> · <span className="text-emerald-600 font-medium">[선단독]</span> 버튼이 있습니다.
+            기본 상태에서 신상위크·라이브 할인·선단독 행은 비활성화(흐리게)로 표시됩니다. [신상위크]는 신상위크+라이브
+            할인을 동시 활성화하며, [라이브]는 라이브 할인만 단독 활성화합니다. 세 토글은 독립적으로 작동하며, 선택
+            상태는 Firestore에 저장되어 새로고침 후에도 유지됩니다.
+          </FeatureCard>
+        </FeatureGrid>
 
         <p className="text-xs font-semibold text-gray-600 mb-2">B2C 시나리오 계산식</p>
         <p className="text-xs text-gray-500 mb-1">* ceil10(x) = x를 10원 단위 올림 (B2B 오픈 할인·B2B 상시 운영만 예외적으로 round10 유지) &nbsp;|&nbsp; 오픈특가 = floor((ceil10(base × (1 − 특가최대할인율)) − 901) ÷ 1000) × 1000 + 900</p>
@@ -814,7 +826,7 @@ export function ManualTab() {
       <section id="manual-s16" className="scroll-mt-20 bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
         <h2 className="text-base font-bold text-gray-900 mb-3 pb-1 border-b border-gray-200">💾 16. 데이터 저장 및 동기화</h2>
         <p className="text-xs font-semibold text-gray-600 mb-2">Firestore 저장 항목 (새로고침 후에도 유지)</p>
-        <p className="text-xs text-gray-500 mb-3">SKU 기본 정보 / 사이즈·컬러 구성 및 수량 / 월별 발주 계획 / 채널별 월별 목표 수량 / 채널별 판매가 시나리오 설정 / 채널별 오픈일정 / 가격확정·자사몰세팅 여부 / SKU별 쿠팡 활성화 여부 / 발주 확정 상태 및 확정 이력 / 마케팅 브리프 내용</p>
+        <ChipList items={['SKU 기본 정보', '사이즈·컬러 구성 및 수량', '월별 발주 계획', '채널별 월별 목표 수량', '채널별 판매가 시나리오 설정', '채널별 오픈일정', '가격확정·자사몰세팅 여부', 'SKU별 쿠팡 활성화 여부', '발주 확정 상태 및 확정 이력', '마케팅 브리프 내용']} />
         <p className="text-xs text-gray-400 mb-3">* CPO 연동 필드(SKU명·판매가·원가·정가·입고예정일·촬영예정일·컬러/사이즈 옵션·썸네일)는 이 대시보드에도 저장되지만 원본은 CPO 대시보드입니다 — 3장 참고.</p>
 
         <p className="text-xs font-semibold text-gray-600 mb-2">발주 확정 프로세스</p>
@@ -931,6 +943,58 @@ function Callout({
     <div className={`rounded-xl border px-4 py-3 text-xs leading-relaxed text-gray-600 mb-3 ${boxCls}`}>
       {title && <p className={`font-bold mb-1 ${titleCls}`}>{title}</p>}
       {children}
+    </div>
+  );
+}
+
+function StepFlow({ steps }: { steps: { label: string; desc: string }[] }) {
+  return (
+    <div className="flex flex-wrap items-stretch gap-2 mb-3">
+      {steps.map((s, i) => (
+        <div key={i} className="flex items-stretch gap-2">
+          <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 min-w-[150px]">
+            <p className="flex items-center gap-1.5 text-[11px] font-bold text-gray-700 mb-0.5 whitespace-nowrap">
+              <span className="flex-shrink-0 w-4 h-4 rounded-full bg-indigo-500 text-white text-[9px] font-bold flex items-center justify-center">{i + 1}</span>
+              {s.label}
+            </p>
+            <p className="text-[11px] text-gray-500">{s.desc}</p>
+          </div>
+          {i < steps.length - 1 && <span className="self-center text-gray-300 text-sm">→</span>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ChipList({ items, className = 'mb-3' }: { items: string[]; className?: string }) {
+  return (
+    <div className={`flex flex-wrap gap-1.5 ${className}`}>
+      {items.map((it) => (
+        <span key={it} className="px-2 py-1 rounded-full bg-gray-100 border border-gray-200 text-[11px] text-gray-600 whitespace-nowrap">
+          {it}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function NoteList({ items, className = 'mb-3' }: { items: React.ReactNode[]; className?: string }) {
+  return (
+    <ul className={`text-xs text-gray-400 space-y-1 pl-4 list-disc marker:text-gray-300 ${className}`}>
+      {items.map((it, i) => <li key={i}>{it}</li>)}
+    </ul>
+  );
+}
+
+function FeatureGrid({ children }: { children?: React.ReactNode }) {
+  return <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">{children}</div>;
+}
+
+function FeatureCard({ title, children }: { title: string; children?: React.ReactNode }) {
+  return (
+    <div className="rounded-lg border border-gray-200 bg-gray-50/60 px-3 py-2.5">
+      <p className="text-[11px] font-bold text-gray-700 mb-1">{title}</p>
+      <div className="text-[11px] text-gray-500 leading-relaxed">{children}</div>
     </div>
   );
 }
