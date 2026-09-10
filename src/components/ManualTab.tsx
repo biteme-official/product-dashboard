@@ -129,14 +129,12 @@ export function ManualTab() {
         <Eyebrow color="indigo">PART 1 · 시작하기</Eyebrow>
         <h2 className="text-lg font-bold text-gray-900 mb-3">📋 1. 개요</h2>
         <Callout>
-          쉽게 말하면 — 신규 SKU 하나가 세상에 나오기까지 필요한 계획(발주 수량 · 채널별 목표 · 판매가)을
-          한 화면에 모아두고, 전략팀 · MD팀 · 마케팅팀 · CPO가 각자 자기 파트를 입력하면 예상 매출과
-          이익이 자동으로 계산되는 협업 도구예요.
+          쉽게 말하면 — 신규 SKU 하나가 세상에 나오기까지 필요한 계획(발주 수량·채널별 목표·판매가)을 한 화면에
+          모아두고, 전략팀·MD팀·마케팅팀·CPO가 각자 자기 파트만 입력하면 예상 매출·이익이 자동 계산되는 협업 도구.
         </Callout>
         <p className="text-sm text-gray-600 mb-3">
-          Product Dashboard는 신규 SKU(제품)를 출시하기 전, 전략팀·MD팀·마케팅팀·CPO가 한 화면에서
-          발주 수량 계획, 채널별 목표량, 예상 매출과 공헌이익을 동시에 검토하고 협업할 수 있도록 만들어진
-          내부 의사결정 도구입니다.
+          신규 SKU 출시 전 발주 수량·채널별 목표량·예상 매출/공헌이익을 한 화면에서 검토하는 내부 의사결정 도구.
+          전략팀·MD팀·마케팅팀·CPO가 함께 사용.
         </p>
         <table className="w-full border-collapse text-xs mb-3">
           <thead>
@@ -155,7 +153,7 @@ export function ManualTab() {
             <Tr><Td>CM%</Td><Td>Contribution Margin % — 공헌이익 ÷ 순매출 × 100</Td></Tr>
             <Tr><Td>변동비율</Td><Td>순매출 대비 변동비(원가+영업비용) 비중. Tableau에서 팀카테 기준 산출</Td></Tr>
             <Tr><Td>FY26 / FY27</Td><Td>2026 회계연도(7~12월) / 2027 회계연도(1~2월) 구분</Td></Tr>
-            <Tr><Td>CPO 연동</Td><Td>제품이 CPO 대시보드의 기획 문서와 연결된 상태. 연동되면 일부 필드가 CPO 쪽에서 자동으로 채워지고 잠깁니다 — 3장 참고 (역할 표시명 "CPO"와는 다른 개념이니 헷갈리지 마세요)</Td></Tr>
+            <Tr><Td>CPO 연동</Td><Td>제품이 CPO 대시보드의 기획 문서와 연결된 상태. 연동 시 일부 필드가 CPO 쪽에서 자동으로 채워지고 잠김 — 3장 참고 (역할 표시명 "CPO"와는 다른 개념)</Td></Tr>
           </tbody>
         </table>
       </section>
@@ -164,38 +162,38 @@ export function ManualTab() {
       <section id="manual-s2" className="scroll-mt-20 bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
         <Eyebrow color="indigo">PART 1 · 시작하기</Eyebrow>
         <h2 className="text-lg font-bold text-gray-900 mb-3">🔑 2. 사용자 역할 및 권한</h2>
-        <p className="text-sm text-gray-500 mb-3">역할별로 4자리 PIN 코드를 입력해 로그인합니다. (구 marketing·cs 역할은 viewer로 통합되었으며, 기존 PIN은 자동 승계됩니다.)</p>
+        <p className="text-sm text-gray-500 mb-3">역할별 4자리 PIN으로 로그인. (구 marketing·cs 역할은 viewer로 통합, 기존 PIN 자동 승계)</p>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mb-3">
           <RoleCard roleKey="master" label="MASTER">
-            모든 기능 편집 가능. PIN 관리, 권한 설정, 백업·복원, 확정 로그 조회. 권한이 항상 전체 고정
+            모든 기능 편집 가능. PIN 관리·권한 설정·백업/복원·확정 로그 조회. 권한 항상 전체 고정
           </RoleCard>
           <RoleCard roleKey="pm" label="PM · CPO">
-            SKU 기본 정보·월별 계획(STEP 1) 입력, 프라이싱 시나리오 편집. 최종 발주 확정. SKU 일괄 추가
+            SKU 기본 정보·월별 계획(STEP 1) 입력, 프라이싱 시나리오 편집, 최종 발주 확정, SKU 일괄 추가
           </RoleCard>
           <RoleCard roleKey="platform_md" label="플랫폼MD">
-            채널별 목표량(STEP 2) 입력, 프라이싱 시나리오 편집. 자사몰 채널 확정, 오픈일정 확정
+            채널별 목표량(STEP 2) 입력, 프라이싱 시나리오 편집, 자사몰 채널·오픈일정 확정
           </RoleCard>
           <RoleCard roleKey="brand_md" label="브랜드MD">
-            채널별 목표량(STEP 2) 입력, 프라이싱 시나리오 편집. 스스·위탁·B2B 채널 확정, 오픈일정 확정
+            채널별 목표량(STEP 2) 입력, 프라이싱 시나리오 편집, 스스·위탁·B2B 채널·오픈일정 확정
           </RoleCard>
           <RoleCard roleKey="global" label="글로벌">
-            채널별 목표량(STEP 2) 입력. 일본·글로벌 채널 확정, 오픈일정 확정
+            채널별 목표량(STEP 2) 입력, 일본·글로벌 채널·오픈일정 확정
           </RoleCard>
           <RoleCard roleKey="viewer" label="VIEWER">
             뷰어 전용. 모든 정보 열람 가능, 편집 불가 (구 마케팅·CS/경영지원 역할 통합)
           </RoleCard>
         </div>
 
-        <Callout tone="warn" title="⚠️ pm 역할 표시명이 화면마다 다릅니다">
-          로그인 화면·상단 배지에는 <strong>PM</strong>으로, 확정 이력·휴지통 화면에는 <strong>CPO</strong>로 표시됩니다.
-          같은 역할(내부 값은 항상 <code className="bg-white px-1 py-0.5 rounded border border-amber-200">'pm'</code>)이니
-          둘 다 보이면 당황하지 마세요. 3장에서 설명하는 "CPO 대시보드 연동" 기능과는 전혀 무관한, 순수 표시상의 차이입니다.
+        <Callout tone="warn" title="⚠️ pm 역할 표시명이 화면마다 다름">
+          로그인·상단 배지 = <strong>PM</strong>, 확정 이력·휴지통 화면 = <strong>CPO</strong>. 내부 값은 항상{' '}
+          <code className="bg-white px-1 py-0.5 rounded border border-amber-200">'pm'</code>로 동일한 역할 — 3장의
+          "CPO 대시보드 연동"과는 무관한 표시상의 차이일 뿐.
         </Callout>
         <NoteList items={[
-          <>위 권한은 고정 값이 아니라 <strong>관리 탭 &gt; 권한 관리</strong>에서 역할별로 5개 항목(SKU 기본정보 / STEP1 / STEP2 / 오픈일정 확정 / 발주 확정)을 언제든 켜고 끌 수 있습니다. master 행만 항상 전체 편집 가능으로 고정됩니다.</>,
-          <>프라이싱 시나리오(할인율 선택·자동/수동 전환·가격확정)는 마스터·PM·플랫폼MD·브랜드MD 4개 역할만 편집할 수 있습니다 — 11장 참고.</>,
-          <>STEP2 채널 확정 버튼은 "STEP2 권한 보유 여부"만 확인하므로, 역할과 담당 채널 그룹이 다르더라도(예: 글로벌 담당이 브랜드 확정) 버튼 자체는 노출될 수 있습니다.</>,
+          <>위 권한은 고정값 아님 — <strong>관리 탭 &gt; 권한 관리</strong>에서 역할별 5개 항목(SKU 기본정보 / STEP1 / STEP2 / 오픈일정 확정 / 발주 확정) 언제든 on/off 가능. master 행만 항상 전체 고정.</>,
+          <>프라이싱 시나리오(할인율 선택·자동/수동 전환·가격확정)는 <Perm>마스터·PM·플랫폼MD·브랜드MD</Perm>만 편집 — 11장.</>,
+          <>STEP2 채널 확정 버튼은 "STEP2 권한 보유 여부"만 확인 — 담당 채널 그룹이 달라도(예: 글로벌 담당이 브랜드 확정) 버튼은 노출될 수 있음.</>,
         ]} />
       </section>
 
@@ -204,9 +202,9 @@ export function ManualTab() {
         <Eyebrow color="indigo">PART 1 · 시작하기</Eyebrow>
         <h2 className="text-lg font-bold text-gray-900 mb-3">🔗 3. CPO 대시보드 연동</h2>
         <Callout>
-          쉽게 말하면 — 요즘 새로 만드는 SKU는 대부분 <strong>CPO 대시보드</strong>(기획 단계를 관리하는 별도 도구)에서
-          먼저 기획되고, 그 정보가 자동으로 이 대시보드까지 흘러들어옵니다. 그래서 일부 항목은 여기서 손댈 수 없고
-          CPO 쪽에서만 고칠 수 있어요 — 마치 CPO가 "원본", 여기는 그 원본을 보여주는 "사본"인 항목들이 있는 셈입니다.
+          쉽게 말하면 — 요즘 새 SKU는 대부분 <strong>CPO 대시보드</strong>(별도 기획 관리 도구)에서 먼저 기획되고,
+          그 정보가 자동으로 여기까지 흘러들어옵니다. 그래서 일부 항목은 CPO 쪽에서만 고칠 수 있어요 —
+          CPO가 "원본", 여기는 그 원본을 보여주는 "사본"인 셈.
         </Callout>
 
         <h3 className="text-sm font-semibold text-gray-600 mb-2">기획 상태 8단계</h3>
@@ -215,42 +213,42 @@ export function ManualTab() {
         <h3 className="text-sm font-semibold text-gray-600 mb-2 mt-4">SKU 카드 자동 생성·정리</h3>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 mb-2">
           <FeatureCard title="🆕 자동 생성">
-            CPO 기획이 활성 상태(위 8단계 중 하나)가 되고 이 대시보드에 아직 대응 카드가 없으면 자동으로 SKU 카드 생성
+            CPO 기획이 활성 상태(위 8단계 중 하나)가 되고 여기 대응 카드가 없으면 자동 생성
           </FeatureCard>
           <FeatureCard title="🙈 목록 숨김">
-            CPO 상태가 Holding·Cancel이거나 CPO 오픈일이 아직 없으면 LIST VIEW 등에서 숨겨짐 (데이터는 안 지워지고, 조건이 풀리면 자동 재노출)
+            CPO 상태가 Holding·Cancel이거나 오픈일이 없으면 LIST VIEW 등에서 숨김 (데이터는 안 지워짐, 조건 풀리면 자동 재노출)
           </FeatureCard>
           <FeatureCard title="🗑️ 자동 휴지통 이동">
-            CPO 쪽에서 기획이 사라지면 이 카드도 자동으로 휴지통 이동(15일 뒤 영구삭제). 이미 직접 휴지통으로 보낸 카드는 되살아나지 않음
+            CPO 쪽 기획이 사라지면 카드도 자동 휴지통 이동(15일 뒤 영구삭제). 이미 직접 휴지통으로 보낸 카드는 되살아나지 않음
           </FeatureCard>
         </div>
         <NoteList items={[
-          <>관리 탭은 이 숨김 규칙과 무관하게 항상 전체 SKU를 보여줍니다 (관리자가 숨겨진 데이터도 점검할 수 있도록 둔 의도적 예외).</>,
+          <>관리 탭은 숨김 규칙과 무관하게 항상 전체 SKU 표시 (숨겨진 데이터도 점검 가능하도록 둔 의도적 예외).</>,
         ]} />
 
         <h3 className="text-sm font-semibold text-gray-600 mb-2 mt-4">필드별 CPO 연동 현황 (SKU가 CPO 기획과 연결된 경우)</h3>
         <div className="rounded-xl border border-gray-200 overflow-hidden mb-3">
-          <FieldRow name="오픈일" status="both" statusLabel="↔ 양방향" desc="어느 쪽에서 고쳐도 서로 반영됨" />
-          <FieldRow name="SKU명" status="lock" statusLabel="🔒 CPO 전용" desc="입력칸이 잠기고 [기획 보러가기 ↗] 링크가 뜸" />
-          <FieldRow name="판매가·원가·정가" status="lock" statusLabel="🔒 CPO 전용" desc={'회색 읽기전용 박스, 미확정 시 "CPO 미확정" 표시. [기획 대시보드에서 수정 가능 ↗] 링크로 이동'} />
-          <FieldRow name="입고·촬영예정일" status="lock" statusLabel="🔒 CPO 전용" desc="날짜 입력칸이 잠김" />
-          <FieldRow name="컬러·사이즈 옵션" status="lock" statusLabel="🔒 CPO 전용" desc="CPO에서 등록한 옵션 구성이 그대로 표시" />
-          <FieldRow name="썸네일 이미지" status="lock" statusLabel="🔒 CPO 전용" desc="CPO 쪽 썸네일이 자동으로 반영 (단방향 동기화)" />
-          <FieldRow name="그 외 필드" status="open" statusLabel="✏️ 직접 편집" desc="총 발주량·MOQ·STEP1~3 계획·프라이싱 설정 등은 CPO와 무관하게 그대로 편집 가능" />
+          <FieldRow name="오픈일" status="both" statusLabel="↔ 양방향" desc="어느 쪽에서 고쳐도 서로 반영" />
+          <FieldRow name="SKU명" status="lock" statusLabel="🔒 CPO 전용" desc="입력칸 잠금, [기획 보러가기 ↗] 링크로 대체" />
+          <FieldRow name="판매가·원가·정가" status="lock" statusLabel="🔒 CPO 전용" desc={'회색 읽기전용 박스, 미확정 시 "CPO 미확정" 표시. [기획 대시보드에서 수정 가능 ↗] 링크'} />
+          <FieldRow name="입고·촬영예정일" status="lock" statusLabel="🔒 CPO 전용" desc="날짜 입력칸 잠금" />
+          <FieldRow name="컬러·사이즈 옵션" status="lock" statusLabel="🔒 CPO 전용" desc="CPO에서 등록한 구성 그대로 표시" />
+          <FieldRow name="썸네일 이미지" status="lock" statusLabel="🔒 CPO 전용" desc="CPO 쪽 썸네일 자동 반영 (단방향)" />
+          <FieldRow name="그 외 필드" status="open" statusLabel="✏️ 직접 편집" desc="총 발주량·MOQ·STEP1~3 계획·프라이싱 설정 등은 CPO와 무관하게 편집 가능" />
         </div>
 
-        <Callout tone="warn" title="⚠️ 가격 잠금은 두 가지가 서로 다릅니다">
-          "CPO 잠금"(위 표의 판매가·원가·정가 — CPO 연동 여부로 결정)과 "가격확정 잠금"(8장·11장의 🔒 가격확정 토글 —
-          역할 권한으로 아무 SKU나 확정 가능)은 <strong>완전히 별개의 메커니즘</strong>입니다. CPO 연동 SKU도 가격확정을
-          걸 수 있고, 그러면 프라이싱 모달의 시나리오 표까지 추가로 잠깁니다. 두 잠금이 동시에 걸려 있을 수도 있습니다.
+        <Callout tone="warn" title="⚠️ 가격 잠금은 두 가지가 서로 다름">
+          "CPO 잠금"(판매가·원가·정가, CPO 연동 여부로 결정)과 "가격확정 잠금"(8·11장 🔒 토글, 역할 권한으로 확정)은
+          별개 메커니즘. CPO 연동 SKU도 가격확정 가능 — 걸면 프라이싱 모달 시나리오 표까지 추가로 잠김. 두 잠금
+          동시 적용 가능.
         </Callout>
 
         <h3 className="text-sm font-semibold text-gray-600 mb-2 mt-4">기타</h3>
         <TermList items={[
-          { term: '진행상태·담당자 표시', desc: '카드 상단에 CPO 진행상태 뱃지(예: "상세 작업중")와 기획 담당자 이름이 표시됨 (읽기전용, CPO가 원본)' },
-          { term: '마케팅 브리프', desc: 'CPO 연동 SKU는 브리프 작성 패널 대신 [기획 보러가기 ↗] 링크로 대체됨 — 12장 참고' },
-          { term: 'CPO 미연동 SKU (레거시)', desc: '위 잠금이 하나도 적용되지 않고, 예전 방식 그대로 모든 필드를 직접 입력' },
-          { term: 'SKU 일괄 추가', desc: '상단 [+ 일괄 추가] 버튼으로 CSV(엑셀 붙여넣기)를 통해 여러 SKU를 한 번에 만드는 별도 경로도 남아 있습니다 (SKU 기본정보 권한 보유자에게 노출)' },
+          { term: '진행상태·담당자 표시', desc: '카드 상단 CPO 진행상태 뱃지(예: "상세 작업중") + 기획 담당자 이름 (읽기전용, CPO가 원본)' },
+          { term: '마케팅 브리프', desc: 'CPO 연동 SKU는 브리프 패널 대신 [기획 보러가기 ↗] 링크로 대체 — 12장' },
+          { term: 'CPO 미연동 SKU (레거시)', desc: '위 잠금이 하나도 적용되지 않고, 예전 방식 그대로 모든 필드 직접 입력' },
+          { term: 'SKU 일괄 추가', desc: <>상단 [+ 일괄 추가], CSV(엑셀 붙여넣기)로 여러 SKU 한 번에 생성 — <Perm>SKU 기본정보 권한 보유자</Perm></> },
         ]} />
       </section>
 
@@ -261,27 +259,27 @@ export function ManualTab() {
 
         <h3 className="text-sm font-semibold text-gray-600 mb-2">상단 메인 탭 <span className="font-normal text-gray-400">(로그인 직후 기본 진입 탭: 프로젝션)</span></h3>
         <TermList items={[
-          { term: '프로젝션', desc: 'LIST VIEW / 채널별 오픈일정 두 서브탭. 로그인 시 항상 이 탭(LIST VIEW)으로 초기화됨' },
-          { term: 'SKU 리스트', desc: 'SKU 카드 목록. 각 SKU별 3단계 계획 진행. 카드↔목록(테이블) 뷰 토글 가능 (프로젝션 LIST VIEW와는 별개)' },
+          { term: '프로젝션', desc: 'LIST VIEW / 채널별 오픈일정 두 서브탭. 로그인 시 항상 LIST VIEW로 초기화' },
+          { term: 'SKU 리스트', desc: 'SKU 카드 목록. SKU별 3단계 계획 진행, 카드↔목록(테이블) 뷰 토글 (프로젝션 LIST VIEW와 별개)' },
           { term: '채널별 요약', desc: '전체 SKU의 채널별 출고·매출 요약 뷰 (MD·전략 대상)' },
-          { term: '메뉴얼', desc: '대시보드 사용 방법 가이드 (현재 페이지)' },
+          { term: '메뉴얼', desc: '대시보드 사용 가이드 (현재 페이지)' },
           { term: '관리', desc: 'PIN 관리 / 권한 관리 / 쿠팡 채널 / 데이터 정리 / 관리자 메모 5개 서브탭 (MASTER 전용)' },
         ]} />
 
         <h3 className="text-sm font-semibold text-gray-600 mb-2 mt-4">SKU 카드 구성</h3>
         <TermList items={[
-          { term: '카드 상단 기본 정보', desc: 'SKU명 / 브랜드 / 카테고리 / 제품 유형 / 출시일 / 원가 / 판매가 / 총 발주량 / MOQ / 사이즈·컬러 수. CPO 연동 SKU는 진행상태·담당자 뱃지 추가 표시(3장)' },
-          { term: '가격확정 토글', desc: '프라이싱 모달의 시나리오 표(할인율 선택·자동/수동 편집)를 잠금. SKU 카드의 판매가·원가·정가 입력 자체와는 별개 — CPO 연동 SKU는 이 필드들이 확정 여부와 무관하게 항상 CPO 전용 읽기전용(3장). 프라이싱 시나리오 권한 보유자(마스터·PM·플랫폼MD·브랜드MD)만 조작 가능' },
-          { term: '프라이싱 시나리오 버튼', desc: '판매가·원가 정보 위에 위치. 클릭 시 전체 B2C/B2B 시나리오 모달 팝업' },
-          { term: '대응 SKU 패널', desc: '기존 SKU 검색·선택, Tableau 실적 데이터 자동 로드, 비교 기간 설정' },
-          { term: '마케팅 브리프 버튼', desc: '클릭 시 SKU별 마케팅 전략 작성 패널 팝업 (CPO 연동 SKU는 [기획 보러가기] 링크로 대체 — 12장)' },
+          { term: '카드 상단 기본 정보', desc: 'SKU명 / 브랜드 / 카테고리 / 제품 유형 / 출시일 / 원가 / 판매가 / 총 발주량 / MOQ / 사이즈·컬러 수. CPO 연동 SKU는 진행상태·담당자 뱃지 추가(3장)' },
+          { term: '가격확정 토글', desc: <>프라이싱 모달 시나리오 표(할인율·자동/수동 편집) 잠금. SKU 카드 판매가·원가·정가 입력과는 별개 — CPO 연동 SKU는 확정 여부 무관하게 항상 CPO 전용 읽기전용(3장). <Perm>마스터·PM·플랫폼MD·브랜드MD</Perm>만 조작</> },
+          { term: '프라이싱 시나리오 버튼', desc: '판매가·원가 위 위치. 클릭 시 전체 B2C/B2B 시나리오 모달' },
+          { term: '대응 SKU 패널', desc: '기존 SKU 검색·선택, Tableau 실적 자동 로드, 비교 기간 설정' },
+          { term: '마케팅 브리프 버튼', desc: 'SKU별 마케팅 전략 작성 패널 (CPO 연동 SKU는 [기획 보러가기]로 대체 — 12장)' },
           { term: 'STEP 탭', desc: '월별 계획(STEP 1) / 채널별 목표량 설정(STEP 2) / 채널별 수량 확인(STEP 3)' },
         ]} />
 
         <h3 className="text-sm font-semibold text-gray-600 mb-2 mt-4">프로젝션 &gt; LIST VIEW</h3>
         <p className="text-sm text-gray-600 mb-2">
-          전체 SKU를 테이블 형태로 조회. 오픈일 → 브랜드 → 카테고리(식품 → 장난감 → 용품 → 잡화 → 의류 고정 순서) → SKU명
-          순으로 자동 정렬.
+          전체 SKU 테이블 조회. 오픈일 → 브랜드 → 카테고리(식품 → 장난감 → 용품 → 잡화 → 의류 고정 순서) → SKU명
+          순 자동 정렬.
         </p>
         <p className="text-xs text-gray-500 mb-1.5">지원 필터</p>
         <ChipList items={['카테고리', "브랜드 ('그외' 항상 노출)", '오픈/완료 제외', '오픈월 (연도별 그룹, 연도 헤더 클릭 시 일괄선택)', '검색어']} />
@@ -303,7 +301,11 @@ export function ManualTab() {
         </table>
 
         <h3 className="text-sm font-semibold text-gray-600 mb-2">프로젝션 &gt; 채널별 오픈일정</h3>
-        <p className="text-sm text-gray-600 mb-2">채널(플랫폼·스스·위탁·B2B·글로벌·기타)별 오픈 예정일을 개별 입력하고, SKU 오픈일 대비 선오픈/동시오픈 여부를 자동 배지로 표시합니다. 기타 채널은 이름을 직접 입력할 수 있고, 메모 입력란도 제공됩니다. 날짜 캘린더 팝업에서는 날짜 초기화 옆 [미판매로 표시] 버튼으로 해당 채널을 "이 SKU는 이 채널에서 안 판다"는 미판매 상태로 지정할 수 있습니다.</p>
+        <p className="text-sm text-gray-600 mb-2">
+          채널(플랫폼·스스·위탁·B2B·글로벌·기타)별 오픈 예정일 개별 입력, SKU 오픈일 대비 선오픈/동시오픈 자동 배지
+          표시. 기타 채널은 이름 직접 입력 + 메모란 제공. 캘린더 팝업의 [미판매로 표시] 버튼으로 "이 채널엔 안 판다"
+          상태 지정 가능.
+        </p>
         <table className="w-full border-collapse text-xs">
           <thead>
             <tr className="bg-gray-100">
@@ -337,7 +339,7 @@ export function ManualTab() {
             <Tr><Td>팀카테 순매출·원가</Td><Td>MCP / sheet1 (팀카테 순매출·원가)</Td><Td>STEP2 변동비 비중 역산 — revenue·cost 항목</Td></Tr>
           </tbody>
         </table>
-        <p className="text-xs text-gray-400">* Tableau REST API v3.21. PAT 인증 후 뷰 CSV 다운로드 방식으로 수집. 세션 내 캐싱(maxAge 60분).</p>
+        <p className="text-xs text-gray-400">* Tableau REST API v3.21. PAT 인증 후 뷰 CSV 다운로드로 수집. 세션 내 캐싱(maxAge 60분).</p>
       </section>
 
       {/* 6. 채널·카테고리 매핑 */}
@@ -364,7 +366,7 @@ export function ManualTab() {
             <Tr><Td>협찬 · 기타 · CS · 공구 · 팝업</Td><Td>—</Td><Td>집계에서 제외</Td></Tr>
           </tbody>
         </table>
-        <p className="text-xs text-gray-400 mb-4">* 쿠팡은 기본적으로 모든 SKU에서 비활성 채널입니다. 관리 탭 &gt; 쿠팡 채널에서 개별 SKU를 활성화하면 그 SKU에 한해 STEP2 채널별 목표량·대응SKU 실적/비중·채널별 요약 뷰에 쿠팡이 정상 포함됩니다.</p>
+        <p className="text-xs text-gray-400 mb-4">* 쿠팡은 기본 비활성 채널. 관리 탭 &gt; 쿠팡 채널에서 SKU별 활성화 시 STEP2·대응SKU 실적/비중·채널별 요약 뷰에 정상 포함.</p>
 
         <h3 className="text-sm font-semibold text-gray-600 mb-2">대시보드 채널 → Tableau 채널ROI용 (변동비 조회)</h3>
         <table className="w-full border-collapse text-xs mb-4">
@@ -426,14 +428,14 @@ export function ManualTab() {
             </Tr>
           </tbody>
         </table>
-        <p className="mt-2 text-xs text-gray-400">* 선택한 비교 기간은 변동비율 계산 기간과도 동기화됩니다.</p>
+        <p className="mt-2 text-xs text-gray-400">* 비교 기간 선택은 변동비율 계산 기간과도 동기화.</p>
       </section>
 
       {/* 8. STEP 1 */}
       <section id="manual-s8" className="scroll-mt-20 bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
         <Eyebrow color="violet">PART 3 · SKU 계획 프로세스</Eyebrow>
         <h2 className="text-lg font-bold text-gray-900 mb-3">1️⃣ 8. STEP 1 — 월별 발주 계획 (PM 담당)</h2>
-        <p className="text-sm text-gray-600 mb-3">7월부터 익년 2월까지 8개월을 기준으로 월별 발주 수량을 입력합니다. 입력한 월별 수량은 STEP 2 초기값의 기준이 됩니다.</p>
+        <p className="text-sm text-gray-600 mb-3">7월~익년 2월 8개월 기준 월별 발주 수량 입력. STEP 2 초기값의 기준이 됨.</p>
         <table className="w-full border-collapse text-xs">
           <thead>
             <tr className="bg-gray-100">
@@ -455,19 +457,19 @@ export function ManualTab() {
             </Tr>
             <Tr>
               <Td>가격확정</Td>
-              <Td>프라이싱 모달의 시나리오 표(할인율 선택·자동/수동 편집)를 잠금. 마스터·PM·플랫폼MD·브랜드MD만 조작 가능</Td>
-              <Td>판매가·정가 자체는 CPO 연동 여부로 별도 결정 — 3장 참고</Td>
+              <Td>프라이싱 모달 시나리오 표(할인율·자동/수동 편집) 잠금. <Perm>마스터·PM·플랫폼MD·브랜드MD</Perm>만 조작</Td>
+              <Td>판매가·정가 자체는 CPO 연동 여부로 별도 결정 — 3장</Td>
             </Tr>
           </tbody>
         </table>
-        <p className="mt-2 text-xs text-gray-400">* "MOQ 미달!" 배지는 공급사 MOQ(sku.moq) 기준이 아니라, STEP2 채널 합계가 STEP1 목표 수량보다 적을 때 표시됩니다 (STEP2 섹션 참고).</p>
+        <p className="mt-2 text-xs text-gray-400">* "MOQ 미달!" 배지 기준은 공급사 MOQ 아님 — STEP2 채널 합계가 STEP1 목표보다 적을 때 표시(STEP2 참고).</p>
       </section>
 
       {/* 9. STEP 2 */}
       <section id="manual-s9" className="scroll-mt-20 bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
         <Eyebrow color="violet">PART 3 · SKU 계획 프로세스</Eyebrow>
         <h2 className="text-lg font-bold text-gray-900 mb-3">2️⃣ 9. STEP 2 — 채널별 목표량 설정 (MD 담당)</h2>
-        <p className="text-sm text-gray-600 mb-3">MD가 각 채널별·월별 목표 수량을 직접 설정하고, 판매가 시나리오를 설정해 예상 순매출과 공헌이익을 실시간으로 확인합니다.</p>
+        <p className="text-sm text-gray-600 mb-3">MD가 채널·월별 목표 수량과 판매가 시나리오를 설정, 예상 순매출·공헌이익을 실시간 확인.</p>
 
         <h3 className="text-sm font-semibold text-gray-600 mb-2">자동 초기값 세팅 순서</h3>
         <StepFlow steps={[
@@ -475,10 +477,10 @@ export function ManualTab() {
           { label: '대응 SKU 없을 시', desc: '고정 기본 채널비중 사용 (아래)' },
           { label: '항상', desc: 'STEP 1 월별 수량 기준으로 월별 배분' },
         ]} />
-        <p className="text-xs text-gray-500 mb-1.5">고정 기본 채널비중 (카테고리와 무관하게 모든 SKU에 동일 적용)</p>
+        <p className="text-xs text-gray-500 mb-1.5">고정 기본 채널비중 (카테고리 무관, 모든 SKU 동일 적용)</p>
         <ChipList items={['자사몰 20%', '스스 30%', '위탁 5%', '쿠팡 10%', 'B2B 15%', '사입및페어 5%', '글로벌 5%', '일본 10%']} className="mb-2" />
         <NoteList items={[
-          <>쿠팡이 비활성화된 SKU는 이 자동 배분 대상에서 제외됩니다 (대응SKU 실적·비중 계산에도 미포함). 관리 탭에서 쿠팡을 활성화한 SKU만 배분에 포함됩니다.</>,
+          <>쿠팡이 비활성화된 SKU는 이 자동 배분에서 제외(대응SKU 실적·비중 계산에도 미포함). 관리 탭에서 활성화한 SKU만 배분 대상.</>,
         ]} />
 
         <h3 className="text-sm font-semibold text-gray-600 mb-2 mt-4">채널 요약 테이블 (토글 닫힌 상태)</h3>
@@ -536,8 +538,8 @@ export function ManualTab() {
             </Tr>
           </tbody>
         </table>
-        <p className="text-xs text-gray-400 mb-1">* 변동비율은 수수료를 포함한 Tableau 실적 데이터 기반 역산값입니다. 데이터 없을 시 기본값 25% fallback.</p>
-        <p className="text-xs text-gray-400 mb-4">* 채널별 판매가(channelPricing)에 표시되는 수수료율 입력값은 참고용으로만 저장되며, 실제 순매출·공헌이익 계산에는 반영되지 않습니다.</p>
+        <p className="text-xs text-gray-400 mb-1">* 변동비율 = 수수료 포함 Tableau 실적 기반 역산값. 데이터 없으면 25% fallback.</p>
+        <p className="text-xs text-gray-400 mb-4">* channelPricing의 수수료율 입력값은 참고용 — 실제 순매출·공헌이익 계산엔 미반영.</p>
 
         <h3 className="text-sm font-semibold text-gray-600 mb-2">채널 확정 프로세스</h3>
         <table className="w-full border-collapse text-xs mb-4">
@@ -554,11 +556,12 @@ export function ManualTab() {
             <Tr><Td>글로벌 확정</Td><Td>일본 · 글로벌</Td><Td>위와 동일</Td></Tr>
           </tbody>
         </table>
-        <p className="text-xs text-gray-400 mb-4">* "MD 확정"은 하나의 버튼이 아니라 위 3개 그룹으로 나뉘어 있으며, STEP2 편집 권한이 있으면 그룹-역할이 정확히 일치하지 않아도 버튼이 노출됩니다. 채널 목표량 수정 후에는 [되돌리기] 버튼으로 직전 상태로 복구할 수 있습니다 (카드를 닫으면 되돌리기 불가).</p>
+        <p className="text-xs text-gray-400 mb-4">* "MD 확정"은 버튼 1개가 아니라 위 3그룹으로 분리 — STEP2 편집 권한만 있으면 그룹-역할이 안 맞아도 버튼 노출. 수정 후 [되돌리기]로 직전 상태 복구 가능(카드 닫으면 불가).</p>
 
         <h3 className="text-sm font-semibold text-gray-600 mb-2">마케팅 채널 (B2C 하단 별도 섹션)</h3>
         <p className="text-sm text-gray-500 mb-2">
-          마케팅 협찬·샘플 등 판매 외 목적으로 사용되는 수량을 기록하는 비용 채널입니다. B2C·B2B 판매 채널과 달리 판매가/수수료 개념이 없으며, 수량 입력 시 발생하는 비용이 SKU의 순매출과 공헌이익에서 차감됩니다.
+          협찬·샘플 등 판매 외 목적 수량을 기록하는 비용 채널. 판매가/수수료 개념 없음 — 입력한 수량만큼 원가가
+          순매출·공헌이익에서 차감.
         </p>
         <table className="w-full border-collapse text-xs mb-3">
           <thead>
@@ -576,14 +579,14 @@ export function ManualTab() {
             <Tr><Td>SKU 카드 상단 스코어카드</Td><Td>예상 순매출은 B2C+B2B 기준 그대로, 공헌이익만 마케팅 비용 차감 후 반영 (STEP3 기준 표시)</Td></Tr>
           </tbody>
         </table>
-        <p className="text-xs text-gray-400">* 마케팅 채널 수량은 Firestore에 저장되며 새로고침 후에도 유지됩니다.</p>
+        <p className="text-xs text-gray-400">* 마케팅 채널 수량은 Firestore 저장 — 새로고침 후에도 유지.</p>
       </section>
 
       {/* 10. STEP 3 */}
       <section id="manual-s10" className="scroll-mt-20 bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
         <Eyebrow color="violet">PART 3 · SKU 계획 프로세스</Eyebrow>
         <h2 className="text-lg font-bold text-gray-900 mb-3">3️⃣ 10. STEP 3 — 채널별 수량 확인 (MD 확인용)</h2>
-        <p className="text-sm text-gray-600 mb-3">STEP 2에서 입력한 채널별 목표량을 기반으로, 월별·옵션별 최종 수량을 확인합니다. 별도 재무 계산은 없습니다.</p>
+        <p className="text-sm text-gray-600 mb-3">STEP 2 채널별 목표량 기반 월별·옵션별 최종 수량 확인. 별도 재무 계산 없음.</p>
         <table className="w-full border-collapse text-xs">
           <thead>
             <tr className="bg-gray-100">
@@ -606,59 +609,54 @@ export function ManualTab() {
         <Eyebrow color="amber">PART 4 · 프라이싱</Eyebrow>
         <h2 className="text-lg font-bold text-gray-900 mb-3">💰 11. 프라이싱 시나리오</h2>
         <Callout>
-          쉽게 말하면 — 이 SKU를 오픈특가로 팔 때, 세일할 때, B2B로 납품할 때, 일본·글로벌에 공급할 때 등
-          "이 상황이면 얼마에 팔지"를 미리 다 계산해서 한 번에 보여주는 시뮬레이터예요. STEP 2에서 채널별로
-          하나씩 고르는 것과 달리, 여기서는 <strong>모든 시나리오를 동시에</strong> 훑어볼 수 있습니다.
+          쉽게 말하면 — 오픈특가·세일·B2B 납품·일본/글로벌 공급 등 "이 상황이면 얼마" 를 미리 다 계산해서 한 번에
+          보여주는 시뮬레이터. STEP 2처럼 채널별로 하나씩 고르지 않고, <strong>모든 시나리오를 동시에</strong> 봄.
         </Callout>
         <p className="text-sm text-gray-600 mb-3">
-          SKU 카드 내 [프라이싱 시나리오] 버튼, 또는 LIST VIEW의 [프라이싱] 버튼을 클릭하면 해당 SKU의 모든 판매가 시나리오를 한눈에 확인할 수 있는 모달이 열립니다.
-          STEP 2에서 채널별로 설정한 시나리오와 달리, 여기서는 <strong>전체 B2C/B2B 시나리오를 동시에 조회</strong>하는 참고용 뷰입니다.
+          [프라이싱 시나리오](SKU 카드) 또는 [프라이싱](LIST VIEW) 클릭 → 모든 판매가 시나리오를 보여주는 모달.
+          STEP 2 채널별 설정과 달리 <strong>전체 B2C/B2B를 동시에 조회</strong>하는 참고용 뷰.
         </p>
 
         <FeatureGrid>
           <FeatureCard title="모달 상단 KPI">
-            원가 / 판매가 / 정가 / 상시할인율 / 원가율이 표시됩니다. 모든 시나리오의 base 가격은 SKU 판매가 기준입니다.
+            원가·판매가·정가·상시할인율·원가율 표시. 모든 시나리오의 base 가격 = SKU 판매가.
           </FeatureCard>
 
           <FeatureCard title="자동 · 수동 모드">
-            모달 상단의 [자동]/[수동] 토글로 SKU별 표시 방식을 바꿀 수 있습니다. <strong>자동</strong>은 아래 계산식
-            그대로의 값을 보여주고, <strong>수동</strong>으로 처음 전환하는 순간 그 시점의 자동계산값을 한 번 스냅샷해서
-            채워 넣은 뒤부터는 시나리오명·실제가격을 자유롭게 직접 고칠 수 있습니다(이후 자동값이 바뀌어도 수동 값은
-            영향받지 않고 독립적으로 유지·저장). 단, 상시/특가/시즌오프 할인율 3종과 글로벌 공급가는 수동 모드에서도
-            계속 자동 계산 값으로 고정됩니다. 시나리오 행을 자유롭게 추가·삭제할 수도 있습니다(+ 시나리오 항목 추가 /
-            행 옆 × 버튼). 자동/수동 전환과 수동 값 편집은 마스터·PM·플랫폼MD·브랜드MD만 가능합니다.
+            [자동]/[수동] 토글로 표시 방식 전환. 자동 = 계산식 값 그대로. 수동 전환 시 그 시점 자동값을 스냅샷해서
+            채움 → 이후 시나리오명·가격 자유 편집(자동값이 바뀌어도 수동값은 독립 유지). 할인율 3종 + 글로벌
+            공급가는 수동에서도 자동계산 고정. 행 추가·삭제 가능(+ 항목 추가 / 행 옆 ×).
+            <br /><Perm>마스터·PM·플랫폼MD·브랜드MD</Perm>
           </FeatureCard>
 
           <FeatureCard title="가격확정 시 잠금">
-            SKU 카드의 가격확정 토글을 켜면 이 모달의 시나리오 표 전체(할인율 선택·자동/수동 전환·수동 값 편집)가
-            잠기고 상단에 "🔒 가격이 확정되어 프라이싱을 수정할 수 없습니다" 안내와 [확정 해제] 버튼이 뜹니다(확정·해제
-            모두 마스터·PM·플랫폼MD·브랜드MD만 가능). CPO 연동 SKU의 판매가·원가·정가 잠금(3장)과는 별개의
-            메커니즘이라 동시에 걸려 있을 수 있습니다.
+            가격확정 토글 ON → 시나리오 표 전체(할인율·자동/수동·수동값) 잠김 + "🔒 가격이 확정되어..." 안내 +
+            [확정 해제] 버튼. CPO 잠금(3장)과는 별개 메커니즘, 동시 적용 가능.
+            <br /><Perm>마스터·PM·플랫폼MD·브랜드MD</Perm> (확정·해제 모두)
           </FeatureCard>
 
           <FeatureCard title="메모">
-            B2C 표 상단에 이 SKU의 프라이싱 관련 자유 메모를 남길 수 있습니다(최대 200자, 마스터·PM·플랫폼MD·브랜드MD만
-            입력 가능, 다른 역할은 열람만).
+            B2C 표 상단, 프라이싱 관련 자유 메모(최대 200자).
+            <br /><Perm>마스터·PM·플랫폼MD·브랜드MD</Perm>만 입력, 나머지는 열람만.
           </FeatureCard>
 
           <FeatureCard title="행 숨기기 · 복원">
-            상시 최대할인율·특가 최대할인율·시즌오프 할인율·사입 공급가·글로벌 공급가·일본 공급가 6개 행은 이
-            SKU에서만 안 보이게 숨길 수 있습니다(행 옆 × 버튼 → "숨긴 항목: OOO 복원" 칩을 눌러 언제든 되돌리기 가능).
-            이 모달에만 영향을 주는 표시 옵션이라, STEP 2 채널별 판매가 선택지나 실제 계산에는 아무 영향이 없습니다.
+            6개 행(상시/특가/시즌오프 할인율, 사입/글로벌/일본 공급가) SKU별 숨김 가능(행 옆 × → "숨긴 항목: OOO
+            복원" 칩으로 복원). 이 모달만의 표시 옵션 — STEP 2 선택지·실제 계산엔 무영향.
           </FeatureCard>
 
           <FeatureCard title="B2C 오픈 프로모션 토글">
-            B2C 테이블 상단에 <span className="text-red-600 font-medium">[신상위크]</span> · <span className="text-orange-500 font-medium">[라이브]</span> · <span className="text-emerald-600 font-medium">[선단독]</span> 버튼이 있습니다.
-            기본 상태에서 신상위크·라이브 할인·선단독 행은 비활성화(흐리게)로 표시됩니다. [신상위크]는 신상위크+라이브
-            할인을 동시 활성화하며, [라이브]는 라이브 할인만 단독 활성화합니다. 세 토글은 독립적으로 작동하며, 선택
-            상태는 Firestore에 저장되어 새로고침 후에도 유지됩니다.
+            B2C 테이블 상단 <span className="text-red-600 font-medium">[신상위크]</span>·<span className="text-orange-500 font-medium">[라이브]</span>·<span className="text-emerald-600 font-medium">[선단독]</span> 버튼.
+            기본값은 3행 모두 비활성(흐리게). [신상위크] = 신상위크+라이브 동시 ON, [라이브] = 라이브만 단독 ON.
+            세 토글 독립 작동, 선택 상태 Firestore 저장(새로고침 유지).
           </FeatureCard>
         </FeatureGrid>
 
         <h3 className="text-sm font-semibold text-gray-600 mb-2">B2C 시나리오 계산식</h3>
         <p className="text-xs text-gray-500 mb-1">* ceil10(x) = x를 10원 단위 올림 (B2B 오픈 할인·B2B 상시 운영만 예외적으로 round10 유지) &nbsp;|&nbsp; 오픈특가 = floor((ceil10(base × (1 − 특가최대할인율)) − 901) ÷ 1000) × 1000 + 900</p>
         <p className="text-sm text-gray-500 mb-2">
-          특가 최대할인율(20%/15%/10%) · 상시 최대할인율(15%/10%/5%) · 시즌오프 할인율(25%/30%)은 SKU별로 프라이싱 모달에서 직접 선택 가능합니다 (마스터·PM·플랫폼MD·브랜드MD만 변경 가능, 변경 시 해당 SKU에만 반영). 아래 계산식의 기본값은 20%/15%/25% 기준입니다.
+          특가 최대할인율(20/15/10%)·상시 최대할인율(15/10/5%)·시즌오프 할인율(25/30%)은 SKU별 직접 선택.
+          {' '}<Perm>마스터·PM·플랫폼MD·브랜드MD</Perm> (해당 SKU에만 반영). 계산식 기본값: 20%/15%/25%.
         </p>
         <table className="w-full border-collapse text-xs mb-4">
           <thead>
@@ -719,36 +717,40 @@ export function ManualTab() {
             <Tr><Td>40% 초과</Td><Td>빨간색</Td></Tr>
           </tbody>
         </table>
-        <p className="text-xs text-gray-400">* 할인율은 소수점 반올림 정수 표시. 비활성화된 시나리오(신상위크·라이브 할인·선단독)는 회색으로 흐리게 표시됩니다.</p>
+        <p className="text-xs text-gray-400">* 할인율은 반올림 정수 표시. 비활성 시나리오(신상위크·라이브 할인·선단독)는 회색 흐리게.</p>
         <p className="mt-1 text-xs text-gray-400">* 쿠팡·B2B·사입및페어는 시나리오 미설정 시 'B2B 상시 운영' 자동 적용. 글로벌은 '글로벌 공급가', 일본은 '일본 공급가' 자동 적용.</p>
       </section>
 
       {/* 12. 마케팅 브리프 */}
       <section id="manual-s12" className="scroll-mt-20 bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
         <Eyebrow color="amber">PART 4 · 프라이싱</Eyebrow>
-        <h2 className="text-lg font-bold text-gray-900 mb-3">📣 12. 마케팅 브리프 (Marketing Brief)</h2>
-        <p className="text-sm text-gray-600 mb-3">
-          SKU 카드에서 [마케팅 브리프] 버튼을 클릭하면 SKU별 마케팅 전략을 작성할 수 있습니다.
-          입력 후 800ms 디바운스 자동 저장되며, Firestore에 영구 보관됩니다.
-        </p>
-        <TermList items={[
-          { term: '① 경쟁사 타겟 제품', desc: '경쟁 제품명·판매가·주간 예상 매출 입력. 당사 판매가 대비 가격 경쟁력 자동 산정' },
-          { term: '② 타겟 고객', desc: '목표 고객층 자유 텍스트 입력' },
-          { term: '③ 마케팅 제안', desc: '마케팅 전략·채널 활용 방안 자유 텍스트 입력' },
-          { term: '④ PSP / KSP / USP', desc: '구매자극요소 / 판매핵심요소 / 차별화요소 입력' },
-          { term: '⑤ 비고', desc: '기타 메모' },
-        ]} />
-        <NoteList items={[
-          <>마케팅(뷰어) 역할은 마케팅 브리프 내용을 열람만 가능하며 편집할 수 없습니다.</>,
-          <>CPO 대시보드와 연동된 SKU는 이 브리프 패널 자체가 뜨지 않고, 대신 CPO 기획 문서로 바로 이동하는 [기획 보러가기 ↗] 버튼이 표시됩니다 — 3장 참고.</>,
-        ]} />
+        <h2 className="text-lg font-bold text-gray-900 mb-3">📣 12. 마케팅 브리프</h2>
+        <Callout tone="warn" title="⚠️ 현재는 대부분 CPO 대시보드에서 확인">
+          CPO 연동 SKU(현재 대부분)는 이 패널 대신 카드에 [기획 보러가기 ↗] 버튼만 뜹니다 — 마케팅 관련 내용은
+          CPO 대시보드의 기획 문서에서 확인. 아래는 <strong>CPO 미연동 레거시 SKU</strong>에서만 쓰이는 예전 방식.
+        </Callout>
+        <div className="opacity-50">
+          <p className="text-sm text-gray-500 mb-3">
+            [마케팅 브리프](SKU 카드) → SKU별 마케팅 전략 작성. 800ms 디바운스 자동 저장, Firestore 영구 보관.
+          </p>
+          <TermList items={[
+            { term: '① 경쟁사 타겟 제품', desc: '경쟁 제품명·판매가·주간 예상 매출 입력. 당사 판매가 대비 가격 경쟁력 자동 산정' },
+            { term: '② 타겟 고객', desc: '목표 고객층 자유 텍스트 입력' },
+            { term: '③ 마케팅 제안', desc: '마케팅 전략·채널 활용 방안 자유 텍스트 입력' },
+            { term: '④ PSP / KSP / USP', desc: '구매자극요소 / 판매핵심요소 / 차별화요소 입력' },
+            { term: '⑤ 비고', desc: '기타 메모' },
+          ]} />
+          <NoteList items={[
+            <>마케팅(뷰어) 역할은 열람만 가능, 편집 불가.</>,
+          ]} />
+        </div>
       </section>
 
       {/* 13. 대응 SKU 패널 */}
       <section id="manual-s13" className="scroll-mt-20 bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
         <Eyebrow color="amber">PART 4 · 프라이싱</Eyebrow>
         <h2 className="text-lg font-bold text-gray-900 mb-3">🔍 13. 대응 SKU 패널</h2>
-        <p className="text-sm text-gray-600 mb-3">새 SKU와 비교할 기존 SKU를 설정하면 Tableau에서 데이터를 자동으로 불러와 참고 지표로 활용합니다.</p>
+        <p className="text-sm text-gray-600 mb-3">비교할 기존 SKU 설정 시 Tableau 데이터 자동 로드 → 참고 지표로 활용.</p>
         <TermList items={[
           { term: 'SKU 검색 및 다중 선택', desc: '복수 SKU 선택 시 출고량 합산하여 비교 기준으로 사용' },
           { term: '비교 기간 선택', desc: '"직전 12개월" 또는 "동기간 (전년도 동월)" 중 선택. 변동비율 계산 기간과도 동기화' },
@@ -775,8 +777,8 @@ export function ManualTab() {
         <Eyebrow color="teal">PART 5 · 계산과 인프라</Eyebrow>
         <h2 className="text-lg font-bold text-gray-900 mb-3">🧮 14. 핵심 계산 수식</h2>
         <Callout>
-          쉽게 말하면 — 이 대시보드 어디서든 매출·이익이 표시되는 화면은 결국 이 5개 수식 위에서 돌아갑니다.
-          STEP2, SKU 카드, 채널별 요약 뷰까지 전부 동일한 공식을 씁니다.
+          쉽게 말하면 — 매출·이익이 뜨는 화면은 전부 이 5개 수식 위에서 돌아갑니다. STEP2·SKU 카드·채널별 요약
+          뷰까지 동일 공식.
         </Callout>
         <table className="w-full border-collapse text-xs">
           <thead>
@@ -819,7 +821,7 @@ export function ManualTab() {
             </Tr>
           </tbody>
         </table>
-        <p className="mt-2 text-xs text-gray-400">* 이 변동비율 공식은 STEP2·SKU카드·채널별 요약 뷰 등 채널×월 손익을 계산하는 모든 화면에 동일하게 적용됩니다.</p>
+        <p className="mt-2 text-xs text-gray-400">* 이 변동비율 공식은 채널×월 손익을 계산하는 모든 화면(STEP2·SKU카드·채널별 요약 뷰 등)에 동일 적용.</p>
       </section>
 
       {/* 15. 환율 자동 갱신 */}
@@ -852,12 +854,12 @@ export function ManualTab() {
         <h3 className="text-sm font-semibold text-gray-600 mb-2">Firestore 저장 항목 <span className="font-normal text-gray-400">(새로고침 후에도 유지)</span></h3>
         <ChipList items={['SKU 기본 정보', '사이즈·컬러 구성 및 수량', '월별 발주 계획', '채널별 월별 목표 수량', '채널별 판매가 시나리오 설정', '채널별 오픈일정', '가격확정·자사몰세팅 여부', 'SKU별 쿠팡 활성화 여부', '발주 확정 상태 및 확정 이력', '마케팅 브리프 내용']} />
         <NoteList items={[
-          <>CPO 연동 필드(SKU명·판매가·원가·정가·입고예정일·촬영예정일·컬러/사이즈 옵션·썸네일)는 이 대시보드에도 저장되지만 원본은 CPO 대시보드입니다 — 3장 참고.</>,
+          <>CPO 연동 필드(SKU명·판매가·원가·정가·입고/촬영예정일·컬러/사이즈 옵션·썸네일)는 여기도 저장되지만 원본은 CPO 대시보드 — 3장.</>,
         ]} />
 
         <h3 className="text-sm font-semibold text-gray-600 mb-2 mt-4">발주 확정 프로세스</h3>
         <NoteList items={[
-          <>pm 역할이 일부 화면에서 "CPO"로 표시되지만(2장 참고), 이는 발주 확정 권한과는 무관한 표시명 차이일 뿐입니다. 최종 발주 확정은 발주 확정 권한 보유자(기본값: master·PM)가 수행하며, 화면에도 "PM확정" 뱃지로 표시됩니다.</>,
+          <>pm 역할이 일부 화면에서 "CPO"로 표시되지만(2장) 발주 확정 권한과는 무관. 최종 발주 확정은 <Perm>master·PM</Perm>(기본값)이 수행, 화면엔 "PM확정" 뱃지로 표시.</>,
         ]} className="mb-2" />
         <table className="w-full border-collapse text-xs mb-4">
           <thead>
@@ -889,7 +891,7 @@ export function ManualTab() {
             <Tr><Td>↑ 복원</Td><Td>MASTER 전용</Td><Td>백업 JSON 파일로 Firestore 전체 교체. 기존 데이터 삭제 후 재삽입</Td></Tr>
           </tbody>
         </table>
-        <p className="mt-2 text-xs text-gray-400">* 이미지 URL은 Firebase Storage 주소이므로, 동일 Firebase 프로젝트 내에서만 이미지가 정상 표시됩니다.</p>
+        <p className="mt-2 text-xs text-gray-400">* 이미지 URL = Firebase Storage 주소 — 동일 Firebase 프로젝트 내에서만 정상 표시.</p>
       </section>
 
       {/* 17. 채널별 요약 뷰 */}
@@ -897,18 +899,18 @@ export function ManualTab() {
         <Eyebrow color="teal">PART 5 · 계산과 인프라</Eyebrow>
         <h2 className="text-lg font-bold text-gray-900 mb-3">📈 17. 채널별 요약 뷰</h2>
         <p className="text-sm text-gray-600 mb-3">
-          모든 SKU의 채널별 출고·매출 현황을 요약 테이블로 확인할 수 있습니다. 프로젝션 LIST VIEW와 동일한
-          필터(카테고리·브랜드 다중선택, 오픈/완료 제외, 오픈월)가 이식되어 있어 원하는 범위만 골라 볼 수 있습니다.
+          전체 SKU의 채널별 출고·매출 현황을 요약 테이블로 확인. LIST VIEW와 동일한 필터(카테고리·브랜드
+          다중선택, 오픈/완료 제외, 오픈월) 이식 — 원하는 범위만 조회 가능.
         </p>
         <TermList items={[
           { term: '전체 요약', desc: '전체 SKU의 채널별 총 수량·순매출·공헌이익 집계. 월별 트렌드 차트 포함' },
-          { term: '채널별 탭', desc: '채널을 여러 개 동시에 체크(다중선택)해서 선택한 채널들의 합산 수치를 볼 수 있습니다. SKU별 수량·매출·공헌이익 상세 조회, 채널별 월별 트렌드 차트 포함' },
+          { term: '채널별 탭', desc: '채널 다중선택(체크) → 선택 채널 합산 수치 조회. SKU별 수량·매출·공헌이익 상세, 채널별 월별 트렌드 차트 포함' },
         ]} />
-        <p className="mt-2 text-xs text-gray-400">* 공헌이익 계산은 섹션 14와 동일하게 Tableau 팀카테 역산 변동비율을 사용합니다 (없으면 25% fallback). 데이터가 정상 연동되면 파란색 "Tableau 변동비 비중 연동중" 배지가 표시됩니다. 단, 이 뷰는 SKU 카드별 비교기간(직전 12개월/동기간) 선택을 알 수 없으므로 항상 "직전 12개월" 기준으로 고정 계산됩니다 — 카드에서 동기간으로 보고 있는 값과 소폭 차이가 날 수 있습니다.</p>
+        <p className="mt-2 text-xs text-gray-400">* 공헌이익 계산 = 14장과 동일한 Tableau 팀카테 역산 변동비율(없으면 25% fallback). 정상 연동 시 파란 "Tableau 변동비 비중 연동중" 배지 표시. 단 SKU별 비교기간(직전 12개월/동기간) 선택은 반영 못 하고 항상 "직전 12개월" 고정 — 카드에서 동기간으로 보는 값과 소폭 차이 가능.</p>
         <p className="mt-3 text-sm text-gray-600 bg-indigo-50 border border-indigo-100 rounded-lg px-3 py-2">
-          <strong className="text-indigo-700">이 뷰와 STEP2(SKU카드) 계산의 일치 범위:</strong><br />
-          <strong>판매가 시나리오 공식과 환율은 STEP2와 완전히 동일합니다.</strong> 채널별 요약 뷰는 시나리오 계산을 따로 복제하지 않고 STEP2와 같은 <code className="text-[11px] bg-white px-1 py-0.5 rounded border border-indigo-100">pricingScenarios.ts</code>를 그대로 가져다 쓰고, 환율도 같은 실시간 환율(useExchangeRates)을 사용하므로 오픈특가·글로벌공급가·일본공급가 등 어떤 시나리오를 걸어둬도 STEP2에 뜨는 단가와 항상 같습니다.<br />
-          <strong>다만 변동비율만은 근사치입니다.</strong> STEP2는 SKU 1건마다 그 SKU에 설정된 대응SKU·비교기간을 반영해서 변동비율을 계산하지만, 이 요약 뷰는 SKU 수백 건을 한 번에 보여줘야 해서 <strong>카테고리×채널 단위로 미리 계산해둔 공통 값</strong>(직전 12개월 고정)을 모든 SKU에 동일하게 적용합니다. 그래서 순매출은 STEP2와 100% 일치해도, <strong>공헌이익·CM%는 대응SKU를 "동기간"으로 설정해둔 SKU에서 소폭 차이가 날 수 있습니다.</strong>
+          <strong className="text-indigo-700">이 뷰와 STEP2(SKU카드) 계산 일치 범위</strong><br />
+          <strong>판매가 시나리오·환율은 STEP2와 100% 동일.</strong> 같은 <code className="text-[11px] bg-white px-1 py-0.5 rounded border border-indigo-100">pricingScenarios.ts</code>, 같은 실시간 환율(useExchangeRates) 사용 — 어떤 시나리오든 STEP2와 단가 일치.<br />
+          <strong>변동비율만 근사치.</strong> STEP2는 SKU별 대응SKU·비교기간을 반영해 계산하지만, 이 뷰는 SKU 수백 건을 한 번에 다뤄야 해서 <strong>카테고리×채널 단위 공통값</strong>(직전 12개월 고정)을 전체 SKU에 동일 적용. 순매출은 100% 일치, <strong>공헌이익·CM%는 대응SKU가 "동기간"인 SKU에서 소폭 차이 가능.</strong>
         </p>
       </section>
 
@@ -916,7 +918,7 @@ export function ManualTab() {
       <section id="manual-s18" className="scroll-mt-20 bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
         <Eyebrow color="gray">PART 6 · 참고</Eyebrow>
         <h2 className="text-lg font-bold text-gray-900 mb-3">🧭 18. UI 동작 — 페이지 상태 유지</h2>
-        <p className="text-sm text-gray-600 mb-3">새로고침 후에도 직전 상태가 복원됩니다. sessionStorage 기반으로 브라우저 탭 단위로 유지되며, 탭을 닫으면 초기화됩니다. 단, 로그인 직후에는 이 복원 규칙과 무관하게 항상 프로젝션 &gt; LIST VIEW로 초기화됩니다.</p>
+        <p className="text-sm text-gray-600 mb-3">새로고침 후 직전 상태 복원(sessionStorage, 탭 단위 — 탭 닫으면 초기화). 단 로그인 직후엔 무조건 프로젝션 &gt; LIST VIEW로 초기화.</p>
         <TermList items={[
           { term: '메인 탭', desc: '마지막으로 열었던 탭 (프로젝션 / SKU 리스트 / 채널별 요약 / 메뉴얼 / 관리)으로 복원' },
           { term: '프로젝션 서브탭', desc: 'LIST VIEW / 채널별 오픈일정 중 마지막 선택값 복원' },
@@ -924,7 +926,7 @@ export function ManualTab() {
           { term: '브랜드 필터', desc: '선택된 브랜드 복원' },
         ]} />
         <h3 className="text-sm font-semibold text-gray-600 mb-2 mt-4">뒤로가기 (내비게이션 히스토리)</h3>
-        <p className="text-sm text-gray-600">LIST VIEW 등에서 SKU 카드로 이동하면 이동 전 상태(탭·필터·검색어·펼쳐진 카드·스크롤 위치, 최대 20단계)가 기록됩니다. 상단의 [뒤로가기] 버튼을 누르면 이동 전 화면으로 정확히 복원됩니다. 이 기능은 새로고침 유지와는 별개로, 새로고침 시에는 필터·검색어·스크롤 위치가 초기화됩니다.</p>
+        <p className="text-sm text-gray-600">SKU 카드 이동 시 이전 상태(탭·필터·검색어·펼쳐진 카드·스크롤, 최대 20단계) 기록 → 상단 [뒤로가기]로 정확히 복원. 새로고침 유지와는 별개 — 새로고침 시 필터·검색어·스크롤은 초기화.</p>
       </section>
 
       {/* 19. 향후 개선 방향 */}
@@ -969,6 +971,15 @@ function Callout({
       {title && <p className={`font-bold mb-1 ${titleCls}`}>{title}</p>}
       {children}
     </div>
+  );
+}
+
+function Perm({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="inline-flex items-baseline gap-1 text-[11px]">
+      <span className="font-bold text-gray-400">권한</span>
+      <span className="text-gray-500">{children}</span>
+    </span>
   );
 }
 
