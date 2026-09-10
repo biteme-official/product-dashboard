@@ -20,6 +20,53 @@ const TOC_ITEMS = [
   { id: 'manual-s19', label: '19. 향후 개선 방향' },
 ];
 
+type PartColor = 'indigo' | 'sky' | 'violet' | 'amber' | 'teal' | 'gray';
+
+const PARTS: { emoji: string; title: string; color: PartColor; ids: string[] }[] = [
+  { emoji: '🚀', title: '시작하기', color: 'indigo', ids: ['manual-s1', 'manual-s2', 'manual-s3'] },
+  { emoji: '🖥️', title: '화면과 데이터 기반', color: 'sky', ids: ['manual-s4', 'manual-s5', 'manual-s6', 'manual-s7'] },
+  { emoji: '📋', title: 'SKU 계획 프로세스', color: 'violet', ids: ['manual-s8', 'manual-s9', 'manual-s10'] },
+  { emoji: '💰', title: '프라이싱', color: 'amber', ids: ['manual-s11', 'manual-s12', 'manual-s13'] },
+  { emoji: '🧮', title: '계산과 인프라', color: 'teal', ids: ['manual-s14', 'manual-s15', 'manual-s16', 'manual-s17'] },
+  { emoji: '🧭', title: '참고', color: 'gray', ids: ['manual-s18', 'manual-s19'] },
+];
+
+const PART_STYLES: Record<PartColor, { dot: string; label: string; toc: string }> = {
+  indigo: { dot: 'bg-indigo-500', label: 'text-indigo-700', toc: 'hover:bg-indigo-50 hover:text-indigo-700 hover:border-indigo-200' },
+  sky:    { dot: 'bg-sky-500',    label: 'text-sky-700',    toc: 'hover:bg-sky-50 hover:text-sky-700 hover:border-sky-200' },
+  violet: { dot: 'bg-violet-500', label: 'text-violet-700', toc: 'hover:bg-violet-50 hover:text-violet-700 hover:border-violet-200' },
+  amber:  { dot: 'bg-amber-500',  label: 'text-amber-700',  toc: 'hover:bg-amber-50 hover:text-amber-700 hover:border-amber-200' },
+  teal:   { dot: 'bg-teal-500',   label: 'text-teal-700',   toc: 'hover:bg-teal-50 hover:text-teal-700 hover:border-teal-200' },
+  gray:   { dot: 'bg-gray-400',   label: 'text-gray-600',   toc: 'hover:bg-gray-50 hover:text-gray-700 hover:border-gray-300' },
+};
+
+// 로그인 화면(LoginScreen.tsx ROLE_META)과 동일한 배색을 그대로 씀 — 앱 전체에서 같은 역할은 항상 같은 색
+const ROLE_BADGE_STYLES: Record<string, string> = {
+  master: 'bg-indigo-100 text-indigo-700',
+  pm: 'bg-violet-100 text-violet-700',
+  viewer: 'bg-gray-100 text-gray-600',
+  platform_md: 'bg-emerald-100 text-emerald-700',
+  brand_md: 'bg-amber-100 text-amber-700',
+  global: 'bg-sky-100 text-sky-700',
+};
+
+const CPO_STAGES = [
+  { label: '기획/아이디어', bg: 'bg-rose-100', text: 'text-rose-700' },
+  { label: '시안/샘플링', bg: 'bg-orange-100', text: 'text-orange-700' },
+  { label: '제작 시작', bg: 'bg-amber-100', text: 'text-amber-700' },
+  { label: '상세 작성', bg: 'bg-lime-100', text: 'text-lime-700' },
+  { label: '사진 촬영', bg: 'bg-emerald-100', text: 'text-emerald-700' },
+  { label: '상세 작업중', bg: 'bg-teal-100', text: 'text-teal-700' },
+  { label: '상세 완료', bg: 'bg-sky-100', text: 'text-sky-700' },
+  { label: '오픈/완료', bg: 'bg-indigo-100', text: 'text-indigo-700' },
+];
+
+const FIELD_STATUS_STYLES: Record<'lock' | 'both' | 'open', string> = {
+  lock: 'bg-amber-100 text-amber-700',
+  both: 'bg-sky-100 text-sky-700',
+  open: 'bg-emerald-100 text-emerald-700',
+};
+
 export function ManualTab() {
   function scrollTo(id: string) {
     document.getElementById(id)?.scrollIntoView({ behavior: 'auto', block: 'start' });
@@ -39,25 +86,39 @@ export function ManualTab() {
         목차
       </button>
 
-      {/* 목차 */}
+      {/* 목차 — Part 색상별 그룹핑 */}
       <section id="manual-toc" className="scroll-mt-20 bg-white border border-gray-200 rounded-xl overflow-hidden">
         <div className="px-4 py-2.5 bg-gray-50 border-b border-gray-200">
           <h2 className="text-xs font-bold text-gray-500 uppercase tracking-widest">목차</h2>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 border-t border-l border-gray-200">
-          {TOC_ITEMS.map((item) => {
-            const [, num, title] = item.label.match(/^(\d+)\.\s*(.*)$/) ?? [null, '', item.label];
+        <div className="p-4 space-y-4">
+          {PARTS.map((part) => {
+            const style = PART_STYLES[part.color];
+            const items = TOC_ITEMS.filter((it) => part.ids.includes(it.id));
             return (
-              <button
-                key={item.id}
-                onClick={() => scrollTo(item.id)}
-                className="flex items-center gap-2.5 px-4 py-2.5 border-b border-r border-gray-200 text-left text-xs text-gray-600 hover:bg-indigo-50 hover:text-indigo-700 transition-colors"
-              >
-                <span className="flex-shrink-0 w-5 h-5 rounded bg-gray-100 text-gray-400 text-[10px] font-bold flex items-center justify-center">
-                  {num}
-                </span>
-                <span className="truncate">{title}</span>
-              </button>
+              <div key={part.title}>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className={`w-2 h-2 rounded-full ${style.dot}`} />
+                  <span className={`text-[11px] font-bold uppercase tracking-wider ${style.label}`}>{part.emoji} {part.title}</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                  {items.map((item) => {
+                    const [, num, title] = item.label.match(/^(\d+)\.\s*(.*)$/) ?? [null, '', item.label];
+                    return (
+                      <button
+                        key={item.id}
+                        onClick={() => scrollTo(item.id)}
+                        className={`flex items-center gap-2.5 px-3 py-2 rounded-lg border border-gray-200 text-left text-xs text-gray-600 transition-colors ${style.toc}`}
+                      >
+                        <span className="flex-shrink-0 w-5 h-5 rounded bg-gray-100 text-gray-400 text-[10px] font-bold flex items-center justify-center">
+                          {num}
+                        </span>
+                        <span className="truncate">{title}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             );
           })}
         </div>
@@ -65,13 +126,14 @@ export function ManualTab() {
 
       {/* 1. 개요 */}
       <section id="manual-s1" className="scroll-mt-20 bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
-        <h2 className="text-base font-bold text-gray-900 mb-3 pb-1 border-b border-gray-200">📋 1. 개요</h2>
+        <Eyebrow color="indigo">PART 1 · 시작하기</Eyebrow>
+        <h2 className="text-lg font-bold text-gray-900 mb-3">📋 1. 개요</h2>
         <Callout>
           쉽게 말하면 — 신규 SKU 하나가 세상에 나오기까지 필요한 계획(발주 수량 · 채널별 목표 · 판매가)을
           한 화면에 모아두고, 전략팀 · MD팀 · 마케팅팀 · CPO가 각자 자기 파트를 입력하면 예상 매출과
           이익이 자동으로 계산되는 협업 도구예요.
         </Callout>
-        <p className="text-xs text-gray-600 mb-3">
+        <p className="text-sm text-gray-600 mb-3">
           Product Dashboard는 신규 SKU(제품)를 출시하기 전, 전략팀·MD팀·마케팅팀·CPO가 한 화면에서
           발주 수량 계획, 채널별 목표량, 예상 매출과 공헌이익을 동시에 검토하고 협업할 수 있도록 만들어진
           내부 의사결정 도구입니다.
@@ -100,145 +162,124 @@ export function ManualTab() {
 
       {/* 2. 사용자 역할 및 권한 */}
       <section id="manual-s2" className="scroll-mt-20 bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
-        <h2 className="text-base font-bold text-gray-900 mb-3 pb-1 border-b border-gray-200">🔑 2. 사용자 역할 및 권한</h2>
-        <p className="text-xs text-gray-500 mb-2">역할별로 4자리 PIN 코드를 입력해 로그인합니다. (구 marketing·cs 역할은 viewer로 통합되었으며, 기존 PIN은 자동 승계됩니다.)</p>
-        <table className="w-full border-collapse text-xs">
-          <thead>
-            <tr className="bg-gray-100">
-              <Th>역할</Th>
-              <Th>표시명</Th>
-              <Th>주요 권한 (기본값)</Th>
-            </tr>
-          </thead>
-          <tbody>
-            <Tr><Td>master</Td><Td>MASTER</Td><Td>모든 기능 편집 가능. PIN 관리, 권한 설정, 백업·복원, 확정 로그 조회. 권한이 항상 전체 고정</Td></Tr>
-            <Tr><Td>pm</Td><Td>화면에 따라 PM 또는 CPO</Td><Td>SKU 기본 정보·월별 계획(STEP 1) 입력, 프라이싱 시나리오 편집. 최종 발주 확정. SKU 일괄 추가</Td></Tr>
-            <Tr><Td>viewer</Td><Td>VIEWER</Td><Td>뷰어 전용. 모든 정보 열람 가능, 편집 불가 (구 마케팅·CS/경영지원 역할 통합)</Td></Tr>
-            <Tr><Td>platform_md</Td><Td>플랫폼MD</Td><Td>채널별 목표량(STEP 2) 입력, 프라이싱 시나리오 편집. 자사몰 채널 확정, 오픈일정 확정</Td></Tr>
-            <Tr><Td>brand_md</Td><Td>브랜드MD</Td><Td>채널별 목표량(STEP 2) 입력, 프라이싱 시나리오 편집. 스스·위탁·B2B 채널 확정, 오픈일정 확정</Td></Tr>
-            <Tr><Td>global</Td><Td>글로벌</Td><Td>채널별 목표량(STEP 2) 입력. 일본·글로벌 채널 확정, 오픈일정 확정</Td></Tr>
-          </tbody>
-        </table>
+        <Eyebrow color="indigo">PART 1 · 시작하기</Eyebrow>
+        <h2 className="text-lg font-bold text-gray-900 mb-3">🔑 2. 사용자 역할 및 권한</h2>
+        <p className="text-sm text-gray-500 mb-3">역할별로 4자리 PIN 코드를 입력해 로그인합니다. (구 marketing·cs 역할은 viewer로 통합되었으며, 기존 PIN은 자동 승계됩니다.)</p>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mb-3">
+          <RoleCard roleKey="master" label="MASTER">
+            모든 기능 편집 가능. PIN 관리, 권한 설정, 백업·복원, 확정 로그 조회. 권한이 항상 전체 고정
+          </RoleCard>
+          <RoleCard roleKey="pm" label="PM · CPO">
+            SKU 기본 정보·월별 계획(STEP 1) 입력, 프라이싱 시나리오 편집. 최종 발주 확정. SKU 일괄 추가
+          </RoleCard>
+          <RoleCard roleKey="platform_md" label="플랫폼MD">
+            채널별 목표량(STEP 2) 입력, 프라이싱 시나리오 편집. 자사몰 채널 확정, 오픈일정 확정
+          </RoleCard>
+          <RoleCard roleKey="brand_md" label="브랜드MD">
+            채널별 목표량(STEP 2) 입력, 프라이싱 시나리오 편집. 스스·위탁·B2B 채널 확정, 오픈일정 확정
+          </RoleCard>
+          <RoleCard roleKey="global" label="글로벌">
+            채널별 목표량(STEP 2) 입력. 일본·글로벌 채널 확정, 오픈일정 확정
+          </RoleCard>
+          <RoleCard roleKey="viewer" label="VIEWER">
+            뷰어 전용. 모든 정보 열람 가능, 편집 불가 (구 마케팅·CS/경영지원 역할 통합)
+          </RoleCard>
+        </div>
+
         <Callout tone="warn" title="⚠️ pm 역할 표시명이 화면마다 다릅니다">
           로그인 화면·상단 배지에는 <strong>PM</strong>으로, 확정 이력·휴지통 화면에는 <strong>CPO</strong>로 표시됩니다.
           같은 역할(내부 값은 항상 <code className="bg-white px-1 py-0.5 rounded border border-amber-200">'pm'</code>)이니
           둘 다 보이면 당황하지 마세요. 3장에서 설명하는 "CPO 대시보드 연동" 기능과는 전혀 무관한, 순수 표시상의 차이입니다.
         </Callout>
-        <NoteList className="mt-2" items={[
+        <NoteList items={[
           <>위 권한은 고정 값이 아니라 <strong>관리 탭 &gt; 권한 관리</strong>에서 역할별로 5개 항목(SKU 기본정보 / STEP1 / STEP2 / 오픈일정 확정 / 발주 확정)을 언제든 켜고 끌 수 있습니다. master 행만 항상 전체 편집 가능으로 고정됩니다.</>,
           <>프라이싱 시나리오(할인율 선택·자동/수동 전환·가격확정)는 마스터·PM·플랫폼MD·브랜드MD 4개 역할만 편집할 수 있습니다 — 11장 참고.</>,
           <>STEP2 채널 확정 버튼은 "STEP2 권한 보유 여부"만 확인하므로, 역할과 담당 채널 그룹이 다르더라도(예: 글로벌 담당이 브랜드 확정) 버튼 자체는 노출될 수 있습니다.</>,
         ]} />
       </section>
 
-      {/* 3. CPO 대시보드 연동 (신규) */}
+      {/* 3. CPO 대시보드 연동 */}
       <section id="manual-s3" className="scroll-mt-20 bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
-        <h2 className="text-base font-bold text-gray-900 mb-3 pb-1 border-b border-gray-200">🔗 3. CPO 대시보드 연동</h2>
+        <Eyebrow color="indigo">PART 1 · 시작하기</Eyebrow>
+        <h2 className="text-lg font-bold text-gray-900 mb-3">🔗 3. CPO 대시보드 연동</h2>
         <Callout>
           쉽게 말하면 — 요즘 새로 만드는 SKU는 대부분 <strong>CPO 대시보드</strong>(기획 단계를 관리하는 별도 도구)에서
           먼저 기획되고, 그 정보가 자동으로 이 대시보드까지 흘러들어옵니다. 그래서 일부 항목은 여기서 손댈 수 없고
           CPO 쪽에서만 고칠 수 있어요 — 마치 CPO가 "원본", 여기는 그 원본을 보여주는 "사본"인 항목들이 있는 셈입니다.
         </Callout>
 
-        <p className="text-xs font-semibold text-gray-600 mb-2">SKU 카드 자동 생성·정리</p>
-        <table className="w-full border-collapse text-xs mb-4">
-          <thead>
-            <tr className="bg-gray-100">
-              <Th>동작</Th>
-              <Th>조건</Th>
-            </tr>
-          </thead>
-          <tbody>
-            <Tr><Td>자동 생성</Td><Td>CPO 기획이 활성 상태(기획/아이디어·시안/샘플링·제작 시작·상세 작성·사진 촬영·상세 작업중·상세 완료·오픈/완료 중 하나)가 되고, 이 대시보드에 아직 대응 카드가 없으면 자동으로 SKU 카드 생성</Td></Tr>
-            <Tr><Td>목록 숨김</Td><Td>CPO 상태가 Holding·Cancel이거나, CPO 오픈일이 아직 정해지지 않았으면 LIST VIEW·SKU 리스트 등에서 숨겨짐 (데이터는 삭제되지 않고, 조건이 풀리면 자동으로 다시 보임)</Td></Tr>
-            <Tr><Td>자동 휴지통 이동</Td><Td>CPO 쪽에서 기획 자체가 사라지면 이 카드도 자동으로 휴지통 이동(15일 뒤 영구삭제 — 다른 삭제와 동일 규칙). 단, 사용자가 이미 직접 휴지통으로 보낸 카드는 CPO가 여전히 활성 상태여도 되살아나지 않음</Td></Tr>
-          </tbody>
-        </table>
-        <p className="text-xs text-gray-400 mb-4">* 관리 탭은 이 숨김 규칙과 무관하게 항상 전체 SKU를 보여줍니다 (관리자가 숨겨진 데이터도 점검할 수 있도록 둔 의도적 예외).</p>
+        <h3 className="text-sm font-semibold text-gray-600 mb-2">기획 상태 8단계</h3>
+        <Pipeline />
 
-        <p className="text-xs font-semibold text-gray-600 mb-2">필드별 CPO 연동 현황 (SKU가 CPO 기획과 연결된 경우)</p>
-        <table className="w-full border-collapse text-xs mb-3">
-          <thead>
-            <tr className="bg-gray-100">
-              <Th>필드</Th>
-              <Th>상태</Th>
-              <Th>이 대시보드에서 보이는 모습</Th>
-            </tr>
-          </thead>
-          <tbody>
-            <Tr><Td>오픈일</Td><Td>양방향</Td><Td>어느 쪽에서 고쳐도 서로 반영됨</Td></Tr>
-            <Tr><Td>SKU명</Td><Td>CPO 전용 (읽기전용)</Td><Td>입력칸이 잠기고, CPO 기획 문서로 이동하는 [기획 보러가기 ↗] 링크가 뜸</Td></Tr>
-            <Tr><Td>판매가 · 원가 · 정가</Td><Td>CPO 전용 (읽기전용)</Td><Td>회색 읽기전용 박스로 표시. CPO 쪽 가격이 아직 확정 전이면 "CPO 미확정"·"CPO 미입력"으로 표시. [기획 대시보드에서 수정 가능 ↗] 링크로 이동</Td></Tr>
-            <Tr><Td>입고예정일 · 촬영예정일</Td><Td>CPO 전용 (읽기전용)</Td><Td>날짜 입력칸이 잠김</Td></Tr>
-            <Tr><Td>컬러 · 사이즈 옵션</Td><Td>CPO 전용 (읽기전용)</Td><Td>CPO에서 등록한 옵션 구성이 그대로 표시</Td></Tr>
-            <Tr><Td>썸네일 이미지</Td><Td>CPO 전용 (단방향 동기화)</Td><Td>CPO 쪽 썸네일이 자동으로 반영</Td></Tr>
-            <Tr><Td>그 외 필드</Td><Td>이 대시보드에서 직접 편집</Td><Td>총 발주량, MOQ, STEP1~3 계획, 프라이싱 시나리오 설정 등은 CPO와 무관하게 그대로 편집 가능</Td></Tr>
-          </tbody>
-        </table>
+        <h3 className="text-sm font-semibold text-gray-600 mb-2 mt-4">SKU 카드 자동 생성·정리</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 mb-2">
+          <FeatureCard title="🆕 자동 생성">
+            CPO 기획이 활성 상태(위 8단계 중 하나)가 되고 이 대시보드에 아직 대응 카드가 없으면 자동으로 SKU 카드 생성
+          </FeatureCard>
+          <FeatureCard title="🙈 목록 숨김">
+            CPO 상태가 Holding·Cancel이거나 CPO 오픈일이 아직 없으면 LIST VIEW 등에서 숨겨짐 (데이터는 안 지워지고, 조건이 풀리면 자동 재노출)
+          </FeatureCard>
+          <FeatureCard title="🗑️ 자동 휴지통 이동">
+            CPO 쪽에서 기획이 사라지면 이 카드도 자동으로 휴지통 이동(15일 뒤 영구삭제). 이미 직접 휴지통으로 보낸 카드는 되살아나지 않음
+          </FeatureCard>
+        </div>
+        <NoteList items={[
+          <>관리 탭은 이 숨김 규칙과 무관하게 항상 전체 SKU를 보여줍니다 (관리자가 숨겨진 데이터도 점검할 수 있도록 둔 의도적 예외).</>,
+        ]} />
+
+        <h3 className="text-sm font-semibold text-gray-600 mb-2 mt-4">필드별 CPO 연동 현황 (SKU가 CPO 기획과 연결된 경우)</h3>
+        <div className="rounded-xl border border-gray-200 overflow-hidden mb-3">
+          <FieldRow name="오픈일" status="both" statusLabel="↔ 양방향" desc="어느 쪽에서 고쳐도 서로 반영됨" />
+          <FieldRow name="SKU명" status="lock" statusLabel="🔒 CPO 전용" desc="입력칸이 잠기고 [기획 보러가기 ↗] 링크가 뜸" />
+          <FieldRow name="판매가·원가·정가" status="lock" statusLabel="🔒 CPO 전용" desc={'회색 읽기전용 박스, 미확정 시 "CPO 미확정" 표시. [기획 대시보드에서 수정 가능 ↗] 링크로 이동'} />
+          <FieldRow name="입고·촬영예정일" status="lock" statusLabel="🔒 CPO 전용" desc="날짜 입력칸이 잠김" />
+          <FieldRow name="컬러·사이즈 옵션" status="lock" statusLabel="🔒 CPO 전용" desc="CPO에서 등록한 옵션 구성이 그대로 표시" />
+          <FieldRow name="썸네일 이미지" status="lock" statusLabel="🔒 CPO 전용" desc="CPO 쪽 썸네일이 자동으로 반영 (단방향 동기화)" />
+          <FieldRow name="그 외 필드" status="open" statusLabel="✏️ 직접 편집" desc="총 발주량·MOQ·STEP1~3 계획·프라이싱 설정 등은 CPO와 무관하게 그대로 편집 가능" />
+        </div>
+
         <Callout tone="warn" title="⚠️ 가격 잠금은 두 가지가 서로 다릅니다">
           "CPO 잠금"(위 표의 판매가·원가·정가 — CPO 연동 여부로 결정)과 "가격확정 잠금"(8장·11장의 🔒 가격확정 토글 —
           역할 권한으로 아무 SKU나 확정 가능)은 <strong>완전히 별개의 메커니즘</strong>입니다. CPO 연동 SKU도 가격확정을
           걸 수 있고, 그러면 프라이싱 모달의 시나리오 표까지 추가로 잠깁니다. 두 잠금이 동시에 걸려 있을 수도 있습니다.
         </Callout>
 
-        <p className="text-xs font-semibold text-gray-600 mb-2">기타</p>
-        <table className="w-full border-collapse text-xs mb-2">
-          <thead>
-            <tr className="bg-gray-100">
-              <Th>항목</Th>
-              <Th>내용</Th>
-            </tr>
-          </thead>
-          <tbody>
-            <Tr><Td>진행상태·담당자 표시</Td><Td>카드 상단에 CPO 진행상태 뱃지(예: "상세 작업중")와 기획 담당자 이름이 표시됨 (읽기전용, CPO가 원본)</Td></Tr>
-            <Tr><Td>마케팅 브리프</Td><Td>CPO 연동 SKU는 브리프 작성 패널 대신 [기획 보러가기 ↗] 링크로 대체됨 — 12장 참고</Td></Tr>
-            <Tr><Td>CPO 미연동 SKU (레거시)</Td><Td>위 잠금이 하나도 적용되지 않고, 예전 방식 그대로 모든 필드를 직접 입력</Td></Tr>
-            <Tr><Td>SKU 일괄 추가</Td><Td>상단 [+ 일괄 추가] 버튼으로 CSV(엑셀 붙여넣기)를 통해 여러 SKU를 한 번에 만드는 별도 경로도 남아 있습니다 (SKU 기본정보 권한 보유자에게 노출)</Td></Tr>
-          </tbody>
-        </table>
+        <h3 className="text-sm font-semibold text-gray-600 mb-2 mt-4">기타</h3>
+        <TermList items={[
+          { term: '진행상태·담당자 표시', desc: '카드 상단에 CPO 진행상태 뱃지(예: "상세 작업중")와 기획 담당자 이름이 표시됨 (읽기전용, CPO가 원본)' },
+          { term: '마케팅 브리프', desc: 'CPO 연동 SKU는 브리프 작성 패널 대신 [기획 보러가기 ↗] 링크로 대체됨 — 12장 참고' },
+          { term: 'CPO 미연동 SKU (레거시)', desc: '위 잠금이 하나도 적용되지 않고, 예전 방식 그대로 모든 필드를 직접 입력' },
+          { term: 'SKU 일괄 추가', desc: '상단 [+ 일괄 추가] 버튼으로 CSV(엑셀 붙여넣기)를 통해 여러 SKU를 한 번에 만드는 별도 경로도 남아 있습니다 (SKU 기본정보 권한 보유자에게 노출)' },
+        ]} />
       </section>
 
       {/* 4. 화면 구성 */}
       <section id="manual-s4" className="scroll-mt-20 bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
-        <h2 className="text-base font-bold text-gray-900 mb-3 pb-1 border-b border-gray-200">🖥️ 4. 화면 구성</h2>
-        <p className="text-xs font-semibold text-gray-600 mb-2">상단 메인 탭 (로그인 직후 기본 진입 탭: 프로젝션)</p>
-        <table className="w-full border-collapse text-xs mb-4">
-          <thead>
-            <tr className="bg-gray-100">
-              <Th>탭명</Th>
-              <Th>대상</Th>
-              <Th>내용</Th>
-            </tr>
-          </thead>
-          <tbody>
-            <Tr><Td>프로젝션</Td><Td>전체</Td><Td>LIST VIEW / 채널별 오픈일정 두 서브탭으로 구성. 로그인 시 항상 이 탭(LIST VIEW)으로 초기화됨</Td></Tr>
-            <Tr><Td>SKU 리스트</Td><Td>전체</Td><Td>SKU 카드 목록. 각 SKU별 3단계 계획 진행. 카드↔목록(테이블) 뷰 토글 가능 (프로젝션의 LIST VIEW와는 별개 기능)</Td></Tr>
-            <Tr><Td>채널별 요약</Td><Td>MD·전략</Td><Td>전체 SKU의 채널별 출고·매출 요약 뷰</Td></Tr>
-            <Tr><Td>메뉴얼</Td><Td>전체</Td><Td>대시보드 사용 방법 가이드 (현재 페이지)</Td></Tr>
-            <Tr><Td>관리</Td><Td>MASTER 전용</Td><Td>PIN 관리 / 권한 관리 / 쿠팡 채널 / 데이터 정리 / 관리자 메모 5개 서브탭</Td></Tr>
-          </tbody>
-        </table>
+        <Eyebrow color="sky">PART 2 · 화면과 데이터 기반</Eyebrow>
+        <h2 className="text-lg font-bold text-gray-900 mb-3">🖥️ 4. 화면 구성</h2>
 
-        <p className="text-xs font-semibold text-gray-600 mb-2">SKU 카드 구성</p>
-        <table className="w-full border-collapse text-xs mb-4">
-          <thead>
-            <tr className="bg-gray-100">
-              <Th>영역</Th>
-              <Th>내용</Th>
-            </tr>
-          </thead>
-          <tbody>
-            <Tr><Td>카드 상단 기본 정보</Td><Td>SKU명 / 브랜드 / 카테고리 / 제품 유형(시즈널·스테디·미해당) / 출시일 / 원가 / 판매가 / 총 발주량 / MOQ / 사이즈 수·컬러 수. CPO 연동 SKU는 진행상태·담당자 뱃지가 추가로 표시(3장 참고)</Td></Tr>
-            <Tr><Td>가격확정 토글</Td><Td>프라이싱 모달의 시나리오 표(할인율 선택·자동/수동 편집)를 잠금. SKU 카드의 판매가·원가·정가 입력 자체와는 별개 — CPO 연동 SKU는 이 필드들이 확정 여부와 무관하게 항상 CPO 전용 읽기전용(3장). 프라이싱 시나리오 권한 보유자(마스터·PM·플랫폼MD·브랜드MD)만 조작 가능</Td></Tr>
-            <Tr><Td>프라이싱 시나리오 버튼</Td><Td>판매가·원가 정보 위에 위치. 클릭 시 전체 B2C/B2B 시나리오 모달 팝업</Td></Tr>
-            <Tr><Td>대응 SKU 패널</Td><Td>기존 SKU 검색·선택, Tableau 실적 데이터 자동 로드, 비교 기간 설정</Td></Tr>
-            <Tr><Td>마케팅 브리프 버튼</Td><Td>클릭 시 SKU별 마케팅 전략 작성 패널 팝업 (CPO 연동 SKU는 [기획 보러가기] 링크로 대체 — 12장)</Td></Tr>
-            <Tr><Td>STEP 탭</Td><Td>월별 계획(STEP 1) / 채널별 목표량 설정(STEP 2) / 채널별 수량 확인(STEP 3)</Td></Tr>
-          </tbody>
-        </table>
+        <h3 className="text-sm font-semibold text-gray-600 mb-2">상단 메인 탭 <span className="font-normal text-gray-400">(로그인 직후 기본 진입 탭: 프로젝션)</span></h3>
+        <TermList items={[
+          { term: '프로젝션', desc: 'LIST VIEW / 채널별 오픈일정 두 서브탭. 로그인 시 항상 이 탭(LIST VIEW)으로 초기화됨' },
+          { term: 'SKU 리스트', desc: 'SKU 카드 목록. 각 SKU별 3단계 계획 진행. 카드↔목록(테이블) 뷰 토글 가능 (프로젝션 LIST VIEW와는 별개)' },
+          { term: '채널별 요약', desc: '전체 SKU의 채널별 출고·매출 요약 뷰 (MD·전략 대상)' },
+          { term: '메뉴얼', desc: '대시보드 사용 방법 가이드 (현재 페이지)' },
+          { term: '관리', desc: 'PIN 관리 / 권한 관리 / 쿠팡 채널 / 데이터 정리 / 관리자 메모 5개 서브탭 (MASTER 전용)' },
+        ]} />
 
-        <p className="text-xs font-semibold text-gray-600 mb-2">프로젝션 &gt; LIST VIEW</p>
-        <p className="text-xs text-gray-600 mb-2">
+        <h3 className="text-sm font-semibold text-gray-600 mb-2 mt-4">SKU 카드 구성</h3>
+        <TermList items={[
+          { term: '카드 상단 기본 정보', desc: 'SKU명 / 브랜드 / 카테고리 / 제품 유형 / 출시일 / 원가 / 판매가 / 총 발주량 / MOQ / 사이즈·컬러 수. CPO 연동 SKU는 진행상태·담당자 뱃지 추가 표시(3장)' },
+          { term: '가격확정 토글', desc: '프라이싱 모달의 시나리오 표(할인율 선택·자동/수동 편집)를 잠금. SKU 카드의 판매가·원가·정가 입력 자체와는 별개 — CPO 연동 SKU는 이 필드들이 확정 여부와 무관하게 항상 CPO 전용 읽기전용(3장). 프라이싱 시나리오 권한 보유자(마스터·PM·플랫폼MD·브랜드MD)만 조작 가능' },
+          { term: '프라이싱 시나리오 버튼', desc: '판매가·원가 정보 위에 위치. 클릭 시 전체 B2C/B2B 시나리오 모달 팝업' },
+          { term: '대응 SKU 패널', desc: '기존 SKU 검색·선택, Tableau 실적 데이터 자동 로드, 비교 기간 설정' },
+          { term: '마케팅 브리프 버튼', desc: '클릭 시 SKU별 마케팅 전략 작성 패널 팝업 (CPO 연동 SKU는 [기획 보러가기] 링크로 대체 — 12장)' },
+          { term: 'STEP 탭', desc: '월별 계획(STEP 1) / 채널별 목표량 설정(STEP 2) / 채널별 수량 확인(STEP 3)' },
+        ]} />
+
+        <h3 className="text-sm font-semibold text-gray-600 mb-2 mt-4">프로젝션 &gt; LIST VIEW</h3>
+        <p className="text-sm text-gray-600 mb-2">
           전체 SKU를 테이블 형태로 조회. 오픈일 → 브랜드 → 카테고리(식품 → 장난감 → 용품 → 잡화 → 의류 고정 순서) → SKU명
           순으로 자동 정렬.
         </p>
@@ -261,8 +302,8 @@ export function ManualTab() {
           </tbody>
         </table>
 
-        <p className="text-xs font-semibold text-gray-600 mb-2">프로젝션 &gt; 채널별 오픈일정</p>
-        <p className="text-xs text-gray-600 mb-2">채널(플랫폼·스스·위탁·B2B·글로벌·기타)별 오픈 예정일을 개별 입력하고, SKU 오픈일 대비 선오픈/동시오픈 여부를 자동 배지로 표시합니다. 기타 채널은 이름을 직접 입력할 수 있고, 메모 입력란도 제공됩니다. 날짜 캘린더 팝업에서는 날짜 초기화 옆 [미판매로 표시] 버튼으로 해당 채널을 "이 SKU는 이 채널에서 안 판다"는 미판매 상태로 지정할 수 있습니다.</p>
+        <h3 className="text-sm font-semibold text-gray-600 mb-2">프로젝션 &gt; 채널별 오픈일정</h3>
+        <p className="text-sm text-gray-600 mb-2">채널(플랫폼·스스·위탁·B2B·글로벌·기타)별 오픈 예정일을 개별 입력하고, SKU 오픈일 대비 선오픈/동시오픈 여부를 자동 배지로 표시합니다. 기타 채널은 이름을 직접 입력할 수 있고, 메모 입력란도 제공됩니다. 날짜 캘린더 팝업에서는 날짜 초기화 옆 [미판매로 표시] 버튼으로 해당 채널을 "이 SKU는 이 채널에서 안 판다"는 미판매 상태로 지정할 수 있습니다.</p>
         <table className="w-full border-collapse text-xs">
           <thead>
             <tr className="bg-gray-100">
@@ -279,7 +320,8 @@ export function ManualTab() {
 
       {/* 5. 데이터 소스 */}
       <section id="manual-s5" className="scroll-mt-20 bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
-        <h2 className="text-base font-bold text-gray-900 mb-3 pb-1 border-b border-gray-200">📊 5. 데이터 소스</h2>
+        <Eyebrow color="sky">PART 2 · 화면과 데이터 기반</Eyebrow>
+        <h2 className="text-lg font-bold text-gray-900 mb-3">📊 5. 데이터 소스</h2>
         <table className="w-full border-collapse text-xs mb-2">
           <thead>
             <tr className="bg-gray-100">
@@ -300,9 +342,10 @@ export function ManualTab() {
 
       {/* 6. 채널·카테고리 매핑 */}
       <section id="manual-s6" className="scroll-mt-20 bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
-        <h2 className="text-base font-bold text-gray-900 mb-3 pb-1 border-b border-gray-200">🗂️ 6. 채널·카테고리 매핑</h2>
+        <Eyebrow color="sky">PART 2 · 화면과 데이터 기반</Eyebrow>
+        <h2 className="text-lg font-bold text-gray-900 mb-3">🗂️ 6. 채널·카테고리 매핑</h2>
 
-        <p className="text-xs font-semibold text-gray-600 mb-2">Tableau 원본 채널명 → 대시보드 채널명</p>
+        <h3 className="text-sm font-semibold text-gray-600 mb-2">Tableau 원본 채널명 → 대시보드 채널명</h3>
         <table className="w-full border-collapse text-xs mb-4">
           <thead>
             <tr className="bg-gray-100">
@@ -323,7 +366,7 @@ export function ManualTab() {
         </table>
         <p className="text-xs text-gray-400 mb-4">* 쿠팡은 기본적으로 모든 SKU에서 비활성 채널입니다. 관리 탭 &gt; 쿠팡 채널에서 개별 SKU를 활성화하면 그 SKU에 한해 STEP2 채널별 목표량·대응SKU 실적/비중·채널별 요약 뷰에 쿠팡이 정상 포함됩니다.</p>
 
-        <p className="text-xs font-semibold text-gray-600 mb-2">대시보드 채널 → Tableau 채널ROI용 (변동비 조회)</p>
+        <h3 className="text-sm font-semibold text-gray-600 mb-2">대시보드 채널 → Tableau 채널ROI용 (변동비 조회)</h3>
         <table className="w-full border-collapse text-xs mb-4">
           <thead>
             <tr className="bg-gray-100">
@@ -341,7 +384,7 @@ export function ManualTab() {
           </tbody>
         </table>
 
-        <p className="text-xs font-semibold text-gray-600 mb-2">대시보드 카테고리 → Tableau 팀 구분카테 (변동비 조회)</p>
+        <h3 className="text-sm font-semibold text-gray-600 mb-2">대시보드 카테고리 → Tableau 팀 구분카테 (변동비 조회)</h3>
         <table className="w-full border-collapse text-xs">
           <thead>
             <tr className="bg-gray-100">
@@ -360,7 +403,8 @@ export function ManualTab() {
 
       {/* 7. 집계 기간 모드 */}
       <section id="manual-s7" className="scroll-mt-20 bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
-        <h2 className="text-base font-bold text-gray-900 mb-3 pb-1 border-b border-gray-200">📅 7. 집계 기간 모드</h2>
+        <Eyebrow color="sky">PART 2 · 화면과 데이터 기반</Eyebrow>
+        <h2 className="text-lg font-bold text-gray-900 mb-3">📅 7. 집계 기간 모드</h2>
         <table className="w-full border-collapse text-xs">
           <thead>
             <tr className="bg-gray-100">
@@ -387,8 +431,9 @@ export function ManualTab() {
 
       {/* 8. STEP 1 */}
       <section id="manual-s8" className="scroll-mt-20 bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
-        <h2 className="text-base font-bold text-gray-900 mb-3 pb-1 border-b border-gray-200">1️⃣ 8. STEP 1 — 월별 발주 계획 (PM 담당)</h2>
-        <p className="text-xs text-gray-600 mb-3">7월부터 익년 2월까지 8개월을 기준으로 월별 발주 수량을 입력합니다. 입력한 월별 수량은 STEP 2 초기값의 기준이 됩니다.</p>
+        <Eyebrow color="violet">PART 3 · SKU 계획 프로세스</Eyebrow>
+        <h2 className="text-lg font-bold text-gray-900 mb-3">1️⃣ 8. STEP 1 — 월별 발주 계획 (PM 담당)</h2>
+        <p className="text-sm text-gray-600 mb-3">7월부터 익년 2월까지 8개월을 기준으로 월별 발주 수량을 입력합니다. 입력한 월별 수량은 STEP 2 초기값의 기준이 됩니다.</p>
         <table className="w-full border-collapse text-xs">
           <thead>
             <tr className="bg-gray-100">
@@ -420,10 +465,11 @@ export function ManualTab() {
 
       {/* 9. STEP 2 */}
       <section id="manual-s9" className="scroll-mt-20 bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
-        <h2 className="text-base font-bold text-gray-900 mb-3 pb-1 border-b border-gray-200">2️⃣ 9. STEP 2 — 채널별 목표량 설정 (MD 담당)</h2>
-        <p className="text-xs text-gray-600 mb-3">MD가 각 채널별·월별 목표 수량을 직접 설정하고, 판매가 시나리오를 설정해 예상 순매출과 공헌이익을 실시간으로 확인합니다.</p>
+        <Eyebrow color="violet">PART 3 · SKU 계획 프로세스</Eyebrow>
+        <h2 className="text-lg font-bold text-gray-900 mb-3">2️⃣ 9. STEP 2 — 채널별 목표량 설정 (MD 담당)</h2>
+        <p className="text-sm text-gray-600 mb-3">MD가 각 채널별·월별 목표 수량을 직접 설정하고, 판매가 시나리오를 설정해 예상 순매출과 공헌이익을 실시간으로 확인합니다.</p>
 
-        <p className="text-xs font-semibold text-gray-600 mb-2">자동 초기값 세팅 순서</p>
+        <h3 className="text-sm font-semibold text-gray-600 mb-2">자동 초기값 세팅 순서</h3>
         <StepFlow steps={[
           { label: '대응 SKU 설정 시', desc: '채널별 출고 비중 기준으로 배분' },
           { label: '대응 SKU 없을 시', desc: '고정 기본 채널비중 사용 (아래)' },
@@ -435,7 +481,7 @@ export function ManualTab() {
           <>쿠팡이 비활성화된 SKU는 이 자동 배분 대상에서 제외됩니다 (대응SKU 실적·비중 계산에도 미포함). 관리 탭에서 쿠팡을 활성화한 SKU만 배분에 포함됩니다.</>,
         ]} />
 
-        <p className="text-xs font-semibold text-gray-600 mb-2">채널 요약 테이블 (토글 닫힌 상태)</p>
+        <h3 className="text-sm font-semibold text-gray-600 mb-2 mt-4">채널 요약 테이블 (토글 닫힌 상태)</h3>
         <table className="w-full border-collapse text-xs mb-4">
           <thead>
             <tr className="bg-gray-100">
@@ -455,7 +501,7 @@ export function ManualTab() {
           </tbody>
         </table>
 
-        <p className="text-xs font-semibold text-gray-600 mb-2">채널 상세 테이블 (토글 열린 상태 — B2C·B2B 채널)</p>
+        <h3 className="text-sm font-semibold text-gray-600 mb-2">채널 상세 테이블 (토글 열린 상태 — B2C·B2B 채널)</h3>
         <table className="w-full border-collapse text-xs mb-3">
           <thead>
             <tr className="bg-gray-100">
@@ -493,7 +539,7 @@ export function ManualTab() {
         <p className="text-xs text-gray-400 mb-1">* 변동비율은 수수료를 포함한 Tableau 실적 데이터 기반 역산값입니다. 데이터 없을 시 기본값 25% fallback.</p>
         <p className="text-xs text-gray-400 mb-4">* 채널별 판매가(channelPricing)에 표시되는 수수료율 입력값은 참고용으로만 저장되며, 실제 순매출·공헌이익 계산에는 반영되지 않습니다.</p>
 
-        <p className="text-xs font-semibold text-gray-600 mb-2">채널 확정 프로세스</p>
+        <h3 className="text-sm font-semibold text-gray-600 mb-2">채널 확정 프로세스</h3>
         <table className="w-full border-collapse text-xs mb-4">
           <thead>
             <tr className="bg-gray-100">
@@ -510,8 +556,8 @@ export function ManualTab() {
         </table>
         <p className="text-xs text-gray-400 mb-4">* "MD 확정"은 하나의 버튼이 아니라 위 3개 그룹으로 나뉘어 있으며, STEP2 편집 권한이 있으면 그룹-역할이 정확히 일치하지 않아도 버튼이 노출됩니다. 채널 목표량 수정 후에는 [되돌리기] 버튼으로 직전 상태로 복구할 수 있습니다 (카드를 닫으면 되돌리기 불가).</p>
 
-        <p className="text-xs font-semibold text-gray-600 mb-2">마케팅 채널 (B2C 하단 별도 섹션)</p>
-        <p className="text-xs text-gray-500 mb-2">
+        <h3 className="text-sm font-semibold text-gray-600 mb-2">마케팅 채널 (B2C 하단 별도 섹션)</h3>
+        <p className="text-sm text-gray-500 mb-2">
           마케팅 협찬·샘플 등 판매 외 목적으로 사용되는 수량을 기록하는 비용 채널입니다. B2C·B2B 판매 채널과 달리 판매가/수수료 개념이 없으며, 수량 입력 시 발생하는 비용이 SKU의 순매출과 공헌이익에서 차감됩니다.
         </p>
         <table className="w-full border-collapse text-xs mb-3">
@@ -535,8 +581,9 @@ export function ManualTab() {
 
       {/* 10. STEP 3 */}
       <section id="manual-s10" className="scroll-mt-20 bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
-        <h2 className="text-base font-bold text-gray-900 mb-3 pb-1 border-b border-gray-200">3️⃣ 10. STEP 3 — 채널별 수량 확인 (MD 확인용)</h2>
-        <p className="text-xs text-gray-600 mb-3">STEP 2에서 입력한 채널별 목표량을 기반으로, 월별·옵션별 최종 수량을 확인합니다. 별도 재무 계산은 없습니다.</p>
+        <Eyebrow color="violet">PART 3 · SKU 계획 프로세스</Eyebrow>
+        <h2 className="text-lg font-bold text-gray-900 mb-3">3️⃣ 10. STEP 3 — 채널별 수량 확인 (MD 확인용)</h2>
+        <p className="text-sm text-gray-600 mb-3">STEP 2에서 입력한 채널별 목표량을 기반으로, 월별·옵션별 최종 수량을 확인합니다. 별도 재무 계산은 없습니다.</p>
         <table className="w-full border-collapse text-xs">
           <thead>
             <tr className="bg-gray-100">
@@ -556,13 +603,14 @@ export function ManualTab() {
 
       {/* 11. 프라이싱 시나리오 */}
       <section id="manual-s11" className="scroll-mt-20 bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
-        <h2 className="text-base font-bold text-gray-900 mb-3 pb-1 border-b border-gray-200">💰 11. 프라이싱 시나리오</h2>
+        <Eyebrow color="amber">PART 4 · 프라이싱</Eyebrow>
+        <h2 className="text-lg font-bold text-gray-900 mb-3">💰 11. 프라이싱 시나리오</h2>
         <Callout>
           쉽게 말하면 — 이 SKU를 오픈특가로 팔 때, 세일할 때, B2B로 납품할 때, 일본·글로벌에 공급할 때 등
           "이 상황이면 얼마에 팔지"를 미리 다 계산해서 한 번에 보여주는 시뮬레이터예요. STEP 2에서 채널별로
           하나씩 고르는 것과 달리, 여기서는 <strong>모든 시나리오를 동시에</strong> 훑어볼 수 있습니다.
         </Callout>
-        <p className="text-xs text-gray-600 mb-3">
+        <p className="text-sm text-gray-600 mb-3">
           SKU 카드 내 [프라이싱 시나리오] 버튼, 또는 LIST VIEW의 [프라이싱] 버튼을 클릭하면 해당 SKU의 모든 판매가 시나리오를 한눈에 확인할 수 있는 모달이 열립니다.
           STEP 2에서 채널별로 설정한 시나리오와 달리, 여기서는 <strong>전체 B2C/B2B 시나리오를 동시에 조회</strong>하는 참고용 뷰입니다.
         </p>
@@ -607,9 +655,9 @@ export function ManualTab() {
           </FeatureCard>
         </FeatureGrid>
 
-        <p className="text-xs font-semibold text-gray-600 mb-2">B2C 시나리오 계산식</p>
+        <h3 className="text-sm font-semibold text-gray-600 mb-2">B2C 시나리오 계산식</h3>
         <p className="text-xs text-gray-500 mb-1">* ceil10(x) = x를 10원 단위 올림 (B2B 오픈 할인·B2B 상시 운영만 예외적으로 round10 유지) &nbsp;|&nbsp; 오픈특가 = floor((ceil10(base × (1 − 특가최대할인율)) − 901) ÷ 1000) × 1000 + 900</p>
-        <p className="text-xs text-gray-500 mb-2">
+        <p className="text-sm text-gray-500 mb-2">
           특가 최대할인율(20%/15%/10%) · 상시 최대할인율(15%/10%/5%) · 시즌오프 할인율(25%/30%)은 SKU별로 프라이싱 모달에서 직접 선택 가능합니다 (마스터·PM·플랫폼MD·브랜드MD만 변경 가능, 변경 시 해당 SKU에만 반영). 아래 계산식의 기본값은 20%/15%/25% 기준입니다.
         </p>
         <table className="w-full border-collapse text-xs mb-4">
@@ -631,7 +679,7 @@ export function ManualTab() {
           </tbody>
         </table>
 
-        <p className="text-xs font-semibold text-gray-600 mb-2">B2B 시나리오 계산식</p>
+        <h3 className="text-sm font-semibold text-gray-600 mb-2">B2B 시나리오 계산식</h3>
         <table className="w-full border-collapse text-xs mb-3">
           <thead>
             <tr className="bg-gray-100">
@@ -657,7 +705,7 @@ export function ManualTab() {
           </tbody>
         </table>
 
-        <p className="text-xs font-semibold text-gray-600 mb-2">원가율 색상 기준 (프라이싱 모달 내)</p>
+        <h3 className="text-sm font-semibold text-gray-600 mb-2">원가율 색상 기준 (프라이싱 모달 내)</h3>
         <table className="w-full border-collapse text-xs mb-2">
           <thead>
             <tr className="bg-gray-100">
@@ -677,63 +725,36 @@ export function ManualTab() {
 
       {/* 12. 마케팅 브리프 */}
       <section id="manual-s12" className="scroll-mt-20 bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
-        <h2 className="text-base font-bold text-gray-900 mb-3 pb-1 border-b border-gray-200">📣 12. 마케팅 브리프 (Marketing Brief)</h2>
-        <p className="text-xs text-gray-600 mb-3">
+        <Eyebrow color="amber">PART 4 · 프라이싱</Eyebrow>
+        <h2 className="text-lg font-bold text-gray-900 mb-3">📣 12. 마케팅 브리프 (Marketing Brief)</h2>
+        <p className="text-sm text-gray-600 mb-3">
           SKU 카드에서 [마케팅 브리프] 버튼을 클릭하면 SKU별 마케팅 전략을 작성할 수 있습니다.
           입력 후 800ms 디바운스 자동 저장되며, Firestore에 영구 보관됩니다.
         </p>
-        <table className="w-full border-collapse text-xs mb-3">
-          <thead>
-            <tr className="bg-gray-100">
-              <Th>항목</Th>
-              <Th>설명</Th>
-            </tr>
-          </thead>
-          <tbody>
-            <Tr>
-              <Td>① 경쟁사 타겟 제품</Td>
-              <Td>경쟁 제품명·판매가·주간 예상 매출 입력. 당사 판매가 대비 가격 경쟁력 자동 산정</Td>
-            </Tr>
-            <Tr>
-              <Td>② 타겟 고객</Td>
-              <Td>목표 고객층 자유 텍스트 입력</Td>
-            </Tr>
-            <Tr>
-              <Td>③ 마케팅 제안</Td>
-              <Td>마케팅 전략·채널 활용 방안 자유 텍스트 입력</Td>
-            </Tr>
-            <Tr>
-              <Td>④ PSP / KSP / USP</Td>
-              <Td>구매자극요소 / 판매핵심요소 / 차별화요소 입력</Td>
-            </Tr>
-            <Tr>
-              <Td>⑤ 비고</Td>
-              <Td>기타 메모</Td>
-            </Tr>
-          </tbody>
-        </table>
-        <p className="text-xs text-gray-400">* 마케팅(뷰어) 역할은 마케팅 브리프 내용을 열람만 가능하며 편집할 수 없습니다.</p>
-        <p className="mt-1 text-xs text-gray-400">* CPO 대시보드와 연동된 SKU는 이 브리프 패널 자체가 뜨지 않고, 대신 CPO 기획 문서로 바로 이동하는 [기획 보러가기 ↗] 버튼이 표시됩니다 — 3장 참고.</p>
+        <TermList items={[
+          { term: '① 경쟁사 타겟 제품', desc: '경쟁 제품명·판매가·주간 예상 매출 입력. 당사 판매가 대비 가격 경쟁력 자동 산정' },
+          { term: '② 타겟 고객', desc: '목표 고객층 자유 텍스트 입력' },
+          { term: '③ 마케팅 제안', desc: '마케팅 전략·채널 활용 방안 자유 텍스트 입력' },
+          { term: '④ PSP / KSP / USP', desc: '구매자극요소 / 판매핵심요소 / 차별화요소 입력' },
+          { term: '⑤ 비고', desc: '기타 메모' },
+        ]} />
+        <NoteList items={[
+          <>마케팅(뷰어) 역할은 마케팅 브리프 내용을 열람만 가능하며 편집할 수 없습니다.</>,
+          <>CPO 대시보드와 연동된 SKU는 이 브리프 패널 자체가 뜨지 않고, 대신 CPO 기획 문서로 바로 이동하는 [기획 보러가기 ↗] 버튼이 표시됩니다 — 3장 참고.</>,
+        ]} />
       </section>
 
       {/* 13. 대응 SKU 패널 */}
       <section id="manual-s13" className="scroll-mt-20 bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
-        <h2 className="text-base font-bold text-gray-900 mb-3 pb-1 border-b border-gray-200">🔍 13. 대응 SKU 패널</h2>
-        <p className="text-xs text-gray-600 mb-3">새 SKU와 비교할 기존 SKU를 설정하면 Tableau에서 데이터를 자동으로 불러와 참고 지표로 활용합니다.</p>
-        <table className="w-full border-collapse text-xs mb-3">
-          <thead>
-            <tr className="bg-gray-100">
-              <Th>기능</Th>
-              <Th>설명</Th>
-            </tr>
-          </thead>
-          <tbody>
-            <Tr><Td>SKU 검색 및 다중 선택</Td><Td>복수 SKU 선택 시 출고량 합산하여 비교 기준으로 사용</Td></Tr>
-            <Tr><Td>비교 기간 선택</Td><Td>"직전 12개월" 또는 "동기간 (전년도 동월)" 중 선택. 변동비율 계산 기간과도 동기화</Td></Tr>
-            <Tr><Td>월평균·연간 출고량</Td><Td>선택한 기간 기준 자동 표시</Td></Tr>
-            <Tr><Td>채널별 출고 비중</Td><Td>차트 시각화. STEP 2 초기값 세팅에 활용</Td></Tr>
-          </tbody>
-        </table>
+        <Eyebrow color="amber">PART 4 · 프라이싱</Eyebrow>
+        <h2 className="text-lg font-bold text-gray-900 mb-3">🔍 13. 대응 SKU 패널</h2>
+        <p className="text-sm text-gray-600 mb-3">새 SKU와 비교할 기존 SKU를 설정하면 Tableau에서 데이터를 자동으로 불러와 참고 지표로 활용합니다.</p>
+        <TermList items={[
+          { term: 'SKU 검색 및 다중 선택', desc: '복수 SKU 선택 시 출고량 합산하여 비교 기준으로 사용' },
+          { term: '비교 기간 선택', desc: '"직전 12개월" 또는 "동기간 (전년도 동월)" 중 선택. 변동비율 계산 기간과도 동기화' },
+          { term: '월평균·연간 출고량', desc: '선택한 기간 기준 자동 표시' },
+          { term: '채널별 출고 비중', desc: '차트 시각화. STEP 2 초기값 세팅에 활용' },
+        ]} />
         <table className="w-full border-collapse text-xs">
           <thead>
             <tr className="bg-gray-100">
@@ -751,7 +772,8 @@ export function ManualTab() {
 
       {/* 14. 핵심 계산 수식 */}
       <section id="manual-s14" className="scroll-mt-20 bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
-        <h2 className="text-base font-bold text-gray-900 mb-3 pb-1 border-b border-gray-200">🧮 14. 핵심 계산 수식</h2>
+        <Eyebrow color="teal">PART 5 · 계산과 인프라</Eyebrow>
+        <h2 className="text-lg font-bold text-gray-900 mb-3">🧮 14. 핵심 계산 수식</h2>
         <Callout>
           쉽게 말하면 — 이 대시보드 어디서든 매출·이익이 표시되는 화면은 결국 이 5개 수식 위에서 돌아갑니다.
           STEP2, SKU 카드, 채널별 요약 뷰까지 전부 동일한 공식을 씁니다.
@@ -802,7 +824,8 @@ export function ManualTab() {
 
       {/* 15. 환율 자동 갱신 */}
       <section id="manual-s15" className="scroll-mt-20 bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
-        <h2 className="text-base font-bold text-gray-900 mb-3 pb-1 border-b border-gray-200">💱 15. 환율 자동 갱신</h2>
+        <Eyebrow color="teal">PART 5 · 계산과 인프라</Eyebrow>
+        <h2 className="text-lg font-bold text-gray-900 mb-3">💱 15. 환율 자동 갱신</h2>
         <table className="w-full border-collapse text-xs mb-2">
           <thead>
             <tr className="bg-gray-100">
@@ -824,13 +847,18 @@ export function ManualTab() {
 
       {/* 16. 데이터 저장 및 동기화 */}
       <section id="manual-s16" className="scroll-mt-20 bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
-        <h2 className="text-base font-bold text-gray-900 mb-3 pb-1 border-b border-gray-200">💾 16. 데이터 저장 및 동기화</h2>
-        <p className="text-xs font-semibold text-gray-600 mb-2">Firestore 저장 항목 (새로고침 후에도 유지)</p>
+        <Eyebrow color="teal">PART 5 · 계산과 인프라</Eyebrow>
+        <h2 className="text-lg font-bold text-gray-900 mb-3">💾 16. 데이터 저장 및 동기화</h2>
+        <h3 className="text-sm font-semibold text-gray-600 mb-2">Firestore 저장 항목 <span className="font-normal text-gray-400">(새로고침 후에도 유지)</span></h3>
         <ChipList items={['SKU 기본 정보', '사이즈·컬러 구성 및 수량', '월별 발주 계획', '채널별 월별 목표 수량', '채널별 판매가 시나리오 설정', '채널별 오픈일정', '가격확정·자사몰세팅 여부', 'SKU별 쿠팡 활성화 여부', '발주 확정 상태 및 확정 이력', '마케팅 브리프 내용']} />
-        <p className="text-xs text-gray-400 mb-3">* CPO 연동 필드(SKU명·판매가·원가·정가·입고예정일·촬영예정일·컬러/사이즈 옵션·썸네일)는 이 대시보드에도 저장되지만 원본은 CPO 대시보드입니다 — 3장 참고.</p>
+        <NoteList items={[
+          <>CPO 연동 필드(SKU명·판매가·원가·정가·입고예정일·촬영예정일·컬러/사이즈 옵션·썸네일)는 이 대시보드에도 저장되지만 원본은 CPO 대시보드입니다 — 3장 참고.</>,
+        ]} />
 
-        <p className="text-xs font-semibold text-gray-600 mb-2">발주 확정 프로세스</p>
-        <p className="text-xs text-gray-400 mb-2">* pm 역할이 일부 화면에서 "CPO"로 표시되지만(2장 참고), 이는 발주 확정 권한과는 무관한 표시명 차이일 뿐입니다. 최종 발주 확정은 발주 확정 권한 보유자(기본값: master·PM)가 수행하며, 화면에도 "PM확정" 뱃지로 표시됩니다.</p>
+        <h3 className="text-sm font-semibold text-gray-600 mb-2 mt-4">발주 확정 프로세스</h3>
+        <NoteList items={[
+          <>pm 역할이 일부 화면에서 "CPO"로 표시되지만(2장 참고), 이는 발주 확정 권한과는 무관한 표시명 차이일 뿐입니다. 최종 발주 확정은 발주 확정 권한 보유자(기본값: master·PM)가 수행하며, 화면에도 "PM확정" 뱃지로 표시됩니다.</>,
+        ]} className="mb-2" />
         <table className="w-full border-collapse text-xs mb-4">
           <thead>
             <tr className="bg-gray-100">
@@ -847,7 +875,7 @@ export function ManualTab() {
           </tbody>
         </table>
 
-        <p className="text-xs font-semibold text-gray-600 mb-2">백업 · 복원</p>
+        <h3 className="text-sm font-semibold text-gray-600 mb-2">백업 · 복원</h3>
         <table className="w-full border-collapse text-xs">
           <thead>
             <tr className="bg-gray-100">
@@ -866,25 +894,18 @@ export function ManualTab() {
 
       {/* 17. 채널별 요약 뷰 */}
       <section id="manual-s17" className="scroll-mt-20 bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
-        <h2 className="text-base font-bold text-gray-900 mb-3 pb-1 border-b border-gray-200">📈 17. 채널별 요약 뷰</h2>
-        <p className="text-xs text-gray-600 mb-3">
+        <Eyebrow color="teal">PART 5 · 계산과 인프라</Eyebrow>
+        <h2 className="text-lg font-bold text-gray-900 mb-3">📈 17. 채널별 요약 뷰</h2>
+        <p className="text-sm text-gray-600 mb-3">
           모든 SKU의 채널별 출고·매출 현황을 요약 테이블로 확인할 수 있습니다. 프로젝션 LIST VIEW와 동일한
           필터(카테고리·브랜드 다중선택, 오픈/완료 제외, 오픈월)가 이식되어 있어 원하는 범위만 골라 볼 수 있습니다.
         </p>
-        <table className="w-full border-collapse text-xs">
-          <thead>
-            <tr className="bg-gray-100">
-              <Th>항목</Th>
-              <Th>내용</Th>
-            </tr>
-          </thead>
-          <tbody>
-            <Tr><Td>전체 요약</Td><Td>전체 SKU의 채널별 총 수량·순매출·공헌이익 집계. 월별 트렌드 차트 포함</Td></Tr>
-            <Tr><Td>채널별 탭</Td><Td>채널을 여러 개 동시에 체크(다중선택)해서 선택한 채널들의 합산 수치를 볼 수 있습니다. SKU별 수량·매출·공헌이익 상세 조회, 채널별 월별 트렌드 차트 포함</Td></Tr>
-          </tbody>
-        </table>
+        <TermList items={[
+          { term: '전체 요약', desc: '전체 SKU의 채널별 총 수량·순매출·공헌이익 집계. 월별 트렌드 차트 포함' },
+          { term: '채널별 탭', desc: '채널을 여러 개 동시에 체크(다중선택)해서 선택한 채널들의 합산 수치를 볼 수 있습니다. SKU별 수량·매출·공헌이익 상세 조회, 채널별 월별 트렌드 차트 포함' },
+        ]} />
         <p className="mt-2 text-xs text-gray-400">* 공헌이익 계산은 섹션 14와 동일하게 Tableau 팀카테 역산 변동비율을 사용합니다 (없으면 25% fallback). 데이터가 정상 연동되면 파란색 "Tableau 변동비 비중 연동중" 배지가 표시됩니다. 단, 이 뷰는 SKU 카드별 비교기간(직전 12개월/동기간) 선택을 알 수 없으므로 항상 "직전 12개월" 기준으로 고정 계산됩니다 — 카드에서 동기간으로 보고 있는 값과 소폭 차이가 날 수 있습니다.</p>
-        <p className="mt-3 text-xs text-gray-600 bg-indigo-50 border border-indigo-100 rounded-lg px-3 py-2">
+        <p className="mt-3 text-sm text-gray-600 bg-indigo-50 border border-indigo-100 rounded-lg px-3 py-2">
           <strong className="text-indigo-700">이 뷰와 STEP2(SKU카드) 계산의 일치 범위:</strong><br />
           <strong>판매가 시나리오 공식과 환율은 STEP2와 완전히 동일합니다.</strong> 채널별 요약 뷰는 시나리오 계산을 따로 복제하지 않고 STEP2와 같은 <code className="text-[11px] bg-white px-1 py-0.5 rounded border border-indigo-100">pricingScenarios.ts</code>를 그대로 가져다 쓰고, 환율도 같은 실시간 환율(useExchangeRates)을 사용하므로 오픈특가·글로벌공급가·일본공급가 등 어떤 시나리오를 걸어둬도 STEP2에 뜨는 단가와 항상 같습니다.<br />
           <strong>다만 변동비율만은 근사치입니다.</strong> STEP2는 SKU 1건마다 그 SKU에 설정된 대응SKU·비교기간을 반영해서 변동비율을 계산하지만, 이 요약 뷰는 SKU 수백 건을 한 번에 보여줘야 해서 <strong>카테고리×채널 단위로 미리 계산해둔 공통 값</strong>(직전 12개월 고정)을 모든 SKU에 동일하게 적용합니다. 그래서 순매출은 STEP2와 100% 일치해도, <strong>공헌이익·CM%는 대응SKU를 "동기간"으로 설정해둔 SKU에서 소폭 차이가 날 수 있습니다.</strong>
@@ -893,30 +914,24 @@ export function ManualTab() {
 
       {/* 18. UI 동작 */}
       <section id="manual-s18" className="scroll-mt-20 bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
-        <h2 className="text-base font-bold text-gray-900 mb-3 pb-1 border-b border-gray-200">🧭 18. UI 동작 — 페이지 상태 유지</h2>
-        <p className="text-xs text-gray-600 mb-2">새로고침 후에도 직전 상태가 복원됩니다. sessionStorage 기반으로 브라우저 탭 단위로 유지되며, 탭을 닫으면 초기화됩니다. 단, 로그인 직후에는 이 복원 규칙과 무관하게 항상 프로젝션 &gt; LIST VIEW로 초기화됩니다.</p>
-        <table className="w-full border-collapse text-xs mb-3">
-          <thead>
-            <tr className="bg-gray-100">
-              <Th>유지되는 상태</Th>
-              <Th>설명</Th>
-            </tr>
-          </thead>
-          <tbody>
-            <Tr><Td>메인 탭</Td><Td>마지막으로 열었던 탭 (프로젝션 / SKU 리스트 / 채널별 요약 / 메뉴얼 / 관리)으로 복원</Td></Tr>
-            <Tr><Td>프로젝션 서브탭</Td><Td>LIST VIEW / 채널별 오픈일정 중 마지막 선택값 복원</Td></Tr>
-            <Tr><Td>카테고리 필터</Td><Td>SKU 리스트 탭의 카테고리 선택값 복원</Td></Tr>
-            <Tr><Td>브랜드 필터</Td><Td>선택된 브랜드 복원</Td></Tr>
-          </tbody>
-        </table>
-        <p className="text-xs font-semibold text-gray-600 mb-2">뒤로가기 (내비게이션 히스토리)</p>
-        <p className="text-xs text-gray-600">LIST VIEW 등에서 SKU 카드로 이동하면 이동 전 상태(탭·필터·검색어·펼쳐진 카드·스크롤 위치, 최대 20단계)가 기록됩니다. 상단의 [뒤로가기] 버튼을 누르면 이동 전 화면으로 정확히 복원됩니다. 이 기능은 새로고침 유지와는 별개로, 새로고침 시에는 필터·검색어·스크롤 위치가 초기화됩니다.</p>
+        <Eyebrow color="gray">PART 6 · 참고</Eyebrow>
+        <h2 className="text-lg font-bold text-gray-900 mb-3">🧭 18. UI 동작 — 페이지 상태 유지</h2>
+        <p className="text-sm text-gray-600 mb-3">새로고침 후에도 직전 상태가 복원됩니다. sessionStorage 기반으로 브라우저 탭 단위로 유지되며, 탭을 닫으면 초기화됩니다. 단, 로그인 직후에는 이 복원 규칙과 무관하게 항상 프로젝션 &gt; LIST VIEW로 초기화됩니다.</p>
+        <TermList items={[
+          { term: '메인 탭', desc: '마지막으로 열었던 탭 (프로젝션 / SKU 리스트 / 채널별 요약 / 메뉴얼 / 관리)으로 복원' },
+          { term: '프로젝션 서브탭', desc: 'LIST VIEW / 채널별 오픈일정 중 마지막 선택값 복원' },
+          { term: '카테고리 필터', desc: 'SKU 리스트 탭의 카테고리 선택값 복원' },
+          { term: '브랜드 필터', desc: '선택된 브랜드 복원' },
+        ]} />
+        <h3 className="text-sm font-semibold text-gray-600 mb-2 mt-4">뒤로가기 (내비게이션 히스토리)</h3>
+        <p className="text-sm text-gray-600">LIST VIEW 등에서 SKU 카드로 이동하면 이동 전 상태(탭·필터·검색어·펼쳐진 카드·스크롤 위치, 최대 20단계)가 기록됩니다. 상단의 [뒤로가기] 버튼을 누르면 이동 전 화면으로 정확히 복원됩니다. 이 기능은 새로고침 유지와는 별개로, 새로고침 시에는 필터·검색어·스크롤 위치가 초기화됩니다.</p>
       </section>
 
       {/* 19. 향후 개선 방향 */}
       <section id="manual-s19" className="scroll-mt-20 bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
-        <h2 className="text-base font-bold text-gray-900 mb-3 pb-1 border-b border-gray-200">🚀 19. 향후 개선 방향</h2>
-        <ul className="text-xs text-gray-600 space-y-1 list-disc list-inside">
+        <Eyebrow color="gray">PART 6 · 참고</Eyebrow>
+        <h2 className="text-lg font-bold text-gray-900 mb-3">🚀 19. 향후 개선 방향</h2>
+        <ul className="text-sm text-gray-600 space-y-1 list-disc list-inside">
           <li>Tableau 팀카테 뷰에 2025년 이전 데이터 추가 → 변동비율 계산 정확도 향상 [가능여부 검토중]</li>
           <li>SKU별 실시간 판매 실적 연동 (출시 후 추적 기능)</li>
           <li>채널별 목표 대비 실적 달성률 모니터링 탭 추가</li>
@@ -924,6 +939,16 @@ export function ManualTab() {
         </ul>
       </section>
 
+    </div>
+  );
+}
+
+function Eyebrow({ color, children }: { color: PartColor; children: React.ReactNode }) {
+  const style = PART_STYLES[color];
+  return (
+    <div className="flex items-center gap-2 mb-2">
+      <span className={`w-1.5 h-1.5 rounded-full ${style.dot}`} />
+      <span className={`text-[11px] font-bold uppercase tracking-wider ${style.label}`}>{children}</span>
     </div>
   );
 }
@@ -940,9 +965,66 @@ function Callout({
     : 'bg-indigo-50 border-indigo-100';
   const titleCls = tone === 'warn' ? 'text-amber-700' : 'text-indigo-700';
   return (
-    <div className={`rounded-xl border px-4 py-3 text-xs leading-relaxed text-gray-600 mb-3 ${boxCls}`}>
+    <div className={`rounded-xl border px-4 py-3 text-sm leading-relaxed text-gray-600 mb-3 ${boxCls}`}>
       {title && <p className={`font-bold mb-1 ${titleCls}`}>{title}</p>}
       {children}
+    </div>
+  );
+}
+
+function RoleCard({ roleKey, label, children }: { roleKey: string; label: string; children?: React.ReactNode }) {
+  return (
+    <div className="rounded-lg border border-gray-200 p-3">
+      <span className={`inline-flex px-2.5 py-1 rounded-full text-[11px] font-bold ${ROLE_BADGE_STYLES[roleKey]}`}>{label}</span>
+      <p className="text-xs text-gray-500 mt-2 leading-relaxed">{children}</p>
+    </div>
+  );
+}
+
+function Pipeline() {
+  return (
+    <div className="mb-3">
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-2">
+        {CPO_STAGES.map((s, i) => (
+          <div key={s.label} className="flex items-center gap-1.5 flex-shrink-0">
+            <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold whitespace-nowrap ${s.bg} ${s.text}`}>{s.label}</span>
+            {i < CPO_STAGES.length - 1 && <span className="text-gray-300 text-xs">→</span>}
+          </div>
+        ))}
+      </div>
+      <div className="flex items-center gap-4 flex-wrap text-xs text-gray-400 mt-1">
+        <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-gray-300 flex-shrink-0" />Holding — 잠시 보류 (카드 숨김)</span>
+        <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-gray-400 flex-shrink-0" />Cancel — 완전 취소 (카드 숨김)</span>
+      </div>
+    </div>
+  );
+}
+
+function FieldRow({
+  name, status, statusLabel, desc,
+}: {
+  name: string;
+  status: 'lock' | 'both' | 'open';
+  statusLabel: string;
+  desc: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-center gap-3 flex-wrap px-3.5 py-2.5 border-b border-gray-100 last:border-0">
+      <span className="text-xs font-semibold text-gray-700 w-[140px] flex-shrink-0">{name}</span>
+      <span className={`inline-flex flex-shrink-0 px-2 py-0.5 rounded-full text-[10.5px] font-bold whitespace-nowrap ${FIELD_STATUS_STYLES[status]}`}>{statusLabel}</span>
+      <span className="text-xs text-gray-500 flex-1 min-w-[140px]">{desc}</span>
+    </div>
+  );
+}
+
+function TermList({ items }: { items: { term: string; desc: React.ReactNode }[] }) {
+  return (
+    <div className="space-y-2 mb-3">
+      {items.map((it, i) => (
+        <p key={i} className="text-sm text-gray-600 leading-relaxed">
+          <strong className="text-gray-800">{it.term}</strong> — {it.desc}
+        </p>
+      ))}
     </div>
   );
 }
@@ -953,11 +1035,11 @@ function StepFlow({ steps }: { steps: { label: string; desc: string }[] }) {
       {steps.map((s, i) => (
         <div key={i} className="flex items-stretch gap-2">
           <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 min-w-[150px]">
-            <p className="flex items-center gap-1.5 text-[11px] font-bold text-gray-700 mb-0.5 whitespace-nowrap">
+            <p className="flex items-center gap-1.5 text-xs font-bold text-gray-700 mb-0.5 whitespace-nowrap">
               <span className="flex-shrink-0 w-4 h-4 rounded-full bg-indigo-500 text-white text-[9px] font-bold flex items-center justify-center">{i + 1}</span>
               {s.label}
             </p>
-            <p className="text-[11px] text-gray-500">{s.desc}</p>
+            <p className="text-xs text-gray-500">{s.desc}</p>
           </div>
           {i < steps.length - 1 && <span className="self-center text-gray-300 text-sm">→</span>}
         </div>
@@ -970,7 +1052,7 @@ function ChipList({ items, className = 'mb-3' }: { items: string[]; className?: 
   return (
     <div className={`flex flex-wrap gap-1.5 ${className}`}>
       {items.map((it) => (
-        <span key={it} className="px-2 py-1 rounded-full bg-gray-100 border border-gray-200 text-[11px] text-gray-600 whitespace-nowrap">
+        <span key={it} className="px-2 py-1 rounded-full bg-gray-100 border border-gray-200 text-xs text-gray-600 whitespace-nowrap">
           {it}
         </span>
       ))}
@@ -993,8 +1075,8 @@ function FeatureGrid({ children }: { children?: React.ReactNode }) {
 function FeatureCard({ title, children }: { title: string; children?: React.ReactNode }) {
   return (
     <div className="rounded-lg border border-gray-200 bg-gray-50/60 px-3 py-2.5">
-      <p className="text-[11px] font-bold text-gray-700 mb-1">{title}</p>
-      <div className="text-[11px] text-gray-500 leading-relaxed">{children}</div>
+      <p className="text-xs font-bold text-gray-700 mb-1">{title}</p>
+      <div className="text-xs text-gray-500 leading-relaxed">{children}</div>
     </div>
   );
 }
