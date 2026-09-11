@@ -757,7 +757,7 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
     const derived = deriveChannelMonthlySplit(sku);
     const updated = { ...sku, channelMonthlySplit: derived };
     set({ skus: get().skus.map((s) => (s.id === id ? updated : s)) });
-    await setDoc(doc(fsdb, SKUS_COL, id), toFirestore(updated));
+    await setDoc(doc(fsdb, SKUS_COL, id), toFirestore(updated), { merge: true });
   },
 
   updateChannelMonthRatio: (id, channel, month, ratio) => {
@@ -864,7 +864,7 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
     set({ skus: get().skus.map((s) => (s.id === id ? updated : s)) });
     const firestorePayload = toFirestore(updated);
     console.log('[확정] Firestore write 시작', { id, finalOrderConfirmedAt: firestorePayload.finalOrderConfirmedAt, hasQty: !!firestorePayload.finalOrderQty });
-    await setDoc(doc(fsdb, SKUS_COL, id), firestorePayload);
+    await setDoc(doc(fsdb, SKUS_COL, id), firestorePayload, { merge: true });
     // write 완료 후 실제 Firestore 상태 검증
     const verify = await getDoc(doc(fsdb, SKUS_COL, id));
     console.log('[확정] Firestore 검증', { finalOrderConfirmedAt: verify.data()?.finalOrderConfirmedAt, hasQty: !!verify.data()?.finalOrderQty });
@@ -963,7 +963,7 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
     if (!sku) return;
     const updated = { ...sku, [field]: value };
     set({ skus: get().skus.map((s) => (s.id === id ? updated : s)) });
-    await setDoc(doc(fsdb, SKUS_COL, id), toFirestore(updated));
+    await setDoc(doc(fsdb, SKUS_COL, id), toFirestore(updated), { merge: true });
     const CHANNEL_LABELS: Record<string, string> = {
       step2PlatformConfirmed: '플랫폼 확정',
       step2BrandConfirmed: '브랜드 확정',
@@ -990,7 +990,7 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
     };
     set({ skus: get().skus.map((s) => (s.id === id ? updated : s)) });
     try {
-      await setDoc(doc(fsdb, SKUS_COL, id), toFirestore(updated));
+      await setDoc(doc(fsdb, SKUS_COL, id), toFirestore(updated), { merge: true });
     } catch (err) {
       console.error('[setCoupangEnabled] Firestore 저장 실패:', id, err);
       throw err;
@@ -1006,7 +1006,7 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
     if (!sku) return;
     const updated = { ...sku, isPriceConfirmed: confirmed };
     set({ skus: get().skus.map((s) => (s.id === id ? updated : s)) });
-    await setDoc(doc(fsdb, SKUS_COL, id), toFirestore(updated));
+    await setDoc(doc(fsdb, SKUS_COL, id), toFirestore(updated), { merge: true });
     writeLog(id, sku.skuName, useAuth.getState().role ?? 'unknown', [{
       field: 'isPriceConfirmed', label: '가격 확정',
       from: formatLogValue(!confirmed), to: formatLogValue(confirmed),
@@ -1018,7 +1018,7 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
     if (!sku) return;
     const updated = { ...sku, scheduleConfirmed: confirmed };
     set({ skus: get().skus.map((s) => (s.id === id ? updated : s)) });
-    await setDoc(doc(fsdb, SKUS_COL, id), toFirestore(updated));
+    await setDoc(doc(fsdb, SKUS_COL, id), toFirestore(updated), { merge: true });
     writeLog(id, sku.skuName, useAuth.getState().role ?? 'unknown', [{
       field: 'scheduleConfirmed', label: '일정 확정',
       from: formatLogValue(!confirmed), to: formatLogValue(confirmed),
@@ -1030,7 +1030,7 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
     if (!sku) return;
     const updated = { ...sku, ...patch };
     set({ skus: get().skus.map((s) => (s.id === id ? updated : s)) });
-    await setDoc(doc(fsdb, SKUS_COL, id), toFirestore(updated));
+    await setDoc(doc(fsdb, SKUS_COL, id), toFirestore(updated), { merge: true });
     const labels: Record<string, string> = {
       specialMaxRate: '특가 최대할인율', regularMaxRate: '상시 최대할인율', seasonOffRate: '시즌오프 할인율',
     };
@@ -1050,7 +1050,7 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
       : prevHidden.filter((s) => s !== scenarioId);
     const updated = { ...sku, hiddenPricingScenarios: nextHidden };
     set({ skus: get().skus.map((s) => (s.id === id ? updated : s)) });
-    await setDoc(doc(fsdb, SKUS_COL, id), toFirestore(updated));
+    await setDoc(doc(fsdb, SKUS_COL, id), toFirestore(updated), { merge: true });
     const label = PRICING_SCENARIOS.find((s) => s.id === scenarioId)?.label ?? scenarioId;
     writeLog(id, sku.skuName, useAuth.getState().role ?? 'unknown', [{
       field: 'hiddenPricingScenarios', label: `${label} 행 표시`,
@@ -1065,7 +1065,7 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
     if (prevMemo === memo) return;
     const updated = { ...sku, pricingMemo: memo };
     set({ skus: get().skus.map((s) => (s.id === id ? updated : s)) });
-    await setDoc(doc(fsdb, SKUS_COL, id), toFirestore(updated));
+    await setDoc(doc(fsdb, SKUS_COL, id), toFirestore(updated), { merge: true });
     writeLog(id, sku.skuName, useAuth.getState().role ?? 'unknown', [{
       field: 'pricingMemo', label: '프라이싱 메모',
       from: formatLogValue(prevMemo), to: formatLogValue(memo),
@@ -1077,7 +1077,7 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
     if (!sku) return;
     const updated = { ...sku, ...patch };
     set({ skus: get().skus.map((s) => (s.id === id ? updated : s)) });
-    await setDoc(doc(fsdb, SKUS_COL, id), toFirestore(updated));
+    await setDoc(doc(fsdb, SKUS_COL, id), toFirestore(updated), { merge: true });
     const labels: Record<string, string> = {
       pricingPromoOpenSpecial: '오픈특가', pricingPromoNewWeek: '신상위크',
       pricingPromoLive: '라이브', pricingPromoExclusive: '선단독',
