@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
-import { useStore } from './store';
+import { useStore, useSkuSyncStatus } from './store';
 import { useAuth } from './store/auth';
 import { useCpoSync } from './store/cpoSync';
 import { useVisibleSkus } from './hooks/useVisibleSkus';
@@ -94,6 +94,7 @@ function App() {
   useCpoPriceSync();
   useCpoFieldSync();
   useCpoOptionSync();
+  const skuSyncError = useSkuSyncStatus((s) => s.error);
   useCpoThumbnailSync();
   const importSkus = useStore((s) => s.importSkus);
   const replaceAllSkus = useStore((s) => s.replaceAllSkus);
@@ -309,6 +310,12 @@ function App() {
   return (
     <div className="min-h-screen bg-gray-50">
       {showBulkImport && <BulkImportModal onClose={() => setShowBulkImport(false)} />}
+      {skuSyncError && (
+        <div className="sticky top-0 z-50 bg-red-600 text-white text-xs sm:text-sm px-4 py-2 flex items-center justify-center gap-3 flex-wrap">
+          <span>서버와 실시간 연결이 끊겨 이 화면의 데이터가 최신이 아닐 수 있어요. 덮어쓰기를 막기 위해 저장을 멈췄습니다.</span>
+          <button onClick={() => window.location.reload()} className="px-2.5 py-1 rounded bg-white text-red-600 font-semibold hover:bg-red-50">새로고침</button>
+        </div>
+      )}
       {/* 헤더 */}
       <header className="bg-white border-b border-gray-200 px-3 sm:px-6 py-3 flex items-center gap-2 flex-wrap">
         <div>
