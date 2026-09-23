@@ -1,6 +1,6 @@
 import * as XLSX from 'xlsx';
 import type { SkuData, Channel } from '../types';
-import { B2C_CHANNELS, B2B_CHANNELS, getSkuMonths, isNextYearMonth } from '../types';
+import { B2C_CHANNELS, B2B_CHANNELS, getSkuMonths, isNextYearMonth, getDisabledChannels } from '../types';
 import { PRICING_SCENARIOS, type PricingRates } from './pricingScenarios';
 
 function todayYymmdd(): string {
@@ -212,6 +212,9 @@ export function exportSimulationXlsx(params: SimExportParams): void {
 
   const ALL_CH = [...B2C_CHANNELS, ...B2B_CHANNELS] as Channel[];
   const NUM_CH = ALL_CH.length; // 8
+  // 관리자 설정으로 꺼진 글로벌/일본은 행 라벨에 "(비운영)" 표시 (쿠팡은 기본 비활성이라 표시 안 함)
+  const optOutOff = new Set<string>(getDisabledChannels(sku).filter((ch) => ch !== '쿠팡'));
+  const chLabel = (ch: Channel) => (optOutOff.has(ch) ? `${ch} (비운영)` : ch);
 
   // ── 셀 헬퍼 ──────────────────────────────────────────────────────────────
   const ws: XLSX.WorkSheet = {};
@@ -319,7 +322,7 @@ export function exportSimulationXlsx(params: SimExportParams): void {
     const r = R_PRICE_START + ci;
     const cp = sku.channelPricing?.find((p) => p.channel === ch);
     const base = (cp?.price && cp.price > 0) ? cp.price : sku.price;
-    sv(r, C_LABEL, ch);
+    sv(r, C_LABEL, chLabel(ch));
     skuMonths.forEach((m, mi) => {
       const optId = pricingOpts[`${ch}-${m}`] ?? DEFAULT_OPT_CH[ch] ?? '';
       sv(r, C_M[mi], simScenarioPrice(optId, base, usdKrw, jpyKrw, skuPricingRates));
@@ -350,7 +353,7 @@ export function exportSimulationXlsx(params: SimExportParams): void {
     // 변동비율: R_VAR_DATA에서 채널 순서대로 A,B,C... 열에 배치
     const varColLetter = cl(ci);
 
-    sv(r, C_LABEL, ch);
+    sv(r, C_LABEL, chLabel(ch));
 
     // 월별 수량 (값 — 사용자가 수정하는 셀)
     skuMonths.forEach((m, mi) => {

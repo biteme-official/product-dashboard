@@ -10,12 +10,45 @@ export const CHANNELS = ['자사몰', '스스', '위탁', '쿠팡', 'B2B', '사�
 export type Channel = typeof CHANNELS[number];
 export const B2C_CHANNELS: readonly Channel[] = ['자사몰', '스스', '위탁'];
 export const B2B_CHANNELS: readonly Channel[] = ['쿠팡', 'B2B', '사입및페어', '글로벌', '일본'];
+/** 기본 활성이지만 관리 탭에서 SKU별로 끌 수 있는 채널 (쿠팡과 반대 방향) */
+export const OPTOUT_CHANNELS = ['글로벌', '일본'] as const;
+export type OptOutChannel = typeof OPTOUT_CHANNELS[number];
+
 /**
  * SKU별 비활성 채널 목록 (채널 구조는 유지하되 수량 0 고정).
  * 쿠팡은 기본 비활성 — SkuData.coupangEnabled가 true인 SKU만 예외적으로 활성화됨.
+ * 글로벌/일본은 기본 활성 — SkuData.disabledChannels에 들어있는 SKU만 비활성.
  */
-export function getDisabledChannels(sku: { coupangEnabled?: boolean }): readonly Channel[] {
-  return sku.coupangEnabled ? [] : ['쿠팡'];
+export function getDisabledChannels(sku: { coupangEnabled?: boolean; disabledChannels?: OptOutChannel[] }): readonly Channel[] {
+  const optOut = (sku.disabledChannels ?? []).filter((ch) => (OPTOUT_CHANNELS as readonly string[]).includes(ch));
+  return sku.coupangEnabled ? optOut : ['쿠팡', ...optOut];
+}
+
+/**
+ * 글로벌/일본 채널 on/off를 잠글지 — 발주량 확정 또는 글로벌 확정 상태면 목표량이 확정된 것으로 보고
+ * 관리 탭에서 채널 설정을 바꾸지 못하게 한다 (확정값이 조용히 0/재분배되는 것 방지).
+ */
+export function isChannelToggleLocked(sku: { finalOrderConfirmedAt?: string | null; step2GlobalConfirmed?: boolean }): boolean {
+  return !!sku.finalOrderConfirmedAt || !!sku.step2GlobalConfirmed;
+}
+
+/** channelQtyDerivedFromCompareSkus에 넣으면 다음 STEP2 진입 때 무조건 재계산되게 하는 표식 (대응SKU 이름과 겹치지 않음) */
+export const STEP2_FORCE_RECALC_MARK = '__recalc__';
+
+/**
+ * 대응SKU 채널 실적 분포를 SKU의 비활성 채널 기준으로 보정.
+ * 태블로 "해외" 출고는 글로벌 40% / 일본 60%로 임의 분할돼 들어오므로, 둘 중 한쪽만 꺼진 SKU는
+ * 꺼진 쪽 몫을 남은 해외 채널로 전부 옮긴다 (국내 채널로 퍼지지 않게).
+ */
+export function adjustDistForDisabled(
+  dist: Record<string, number>,
+  disabled: readonly string[],
+): Record<string, number> {
+  const gOff = disabled.includes('글로벌');
+  const jOff = disabled.includes('일본');
+  if (gOff === jOff) return dist;
+  const [from, to] = gOff ? ['글로벌', '일본'] : ['일본', '글로벌'];
+  return { ...dist, [to]: (dist[to] ?? 0) + (dist[from] ?? 0), [from]: 0 };
 }
 
 export interface ChannelRatio {
@@ -191,6 +224,9 @@ export interface SkuData {
   step2InitBaselineQty?: ChannelMonthQtyEntry[]; // 초기화 시 계산된 수량 (비교 기준값, 영구 보존)
   channelQtyDerivedFromCompareSkus?: string[]; // channelMonthQty를 마지막으로 자동세팅한 대응SKU 목록 (재선택 감지용)
   coupangEnabled?: boolean; // true면 이 SKU만 쿠팡 채널 활성화 (관리자 탭에서 설정, 기본 false)
+  disabledChannels?: OptOutChannel[]; // 이 SKU에서 운영하지 않는 채널 (관리자 탭에서 설정, 기본 빈 배열 = 전부 활성)
+  /** 채널을 끌 때 백업해둔 채널×월 목표량 — 다시 켤 때 복원용. 복원/소진 후엔 빈 배열(merge 저장이라 키 삭제 대신 비움) */
+  disabledChannelBackup?: Partial<Record<OptOutChannel, ChannelMonthQtyEntry[]>>;
   finalOrderQty?: Record<string, number>;
   finalOrderConfirmedAt?: string | null;
   step2PlatformConfirmed?: boolean;

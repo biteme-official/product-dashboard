@@ -1,5 +1,5 @@
 import type { SkuData } from '../types';
-import { BRANDS, CHANNELS, B2C_CHANNELS, B2B_CHANNELS, getDisabledChannels, DEFAULT_CHANNEL_COMMISSION, getReleaseMonth, getSkuMonths, isNextYearMonth, type Month, type Channel } from '../types';
+import { BRANDS, CHANNELS, B2C_CHANNELS, B2B_CHANNELS, getDisabledChannels, adjustDistForDisabled, DEFAULT_CHANNEL_COMMISSION, getReleaseMonth, getSkuMonths, isNextYearMonth, type Month, type Channel, type OptOutChannel } from '../types';
 import type { ChannelMonthQtyEntry, ChannelPricing } from '../types';
 import { useStore } from '../store';
 import { useAuth } from '../store/auth';
@@ -746,7 +746,7 @@ function BasicInfoColumn({ sku, readOnly }: { sku: SkuData; readOnly?: boolean }
 // 기준 총량 = STEP1 월별 합계 (비중 합이 100% 초과 가능). STEP1 미입력 시 totalOrderQty 사용.
 // 월별 배분은 STEP1 monthlySplit 비율 기준 (없으면 균등 배분).
 function buildChannelMonthEntries(
-  compChannelDist: Record<string, number> | null | undefined,
+  rawCompChannelDist: Record<string, number> | null | undefined,
   sku: SkuData,
 ): ChannelMonthQtyEntry[] {
   const skuMs = getSkuMonths(sku.releaseDate);
@@ -763,6 +763,8 @@ function buildChannelMonthEntries(
   const disabledChannels = getDisabledChannels(sku) as readonly string[];
   const isDisabledCh = (ch: string) => disabledChannels.includes(ch);
   const activeChannels = CHANNELS.filter((ch) => !isDisabledCh(ch));
+  // 글로벌/일본 중 한쪽만 꺼졌으면 태블로 "해외" 실적을 남은 해외 채널로 몰아준다
+  const compChannelDist = rawCompChannelDist ? adjustDistForDisabled(rawCompChannelDist, disabledChannels) : rawCompChannelDist;
 
   // 비활성 채널(쿠팡) 제외 후 합산 — 포함하면 해당 비중만큼 합계가 줄어드는 버그 방지
   const distTotal = compChannelDist
@@ -993,7 +995,19 @@ function MonthlyTable({
                 ? '쿠팡 - 이 SKU는 관리자 설정으로 활성화됨. 대응SKU 실적·비중에 포함.'
                 : '쿠팡 - 신상 미등록으로 대응SKU 실적 및 비중에서 제외. (관리 탭에서 SKU별 활성화 가능)'}
             </p>
-            <p className="text-[11px] text-gray-400">태블로 해외 출고량은 글로벌 40% 인케어 60% 임의 분배.</p>
+            {(sku.disabledChannels ?? []).length > 0 && (
+              <p className="text-[11px] text-gray-400">
+                {(sku.disabledChannels ?? []).join('·')} - 이 SKU는 관리자 설정으로 비운영. 목표량 0 고정, 해당 비중은 나머지 채널로 배분. (관리 탭 › 채널 관리)
+              </p>
+            )}
+            <p className="text-[11px] text-gray-400">
+              {(() => {
+                const off = sku.disabledChannels ?? [];
+                if (off.length === 1) return `태블로 해외 출고량은 전부 ${off[0] === '글로벌' ? '일본' : '글로벌'}로 반영 (${off[0]} 비운영).`;
+                if (off.length >= 2) return '태블로 해외 출고량은 글로벌·일본 비운영으로 제외.';
+                return '태블로 해외 출고량은 글로벌 40% 인케어 60% 임의 분배.';
+              })()}
+            </p>
             {(() => {
               if (!sku.finalOrderConfirmedAt) return null;
               const confirmedTotal = (sku.finalOrderQty as Record<string, number> | undefined)?.__confirmedStep2Total__;
@@ -1105,6 +1119,9 @@ function MonthlyTable({
                   { field: 'step2BrandConfirmed',    label: '브랜드 확정', on: 'bg-amber-500 text-white hover:bg-amber-600',     off: 'border border-amber-400 bg-amber-50 text-amber-700 hover:bg-amber-100'   },
                   { field: 'step2GlobalConfirmed',   label: '글로벌 확정', on: 'bg-sky-600 text-white hover:bg-sky-700',         off: 'border border-sky-400 bg-sky-50 text-sky-700 hover:bg-sky-100'           },
                 ] as { field: 'step2PlatformConfirmed' | 'step2BrandConfirmed' | 'step2GlobalConfirmed'; label: string; on: string; off: string }[]
+              ).filter(({ field }) =>
+                // 글로벌·일본 둘 다 비운영이면 확정할 채널이 없으므로 글로벌 확정 버튼 숨김
+                field !== 'step2GlobalConfirmed' || !(['글로벌', '일본'] as const).every((ch) => (sku.disabledChannels ?? []).includes(ch)),
               ).map(({ field, label, on, off }) => {
                 const isOn = !!sku[field];
                 return (
@@ -1476,6 +1493,9 @@ function ChannelMonthTable({ sku, monthlySplit: _monthlySplit, skuMonths, releas
               )}
               <span className="inline-block w-2 h-2 rounded-full flex-shrink-0" style={{ background: CHANNEL_COLORS[channel] }} />
               <span>{channel}</span>
+              {(sku.disabledChannels ?? []).includes(channel as OptOutChannel) && (
+                <span className="text-[9px] px-1 rounded bg-gray-100 text-gray-400 font-normal">비운영</span>
+              )}
             </div>
           </td>
           <td className="px-2 py-1.5 text-center tabular-nums text-[11px]">
@@ -1900,6 +1920,9 @@ function PricingChannelTable({
                   <span className={`text-[10px] transition-transform duration-150 ${isExpanded ? 'rotate-90 text-indigo-500' : 'text-gray-400'}`}>▶</span>
                   <span className="inline-block w-2 h-2 rounded-full flex-shrink-0" style={{ background: CHANNEL_COLORS[channel] }} />
                   <span className={`text-[11px] truncate ${isExpanded ? 'font-bold text-indigo-700' : 'font-medium text-gray-700 group-hover:text-indigo-600'}`}>{channel}</span>
+                  {(sku.disabledChannels ?? []).includes(channel as OptOutChannel) && (
+                    <span className="text-[9px] px-1 rounded bg-gray-100 text-gray-400 flex-shrink-0">비운영</span>
+                  )}
                 </button>
               </td>
               {/* 채널 비중 */}

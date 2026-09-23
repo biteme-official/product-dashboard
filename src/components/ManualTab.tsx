@@ -263,7 +263,7 @@ export function ManualTab() {
           { term: 'SKU 리스트', desc: 'SKU 카드 목록. SKU별 3단계 계획 진행, 카드↔목록(테이블) 뷰 토글 (프로젝션 LIST VIEW와 별개)' },
           { term: '채널별 요약', desc: '전체 SKU의 채널별 출고·매출 요약 뷰 (MD·전략 대상)' },
           { term: '메뉴얼', desc: '대시보드 사용 가이드 (현재 페이지)' },
-          { term: '관리', desc: 'PIN 관리 / 권한 관리 / 쿠팡 채널 / 데이터 정리 / 관리자 메모 5개 서브탭 (MASTER 전용)' },
+          { term: '관리', desc: 'PIN 관리 / 권한 관리 / 채널 관리(쿠팡·글로벌·일본) / 데이터 정리 / 관리자 메모 5개 서브탭 (MASTER 전용)' },
         ]} />
 
         <h3 className="text-sm font-semibold text-gray-600 mb-2 mt-4">SKU 카드 구성</h3>
@@ -362,11 +362,12 @@ export function ManualTab() {
             <Tr><Td>사입 / 페어</Td><Td>사입및페어</Td><Td></Td></Tr>
             <Tr><Td>위탁</Td><Td>위탁</Td><Td>원본 채널명 그대로 사용 (별도 정규화 없음)</Td></Tr>
             <Tr><Td>쿠팡</Td><Td>쿠팡</Td><Td>SKU별 관리자 설정(coupangEnabled)이 켜진 SKU만 집계 포함. 기본은 비활성(수량 0) — 아래 참고</Td></Tr>
-            <Tr><Td>해외</Td><Td>글로벌 · 일본</Td><Td>글로벌 40% / 일본 60% 임의 분배</Td></Tr>
+            <Tr><Td>해외</Td><Td>글로벌 · 일본</Td><Td>글로벌 40% / 일본 60% 임의 분배. 한쪽만 비운영인 SKU는 해외 실적 전부를 남은 쪽으로 반영</Td></Tr>
             <Tr><Td>협찬 · 기타 · CS · 공구 · 팝업</Td><Td>—</Td><Td>집계에서 제외</Td></Tr>
           </tbody>
         </table>
-        <p className="text-xs text-gray-400 mb-4">* 쿠팡은 기본 비활성 채널. 관리 탭 &gt; 쿠팡 채널에서 SKU별 활성화 시 STEP2·대응SKU 실적/비중·채널별 요약 뷰에 정상 포함.</p>
+        <p className="text-xs text-gray-400 mb-1">* 쿠팡은 기본 비활성 채널. 관리 탭 &gt; 채널 관리 &gt; 쿠팡에서 SKU별 활성화 시 STEP2·대응SKU 실적/비중·채널별 요약 뷰에 정상 포함.</p>
+        <p className="text-xs text-gray-400 mb-4">* 글로벌·일본은 기본 활성 채널. 관리 탭 &gt; 채널 관리 &gt; 글로벌/일본에서 운영하지 않는 SKU만 골라 끌 수 있음(여러 개 한 번에 가능). 끈 SKU는 해당 채널 목표량 0 고정·비중은 나머지 채널로 배분, 끄기 전 수량은 백업돼 다시 켤 때 복원 가능. 발주량 확정·글로벌 확정 SKU는 잠김.</p>
 
         <h3 className="text-sm font-semibold text-gray-600 mb-2">대시보드 채널 → Tableau 채널ROI용 (변동비 조회)</h3>
         <table className="w-full border-collapse text-xs mb-4">
@@ -481,6 +482,7 @@ export function ManualTab() {
         <ChipList items={['자사몰 20%', '스스 30%', '위탁 5%', '쿠팡 10%', 'B2B 15%', '사입및페어 5%', '글로벌 5%', '일본 10%']} className="mb-2" />
         <NoteList items={[
           <>쿠팡이 비활성화된 SKU는 이 자동 배분에서 제외(대응SKU 실적·비중 계산에도 미포함). 관리 탭에서 활성화한 SKU만 배분 대상.</>,
+          <>글로벌·일본을 관리 탭에서 끈 SKU도 동일하게 자동 배분에서 제외되고, 그 비중은 나머지 채널로 배분.</>,
         ]} />
 
         <h3 className="text-sm font-semibold text-gray-600 mb-2 mt-4">채널 요약 테이블 (토글 닫힌 상태)</h3>
@@ -852,7 +854,7 @@ export function ManualTab() {
         <Eyebrow color="teal">PART 5 · 계산과 인프라</Eyebrow>
         <h2 className="text-lg font-bold text-gray-900 mb-3">💾 16. 데이터 저장 및 동기화</h2>
         <h3 className="text-sm font-semibold text-gray-600 mb-2">Firestore 저장 항목 <span className="font-normal text-gray-400">(새로고침 후에도 유지)</span></h3>
-        <ChipList items={['SKU 기본 정보', '사이즈·컬러 구성 및 수량', '월별 발주 계획', '채널별 월별 목표 수량', '채널별 판매가 시나리오 설정', '채널별 오픈일정', '가격확정·자사몰세팅 여부', 'SKU별 쿠팡 활성화 여부', '발주 확정 상태 및 확정 이력', '마케팅 브리프 내용']} />
+        <ChipList items={['SKU 기본 정보', '사이즈·컬러 구성 및 수량', '월별 발주 계획', '채널별 월별 목표 수량', '채널별 판매가 시나리오 설정', '채널별 오픈일정', '가격확정·자사몰세팅 여부', 'SKU별 쿠팡 활성화 · 글로벌/일본 비운영 여부', '발주 확정 상태 및 확정 이력', '마케팅 브리프 내용']} />
         <NoteList items={[
           <>CPO 연동 필드(SKU명·판매가·원가·정가·입고/촬영예정일·컬러/사이즈 옵션·썸네일)는 여기도 저장되지만 원본은 CPO 대시보드 — 3장.</>,
         ]} />
