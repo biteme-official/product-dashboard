@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { v4 as uuidv4 } from 'uuid';
 import {
   collection, doc, setDoc, getDoc, deleteDoc, onSnapshot, writeBatch, getDocs,
-  addDoc, Timestamp, deleteField, query, orderBy, limit,
+  addDoc, Timestamp, deleteField, query, orderBy, limit, serverTimestamp,
 } from 'firebase/firestore';
 import { fsdb } from '../lib/firebase';
 import type { AppState, Category, Month, SkuData, MonthlySplit, ColorEntry, ChannelMonthEntry, ChannelMonthQtyEntry, ChannelPricing, TrashItem, ActivityLog, LogChange } from '../types';
@@ -58,7 +58,7 @@ async function writeLog(skuId: string, skuName: string, role: string, changes: L
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function toFirestore(sku: SkuData): Record<string, any> {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { isExpanded: _, finalOrderQty, step2OptionQty, _initialSnapshot: __, ...data } = sku;
+  const { isExpanded: _, finalOrderQty, step2OptionQty, _initialSnapshot: __, _writeAt: ___, ...data } = sku as SkuData & { _writeAt?: unknown };
 
   const result: Record<string, unknown> = { ...data };
 
@@ -100,7 +100,43 @@ function stableStringify(v: unknown): string {
 
 /** 실시간 구독이 오류로 끊긴 탭은 옛날 상태를 들고 있으므로 저장 자체를 막는다 */
 let skuListenerDead = false;
-export const useSkuSyncStatus = create<{ error: string | null }>(() => ({ error: null }));
+export const useSkuSyncStatus = create<{ error: string | null; saveError: string | null }>(() => ({ error: null, saveError: null }));
+
+// ── 쓰기 표식(_writeAt) ─────────────────────────────────────────────────
+// skus 문서에 쓰는 모든 요청은 _writeAt: serverTimestamp()를 함께 보낸다. Firestore 보안 규칙이
+// `request.resource.data._writeAt == request.time`을 요구하므로, 이 표식을 모르는 구버전 코드가
+// 떠 있는 탭(다른 PC에 켜둔 채 방치된 탭 등)의 쓰기는 서버에서 거부된다 — 구버전 탭이 옛날 상태로
+// 문서를 덮어쓰는 사고(2026-09-23)를 서버 차원에서 차단. 규칙이 쓰기마다 검사하므로
+// **skus에 쓰는 새 코드는 반드시 stamped()를 거칠 것** (빠뜨리면 그 기능만 저장이 거부됨).
+export const WRITE_STAMP_FIELD = '_writeAt';
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function stamped(data: Record<string, any>): Record<string, any> {
+  return { ...data, [WRITE_STAMP_FIELD]: serverTimestamp() };
+}
+
+/** 진행 중인 skus 쓰기 수 — 새 버전 자동 새로고침이 저장 도중에 페이지를 날리지 않도록 확인용 */
+let pendingSkuWrites = 0;
+export function hasPendingSkuWrites(): boolean {
+  return pendingSkuWrites > 0;
+}
+
+/** skus 쓰기를 감싸 진행 수를 세고, 실패하면 화면 배너로 알린다(예전엔 콘솔에만 찍혀 사용자가 몰랐음) */
+async function trackSkuWrite<T>(p: Promise<T>): Promise<T> {
+  pendingSkuWrites += 1;
+  try {
+    return await p;
+  } catch (err) {
+    const code = (err as { code?: string })?.code ?? '';
+    useSkuSyncStatus.setState({
+      saveError: code === 'permission-denied'
+        ? '저장이 서버에서 거부됐어요. 새로고침한 뒤 다시 입력해 주세요.'
+        : '저장에 실패했어요. 네트워크를 확인하고 새로고침해 주세요.',
+    });
+    throw err;
+  } finally {
+    pendingSkuWrites -= 1;
+  }
+}
 
 /**
  * savedSkuState 대비 달라진 최상위 필드만 뽑는다. 서버 상태를 모르는 SKU(아직 snapshot 미수신)면
@@ -129,7 +165,7 @@ async function writeSkuChanges(sku: SkuData, opts?: { omit?: string[]; force?: s
   }
   const patch = changedFirestoreFields(sku, opts);
   if (Object.keys(patch).length === 0) return true;
-  await setDoc(doc(fsdb, SKUS_COL, sku.id), patch, { merge: true });
+  await trackSkuWrite(setDoc(doc(fsdb, SKUS_COL, sku.id), stamped(patch), { merge: true }));
   return true;
 }
 
@@ -506,7 +542,9 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
     const unsub = onSnapshot(q, (snapshot) => {
       const currentSkus = get().skus;
       const expandedMap = new Map(currentSkus.map((s) => [s.id, s.isExpanded]));
-      const raw: any[] = snapshot.docs.map((d) => ({ ...d.data(), id: d.id }));
+      // _writeAt(쓰기 표식)은 규칙 검사용 메타 필드라 앱 상태에는 싣지 않는다
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const raw: any[] = snapshot.docs.map((d) => { const { _writeAt, ...rest } = d.data(); return { ...rest, id: d.id }; });
       const processed = raw
         .map(applyMigration)
         .map((s) => ({
@@ -550,8 +588,8 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
       });
       if (toMigrate.length > 0) {
         const batch = writeBatch(fsdb);
-        toMigrate.forEach((s) => batch.set(doc(fsdb, SKUS_COL, s.id), { channelMonthQty: s.channelMonthQty }, { merge: true }));
-        batch.commit().catch(console.error);
+        toMigrate.forEach((s) => batch.set(doc(fsdb, SKUS_COL, s.id), stamped({ channelMonthQty: s.channelMonthQty }), { merge: true }));
+        trackSkuWrite(batch.commit()).catch(console.error);
       }
     }, (err) => {
       // 구독이 오류로 끊기면 이 탭의 skus는 더 이상 갱신되지 않는다 — 저장을 막고 새로고침 배너 노출
@@ -576,7 +614,7 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
           if (snap.exists() || get().skus.some((s) => s.id === cpo.id)) return;
           set({ skus: [...get().skus, newSku] });
           // setDoc은 잘못된 값(예: undefined 필드)이 있으면 즉시 예외를 던짐 — then 안이라 아래 catch로 잡힘
-          return setDoc(ref, toFirestore(newSku));
+          return trackSkuWrite(setDoc(ref, stamped(toFirestore(newSku))));
         })
         .catch((err) => {
           console.error('[createSkuFromCpo] Firestore 저장 실패:', newSku.id, err);
@@ -646,7 +684,7 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
     const trashDoc = await getDoc(trashRef);
     if (!trashDoc.exists()) return;
     const data = trashDoc.data();
-    await setDoc(doc(fsdb, SKUS_COL, data.skuId as string), data.skuData as Record<string, unknown>);
+    await trackSkuWrite(setDoc(doc(fsdb, SKUS_COL, data.skuId as string), stamped(data.skuData as Record<string, unknown>)));
     await deleteDoc(trashRef);
     // onSnapshot이 복원된 SKU를 자동으로 로컬 상태에 반영
   },
@@ -661,7 +699,7 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
       _initialSnapshot: target._initialSnapshot,
     };
     set({ skus: get().skus.map((s) => (s.id === id ? restored : s)) });
-    setDoc(doc(fsdb, SKUS_COL, id), toFirestore(restored));
+    trackSkuWrite(setDoc(doc(fsdb, SKUS_COL, id), stamped(toFirestore(restored)))).catch(console.error);
   },
 
   toggleExpanded: (id) => {
@@ -869,15 +907,15 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
     );
     if (toSave.length > 0) {
       const batch = writeBatch(fsdb);
-      toSave.forEach((sku) => batch.set(doc(fsdb, SKUS_COL, sku.id), changedFirestoreFields(sku), { merge: true }));
-      await batch.commit();
+      toSave.forEach((sku) => batch.set(doc(fsdb, SKUS_COL, sku.id), stamped(changedFirestoreFields(sku)), { merge: true }));
+      await trackSkuWrite(batch.commit());
     }
   },
 
   importSkus: async (newSkus) => {
     const batch = writeBatch(fsdb);
-    newSkus.forEach((sku) => batch.set(doc(fsdb, SKUS_COL, sku.id), toFirestore(sku)));
-    await batch.commit();
+    newSkus.forEach((sku) => batch.set(doc(fsdb, SKUS_COL, sku.id), stamped(toFirestore(sku))));
+    await trackSkuWrite(batch.commit());
     set({ skus: [...get().skus, ...newSkus] });
   },
 
@@ -895,8 +933,8 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
     await deleteBatch.commit();
     // 새 데이터 일괄 저장
     const insertBatch = writeBatch(fsdb);
-    full.forEach((sku) => insertBatch.set(doc(fsdb, SKUS_COL, sku.id), toFirestore(sku)));
-    await insertBatch.commit();
+    full.forEach((sku) => insertBatch.set(doc(fsdb, SKUS_COL, sku.id), stamped(toFirestore(sku))));
+    await trackSkuWrite(insertBatch.commit());
     set({ skus: full });
   },
 
@@ -938,7 +976,7 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
     set({ skus: get().skus.map((s) => (s.id === id ? updated : s)) });
     const firestorePayload = changedFirestoreFields(updated, { force: ['finalOrderConfirmedAt', 'finalOrderQty', 'finalOrderStep2Total'] });
     console.log('[확정] Firestore write 시작', { id, finalOrderConfirmedAt: firestorePayload.finalOrderConfirmedAt, hasQty: !!firestorePayload.finalOrderQty });
-    await setDoc(doc(fsdb, SKUS_COL, id), firestorePayload, { merge: true });
+    await trackSkuWrite(setDoc(doc(fsdb, SKUS_COL, id), stamped(firestorePayload), { merge: true }));
     // write 완료 후 실제 Firestore 상태 검증
     const verify = await getDoc(doc(fsdb, SKUS_COL, id));
     console.log('[확정] Firestore 검증', { finalOrderConfirmedAt: verify.data()?.finalOrderConfirmedAt, hasQty: !!verify.data()?.finalOrderQty });
@@ -962,18 +1000,16 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
       return;
     }
 
-    // 변경 이력: savedSkuState와 현재 상태를 diff
+    // 변경 이력: savedSkuState와 현재 상태를 diff — 기록은 저장이 성공한 뒤에 남긴다(아래).
+    // 예전엔 저장 전에 먼저 기록해서, 저장이 실패/거부돼도 "판매가 0→9900" 같은 실제로 반영 안 된
+    // 이력이 남아 사고 추적을 헷갈리게 했다(2026-09-23).
     const before = savedSkuState[id];
+    const changes: LogChange[] = [];
     if (before) {
-      const changes: LogChange[] = [];
       for (const [field, label] of Object.entries(TRACKED_FIELDS)) {
         const oldVal = formatLogValue(before[field as keyof SkuData]);
         const newVal = formatLogValue(sku[field as keyof SkuData]);
         if (oldVal !== newVal) changes.push({ field, label, from: oldVal, to: newVal });
-      }
-      if (changes.length > 0) {
-        const role = useAuth.getState().role ?? 'unknown';
-        writeLog(id, sku.skuName, role, changes).catch(console.error);
       }
     }
 
@@ -1028,7 +1064,10 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
     // → 두 필드를 제외하고 merge:true로 write → Firestore의 기존 확정 데이터 보존
     // + 실제로 바뀐 필드만 쓴다(writeSkuChanges) — 옛날 상태를 든 탭의 전체 덮어쓰기 방지
     try {
-      await writeSkuChanges(sku, { omit: ['finalOrderConfirmedAt', 'finalOrderQty', 'finalOrderStep2Total'] });
+      const written = await writeSkuChanges(sku, { omit: ['finalOrderConfirmedAt', 'finalOrderQty', 'finalOrderStep2Total'] });
+      if (written && changes.length > 0) {
+        writeLog(id, sku.skuName, useAuth.getState().role ?? 'unknown', changes).catch(console.error);
+      }
     } catch (err) {
       console.error('[persistSku] Firestore 저장 실패:', id, err);
       throw err;
@@ -1120,9 +1159,9 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
     set({ skus: get().skus.map((s) => byId.get(s.id) ?? s) });
     if (skuListenerDead) throw new Error('실시간 구독이 끊긴 탭입니다. 새로고침 후 다시 시도해주세요.');
     const batch = writeBatch(fsdb);
-    updates.forEach(({ after }) => batch.set(doc(fsdb, SKUS_COL, after.id), changedFirestoreFields(after), { merge: true }));
+    updates.forEach(({ after }) => batch.set(doc(fsdb, SKUS_COL, after.id), stamped(changedFirestoreFields(after)), { merge: true }));
     try {
-      await batch.commit();
+      await trackSkuWrite(batch.commit());
     } catch (err) {
       console.error('[setChannelDisabled] Firestore 저장 실패:', channel, err);
       throw err;
@@ -1251,9 +1290,9 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
     for (let i = 0; i < dirty.length; i += CHUNK) {
       const batch = writeBatch(fsdb);
       dirty.slice(i, i + CHUNK).forEach((d) => {
-        batch.update(d.ref, { _initialSnapshot: deleteField() });
+        batch.update(d.ref, stamped({ _initialSnapshot: deleteField() }));
       });
-      await batch.commit();
+      await trackSkuWrite(batch.commit());
     }
     return dirty.length;
   },
