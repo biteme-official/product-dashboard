@@ -8,6 +8,7 @@ import { useCpoDeleteSync } from './hooks/useCpoDeleteSync';
 import { useCpoPriceSync } from './hooks/useCpoPriceSync';
 import { useCpoFieldSync } from './hooks/useCpoFieldSync';
 import { useCpoOptionSync } from './hooks/useCpoOptionSync';
+import { useVersionCheck } from './hooks/useVersionCheck';
 import { useCpoThumbnailSync } from './hooks/useCpoThumbnailSync';
 import type { SkuData, Category } from './types';
 import type { Brand } from './types';
@@ -95,6 +96,8 @@ function App() {
   useCpoFieldSync();
   useCpoOptionSync();
   const skuSyncError = useSkuSyncStatus((s) => s.error);
+  const skuSaveError = useSkuSyncStatus((s) => s.saveError);
+  const updateAvailable = useVersionCheck();
   useCpoThumbnailSync();
   const importSkus = useStore((s) => s.importSkus);
   const replaceAllSkus = useStore((s) => s.replaceAllSkus);
@@ -314,6 +317,19 @@ function App() {
         <div className="sticky top-0 z-50 bg-red-600 text-white text-xs sm:text-sm px-4 py-2 flex items-center justify-center gap-3 flex-wrap">
           <span>서버와 실시간 연결이 끊겨 이 화면의 데이터가 최신이 아닐 수 있어요. 덮어쓰기를 막기 위해 저장을 멈췄습니다.</span>
           <button onClick={() => window.location.reload()} className="px-2.5 py-1 rounded bg-white text-red-600 font-semibold hover:bg-red-50">새로고침</button>
+        </div>
+      )}
+      {!skuSyncError && skuSaveError && (
+        <div className="sticky top-0 z-50 bg-red-600 text-white text-xs sm:text-sm px-4 py-2 flex items-center justify-center gap-3 flex-wrap">
+          <span>{skuSaveError}</span>
+          <button onClick={() => window.location.reload()} className="px-2.5 py-1 rounded bg-white text-red-600 font-semibold hover:bg-red-50">새로고침</button>
+          <button onClick={() => useSkuSyncStatus.setState({ saveError: null })} className="px-2 py-1 rounded text-white/80 hover:text-white">닫기</button>
+        </div>
+      )}
+      {updateAvailable && (
+        <div className="sticky top-0 z-40 bg-indigo-600 text-white text-xs sm:text-sm px-4 py-2 flex items-center justify-center gap-3 flex-wrap">
+          <span>새 버전이 배포됐어요. 입력을 마친 뒤 새로고침해 주세요. (다른 탭으로 전환하거나 10분간 조작이 없으면 자동으로 새로고침돼요)</span>
+          <button onClick={() => window.location.reload()} className="px-2.5 py-1 rounded bg-white text-indigo-600 font-semibold hover:bg-indigo-50">지금 새로고침</button>
         </div>
       )}
       {/* 헤더 */}
