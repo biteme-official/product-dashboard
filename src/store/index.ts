@@ -81,6 +81,58 @@ function toFirestore(sku: SkuData): Record<string, any> {
   return result;
 }
 
+// ── 부분 저장(stale 덮어쓰기 방지) ─────────────────────────────────────────
+// 예전엔 모든 저장 경로가 toFirestore(sku) 전체를 merge로 썼다. 그러면 실시간 구독이 조용히
+// 끊겨(절전 복귀·할당량 오류 등) 옛날 상태를 들고 있는 탭이 CPO 자동 동기화 훅(가격/옵션/
+// 썸네일/날짜) 때문에 persistSku를 부를 때, 다른 사람이 입력한 수량·메모까지 전부 옛날 값으로
+// 되돌려버렸다(2026-09-23 산리오 헤잇미 밴드_27 등 8개 SKU 유실 사고).
+// → 마지막으로 Firestore에서 받은 상태(savedSkuState)와 비교해 "이 탭이 실제로 바꾼 최상위
+//   필드"만 쓴다. 옛날 상태를 든 탭이 저장해도 자기가 바꾼 필드만 쓰게 되므로 다른 필드는 안전하다.
+
+/** 키 순서와 무관한 비교용 직렬화 (Firestore에서 온 객체와 로컬에서 만든 객체의 키 순서가 다를 수 있음) */
+function stableStringify(v: unknown): string {
+  if (v === undefined) return 'undefined';
+  if (v === null || typeof v !== 'object') return JSON.stringify(v);
+  if (Array.isArray(v)) return `[${v.map(stableStringify).join(',')}]`;
+  const obj = v as Record<string, unknown>;
+  return `{${Object.keys(obj).sort().map((k) => `${JSON.stringify(k)}:${stableStringify(obj[k])}`).join(',')}}`;
+}
+
+/** 실시간 구독이 오류로 끊긴 탭은 옛날 상태를 들고 있으므로 저장 자체를 막는다 */
+let skuListenerDead = false;
+export const useSkuSyncStatus = create<{ error: string | null }>(() => ({ error: null }));
+
+/**
+ * savedSkuState 대비 달라진 최상위 필드만 뽑는다. 서버 상태를 모르는 SKU(아직 snapshot 미수신)면
+ * 기존처럼 전체를 반환. force에 넣은 키는 값이 같아도 포함, omit에 넣은 키는 항상 제외.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function changedFirestoreFields(sku: SkuData, opts?: { omit?: string[]; force?: string[] }): Record<string, any> {
+  const body = toFirestore(sku);
+  opts?.omit?.forEach((k) => { delete body[k]; });
+  const before = savedSkuState[sku.id];
+  if (!before) return body;
+  const prev = toFirestore(before);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const out: Record<string, any> = {};
+  for (const [k, v] of Object.entries(body)) {
+    if (opts?.force?.includes(k) || stableStringify(v) !== stableStringify(prev[k])) out[k] = v;
+  }
+  return out;
+}
+
+/** 부분 저장 — 바뀐 필드가 없으면 쓰지 않는다. 구독이 끊긴 탭이면 저장하지 않고 false 반환 */
+async function writeSkuChanges(sku: SkuData, opts?: { omit?: string[]; force?: string[] }): Promise<boolean> {
+  if (skuListenerDead) {
+    console.warn('[writeSkuChanges] 실시간 구독이 끊긴 탭 — 옛날 값 덮어쓰기 방지를 위해 저장 생략', sku.id);
+    return false;
+  }
+  const patch = changedFirestoreFields(sku, opts);
+  if (Object.keys(patch).length === 0) return true;
+  await setDoc(doc(fsdb, SKUS_COL, sku.id), patch, { merge: true });
+  return true;
+}
+
 function buildEmptySku(category: Category): SkuData {
   const base: Omit<SkuData, '_initialSnapshot' | 'isExpanded'> = {
     id: uuidv4(),
@@ -488,7 +540,8 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
         if (change.type === 'removed') delete savedSkuState[change.doc.id];
       });
       // 비활성 채널에 잔존하는 qty > 0 이면 Firestore에도 0으로 저장 (1회성 마이그레이션)
-      // merged를 사용해 보존된 finalOrderConfirmedAt을 같이 write
+      // channelMonthQty 필드만 merge로 쓴다 — 예전엔 문서 전체를 merge 없이 덮어써서, 그 사이
+      // 다른 필드가 바뀌었으면 함께 되돌릴 위험이 있었다
       const toMigrate = merged.filter((s) => {
         const disabledCh = getDisabledChannels(s) as readonly string[];
         return (raw.find((r: any) => r.id === s.id)?.channelMonthQty ?? []).some(
@@ -497,9 +550,14 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
       });
       if (toMigrate.length > 0) {
         const batch = writeBatch(fsdb);
-        toMigrate.forEach((s) => batch.set(doc(fsdb, SKUS_COL, s.id), toFirestore(s)));
+        toMigrate.forEach((s) => batch.set(doc(fsdb, SKUS_COL, s.id), { channelMonthQty: s.channelMonthQty }, { merge: true }));
         batch.commit().catch(console.error);
       }
+    }, (err) => {
+      // 구독이 오류로 끊기면 이 탭의 skus는 더 이상 갱신되지 않는다 — 저장을 막고 새로고침 배너 노출
+      console.error('[loadSkus] 실시간 구독 오류 — 이 탭의 저장을 중단합니다', err);
+      skuListenerDead = true;
+      useSkuSyncStatus.setState({ error: err.code ?? err.message });
     });
     return unsub;
   },
@@ -507,14 +565,22 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
   createSkuFromCpo: (cpo) => {
     // 이미 로컬에 있으면(다른 탭/레이스에서 먼저 생겼으면) 건너뜀 — 중복 생성 방지
     if (get().skus.some((s) => s.id === cpo.id)) return;
+    if (skuListenerDead) return;
     try {
       const newSku = buildSkuFromCpo(cpo);
-      set({ skus: [...get().skus, newSku] });
-      // setDoc은 잘못된 값(예: undefined 필드)이 있으면 프로미스가 아니라 즉시 예외를 던짐 —
-      // try/catch로 감싸지 않으면 이 한 건 때문에 나머지 후보들의 생성까지 통째로 막힘(실제 발생했던 버그)
-      setDoc(doc(fsdb, SKUS_COL, newSku.id), toFirestore(newSku)).catch((err) => {
-        console.error('[createSkuFromCpo] Firestore 저장 실패:', newSku.id, err);
-      });
+      const ref = doc(fsdb, SKUS_COL, newSku.id);
+      // 이 탭의 skus에 아직 없다는 것만으로는 서버에 없다는 보장이 없다(첫 snapshot 수신 전 등) —
+      // 서버에 이미 문서가 있으면 절대 새 기본값으로 덮어쓰지 않는다(setDoc은 merge 없이 전체 교체).
+      getDoc(ref)
+        .then((snap) => {
+          if (snap.exists() || get().skus.some((s) => s.id === cpo.id)) return;
+          set({ skus: [...get().skus, newSku] });
+          // setDoc은 잘못된 값(예: undefined 필드)이 있으면 즉시 예외를 던짐 — then 안이라 아래 catch로 잡힘
+          return setDoc(ref, toFirestore(newSku));
+        })
+        .catch((err) => {
+          console.error('[createSkuFromCpo] Firestore 저장 실패:', newSku.id, err);
+        });
     } catch (err) {
       console.error('[createSkuFromCpo] SKU 생성 실패:', cpo.id, err);
     }
@@ -764,7 +830,7 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
     const derived = deriveChannelMonthlySplit(sku);
     const updated = { ...sku, channelMonthlySplit: derived };
     set({ skus: get().skus.map((s) => (s.id === id ? updated : s)) });
-    await setDoc(doc(fsdb, SKUS_COL, id), toFirestore(updated), { merge: true });
+    await writeSkuChanges(updated);
   },
 
   updateChannelMonthRatio: (id, channel, month, ratio) => {
@@ -803,7 +869,7 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
     );
     if (toSave.length > 0) {
       const batch = writeBatch(fsdb);
-      toSave.forEach((sku) => batch.set(doc(fsdb, SKUS_COL, sku.id), toFirestore(sku)));
+      toSave.forEach((sku) => batch.set(doc(fsdb, SKUS_COL, sku.id), changedFirestoreFields(sku), { merge: true }));
       await batch.commit();
     }
   },
@@ -856,6 +922,7 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
   setFinalOrderConfirmed: async (id, confirmed, finalOrderQty?: Record<string, number>) => {
     const sku = get().skus.find((s) => s.id === id);
     if (!sku) return;
+    if (skuListenerDead) throw new Error('실시간 구독이 끊긴 탭입니다. 새로고침 후 다시 시도해주세요.');
     const ts = confirmed ? new Date().toISOString() : null;
     const updated = {
       ...sku,
@@ -869,7 +936,7 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
       confirmCache.set(id, null);
     }
     set({ skus: get().skus.map((s) => (s.id === id ? updated : s)) });
-    const firestorePayload = toFirestore(updated);
+    const firestorePayload = changedFirestoreFields(updated, { force: ['finalOrderConfirmedAt', 'finalOrderQty', 'finalOrderStep2Total'] });
     console.log('[확정] Firestore write 시작', { id, finalOrderConfirmedAt: firestorePayload.finalOrderConfirmedAt, hasQty: !!firestorePayload.finalOrderQty });
     await setDoc(doc(fsdb, SKUS_COL, id), firestorePayload, { merge: true });
     // write 완료 후 실제 Firestore 상태 검증
@@ -890,6 +957,10 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
   persistSku: async (id) => {
     const sku = get().skus.find((s) => s.id === id);
     if (!sku) return;
+    if (skuListenerDead) {
+      console.warn('[persistSku] 실시간 구독이 끊긴 탭 — 저장 생략(새로고침 필요)', id);
+      return;
+    }
 
     // 변경 이력: savedSkuState와 현재 상태를 diff
     const before = savedSkuState[id];
@@ -955,10 +1026,9 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
     // persistSku가 로컬 state를 그대로 write하면 onSnapshot race로 null이 된
     // 로컬 값이 Firestore에도 덮여써져 새로고침 후 데이터 유실 발생
     // → 두 필드를 제외하고 merge:true로 write → Firestore의 기존 확정 데이터 보존
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { finalOrderConfirmedAt: _fca, finalOrderQty: _foq, finalOrderStep2Total: _fst, ...firestoreBody } = toFirestore(sku);
+    // + 실제로 바뀐 필드만 쓴다(writeSkuChanges) — 옛날 상태를 든 탭의 전체 덮어쓰기 방지
     try {
-      await setDoc(doc(fsdb, SKUS_COL, id), firestoreBody, { merge: true });
+      await writeSkuChanges(sku, { omit: ['finalOrderConfirmedAt', 'finalOrderQty', 'finalOrderStep2Total'] });
     } catch (err) {
       console.error('[persistSku] Firestore 저장 실패:', id, err);
       throw err;
@@ -970,7 +1040,7 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
     if (!sku) return;
     const updated = { ...sku, [field]: value };
     set({ skus: get().skus.map((s) => (s.id === id ? updated : s)) });
-    await setDoc(doc(fsdb, SKUS_COL, id), toFirestore(updated), { merge: true });
+    await writeSkuChanges(updated);
     const CHANNEL_LABELS: Record<string, string> = {
       step2PlatformConfirmed: '플랫폼 확정',
       step2BrandConfirmed: '브랜드 확정',
@@ -997,7 +1067,7 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
     };
     set({ skus: get().skus.map((s) => (s.id === id ? updated : s)) });
     try {
-      await setDoc(doc(fsdb, SKUS_COL, id), toFirestore(updated), { merge: true });
+      await writeSkuChanges(updated);
     } catch (err) {
       console.error('[setCoupangEnabled] Firestore 저장 실패:', id, err);
       throw err;
@@ -1048,8 +1118,9 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
 
     const byId = new Map(updates.map((u) => [u.after.id, u.after]));
     set({ skus: get().skus.map((s) => byId.get(s.id) ?? s) });
+    if (skuListenerDead) throw new Error('실시간 구독이 끊긴 탭입니다. 새로고침 후 다시 시도해주세요.');
     const batch = writeBatch(fsdb);
-    updates.forEach(({ after }) => batch.set(doc(fsdb, SKUS_COL, after.id), toFirestore(after), { merge: true }));
+    updates.forEach(({ after }) => batch.set(doc(fsdb, SKUS_COL, after.id), changedFirestoreFields(after), { merge: true }));
     try {
       await batch.commit();
     } catch (err) {
@@ -1071,7 +1142,7 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
     if (!sku) return;
     const updated = { ...sku, isPriceConfirmed: confirmed };
     set({ skus: get().skus.map((s) => (s.id === id ? updated : s)) });
-    await setDoc(doc(fsdb, SKUS_COL, id), toFirestore(updated), { merge: true });
+    await writeSkuChanges(updated);
     writeLog(id, sku.skuName, useAuth.getState().role ?? 'unknown', [{
       field: 'isPriceConfirmed', label: '가격 확정',
       from: formatLogValue(!confirmed), to: formatLogValue(confirmed),
@@ -1083,7 +1154,7 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
     if (!sku) return;
     const updated = { ...sku, scheduleConfirmed: confirmed };
     set({ skus: get().skus.map((s) => (s.id === id ? updated : s)) });
-    await setDoc(doc(fsdb, SKUS_COL, id), toFirestore(updated), { merge: true });
+    await writeSkuChanges(updated);
     writeLog(id, sku.skuName, useAuth.getState().role ?? 'unknown', [{
       field: 'scheduleConfirmed', label: '일정 확정',
       from: formatLogValue(!confirmed), to: formatLogValue(confirmed),
@@ -1095,7 +1166,7 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
     if (!sku) return;
     const updated = { ...sku, ...patch };
     set({ skus: get().skus.map((s) => (s.id === id ? updated : s)) });
-    await setDoc(doc(fsdb, SKUS_COL, id), toFirestore(updated), { merge: true });
+    await writeSkuChanges(updated);
     const labels: Record<string, string> = {
       specialMaxRate: '특가 최대할인율', regularMaxRate: '상시 최대할인율', seasonOffRate: '시즌오프 할인율',
     };
@@ -1115,7 +1186,7 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
       : prevHidden.filter((s) => s !== scenarioId);
     const updated = { ...sku, hiddenPricingScenarios: nextHidden };
     set({ skus: get().skus.map((s) => (s.id === id ? updated : s)) });
-    await setDoc(doc(fsdb, SKUS_COL, id), toFirestore(updated), { merge: true });
+    await writeSkuChanges(updated);
     const label = PRICING_SCENARIOS.find((s) => s.id === scenarioId)?.label ?? scenarioId;
     writeLog(id, sku.skuName, useAuth.getState().role ?? 'unknown', [{
       field: 'hiddenPricingScenarios', label: `${label} 행 표시`,
@@ -1130,7 +1201,7 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
     if (prevMemo === memo) return;
     const updated = { ...sku, pricingMemo: memo };
     set({ skus: get().skus.map((s) => (s.id === id ? updated : s)) });
-    await setDoc(doc(fsdb, SKUS_COL, id), toFirestore(updated), { merge: true });
+    await writeSkuChanges(updated);
     writeLog(id, sku.skuName, useAuth.getState().role ?? 'unknown', [{
       field: 'pricingMemo', label: '프라이싱 메모',
       from: formatLogValue(prevMemo), to: formatLogValue(memo),
@@ -1142,7 +1213,7 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
     if (!sku) return;
     const updated = { ...sku, ...patch };
     set({ skus: get().skus.map((s) => (s.id === id ? updated : s)) });
-    await setDoc(doc(fsdb, SKUS_COL, id), toFirestore(updated), { merge: true });
+    await writeSkuChanges(updated);
     const labels: Record<string, string> = {
       pricingPromoOpenSpecial: '오픈특가', pricingPromoNewWeek: '신상위크',
       pricingPromoLive: '라이브', pricingPromoExclusive: '선단독',
