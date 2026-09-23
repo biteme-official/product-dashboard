@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { setPin, ALL_ROLES, type Role } from '../utils/pin';
 import { useStore } from '../store';
+import { OPTOUT_CHANNELS, CATEGORIES, BRANDS, isChannelToggleLocked, type OptOutChannel, type Category, type SkuData } from '../types';
 import {
   PERM_LABELS,
   saveRolePermission,
@@ -256,7 +257,47 @@ function DataCleanupTab() {
   );
 }
 
-function CoupangManageTab() {
+type ChannelTab = '쿠팡' | OptOutChannel;
+
+const CHANNEL_TAB_STYLE: Record<ChannelTab, { dot: string; active: string }> = {
+  '쿠팡':  { dot: 'bg-orange-500', active: 'border-orange-400 bg-orange-50 text-gray-800' },
+  '글로벌': { dot: 'bg-sky-500',    active: 'border-sky-400 bg-sky-50 text-gray-800' },
+  '일본':  { dot: 'bg-amber-500',  active: 'border-amber-400 bg-amber-50 text-gray-800' },
+};
+
+function ChannelManageTab() {
+  const skus = useStore((s) => s.skus);
+  const [tab, setTab] = useState<ChannelTab>('쿠팡');
+  const tabs: ChannelTab[] = ['쿠팡', ...OPTOUT_CHANNELS];
+
+  return (
+    <div className="space-y-4">
+      <div className="flex gap-2 flex-wrap">
+        {tabs.map((ch) => {
+          const n = ch === '쿠팡'
+            ? skus.filter((s) => s.coupangEnabled).length
+            : skus.filter((s) => (s.disabledChannels ?? []).includes(ch)).length;
+          return (
+            <button
+              key={ch}
+              onClick={() => setTab(ch)}
+              className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full border transition-colors ${
+                tab === ch ? CHANNEL_TAB_STYLE[ch].active : 'border-gray-200 bg-white text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              <span className={`w-2 h-2 rounded-full ${CHANNEL_TAB_STYLE[ch].dot}`} />
+              {ch}
+              <span className="font-normal text-[11px] text-gray-400">{ch === '쿠팡' ? `${n}개 켬` : `${n}개 끔`}</span>
+            </button>
+          );
+        })}
+      </div>
+      {tab === '쿠팡' ? <CoupangPanel /> : <OptOutPanel key={tab} channel={tab} />}
+    </div>
+  );
+}
+
+function CoupangPanel() {
   const skus = useStore((s) => s.skus);
   const setCoupangEnabled = useStore((s) => s.setCoupangEnabled);
   const [query, setQuery] = useState('');
@@ -309,6 +350,197 @@ function CoupangManageTab() {
             </button>
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+type PendingToggle = { ids: string[]; disabled: boolean };
+type ToggleMode = 'keep' | 'recalc' | 'restore';
+
+function OptOutPanel({ channel }: { channel: OptOutChannel }) {
+  const skus = useStore((s) => s.skus);
+  const setChannelDisabled = useStore((s) => s.setChannelDisabled);
+  const [query, setQuery] = useState('');
+  const [cat, setCat] = useState<Category | '전체'>('전체');
+  const [brand, setBrand] = useState<string>('전체');
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [pending, setPending] = useState<PendingToggle | null>(null);
+  const [mode, setMode] = useState<ToggleMode>('keep');
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<string | null>(null);
+
+  const isOff = (sku: SkuData) => (sku.disabledChannels ?? []).includes(channel);
+  const channelQty = (sku: SkuData) =>
+    sku.channelMonthQty.filter((e) => e.channel === channel).reduce((a, e) => a + e.qty, 0);
+  const backupQty = (sku: SkuData) =>
+    (sku.disabledChannelBackup?.[channel] ?? []).reduce((a, e) => a + e.qty, 0);
+
+  const q = query.trim().toLowerCase();
+  const filtering = q !== '' || cat !== '전체' || brand !== '전체';
+  const list = filtering
+    ? skus
+        .filter((s) => (!q || s.skuName.toLowerCase().includes(q)) && (cat === '전체' || s.category === cat) && (brand === '전체' || s.brand === brand))
+        .slice(0, 100)
+    : skus.filter(isOff);
+
+  const selectable = list.filter((s) => !isOff(s) && !isChannelToggleLocked(s));
+  const selectedIds = selectable.filter((s) => selected.has(s.id)).map((s) => s.id);
+
+  function openConfirm(ids: string[], disabled: boolean) {
+    setResult(null);
+    const targets = skus.filter((s) => ids.includes(s.id));
+    const hasBackup = targets.some((s) => backupQty(s) > 0);
+    setMode(disabled ? 'keep' : hasBackup ? 'restore' : 'keep');
+    setPending({ ids, disabled });
+  }
+
+  async function apply() {
+    if (!pending) return;
+    setBusy(true);
+    try {
+      const n = await setChannelDisabled(pending.ids, channel, pending.disabled, mode);
+      setResult(`${n}개 SKU의 ${channel} 채널을 ${pending.disabled ? '껐어요' : '켰어요'}.`);
+      setSelected(new Set());
+      setPending(null);
+    } catch {
+      setResult('저장에 실패했어요. 잠시 후 다시 시도해주세요.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const pendingSkus = pending ? skus.filter((s) => pending.ids.includes(s.id)) : [];
+  const pendingQty = pendingSkus.reduce((a, s) => a + channelQty(s), 0);
+  const pendingBackup = pendingSkus.reduce((a, s) => a + backupQty(s), 0);
+  const selectCls = 'px-2 py-2 text-xs border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400';
+
+  return (
+    <div className="space-y-3">
+      <p className="text-xs text-gray-500">
+        {channel}는 기본 활성 채널입니다. {channel} 채널을 운영하지 않는 SKU만 골라서 끌 수 있습니다 —
+        끈 SKU는 STEP2 {channel} 목표량이 0으로 고정되고, 그 비중은 나머지 채널로 배분됩니다.
+        발주량 확정·글로벌 확정 상태인 SKU는 잠겨 있어 확정 취소 후 변경할 수 있습니다.
+      </p>
+
+      <div className="flex gap-2 flex-wrap">
+        <input
+          type="text"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="SKU명 검색"
+          className="flex-1 min-w-[160px] px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400"
+        />
+        <select value={cat} onChange={(e) => setCat(e.target.value as Category | '전체')} className={selectCls} aria-label="카테고리">
+          {['전체', ...CATEGORIES].map((c) => <option key={c} value={c}>{c === '전체' ? '카테고리 전체' : c}</option>)}
+        </select>
+        <select value={brand} onChange={(e) => setBrand(e.target.value)} className={selectCls} aria-label="브랜드">
+          {['전체', ...BRANDS].map((b) => <option key={b} value={b}>{b === '전체' ? '브랜드 전체' : b}</option>)}
+        </select>
+      </div>
+
+      {!filtering && (
+        <p className="text-[11px] text-gray-400">검색어·카테고리·브랜드를 고르지 않으면 현재 {channel}를 끈 SKU만 표시됩니다.</p>
+      )}
+
+      {result && <p className="text-xs text-indigo-600">{result}</p>}
+
+      {!pending && selectable.length > 0 && (
+        <div className="flex items-center justify-between gap-2 flex-wrap bg-indigo-50 rounded-lg px-3 py-2 text-xs">
+          <label className="flex items-center gap-2 text-gray-600">
+            <input
+              type="checkbox"
+              checked={selectedIds.length === selectable.length}
+              onChange={(e) => setSelected(e.target.checked ? new Set(selectable.map((s) => s.id)) : new Set())}
+              className="accent-indigo-500"
+            />
+            {selectedIds.length > 0 ? `${selectedIds.length}개 선택됨` : `운영 중인 ${selectable.length}개 전체 선택`}
+          </label>
+          <button
+            disabled={selectedIds.length === 0}
+            onClick={() => openConfirm(selectedIds, true)}
+            className="px-3 py-1.5 rounded-md bg-indigo-500 text-white font-semibold hover:bg-indigo-600 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            선택한 SKU {channel} 끄기
+          </button>
+        </div>
+      )}
+
+      {pending && (
+        <div className="border border-amber-300 bg-amber-50 rounded-xl px-4 py-3 text-xs text-gray-700 space-y-2">
+          <p className="font-semibold text-gray-800">
+            {pendingSkus.length}개 SKU의 {channel} 채널을 {pending.disabled ? '끌까요?' : '켤까요?'}
+          </p>
+          {pending.disabled ? (
+            <>
+              <p>현재 {channel} 목표량 <b className="tabular-nums">{pendingQty.toLocaleString()}장</b>이 0이 됩니다. 끄기 전 값은 백업해 두었다가 다시 켤 때 복원할 수 있어요.</p>
+              <div className="flex flex-col gap-1">
+                <label className="flex items-center gap-2"><input type="radio" checked={mode === 'keep'} onChange={() => setMode('keep')} className="accent-amber-500" />{channel}만 0으로 — 나머지 채널 수기 조정값은 그대로 유지 (STEP2 합계가 줄어듦)</label>
+                <label className="flex items-center gap-2"><input type="radio" checked={mode === 'recalc'} onChange={() => setMode('recalc')} className="accent-amber-500" />STEP2 전체 재계산 — 다음 STEP2 진입 시 {channel} 비중을 나머지 채널로 재분배 (수기 조정값은 덮어씀)</label>
+              </div>
+            </>
+          ) : (
+            <div className="flex flex-col gap-1">
+              {pendingBackup > 0 && (
+                <label className="flex items-center gap-2"><input type="radio" checked={mode === 'restore'} onChange={() => setMode('restore')} className="accent-amber-500" />끄기 전 목표량 복원 (<span className="tabular-nums">{pendingBackup.toLocaleString()}장</span>)</label>
+              )}
+              <label className="flex items-center gap-2"><input type="radio" checked={mode === 'keep'} onChange={() => setMode('keep')} className="accent-amber-500" />0인 채로 켜기 — STEP2에서 직접 입력</label>
+              <label className="flex items-center gap-2"><input type="radio" checked={mode === 'recalc'} onChange={() => setMode('recalc')} className="accent-amber-500" />STEP2 전체 재계산 — 다음 STEP2 진입 시 대응SKU 비중으로 다시 배분 (수기 조정값은 덮어씀)</label>
+            </div>
+          )}
+          <div className="flex justify-end gap-2 pt-1">
+            <button onClick={() => setPending(null)} disabled={busy} className="px-3 py-1.5 rounded-md border border-gray-300 bg-white text-gray-600 hover:bg-gray-50">취소</button>
+            <button onClick={apply} disabled={busy} className="px-3 py-1.5 rounded-md bg-amber-500 text-white font-semibold hover:bg-amber-600 disabled:opacity-50">
+              {busy ? '저장 중…' : pending.disabled ? '끄기' : '켜기'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="space-y-1.5 max-h-96 overflow-y-auto">
+        {list.length === 0 && (
+          <p className="text-xs text-gray-400 text-center py-6">
+            {filtering ? '조건에 맞는 SKU가 없습니다' : `${channel}를 끈 SKU가 없습니다`}
+          </p>
+        )}
+        {list.map((sku) => {
+          const off = isOff(sku);
+          const locked = isChannelToggleLocked(sku);
+          return (
+            <div key={sku.id} className={`flex items-center gap-3 border border-gray-200 rounded-xl px-3 py-2 ${off ? 'bg-gray-50' : ''}`}>
+              <input
+                type="checkbox"
+                aria-label={`${sku.skuName} 선택`}
+                disabled={off || locked || !!pending}
+                checked={selected.has(sku.id) && !off && !locked}
+                onChange={(e) => {
+                  const next = new Set(selected);
+                  if (e.target.checked) next.add(sku.id); else next.delete(sku.id);
+                  setSelected(next);
+                }}
+                className="accent-indigo-500 flex-shrink-0 disabled:opacity-30"
+              />
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-medium text-gray-800 truncate">{sku.skuName || '(SKU명 미입력)'}</p>
+                <p className="text-[10px] text-gray-400">
+                  {sku.category} · {sku.brand} · {sku.releaseDate || '출시일 미입력'} · {channel} 목표 <span className="tabular-nums">{channelQty(sku).toLocaleString()}</span>장
+                </p>
+              </div>
+              <div className="flex flex-col items-end flex-shrink-0">
+                <button
+                  disabled={locked || !!pending}
+                  onClick={() => openConfirm([sku.id], !off)}
+                  className={`text-xs px-3 py-1.5 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                    off ? 'bg-gray-100 text-gray-500 hover:bg-gray-200' : channel === '글로벌' ? 'bg-sky-500 text-white hover:bg-sky-600' : 'bg-amber-500 text-white hover:bg-amber-600'
+                  }`}
+                >
+                  {channel} {off ? 'OFF' : 'ON'}
+                </button>
+                {locked && <span className="text-[10px] text-amber-600 font-semibold mt-0.5">확정됨 · 잠김</span>}
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -388,7 +620,7 @@ function AdminMemoTab() {
 export function AdminSection() {
   const [editing, setEditing] = useState<Role | null>(null);
   const [saved, setSaved] = useState<Role | null>(null);
-  const [activeTab, setActiveTab] = useState<'pin' | 'perm' | 'data' | 'coupang' | 'memo'>('pin');
+  const [activeTab, setActiveTab] = useState<'pin' | 'perm' | 'data' | 'channel' | 'memo'>('pin');
 
   async function handleSave(role: Role, pin: string) {
     await setPin(role, pin);
@@ -416,10 +648,10 @@ export function AdminSection() {
           권한 관리
         </button>
         <button
-          onClick={() => setActiveTab('coupang')}
-          className={`flex-1 text-xs py-1.5 rounded-md font-semibold transition-all ${activeTab === 'coupang' ? 'bg-white shadow text-gray-800' : 'text-gray-500 hover:text-gray-700'}`}
+          onClick={() => setActiveTab('channel')}
+          className={`flex-1 text-xs py-1.5 rounded-md font-semibold transition-all ${activeTab === 'channel' ? 'bg-white shadow text-gray-800' : 'text-gray-500 hover:text-gray-700'}`}
         >
-          쿠팡 채널
+          채널 관리
         </button>
         <button
           onClick={() => setActiveTab('data')}
@@ -486,7 +718,7 @@ export function AdminSection() {
           </>
         )}
 
-        {activeTab === 'coupang' && <CoupangManageTab />}
+        {activeTab === 'channel' && <ChannelManageTab />}
 
         {activeTab === 'data' && <DataCleanupTab />}
 

@@ -7,7 +7,7 @@ import {
 import { fsdb } from '../lib/firebase';
 import type { AppState, Category, Month, SkuData, MonthlySplit, ColorEntry, ChannelMonthEntry, ChannelMonthQtyEntry, ChannelPricing, TrashItem, ActivityLog, LogChange } from '../types';
 import { useAuth } from './auth';
-import { MAX_SIZES, SIZE_LABELS, MONTHS, CHANNELS, BRANDS, CATEGORIES, SKU_TYPES, DEFAULT_CHANNEL_RATIOS, DEFAULT_CHANNEL_COMMISSION, getDisabledChannels, getSkuMonths, type Brand, type Channel } from '../types';
+import { MAX_SIZES, SIZE_LABELS, MONTHS, CHANNELS, BRANDS, CATEGORIES, SKU_TYPES, DEFAULT_CHANNEL_RATIOS, DEFAULT_CHANNEL_COMMISSION, getDisabledChannels, getSkuMonths, isChannelToggleLocked, STEP2_FORCE_RECALC_MARK, type Brand, type Channel, type OptOutChannel } from '../types';
 import type { CpoProject } from '../types/cpo';
 import { recalcQuantities, revenueMultiplier, calcDynamicMultiplier } from '../utils/calc';
 import { PRICING_SCENARIOS } from '../utils/pricingScenarios';
@@ -394,6 +394,13 @@ interface StoreActions {
   persistSku: (id: string) => Promise<void>;
   setChannelConfirmed: (id: string, field: 'step2PlatformConfirmed' | 'step2BrandConfirmed' | 'step2GlobalConfirmed', value: boolean) => Promise<void>;
   setCoupangEnabled: (id: string, enabled: boolean) => Promise<void>;
+  /**
+   * 글로벌/일본 채널을 여러 SKU에 한 번에 끄거나 켠다. 발주확정/글로벌확정 SKU는 건너뜀.
+   * mode — 끌 때: 'keep'(끈 채널만 0, 나머지 수기값 유지) | 'recalc'(다음 STEP2 진입 시 전체 재계산)
+   *        켤 때: 'keep'(0인 채로 둠) | 'restore'(끌 때 백업한 수량 복원) | 'recalc'
+   * 반환값: 실제로 변경된 SKU 수
+   */
+  setChannelDisabled: (ids: string[], channel: OptOutChannel, disabled: boolean, mode: 'keep' | 'recalc' | 'restore') => Promise<number>;
   setPriceConfirmed: (id: string, confirmed: boolean) => Promise<void>;
   setScheduleConfirmed: (id: string, confirmed: boolean) => Promise<void>;
   setPricingRates: (id: string, patch: { specialMaxRate?: 20 | 15 | 10; regularMaxRate?: 15 | 10 | 5; seasonOffRate?: 25 | 30 }) => Promise<void>;
@@ -999,6 +1006,64 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
       field: 'coupangEnabled', label: '쿠팡 채널 활성화',
       from: formatLogValue(!enabled), to: formatLogValue(enabled),
     }]).catch(console.error);
+  },
+
+  setChannelDisabled: async (ids, channel, disabled, mode) => {
+    const idSet = new Set(ids);
+    const updates: { before: SkuData; after: SkuData }[] = [];
+    get().skus.forEach((sku) => {
+      if (!idSet.has(sku.id) || isChannelToggleLocked(sku)) return;
+      const current = sku.disabledChannels ?? [];
+      if (current.includes(channel) === disabled) return; // 이미 원하는 상태
+      const backup = { ...(sku.disabledChannelBackup ?? {}) };
+      let channelMonthQty = sku.channelMonthQty;
+      if (disabled) {
+        // 끄기 전 수량 백업 — 다시 켤 때 복원할 수 있게 (수량이 전혀 없으면 백업할 것도 없음)
+        const entries = sku.channelMonthQty.filter((e) => e.channel === channel);
+        backup[channel] = entries.some((e) => e.qty > 0) ? entries : [];
+        channelMonthQty = channelMonthQty.map((e) => (e.channel === channel ? { ...e, qty: 0 } : e));
+      } else if (mode === 'restore') {
+        const saved = backup[channel] ?? [];
+        channelMonthQty = channelMonthQty.map((e) => {
+          if (e.channel !== channel) return e;
+          const hit = saved.find((b) => b.month === e.month);
+          return hit ? { ...e, qty: hit.qty } : e;
+        });
+        backup[channel] = [];
+      } else if (mode === 'recalc') {
+        backup[channel] = []; // 재계산하면 백업값은 의미 없어짐
+      }
+      updates.push({
+        before: sku,
+        after: {
+          ...sku,
+          disabledChannels: disabled ? [...current, channel] : current.filter((c) => c !== channel),
+          disabledChannelBackup: backup,
+          channelMonthQty,
+          ...(mode === 'recalc' ? { channelQtyDerivedFromCompareSkus: [STEP2_FORCE_RECALC_MARK] } : {}),
+        },
+      });
+    });
+    if (updates.length === 0) return 0;
+
+    const byId = new Map(updates.map((u) => [u.after.id, u.after]));
+    set({ skus: get().skus.map((s) => byId.get(s.id) ?? s) });
+    const batch = writeBatch(fsdb);
+    updates.forEach(({ after }) => batch.set(doc(fsdb, SKUS_COL, after.id), toFirestore(after), { merge: true }));
+    try {
+      await batch.commit();
+    } catch (err) {
+      console.error('[setChannelDisabled] Firestore 저장 실패:', channel, err);
+      throw err;
+    }
+    const role = useAuth.getState().role ?? 'unknown';
+    updates.forEach(({ before }) => {
+      writeLog(before.id, before.skuName, role, [{
+        field: 'disabledChannels', label: `${channel} 채널 운영`,
+        from: disabled ? '운영' : '비운영', to: disabled ? '비운영' : '운영',
+      }]).catch(console.error);
+    });
+    return updates.length;
   },
 
   setPriceConfirmed: async (id, confirmed) => {
