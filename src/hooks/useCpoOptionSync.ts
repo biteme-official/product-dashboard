@@ -17,8 +17,9 @@ import { useSyncCooldown } from './useSyncCooldown';
  * 생길 여지가 없다.
  *
  * 컬러는 id 기준으로 CPO와 병합한다: CPO에 있는 id는 이름만 덮어쓰고 수량은 로컬 값을
- * 그대로 유지, CPO에 새로 생긴 id는 수량 0으로 추가, CPO에서 사라진 id는 즉시 삭제하지
- * 않고 archived로 표시만 해서 이미 입력된 수량 데이터가 조용히 사라지지 않게 한다.
+ * 그대로 유지, CPO에 새로 생긴 id는 수량 0으로 추가, CPO에서 사라진 id는 수량이 있으면
+ * archived로 표시만 해서 이미 입력된 수량 데이터가 조용히 사라지지 않게 하고, 수량이 0이면
+ * 보존할 게 없으므로 바로 제거한다(수량 0 archived 항목이 "(삭제됨)"으로 계속 남던 문제).
  */
 export function useCpoOptionSync(): void {
   const skus = useStore((s) => s.skus);
@@ -56,6 +57,8 @@ export function useCpoOptionSync(): void {
       });
       sku.colors.forEach((local) => {
         if (cpoIds.has(local.id)) return; // 위에서 이미 처리됨
+        // 보존할 수량이 없으면 archived로 남기지 않고 바로 제거 — 이미 archived인 수량 0 항목도 여기서 정리됨
+        if (local.quantity <= 0) { colorsChanged = true; return; }
         if (local.archived) { merged.push(local); return; } // 이미 archived — 변경 없음
         merged.push({ ...local, archived: true });
         colorsChanged = true;
