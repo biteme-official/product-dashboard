@@ -6,8 +6,8 @@ const TOC_ITEMS = [
   { id: 'manual-s5',  label: '5. 데이터 소스' },
   { id: 'manual-s6',  label: '6. 채널·카테고리 매핑' },
   { id: 'manual-s7',  label: '7. 집계 기간 모드' },
-  { id: 'manual-s8',  label: '8. STEP 1 — 월별 발주 계획' },
-  { id: 'manual-s9',  label: '9. STEP 2 — 채널별 목표량 설정' },
+  { id: 'manual-s8',  label: '8. STEP 1·2 ① 월 계획과 발주량 커버' },
+  { id: 'manual-s9',  label: '9. STEP 1·2 ② 채널별 목표량' },
   { id: 'manual-s10', label: '10. STEP 3 — 채널별 수량 확인' },
   { id: 'manual-s11', label: '11. 프라이싱 시나리오' },
   { id: 'manual-s12', label: '12. 마케팅 브리프' },
@@ -148,6 +148,8 @@ export function ManualTab() {
             <Tr><Td>대응 SKU</Td><Td>새 SKU와 비슷한 기존 판매 SKU. 실적을 참고 기준으로 사용</Td></Tr>
             <Tr><Td>발주량</Td><Td>제조사에 주문하는 수량 (생산 수량)</Td></Tr>
             <Tr><Td>MOQ</Td><Td>Minimum Order Quantity — 최소 발주 수량 (제조사 조건)</Td></Tr>
+            <Tr><Td>판매 목표</Td><Td>출시월부터 8개월간 팔 계획 수량 (채널×월 목표량 합계). 리오더 물량까지 포함할 수 있어 발주량보다 클 수 있음</Td></Tr>
+            <Tr><Td>리오더 / 시즌 한정</Td><Td>리오더 = 첫 발주 후 추가 발주. 시즌 한정 = 리오더 없는 상품 (관리 탭에서 지정) — 8장</Td></Tr>
             <Tr><Td>채널</Td><Td>자사몰·스스·위탁·쿠팡·B2B·글로벌 등 판매 경로</Td></Tr>
             <Tr><Td>공헌이익</Td><Td>순매출에서 변동비와 원가를 뺀 실질 이익</Td></Tr>
             <Tr><Td>CM%</Td><Td>Contribution Margin % — 공헌이익 ÷ 순매출 × 100</Td></Tr>
@@ -169,16 +171,16 @@ export function ManualTab() {
             모든 기능 편집 가능. PIN 관리·권한 설정·백업/복원·확정 로그 조회. 권한 항상 전체 고정
           </RoleCard>
           <RoleCard roleKey="pm" label="PM · CPO">
-            SKU 기본 정보·월별 계획(STEP 1) 입력, 프라이싱 시나리오 편집, 최종 발주 확정, SKU 일괄 추가
+            SKU 기본 정보·월 계획(STEP 1·2 상단 월 비중) 입력, 프라이싱 시나리오 편집, 최종 발주 확정, SKU 일괄 추가
           </RoleCard>
           <RoleCard roleKey="platform_md" label="플랫폼MD">
-            채널별 목표량(STEP 2) 입력, 프라이싱 시나리오 편집, 자사몰 채널·오픈일정 확정
+            채널별 목표량(STEP 1·2 하단) 입력, 프라이싱 시나리오 편집, 자사몰 채널·오픈일정 확정
           </RoleCard>
           <RoleCard roleKey="brand_md" label="브랜드MD">
-            채널별 목표량(STEP 2) 입력, 프라이싱 시나리오 편집, 스스·위탁·B2B 채널·오픈일정 확정
+            채널별 목표량(STEP 1·2 하단) 입력, 프라이싱 시나리오 편집, 스스·위탁·B2B 채널·오픈일정 확정
           </RoleCard>
           <RoleCard roleKey="global" label="글로벌">
-            채널별 목표량(STEP 2) 입력, 일본·글로벌 채널·오픈일정 확정
+            채널별 목표량(STEP 1·2 하단) 입력, 일본·글로벌 채널·오픈일정 확정
           </RoleCard>
           <RoleCard roleKey="viewer" label="VIEWER">
             뷰어 전용. 모든 정보 열람 가능, 편집 불가 (구 마케팅·CS/경영지원 역할 통합)
@@ -191,7 +193,7 @@ export function ManualTab() {
           "CPO 대시보드 연동"과는 무관한 표시상의 차이일 뿐.
         </Callout>
         <NoteList items={[
-          <>위 권한은 고정값 아님 — <strong>관리 탭 &gt; 권한 관리</strong>에서 역할별 5개 항목(SKU 기본정보 / STEP1 / STEP2 / 오픈일정 확정 / 발주 확정) 언제든 on/off 가능. master 행만 항상 전체 고정.</>,
+          <>위 권한은 고정값 아님 — <strong>관리 탭 &gt; 권한 관리</strong>에서 역할별 5개 항목(SKU 기본정보 / STEP1 / STEP2 / 오픈일정 확정 / 발주 확정) 언제든 on/off 가능. master 행만 항상 전체 고정. STEP1 = 월 비중 입력, STEP2 = 채널별 목표량 입력.</>,
           <>프라이싱 시나리오(할인율 선택·자동/수동 전환·가격확정)는 <Perm>마스터·PM·플랫폼MD·브랜드MD</Perm>만 편집 — 11장.</>,
           <>STEP2 채널 확정 버튼은 "STEP2 권한 보유 여부"만 확인 — 담당 채널 그룹이 달라도(예: 글로벌 담당이 브랜드 확정) 버튼은 노출될 수 있음.</>,
         ]} />
@@ -263,7 +265,7 @@ export function ManualTab() {
           { term: 'SKU 리스트', desc: 'SKU 카드 목록. SKU별 3단계 계획 진행, 카드↔목록(테이블) 뷰 토글 (프로젝션 LIST VIEW와 별개)' },
           { term: '채널별 요약', desc: '전체 SKU의 채널별 출고·매출 요약 뷰 (MD·전략 대상)' },
           { term: '메뉴얼', desc: '대시보드 사용 가이드 (현재 페이지)' },
-          { term: '관리', desc: 'PIN 관리 / 권한 관리 / 채널 관리(쿠팡·글로벌·일본) / 데이터 정리 / 관리자 메모 5개 서브탭 (MASTER 전용)' },
+          { term: '관리', desc: 'PIN 관리 / 권한 관리 / 채널 관리(쿠팡·글로벌·일본) / 시즌 한정 / 데이터 정리 / 관리자 메모 6개 서브탭 (MASTER 전용)' },
         ]} />
 
         <h3 className="text-sm font-semibold text-gray-600 mb-2 mt-4">SKU 카드 구성</h3>
@@ -273,7 +275,7 @@ export function ManualTab() {
           { term: '프라이싱 시나리오 버튼', desc: '판매가·원가 위 위치. 클릭 시 전체 B2C/B2B 시나리오 모달' },
           { term: '대응 SKU 패널', desc: '기존 SKU 검색·선택, Tableau 실적 자동 로드, 비교 기간 설정' },
           { term: '마케팅 브리프 버튼', desc: 'SKU별 마케팅 전략 작성 패널 (CPO 연동 SKU는 [기획 보러가기]로 대체 — 12장)' },
-          { term: 'STEP 탭', desc: '월별 계획(STEP 1) / 채널별 목표량 설정(STEP 2) / 채널별 수량 확인(STEP 3)' },
+          { term: 'STEP 탭', desc: 'STEP 1·2 월 계획 · 채널별 목표량 (한 화면, 카드 열면 기본) / STEP 3 채널별 수량 확인' },
         ]} />
 
         <h3 className="text-sm font-semibold text-gray-600 mb-2 mt-4">프로젝션 &gt; LIST VIEW</h3>
@@ -367,7 +369,7 @@ export function ManualTab() {
           </tbody>
         </table>
         <p className="text-xs text-gray-400 mb-1">* 쿠팡은 기본 비활성 채널. 관리 탭 &gt; 채널 관리 &gt; 쿠팡에서 SKU별 활성화 시 STEP2·대응SKU 실적/비중·채널별 요약 뷰에 정상 포함.</p>
-        <p className="text-xs text-gray-400 mb-4">* 글로벌·일본은 기본 활성 채널. 관리 탭 &gt; 채널 관리 &gt; 글로벌/일본에서 운영하지 않는 SKU만 골라 끌 수 있음(여러 개 한 번에 가능). 끈 SKU는 해당 채널 목표량 0 고정·비중은 나머지 채널로 배분, 끄기 전 수량은 백업돼 다시 켤 때 복원 가능. 발주량 확정·글로벌 확정 SKU는 잠김.</p>
+        <p className="text-xs text-gray-400 mb-4">* 글로벌·일본은 기본 활성 채널. 관리 탭 &gt; 채널 관리 &gt; 글로벌/일본에서 운영하지 않는 SKU만 골라 끌 수 있음(여러 개 한 번에 가능). 끈 SKU는 해당 채널 목표량 0 고정, 끄기 전 수량은 백업돼 다시 켤 때 복원 가능. 끌 때 재분배를 고르면 그 채널 수량을 같은 달 나머지 채널로 바로 옮김(월 합계 유지 · 확정 채널 제외). 발주량 확정·글로벌 확정 SKU는 잠김.</p>
 
         <h3 className="text-sm font-semibold text-gray-600 mb-2">대시보드 채널 → Tableau 채널ROI용 (변동비 조회)</h3>
         <table className="w-full border-collapse text-xs mb-4">
@@ -432,58 +434,114 @@ export function ManualTab() {
         <p className="mt-2 text-xs text-gray-400">* 비교 기간 선택은 변동비율 계산 기간과도 동기화.</p>
       </section>
 
-      {/* 8. STEP 1 */}
+      {/* 8. STEP 1·2 ① 월 계획 */}
       <section id="manual-s8" className="scroll-mt-20 bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
         <Eyebrow color="violet">PART 3 · SKU 계획 프로세스</Eyebrow>
-        <h2 className="text-lg font-bold text-gray-900 mb-3">1️⃣ 8. STEP 1 — 월별 발주 계획 (PM 담당)</h2>
-        <p className="text-sm text-gray-600 mb-3">7월~익년 2월 8개월 기준 월별 발주 수량 입력. STEP 2 초기값의 기준이 됨.</p>
-        <table className="w-full border-collapse text-xs">
+        <h2 className="text-lg font-bold text-gray-900 mb-3">1️⃣ 8. STEP 1·2 ① 월 계획과 발주량 커버 (PM 담당)</h2>
+        <Callout>
+          쉽게 말하면 — 수량의 원본은 <strong>채널×월 목표량 표 하나</strong>. 월 비중(PM)과 채널 비중(MD)은 그 표를
+          조정하는 두 손잡이. 어디를 고쳐도 같은 표가 바뀌어서 월 계획과 채널별 목표량이 어긋나지 않음.
+          두 표는 <strong>STEP 1·2 탭 한 화면</strong>에 위(월 계획)·아래(채널별 목표량)로 표시.
+        </Callout>
+        <p className="text-sm text-gray-600 mb-3">출시월부터 8개월 기준. 월 비중을 입력하면 바로 아래 채널별 목표량 표의 해당 월이 함께 바뀜.</p>
+        <table className="w-full border-collapse text-xs mb-3">
           <thead>
             <tr className="bg-gray-100">
-              <Th>항목</Th>
+              <Th>행 / 항목</Th>
               <Th>설명</Th>
-              <Th>비고</Th>
             </tr>
           </thead>
           <tbody>
-            <Tr>
-              <Td>총 발주량</Td>
-              <Td>SKU 기본 정보에서 입력</Td>
-              <Td></Td>
-            </Tr>
-            <Tr>
-              <Td>월별 수량 입력</Td>
-              <Td>각 월의 비중(%)으로 입력. 월별 수량은 비중에 따라 자동 계산되는 읽기 전용 값 (직접 수량 입력 필드는 없음)</Td>
-              <Td>STEP2 채널 배분의 월별 기준이 됨</Td>
-            </Tr>
-            <Tr>
-              <Td>가격확정</Td>
-              <Td>프라이싱 모달 시나리오 표(할인율·자동/수동 편집) 잠금. <Perm>마스터·PM·플랫폼MD·브랜드MD</Perm>만 조작</Td>
-              <Td>판매가·정가 자체는 CPO 연동 여부로 별도 결정 — 3장</Td>
-            </Tr>
+            <Tr><Td>총 발주량 (이번 발주량)</Td><Td>발주량&amp;사이즈분배에서 입력. 월 비중의 기준선 — 판매 목표를 바꿔도 발주량은 그대로. 미입력 시 월 비중 입력 잠김</Td></Tr>
+            <Tr><Td>대응SKU 실적</Td><Td>대응SKU 월별 출고량 (참고용)</Td></Tr>
+            <Tr><Td>수량</Td><Td>월 판매 목표 = 그 달 채널 합계 + 마케팅. 읽기 전용</Td></Tr>
+            <Tr><Td>비중 (입력)</Td><Td>총 발주량 대비 월 판매 목표(%). 리오더까지 계획하면 합계 100% 초과 가능 — 예: 160% = 발주량의 1.6배 판매 계획. 입력칸에서 벗어나거나 Enter 시 반영</Td></Tr>
+            <Tr><Td>누적</Td><Td>월별 누적 판매 목표. 발주량을 넘는 달부터 주황 표시 + "리오더 시작"(시즌 한정은 "품절 예상")</Td></Tr>
+            <Tr><Td>증감율</Td><Td>대응SKU 실적 대비 월별·연도별 증감 (참고용)</Td></Tr>
+            <Tr><Td>가격확정</Td><Td>프라이싱 모달 시나리오 표(할인율·자동/수동 편집) 잠금. <Perm>마스터·PM·플랫폼MD·브랜드MD</Perm>만 조작 — 판매가·정가 자체는 CPO 연동 여부로 별도 결정(3장)</Td></Tr>
           </tbody>
         </table>
-        <p className="mt-2 text-xs text-gray-400">* "MOQ 미달!" 배지 기준은 공급사 MOQ 아님 — STEP2 채널 합계가 STEP1 목표보다 적을 때 표시(STEP2 참고).</p>
+
+        <h3 className="text-sm font-semibold text-gray-600 mb-2">월 비중을 고치면</h3>
+        <StepFlow steps={[
+          { label: '월 비중 입력', desc: '예: 10월 30% → 40%' },
+          { label: '그 달 수량 변경', desc: '총 발주량 × 비중' },
+          { label: '채널로 나눔', desc: '그 달 채널 구성비 유지' },
+        ]} />
+        <NoteList items={[
+          <>확정 채널(플랫폼·브랜드·글로벌 확정)과 마케팅 수량은 그대로 — 나머지 채널만 조정. 모든 운영 채널이 확정되면 월 비중 입력 잠김.</>,
+          <>다른 달은 영향 없음. 수량이 없던 달은 대응SKU 채널 비중(없으면 기본 채널비중, 9장)으로 채움.</>,
+        ]} />
+
+        <h3 className="text-sm font-semibold text-gray-600 mb-2 mt-4">발주량 커버 안내 <span className="font-normal text-gray-400">(분홍 형광펜 표시)</span></h3>
+        <p className="text-sm text-gray-600 mb-2">판매 목표 합계를 총 발주량과 비교해 화면 오른쪽 위에 표시. 판정 기준은 SKU의 리오더 여부.</p>
+        <table className="w-full border-collapse text-xs mb-3">
+          <thead>
+            <tr className="bg-gray-100">
+              <Th>판매 목표 vs 발주량</Th>
+              <Th>리오더 가능 (기본)</Th>
+              <Th>시즌 한정 (리오더 없음)</Th>
+            </tr>
+          </thead>
+          <tbody>
+            <Tr><Td>목표 &gt; 발주량</Td><Td>발주량으로 N월까지 커버 · N월부터 리오더 약 N개</Td><Td>품절 위험 · N월 조기 품절 예상 · 목표 대비 N개 부족</Td></Tr>
+            <Tr><Td>목표 = 발주량</Td><Td>판매 목표 = 발주량</Td><Td>판매 목표 = 발주량</Td></Tr>
+            <Tr><Td>목표 &lt; 발주량</Td><Td>잔여 재고 · 시즌 후 약 N개 · 다음 시즌 이월</Td><Td>과재고 위험 · 시즌 후 잔여 약 N개</Td></Tr>
+          </tbody>
+        </table>
+        <Callout tone="warn" title="시즌 한정 ≠ 주력 구분 '시즈널'">
+          리오더 여부는 <strong>관리 탭 &gt; 시즌 한정</strong>에서 SKU별로 지정. 기본정보의 주력 구분(시즈널/스테디/미해당)은
+          주력 상품 표시용이라 판정에 쓰지 않음. 시즌 한정으로 지정한 적 없는 SKU는 주력 구분이 시즈널인 경우만 시즌 한정으로 보고,
+          나머지는 모두 리오더 가능으로 판정.
+        </Callout>
+        <NoteList items={[
+          <>시즌 한정 SKU만 판매 목표 ≠ 발주량일 때 [판매 목표를 발주량에 맞추기] 버튼 표시 — 월·채널 모양 유지한 채 크기만 맞춤(확정 채널 제외).</>,
+          <>예전 "MOQ 미달!" 배지와 [비례반영] 버튼은 없어짐 (리오더 계획이면 판매 목표가 발주량보다 큰 게 정상).</>,
+        ]} />
       </section>
 
-      {/* 9. STEP 2 */}
+      {/* 9. STEP 1·2 ② 채널별 목표량 */}
       <section id="manual-s9" className="scroll-mt-20 bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
         <Eyebrow color="violet">PART 3 · SKU 계획 프로세스</Eyebrow>
-        <h2 className="text-lg font-bold text-gray-900 mb-3">2️⃣ 9. STEP 2 — 채널별 목표량 설정 (MD 담당)</h2>
-        <p className="text-sm text-gray-600 mb-3">MD가 채널·월별 목표 수량과 판매가 시나리오를 설정, 예상 순매출·공헌이익을 실시간 확인.</p>
+        <h2 className="text-lg font-bold text-gray-900 mb-3">2️⃣ 9. STEP 1·2 ② 채널별 목표량 (MD 담당)</h2>
+        <p className="text-sm text-gray-600 mb-3">월 계획 바로 아래 표. MD가 채널·월별 목표 수량과 판매가 시나리오를 설정, 예상 순매출·공헌이익을 실시간 확인.</p>
 
-        <h3 className="text-sm font-semibold text-gray-600 mb-2">자동 초기값 세팅 순서</h3>
+        <h3 className="text-sm font-semibold text-gray-600 mb-2">처음 채워지는 방식 <span className="font-normal text-gray-400">(표가 비어 있을 때 한 번)</span></h3>
         <StepFlow steps={[
-          { label: '대응 SKU 설정 시', desc: '채널별 출고 비중 기준으로 배분' },
-          { label: '대응 SKU 없을 시', desc: '고정 기본 채널비중 사용 (아래)' },
-          { label: '항상', desc: 'STEP 1 월별 수량 기준으로 월별 배분' },
+          { label: '월 계획', desc: '월 비중 입력값 (없으면 총 발주량 8개월 균등)' },
+          { label: '채널 비중', desc: '대응SKU 채널별 출고 비중 (없으면 기본 채널비중)' },
+          { label: '채널×월 목표량', desc: '매달 월 수량을 채널 비중대로 나눔' },
         ]} />
         <p className="text-xs text-gray-500 mb-1.5">고정 기본 채널비중 (카테고리 무관, 모든 SKU 동일 적용)</p>
         <ChipList items={['자사몰 20%', '스스 30%', '위탁 5%', '쿠팡 10%', 'B2B 15%', '사입및페어 5%', '글로벌 5%', '일본 10%']} className="mb-2" />
         <NoteList items={[
           <>쿠팡이 비활성화된 SKU는 이 자동 배분에서 제외(대응SKU 실적·비중 계산에도 미포함). 관리 탭에서 활성화한 SKU만 배분 대상.</>,
           <>글로벌·일본을 관리 탭에서 끈 SKU도 동일하게 자동 배분에서 제외되고, 그 비중은 나머지 채널로 배분.</>,
+          <>대응SKU가 있는데 채널별 출고 데이터를 아직 못 받았으면 자동 세팅을 기다림 — 이때는 [대응SKU 비중으로 다시 나누기]로 채울 수 있음.</>,
         ]} />
+
+        <h3 className="text-sm font-semibold text-gray-600 mb-2 mt-4">수량 조정 방법</h3>
+        <p className="text-xs text-gray-500 mb-1.5">버튼 윗줄 = 수량 조정 ([되돌리기] · [채널 비중 수정] · [대응SKU 비중으로 다시 나누기]) / 아랫줄 = [시뮬레이션 엑셀] · 채널 확정</p>
+        <table className="w-full border-collapse text-xs mb-3">
+          <thead>
+            <tr className="bg-gray-100">
+              <Th>조정</Th>
+              <Th>방법</Th>
+              <Th>결과</Th>
+            </tr>
+          </thead>
+          <tbody>
+            <Tr><Td>칸 직접 수정</Td><Td>채널 펼침 → 월별 목표 수량 입력</Td><Td>그 칸만 변경 · 월 비중·채널 비중 자동 재계산</Td></Tr>
+            <Tr><Td>채널 비중 수정</Td><Td>[채널 비중 수정] → 비중 칸에 여러 채널 입력 → [저장] (취소 가능)</Td><Td>월 합계(PM 월 계획) 유지 · 수정 안 한 채널이 남은 비중을 현재 비율대로 나눠 가짐 · 각 채널의 월별 모양 최대한 유지. 수정·확정 채널 합계가 100%를 넘으면 저장 불가</Td></Tr>
+            <Tr><Td>대응SKU 비중으로 다시 나누기</Td><Td>버튼 클릭</Td><Td>매달 월 합계 유지한 채 대응SKU 채널 비중으로 다시 나눔 · 손으로 고친 값도 재계산</Td></Tr>
+            <Tr><Td>판매 목표를 발주량에 맞추기</Td><Td>시즌 한정 SKU만 표시 (8장)</Td><Td>월·채널 모양 유지, 전체 크기만 총 발주량에 맞춤</Td></Tr>
+            <Tr><Td>되돌리기</Td><Td>위 조정 직후 버튼 클릭</Td><Td>직전 상태 복구 (카드 닫으면 불가)</Td></Tr>
+          </tbody>
+        </table>
+        <Callout tone="warn" title="대응SKU를 바꿔도 표는 그대로">
+          대응SKU를 바꾸면 버튼 옆에 <strong>"대응SKU 변경됨"</strong> 안내만 표시되고 목표량은 자동으로 바뀌지 않음.
+          새 대응SKU 비중을 쓰려면 [대응SKU 비중으로 다시 나누기]를 누르기 (수기 수정값 재계산).
+        </Callout>
 
         <h3 className="text-sm font-semibold text-gray-600 mb-2 mt-4">채널 요약 테이블 (토글 닫힌 상태)</h3>
         <table className="w-full border-collapse text-xs mb-4">
@@ -495,7 +553,7 @@ export function ManualTab() {
           </thead>
           <tbody>
             <Tr><Td>채널</Td><Td>채널명 + 토글 버튼 (클릭 시 상세 펼침)</Td></Tr>
-            <Tr><Td>비중</Td><Td>전체 목표량 대비 해당 채널 수량 비율 (%). 마케팅 행은 판매 채널이 아니므로 –</Td></Tr>
+            <Tr><Td>비중</Td><Td>채널 전체 목표량 대비 해당 채널 수량 비율 (%). [채널 비중 수정] 중에는 입력칸(확정·비운영 채널 제외). 마케팅 행은 판매 채널이 아니므로 –</Td></Tr>
             <Tr><Td>총수량</Td><Td>해당 채널의 월별 수량 합산. 기준 대비 변화량(Δ) 표시</Td></Tr>
             <Tr><Td>실매출단가</Td><Td>∑(월별 수량 × 시나리오 가격) ÷ 총 수량 (부가세 제외). 마케팅 행은 –</Td></Tr>
             <Tr><Td>순매출</Td><Td>실매출단가 × 수량 합산. 마케팅 행은 – (판매 없음, 매출 0 처리)</Td></Tr>
@@ -553,7 +611,7 @@ export function ManualTab() {
             </tr>
           </thead>
           <tbody>
-            <Tr><Td>플랫폼 확정</Td><Td>자사몰</Td><Td>해당 채널 그룹 수량 잠금. 잠긴 그룹이 하나라도 있으면 초기화·비례반영 등 일괄 조정 버튼 비활성화</Td></Tr>
+            <Tr><Td>플랫폼 확정</Td><Td>자사몰</Td><Td>해당 채널 그룹 수량 잠금. 월 비중·채널 비중 수정·다시 나누기에서 제외되고 나머지 채널만 조정. 모든 운영 채널이 확정되면 비중 입력·다시 나누기 잠김</Td></Tr>
             <Tr><Td>브랜드 확정</Td><Td>스스 · 위탁 · B2B</Td><Td>위와 동일</Td></Tr>
             <Tr><Td>글로벌 확정</Td><Td>일본 · 글로벌</Td><Td>위와 동일</Td></Tr>
           </tbody>
@@ -588,7 +646,7 @@ export function ManualTab() {
       <section id="manual-s10" className="scroll-mt-20 bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
         <Eyebrow color="violet">PART 3 · SKU 계획 프로세스</Eyebrow>
         <h2 className="text-lg font-bold text-gray-900 mb-3">3️⃣ 10. STEP 3 — 채널별 수량 확인 (MD 확인용)</h2>
-        <p className="text-sm text-gray-600 mb-3">STEP 2 채널별 목표량 기반 월별·옵션별 최종 수량 확인. 별도 재무 계산 없음.</p>
+        <p className="text-sm text-gray-600 mb-3">STEP 1·2 채널별 목표량 기반 월별·옵션별 최종 수량 확인. 별도 재무 계산 없음.</p>
         <table className="w-full border-collapse text-xs">
           <thead>
             <tr className="bg-gray-100">
@@ -598,7 +656,7 @@ export function ManualTab() {
           </thead>
           <tbody>
             <Tr><Td>채널별 수량</Td><Td>채널×월 조합의 목표 수량 (B2C, 마케팅, B2B 순으로 표시)</Td></Tr>
-            <Tr><Td>마케팅 행 (분홍색)</Td><Td>STEP2에서 입력한 마케팅 수량 읽기 전용 표시. 비중(%)은 전체 합계 기준으로 산출</Td></Tr>
+            <Tr><Td>마케팅 행 (분홍색)</Td><Td>STEP 1·2에서 입력한 마케팅 수량 읽기 전용 표시. 비중(%)은 전체 합계 기준으로 산출</Td></Tr>
             <Tr><Td>옵션별 수량</Td><Td>채널 월별 수량 × 컬러 비중 × 사이즈 비중으로 자동 분배 (B2C·B2B 채널만 해당)</Td></Tr>
             <Tr><Td>FY26 합계</Td><Td>7~12월 수량 합산 (B2C + 마케팅 + B2B 포함)</Td></Tr>
             <Tr><Td>전체 합계 (하단 합계 행)</Td><Td>7월~익년 2월 전체 수량 합산. 마케팅 수량 포함</Td></Tr>
@@ -757,7 +815,8 @@ export function ManualTab() {
           { term: 'SKU 검색 및 다중 선택', desc: '복수 SKU 선택 시 출고량 합산하여 비교 기준으로 사용' },
           { term: '비교 기간 선택', desc: '"직전 12개월" 또는 "동기간 (전년도 동월)" 중 선택. 변동비율 계산 기간과도 동기화' },
           { term: '월평균·연간 출고량', desc: '선택한 기간 기준 자동 표시' },
-          { term: '채널별 출고 비중', desc: '차트 시각화. STEP 2 초기값 세팅에 활용' },
+          { term: '채널별 출고 비중', desc: '차트 시각화. 채널별 목표량 초기값·[대응SKU 비중으로 다시 나누기]에 활용 (대응SKU를 바꿔도 목표량 자동 변경 없음 — 9장)' },
+          { term: '증감률 비교', desc: '대응SKU vs STEP2 목표량. 월 출고량 = 판매 목표 합계 ÷ 수량 있는 월 수, 연간 총출고량 = 판매 목표 합계, 판매가는 기본정보 판매가 기준 (예전 소진월수 입력칸은 없어짐)' },
         ]} />
         <table className="w-full border-collapse text-xs">
           <thead>
@@ -854,7 +913,7 @@ export function ManualTab() {
         <Eyebrow color="teal">PART 5 · 계산과 인프라</Eyebrow>
         <h2 className="text-lg font-bold text-gray-900 mb-3">💾 16. 데이터 저장 및 동기화</h2>
         <h3 className="text-sm font-semibold text-gray-600 mb-2">Firestore 저장 항목 <span className="font-normal text-gray-400">(새로고침 후에도 유지)</span></h3>
-        <ChipList items={['SKU 기본 정보', '사이즈·컬러 구성 및 수량', '월별 발주 계획', '채널별 월별 목표 수량', '채널별 판매가 시나리오 설정', '채널별 오픈일정', '가격확정·자사몰세팅 여부', 'SKU별 쿠팡 활성화 · 글로벌/일본 비운영 여부', '발주 확정 상태 및 확정 이력', '마케팅 브리프 내용']} />
+        <ChipList items={['SKU 기본 정보', '사이즈·컬러 구성 및 수량', '채널별 월별 목표 수량 (월 계획은 여기서 자동 계산)', '채널별 판매가 시나리오 설정', '채널별 오픈일정', '가격확정·자사몰세팅 여부', 'SKU별 쿠팡 활성화 · 글로벌/일본 비운영 여부', '시즌 한정 여부', '발주 확정 상태 및 확정 이력', '마케팅 브리프 내용']} />
         <NoteList items={[
           <>CPO 연동 필드(SKU명·판매가·원가·정가·입고/촬영예정일·컬러/사이즈 옵션·썸네일)는 여기도 저장되지만 원본은 CPO 대시보드 — 3장.</>,
         ]} />
@@ -874,7 +933,7 @@ export function ManualTab() {
           <tbody>
             <Tr><Td>① STEP 2 채널 확정</Td><Td>플랫폼·브랜드·글로벌 MD</Td><Td>채널 그룹별(자사몰 / 스스·위탁·B2B / 일본·글로벌) 목표량 확정. 이후 해당 그룹 수량 잠금</Td></Tr>
             <Tr><Td>② 채널별 오픈일정 확정</Td><Td>오픈일정 확정 권한 보유자</Td><Td>프로젝션 탭에서 채널별 오픈일정 확정. 이후 날짜·기타 입력 잠금</Td></Tr>
-            <Tr><Td>③ 최종 발주 확정</Td><Td>PM (또는 MASTER)</Td><Td>월별 발주 계획 최종 확정. 확정 후 STEP2 수량이 달라지면 "발주량 변경됨" 경고 배너 표시</Td></Tr>
+            <Tr><Td>③ 최종 발주 확정</Td><Td>PM (또는 MASTER)</Td><Td>PM 확인 최종 발주량(옵션별) 확정. 기본값 = 총 발주량 × 옵션 비율 (필요 시 수기 수정 후 확정). 확정 후 총 발주량이 바뀌면 "발주량 변경됨" 경고 — 판매 목표·채널별 목표량 변경은 경고 대상 아님</Td></Tr>
             <Tr><Td>확정 이력 조회</Td><Td>MASTER</Td><Td>확정 일시·역할 이력을 모달에서 확인 가능</Td></Tr>
           </tbody>
         </table>
