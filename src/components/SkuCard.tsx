@@ -2308,9 +2308,12 @@ function PricingChannelTable({
                             <tr className="border-b-2 border-gray-200 bg-white">
                               <td className={labelCell}>
                                 <span className="text-[11px] font-semibold text-gray-500">실 판매가</span>
-                                <span className={`block text-[9px] mt-0.5 ${isLive ? 'text-indigo-300' : 'text-gray-300'}`}>
-                                  ${usdKrw.toLocaleString()} · ¥{jpyKrw.toFixed(1)}
-                                </span>
+                                {/* 환율은 외화 공급가를 쓰는 해외 채널에만 표시 */}
+                                {(channel === '글로벌' || channel === '일본') && (
+                                  <span className={`block text-[9px] mt-0.5 ${isLive ? 'text-indigo-300' : 'text-gray-300'}`}>
+                                    ${usdKrw.toLocaleString()} · ¥{jpyKrw.toFixed(1)}
+                                  </span>
+                                )}
                               </td>
                               {skuMonths.map((m) => {
                                 const optId = getPricingOpt(channel, m);
