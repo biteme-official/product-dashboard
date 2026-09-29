@@ -731,13 +731,15 @@ function FinalOrderTable({ sku, sumRatios }: { sku: SkuData; sumRatios: number }
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const step2Total = liveChannelMonthQty.reduce((s, e) => s + e.qty, 0);
+  // 최종 발주량 기본값 기준 = 총 발주량 (STEP2 합계는 리오더 포함 판매 목표라 발주량과 다를 수 있음). 총 발주량이 없을 때만 STEP2 합계
+  const orderBase = sku.totalOrderQty > 0 ? sku.totalOrderQty : step2Total;
   const activeSizes = sku.sizes.filter((s) => s.isActive && s.ratio > 0);
   const activeColors = sku.hasColors ? sku.colors.filter((c) => !c.archived && (c.name || c.quantity > 0)) : [];
   const colorTotal = activeColors.reduce((s, c) => s + c.quantity, 0);
   const hasColors = activeColors.length > 0 && colorTotal > 0;
   const hasSizes = activeSizes.length > 0 && sumRatios > 0;
 
-  if (step2Total === 0 || (!hasColors && !hasSizes)) return null;
+  if (orderBase === 0 || (!hasColors && !hasSizes)) return null;
 
   const csKey = (cid: string, sl: string) => `cs|${cid}|${sl}`;
   const cKey = (cid: string) => `c|${cid}`;
@@ -747,11 +749,11 @@ function FinalOrderTable({ sku, sumRatios }: { sku: SkuData; sumRatios: number }
   const stored2 = liveStep2OptionQty ?? {};
   const isManual2 = Object.keys(stored2).some((k) => k !== '__total__');
   const savedTotal2 = (stored2['__total__'] as number | undefined) ?? 0;
-  const scale2 = isManual2 && savedTotal2 > 0 && step2Total > 0 ? step2Total / savedTotal2 : 1;
+  const scale2 = isManual2 && savedTotal2 > 0 && orderBase > 0 ? orderBase / savedTotal2 : 1;
   const compCS = (cQty: number, sRatio: number) =>
-    sumRatios === 0 || colorTotal === 0 ? 0 : Math.round(step2Total * (cQty / colorTotal) * (sRatio / sumRatios));
-  const compC = (cQty: number) => colorTotal === 0 ? 0 : Math.round(step2Total * (cQty / colorTotal));
-  const compS = (sRatio: number) => sumRatios === 0 ? 0 : Math.round(step2Total * (sRatio / sumRatios));
+    sumRatios === 0 || colorTotal === 0 ? 0 : Math.round(orderBase * (cQty / colorTotal) * (sRatio / sumRatios));
+  const compC = (cQty: number) => colorTotal === 0 ? 0 : Math.round(orderBase * (cQty / colorTotal));
+  const compS = (sRatio: number) => sumRatios === 0 ? 0 : Math.round(orderBase * (sRatio / sumRatios));
   const s2DispCS = (cid: string, cQty: number, sl: string, sRatio: number) =>
     isManual2 && stored2[csKey(cid, sl)] !== undefined ? Math.round(stored2[csKey(cid, sl)] * scale2) : compCS(cQty, sRatio);
   const s2DispC = (cid: string, cQty: number) =>

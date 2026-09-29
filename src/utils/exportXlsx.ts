@@ -48,11 +48,13 @@ export function buildSkuOrderRows(sku: SkuData): (string | number)[][] {
 
 /**
  * PM 확인 최종 발주량 기준 2D 배열 생성.
- * 우선순위: finalOrderQty → step2OptionQty(스케일) → step2Total×비중 자동계산
- * step2Total이 0이면 null 반환 (fallback으로 buildSkuOrderRows 사용)
+ * 우선순위: finalOrderQty → step2OptionQty(총 발주량에 맞게 스케일) → 총 발주량×비중 자동계산
+ * 총 발주량(없으면 STEP2 합계)이 0이면 null 반환 (fallback으로 buildSkuOrderRows 사용)
  */
 export function buildFinalOrderRows(sku: SkuData): (string | number)[][] | null {
   const step2Total = sku.channelMonthQty.reduce((s, e) => s + e.qty, 0);
+  // 발주 수량 기준 = 총 발주량 (없을 때만 STEP2 합계) — PM 확인 최종 발주량 기본값과 동일
+  const orderBase = sku.totalOrderQty > 0 ? sku.totalOrderQty : step2Total;
   const activeSizes = sku.sizes.filter((s) => s.isActive && s.ratio > 0);
   const sumRatios = activeSizes.reduce((sum, s) => sum + s.ratio, 0);
   const activeColors = sku.hasColors ? sku.colors.filter((c) => c.name || c.quantity > 0) : [];
@@ -60,7 +62,7 @@ export function buildFinalOrderRows(sku: SkuData): (string | number)[][] | null 
   const hasColors = activeColors.length > 0 && colorTotal > 0;
   const hasSizes = activeSizes.length > 0 && sumRatios > 0;
 
-  if (step2Total === 0 || (!hasColors && !hasSizes)) return null;
+  if (orderBase === 0 || (!hasColors && !hasSizes)) return null;
 
   const csKey = (cid: string, sl: string) => `cs|${cid}|${sl}`;
   const cKey  = (cid: string) => `c|${cid}`;
@@ -70,12 +72,12 @@ export function buildFinalOrderRows(sku: SkuData): (string | number)[][] | null 
   const stored2 = sku.step2OptionQty ?? {};
   const isManual2 = Object.keys(stored2).some((k) => k !== '__total__');
   const savedTotal2 = (stored2['__total__'] as number | undefined) ?? 0;
-  const scale2 = isManual2 && savedTotal2 > 0 ? step2Total / savedTotal2 : 1;
+  const scale2 = isManual2 && savedTotal2 > 0 ? orderBase / savedTotal2 : 1;
 
   const compCS = (cQty: number, sRatio: number) =>
-    sumRatios === 0 || colorTotal === 0 ? 0 : Math.round(step2Total * (cQty / colorTotal) * (sRatio / sumRatios));
-  const compC  = (cQty: number) => colorTotal === 0 ? 0 : Math.round(step2Total * (cQty / colorTotal));
-  const compS  = (sRatio: number) => sumRatios === 0 ? 0 : Math.round(step2Total * (sRatio / sumRatios));
+    sumRatios === 0 || colorTotal === 0 ? 0 : Math.round(orderBase * (cQty / colorTotal) * (sRatio / sumRatios));
+  const compC  = (cQty: number) => colorTotal === 0 ? 0 : Math.round(orderBase * (cQty / colorTotal));
+  const compS  = (sRatio: number) => sumRatios === 0 ? 0 : Math.round(orderBase * (sRatio / sumRatios));
 
   const s2CS = (cid: string, cQty: number, sl: string, sRatio: number) =>
     isManual2 && stored2[csKey(cid, sl)] !== undefined ? Math.round(stored2[csKey(cid, sl)] * scale2) : compCS(cQty, sRatio);

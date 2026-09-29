@@ -476,7 +476,7 @@ function OptOutPanel({ channel }: { channel: OptOutChannel }) {
               <p>현재 {channel} 목표량 <b className="tabular-nums">{pendingQty.toLocaleString()}장</b>이 0이 됩니다. 끄기 전 값은 백업해 두었다가 다시 켤 때 복원할 수 있어요.</p>
               <div className="flex flex-col gap-1">
                 <label className="flex items-center gap-2"><input type="radio" checked={mode === 'keep'} onChange={() => setMode('keep')} className="accent-amber-500" />{channel}만 0으로 — 나머지 채널 수기 조정값은 그대로 유지 (STEP2 합계가 줄어듦)</label>
-                <label className="flex items-center gap-2"><input type="radio" checked={mode === 'recalc'} onChange={() => setMode('recalc')} className="accent-amber-500" />STEP2 전체 재계산 — 다음 STEP2 진입 시 {channel} 비중을 나머지 채널로 재분배 (수기 조정값은 덮어씀)</label>
+                <label className="flex items-center gap-2"><input type="radio" checked={mode === 'recalc'} onChange={() => setMode('recalc')} className="accent-amber-500" />{channel} 수량을 나머지 채널로 재배분 — 월 합계 유지 · 채널 구성비 유지 · 확정 채널 제외</label>
               </div>
             </>
           ) : (
@@ -485,7 +485,7 @@ function OptOutPanel({ channel }: { channel: OptOutChannel }) {
                 <label className="flex items-center gap-2"><input type="radio" checked={mode === 'restore'} onChange={() => setMode('restore')} className="accent-amber-500" />끄기 전 목표량 복원 (<span className="tabular-nums">{pendingBackup.toLocaleString()}장</span>)</label>
               )}
               <label className="flex items-center gap-2"><input type="radio" checked={mode === 'keep'} onChange={() => setMode('keep')} className="accent-amber-500" />0인 채로 켜기 — STEP2에서 직접 입력</label>
-              <label className="flex items-center gap-2"><input type="radio" checked={mode === 'recalc'} onChange={() => setMode('recalc')} className="accent-amber-500" />STEP2 전체 재계산 — 다음 STEP2 진입 시 대응SKU 비중으로 다시 배분 (수기 조정값은 덮어씀)</label>
+              <label className="flex items-center gap-2"><input type="radio" checked={mode === 'recalc'} onChange={() => setMode('recalc')} className="accent-amber-500" />대응SKU 비중으로 다시 배분 — 다음 STEP2 진입 시 · 월 합계 유지 · 확정 채널 제외 · 수기 조정값 재계산</label>
             </div>
           )}
           <div className="flex justify-end gap-2 pt-1">

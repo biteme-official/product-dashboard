@@ -44,6 +44,25 @@ export function isChannelToggleLocked(sku: { finalOrderConfirmedAt?: string | nu
 /** channelQtyDerivedFromCompareSkus에 넣으면 다음 STEP2 진입 때 무조건 재계산되게 하는 표식 (대응SKU 이름과 겹치지 않음) */
 export const STEP2_FORCE_RECALC_MARK = '__recalc__';
 
+export type ChannelConfirmField = 'step2PlatformConfirmed' | 'step2BrandConfirmed' | 'step2GlobalConfirmed';
+/** 채널 → STEP2 확정 그룹 (플랫폼/브랜드/글로벌). 쿠팡·사입및페어는 확정 그룹 없음 */
+export const CHANNEL_CONFIRM_GROUP: Partial<Record<Channel, { field: ChannelConfirmField; label: string }>> = {
+  '자사몰': { field: 'step2PlatformConfirmed', label: '플랫폼' },
+  '스스':   { field: 'step2BrandConfirmed',    label: '브랜드' },
+  '위탁':   { field: 'step2BrandConfirmed',    label: '브랜드' },
+  'B2B':    { field: 'step2BrandConfirmed',    label: '브랜드' },
+  '일본':   { field: 'step2GlobalConfirmed',   label: '글로벌' },
+  '글로벌': { field: 'step2GlobalConfirmed',   label: '글로벌' },
+};
+
+/** 확정 그룹에 속해 수량 조정에서 제외되는 채널 */
+export function getConfirmedChannels(sku: Partial<Record<ChannelConfirmField, boolean>>): Channel[] {
+  return CHANNELS.filter((ch) => {
+    const g = CHANNEL_CONFIRM_GROUP[ch];
+    return !!g && !!sku[g.field];
+  });
+}
+
 /**
  * 대응SKU 채널 실적 분포를 SKU의 비활성 채널 기준으로 보정.
  * 태블로 "해외" 출고는 글로벌 40% / 일본 60%로 임의 분할돼 들어오므로, 둘 중 한쪽만 꺼진 SKU는
@@ -239,6 +258,7 @@ export interface SkuData {
   disabledChannelBackup?: Partial<Record<OptOutChannel, ChannelMonthQtyEntry[]>>;
   finalOrderQty?: Record<string, number>;
   finalOrderConfirmedAt?: string | null;
+  finalOrderConfirmedOrderQty?: number;      // 발주 확정 시점의 총 발주량 — '발주량 변경됨' 경고 기준
   step2PlatformConfirmed?: boolean;
   step2BrandConfirmed?: boolean;
   step2GlobalConfirmed?: boolean;
