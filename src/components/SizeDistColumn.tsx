@@ -73,11 +73,6 @@ export function SizeDistColumn({ sku, readOnly }: Props) {
   const activeSizes = sku.sizes.filter((s) => s.isActive);
   const sumRatios = activeSizes.reduce((sum, s) => sum + s.ratio, 0);
   const ratioOk = sumRatios === 100;
-  const monthlyTarget =
-    sku.targetSellThroughMonths > 0
-      ? Math.round(sku.totalOrderQty / sku.targetSellThroughMonths)
-      : 0;
-  void Math.round(monthlyTarget / 30); // dailyTarget — not currently displayed
 
   function handleBlur() { persistSku(sku.id); }
 
@@ -154,8 +149,8 @@ export function SizeDistColumn({ sku, readOnly }: Props) {
         </div>
       </div>
 
-      {/* 사이즈 개수 / MOQ / 목표소진월수 */}
-      <div className="grid grid-cols-3 gap-2">
+      {/* 사이즈 개수 / MOQ */}
+      <div className="grid grid-cols-2 gap-2">
         <div>
           <label className="flex items-center gap-1 text-xs text-gray-500 mb-1">
             사이즈
@@ -189,18 +184,6 @@ export function SizeDistColumn({ sku, readOnly }: Props) {
               className="w-full px-2 py-2 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-400 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed"
             />
           )}
-        </div>
-        <div>
-          <label className="block text-xs text-gray-500 mb-1">소진월수</label>
-          <NumericInput
-            value={sku.targetSellThroughMonths}
-            onChange={(v) => updateSku(sku.id, { targetSellThroughMonths: v })}
-            onBlur={handleBlur}
-            disabled={readOnly}
-            allowDecimal
-            placeholder="월"
-            className="w-full px-2 py-2 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-400 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed"
-          />
         </div>
       </div>
 

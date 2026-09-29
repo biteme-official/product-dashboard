@@ -3,9 +3,11 @@ interface MetricProps {
   newVal: number;
   oldVal: number;
   unit?: string;
+  oldLabel?: string;
+  newLabel?: string;
 }
 
-function GrowthMetric({ label, newVal, oldVal, unit = '' }: MetricProps) {
+function GrowthMetric({ label, newVal, oldVal, unit = '', oldLabel = '대응SKU', newLabel = '신규' }: MetricProps) {
   const rate = oldVal > 0 ? ((newVal - oldVal) / oldVal) * 100 : null;
   const barWidth = rate !== null ? Math.min(Math.abs(rate), 100) : 0;
   const isPositive = rate !== null && rate > 0;
@@ -32,10 +34,10 @@ function GrowthMetric({ label, newVal, oldVal, unit = '' }: MetricProps) {
       {/* 비교 수치 */}
       <div className="flex items-center justify-between text-xs text-gray-400">
         <span>
-          기존 {oldVal > 0 ? oldVal.toLocaleString() + unit : '–'}
+          {oldLabel} {oldVal > 0 ? oldVal.toLocaleString() + unit : '–'}
         </span>
         <span className="text-gray-600 font-medium">
-          신규 {newVal > 0 ? newVal.toLocaleString() + unit : '–'}
+          {newLabel} {newVal > 0 ? newVal.toLocaleString() + unit : '–'}
         </span>
       </div>
 
@@ -73,18 +75,21 @@ export function GrowthIndicator({
 }: Props) {
   return (
     <div className="p-3 bg-gray-50 rounded-lg space-y-3 border border-gray-100">
-      <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-        증감률 비교
+      <div className="flex items-baseline gap-1.5">
+        <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">증감률 비교</span>
+        <span className="text-[10px] text-gray-400">대응SKU vs STEP2 목표량</span>
       </div>
       <GrowthMetric
         label="월 출고량"
         newVal={newMonthlyQty}
         oldVal={oldMonthlyQty}
+        newLabel="STEP2"
       />
       <GrowthMetric
         label="연간 총출고량"
         newVal={newAnnualQty}
         oldVal={oldAnnualQty}
+        newLabel="STEP2"
       />
       <GrowthMetric
         label="판매가"
