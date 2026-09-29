@@ -25,6 +25,15 @@ export function getDisabledChannels(sku: { coupangEnabled?: boolean; disabledCha
 }
 
 /**
+ * 시즌 한정(리오더 없음) 여부. 수량 분배 판정에 쓴다 — 시즌 한정이면 판매 목표 > 발주량을 품절 위험,
+ * 아니면(기본) 리오더 계획으로 본다. 주력 구분(skuType)과는 별개 값이고, 관리 탭에서 지정한 적 없으면
+ * 주력 구분이 시즈널인 SKU만 시즌 한정으로 간주한다.
+ */
+export function isSeasonOnly(sku: { seasonOnly?: boolean; skuType?: SkuType }): boolean {
+  return sku.seasonOnly ?? sku.skuType === '시즈널';
+}
+
+/**
  * 글로벌/일본 채널 on/off를 잠글지 — 발주량 확정 또는 글로벌 확정 상태면 목표량이 확정된 것으로 보고
  * 관리 탭에서 채널 설정을 바꾸지 못하게 한다 (확정값이 조용히 0/재분배되는 것 방지).
  */
@@ -34,6 +43,25 @@ export function isChannelToggleLocked(sku: { finalOrderConfirmedAt?: string | nu
 
 /** channelQtyDerivedFromCompareSkus에 넣으면 다음 STEP2 진입 때 무조건 재계산되게 하는 표식 (대응SKU 이름과 겹치지 않음) */
 export const STEP2_FORCE_RECALC_MARK = '__recalc__';
+
+export type ChannelConfirmField = 'step2PlatformConfirmed' | 'step2BrandConfirmed' | 'step2GlobalConfirmed';
+/** 채널 → STEP2 확정 그룹 (플랫폼/브랜드/글로벌). 쿠팡·사입및페어는 확정 그룹 없음 */
+export const CHANNEL_CONFIRM_GROUP: Partial<Record<Channel, { field: ChannelConfirmField; label: string }>> = {
+  '자사몰': { field: 'step2PlatformConfirmed', label: '플랫폼' },
+  '스스':   { field: 'step2BrandConfirmed',    label: '브랜드' },
+  '위탁':   { field: 'step2BrandConfirmed',    label: '브랜드' },
+  'B2B':    { field: 'step2BrandConfirmed',    label: '브랜드' },
+  '일본':   { field: 'step2GlobalConfirmed',   label: '글로벌' },
+  '글로벌': { field: 'step2GlobalConfirmed',   label: '글로벌' },
+};
+
+/** 확정 그룹에 속해 수량 조정에서 제외되는 채널 */
+export function getConfirmedChannels(sku: Partial<Record<ChannelConfirmField, boolean>>): Channel[] {
+  return CHANNELS.filter((ch) => {
+    const g = CHANNEL_CONFIRM_GROUP[ch];
+    return !!g && !!sku[g.field];
+  });
+}
 
 /**
  * 대응SKU 채널 실적 분포를 SKU의 비활성 채널 기준으로 보정.
@@ -224,11 +252,13 @@ export interface SkuData {
   step2InitBaselineQty?: ChannelMonthQtyEntry[]; // 초기화 시 계산된 수량 (비교 기준값, 영구 보존)
   channelQtyDerivedFromCompareSkus?: string[]; // channelMonthQty를 마지막으로 자동세팅한 대응SKU 목록 (재선택 감지용)
   coupangEnabled?: boolean; // true면 이 SKU만 쿠팡 채널 활성화 (관리자 탭에서 설정, 기본 false)
+  seasonOnly?: boolean; // 시즌 한정(리오더 없음) — 관리 탭에서 지정. 미지정이면 주력 구분이 시즈널일 때만 true로 본다(isSeasonOnly)
   disabledChannels?: OptOutChannel[]; // 이 SKU에서 운영하지 않는 채널 (관리자 탭에서 설정, 기본 빈 배열 = 전부 활성)
   /** 채널을 끌 때 백업해둔 채널×월 목표량 — 다시 켤 때 복원용. 복원/소진 후엔 빈 배열(merge 저장이라 키 삭제 대신 비움) */
   disabledChannelBackup?: Partial<Record<OptOutChannel, ChannelMonthQtyEntry[]>>;
   finalOrderQty?: Record<string, number>;
   finalOrderConfirmedAt?: string | null;
+  finalOrderConfirmedOrderQty?: number;      // 발주 확정 시점의 총 발주량 — '발주량 변경됨' 경고 기준
   step2PlatformConfirmed?: boolean;
   step2BrandConfirmed?: boolean;
   step2GlobalConfirmed?: boolean;

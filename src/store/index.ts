@@ -7,9 +7,10 @@ import {
 import { fsdb } from '../lib/firebase';
 import type { AppState, Category, Month, SkuData, MonthlySplit, ColorEntry, ChannelMonthEntry, ChannelMonthQtyEntry, ChannelPricing, TrashItem, ActivityLog, LogChange } from '../types';
 import { useAuth } from './auth';
-import { MAX_SIZES, SIZE_LABELS, MONTHS, CHANNELS, BRANDS, CATEGORIES, SKU_TYPES, DEFAULT_CHANNEL_RATIOS, DEFAULT_CHANNEL_COMMISSION, getDisabledChannels, getSkuMonths, isChannelToggleLocked, STEP2_FORCE_RECALC_MARK, type Brand, type Channel, type OptOutChannel } from '../types';
+import { MAX_SIZES, SIZE_LABELS, MONTHS, CHANNELS, BRANDS, CATEGORIES, SKU_TYPES, DEFAULT_CHANNEL_RATIOS, DEFAULT_CHANNEL_COMMISSION, getDisabledChannels, getSkuMonths, getConfirmedChannels, isChannelToggleLocked, isSeasonOnly, STEP2_FORCE_RECALC_MARK, type Brand, type Channel, type OptOutChannel } from '../types';
 import type { CpoProject } from '../types/cpo';
 import { recalcQuantities, revenueMultiplier, calcDynamicMultiplier } from '../utils/calc';
+import { monthTotals, redistributeByWeights, setMonthTotal, type PlanScope } from '../utils/qtyPlan';
 import { PRICING_SCENARIOS } from '../utils/pricingScenarios';
 import { writeProductSyncFields } from '../lib/cpoFirebase';
 import { useCpoSync, markLocalFieldEdit, hasPendingLocalFieldEdit, SYNCED_FIELDS } from './cpoSync';
@@ -273,30 +274,53 @@ function buildSkuFromCpo(cpo: CpoProject): SkuData {
   return { ...seeded, isExpanded: false, _initialSnapshot: JSON.parse(JSON.stringify({ ...seeded, isExpanded: false, _initialSnapshot: undefined })) };
 }
 
-function recalcMonthlySplit(sku: SkuData, overrideSplit?: MonthlySplit[]): MonthlySplit[] {
-  const base = overrideSplit ?? sku.monthlySplit;
-  const skuMonthSet = new Set(getSkuMonths(sku.releaseDate));
+/** 수량 분배 계산 범위 — 비운영 채널·확정 채널·마케팅 포함 */
+export function planScopeOf(sku: SkuData, fallbackWeights?: Partial<Record<Channel, number>>): PlanScope<Channel, Month> {
+  return {
+    channels: CHANNELS,
+    months: getSkuMonths(sku.releaseDate),
+    disabled: getDisabledChannels(sku),
+    locked: getConfirmedChannels(sku),
+    marketing: sku.marketingMonthQty ?? {},
+    fallbackWeights,
+  };
+}
+
+/**
+ * STEP1 월별 계획(monthlySplit)은 채널×월 수량에서 파생한다 (수량 원본은 channelMonthQty 하나).
+ * quantity = 월 합계(채널 + 마케팅), ratio = 총 발주량 대비 %(리오더 계획이면 합 100% 초과).
+ * 하위 호환용으로 계속 저장한다.
+ */
+/**
+ * 채널을 끈 뒤(after) 그 채널 수량을 같은 달 나머지 미확정 채널에 현재 구성비대로 옮긴다.
+ * 월 합계는 끄기 전(before)과 같게 유지.
+ */
+function redistributeDisabled(before: SkuData, after: SkuData): ChannelMonthQtyEntry[] {
+  const targets = monthTotals(before.channelMonthQty, planScopeOf(before));
+  const scope = planScopeOf(after);
+  let entries = after.channelMonthQty;
+  scope.months.forEach((m, i) => {
+    entries = setMonthTotal(entries, scope, m, targets[i]).entries;
+  });
+  return entries;
+}
+
+function recalcMonthlySplit(sku: SkuData): MonthlySplit[] {
+  const scope = planScopeOf(sku);
+  const totals = monthTotals(sku.channelMonthQty, scope);
   const multiplier = calcDynamicMultiplier(sku.channelRatios) ?? revenueMultiplier(sku.category);
-  return base.map((ms) => {
-    if (!skuMonthSet.has(ms.month)) return { ...ms, quantity: 0, revenue: 0, contributionProfit: 0 };
-    const quantity = Math.round(sku.totalOrderQty * ms.ratio / 100);
+  // 출시월 기준 8개월 + 기존에 저장돼 있던 월(윈도우 밖은 0) — MONTHS(7~2월 고정)는 윈도우와 다를 수 있다
+  const months = [...scope.months, ...sku.monthlySplit.map((ms) => ms.month).filter((m) => !scope.months.includes(m))];
+  return months.map((month) => {
+    const idx = scope.months.indexOf(month);
+    const quantity = idx >= 0 ? totals[idx] : 0;
+    const ratio = sku.totalOrderQty > 0 ? Math.round((quantity / sku.totalOrderQty) * 1000) / 10 : 0;
     const revenue = Math.round(quantity * sku.price / 1.1 * multiplier);
     const contributionProfit = Math.round(revenue * sku.contributionMarginRate / 100);
-    return { ...ms, quantity, revenue, contributionProfit };
+    return { month, ratio, quantity, revenue, contributionProfit };
   });
 }
 
-/** Product Dashboard 전용: 수량은 Firestore 저장값 그대로, revenue/profit만 재계산 */
-function recalcRevenueFromQty(sku: SkuData): MonthlySplit[] {
-  const skuMonthSet = new Set(getSkuMonths(sku.releaseDate));
-  const multiplier = calcDynamicMultiplier(sku.channelRatios) ?? revenueMultiplier(sku.category);
-  return sku.monthlySplit.map((ms) => {
-    if (!skuMonthSet.has(ms.month)) return { ...ms, quantity: 0, revenue: 0, contributionProfit: 0 };
-    const revenue = Math.round(ms.quantity * sku.price / 1.1 * multiplier);
-    const contributionProfit = Math.round(revenue * sku.contributionMarginRate / 100);
-    return { ...ms, revenue, contributionProfit };
-  });
-}
 
 function migrateColorEntry(color: any): ColorEntry {
   if (typeof color.quantity === 'number') {
@@ -463,7 +487,7 @@ interface StoreActions {
   toggleExpanded: (id: string) => void;
   expandOnly: (id: string) => void;
   updateSku: (id: string, patch: Partial<SkuData>, opts?: { skipCpoEditMark?: boolean }) => void;
-  updateMonthlySplit: (id: string, month: Month, ratio: number) => void;
+  updateMonthlySplit: (id: string, month: Month, ratio: number, fallbackWeights?: Partial<Record<Channel, number>>) => void;
   updateChannelMonthQty: (id: string, channel: Channel, month: Month, qty: number) => void;
   batchInitChannelMonthQty: (id: string, entries: ChannelMonthQtyEntry[]) => void;
   setStep2InitBaseline: (id: string, entries: ChannelMonthQtyEntry[]) => void;
@@ -482,6 +506,7 @@ interface StoreActions {
   persistSku: (id: string) => Promise<void>;
   setChannelConfirmed: (id: string, field: 'step2PlatformConfirmed' | 'step2BrandConfirmed' | 'step2GlobalConfirmed', value: boolean) => Promise<void>;
   setCoupangEnabled: (id: string, enabled: boolean) => Promise<void>;
+  setSeasonOnly: (id: string, seasonOnly: boolean) => Promise<void>;
   /**
    * 글로벌/일본 채널을 여러 SKU에 한 번에 끄거나 켠다. 발주확정/글로벌확정 SKU는 건너뜀.
    * mode — 끌 때: 'keep'(끈 채널만 0, 나머지 수기값 유지) | 'recalc'(다음 STEP2 진입 시 전체 재계산)
@@ -549,7 +574,7 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
         .map(applyMigration)
         .map((s) => ({
           ...s,
-          monthlySplit: recalcRevenueFromQty(s),
+          monthlySplit: recalcMonthlySplit(s),
           isExpanded: expandedMap.get(s.id) ?? false,
         }))
         .sort((a, b) => {
@@ -773,6 +798,7 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
         e.channel === channel && e.month === month ? { ...e, qty } : e,
       ),
     };
+    updated.monthlySplit = recalcMonthlySplit(updated);
     set({ skus: skus.map((s) => (s.id === id ? updated : s)) });
   },
 
@@ -784,7 +810,9 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
     const safe = entries.map((e) =>
       disabledCh.includes(e.channel) ? { ...e, qty: 0 } : e,
     );
-    set({ skus: skus.map((s) => (s.id === id ? { ...s, channelMonthQty: safe } : s)) });
+    const updated: SkuData = { ...sku, channelMonthQty: safe };
+    updated.monthlySplit = recalcMonthlySplit(updated);
+    set({ skus: skus.map((s) => (s.id === id ? updated : s)) });
   },
 
   setStep2InitBaseline: (id, entries) => {
@@ -811,19 +839,16 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
     set({ skus: skus.map((s) => (s.id === id ? updated : s)) });
   },
 
-  updateMonthlySplit: (id, month, ratio) => {
+  updateMonthlySplit: (id, month, ratio, fallbackWeights) => {
+    // 월 비중(총 발주량 대비 %) → 그 달 월 합계 = 총 발주량 × 비중.
+    // 그 달 채널 구성비 유지, 확정 채널·마케팅 고정 (수량이 없던 달은 fallbackWeights로 채움)
     const skus = get().skus;
     const sku = skus.find((s) => s.id === id);
     if (!sku) return;
-    const patchedSplit = sku.monthlySplit.map((ms) =>
-      ms.month === month ? { ...ms, ratio } : ms,
-    );
-    const recalculated = recalcMonthlySplit(sku, patchedSplit);
-    const updated = { ...sku, monthlySplit: recalculated };
-    // MD뷰 미편집 상태면 PM 데이터로 자동 동기화
-    if (isCMSEmpty(sku.channelMonthlySplit)) {
-      updated.channelMonthlySplit = deriveChannelMonthlySplit(updated);
-    }
+    const target = Math.round(sku.totalOrderQty * ratio / 100);
+    const { entries } = setMonthTotal(sku.channelMonthQty, planScopeOf(sku, fallbackWeights), month, target);
+    const updated: SkuData = { ...sku, channelMonthQty: entries };
+    updated.monthlySplit = recalcMonthlySplit(updated);
     set({ skus: skus.map((s) => (s.id === id ? updated : s)) });
   },
 
@@ -912,7 +937,18 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
     }
   },
 
-  importSkus: async (newSkus) => {
+  importSkus: async (imported) => {
+    // 가져온 월 계획(monthlySplit)만 있고 채널×월 수량이 비어 있으면, 월 계획을 기본 채널 비중으로 나눠 채운다
+    // (수량 원본은 channelMonthQty — 비워 두면 로드 때 월 계획이 0으로 파생된다)
+    const newSkus = imported.map((sku) => {
+      if (sku.channelMonthQty.some((e) => e.qty > 0)) return sku;
+      const scope = planScopeOf(sku);
+      const targets = scope.months.map((m) => sku.monthlySplit.find((ms) => ms.month === m)?.quantity ?? 0);
+      if (targets.every((q) => q === 0)) return sku;
+      const filled: SkuData = { ...sku, channelMonthQty: redistributeByWeights(sku.channelMonthQty, scope, DEFAULT_CHANNEL_RATIOS, targets) };
+      filled.monthlySplit = recalcMonthlySplit(filled);
+      return filled;
+    });
     const batch = writeBatch(fsdb);
     newSkus.forEach((sku) => batch.set(doc(fsdb, SKUS_COL, sku.id), stamped(toFirestore(sku))));
     await trackSkuWrite(batch.commit());
@@ -942,7 +978,11 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
     set({
       skus: get().skus.map((s) =>
         s.id === id
-          ? { ...s, marketingMonthQty: { ...(s.marketingMonthQty ?? {}), [month]: qty } }
+          ? (() => {
+              const updated: SkuData = { ...s, marketingMonthQty: { ...(s.marketingMonthQty ?? {}), [month]: qty } };
+              updated.monthlySplit = recalcMonthlySplit(updated);
+              return updated;
+            })()
           : s,
       ),
     });
@@ -965,6 +1005,7 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
     const updated = {
       ...sku,
       finalOrderConfirmedAt: ts,
+      ...(confirmed ? { finalOrderConfirmedOrderQty: sku.totalOrderQty } : {}),
       ...(finalOrderQty !== undefined ? { finalOrderQty } : {}),
     };
     // 세션 캐시 등록 — confirmed=false이면 null(명시적 취소)으로 기록
@@ -974,7 +1015,7 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
       confirmCache.set(id, null);
     }
     set({ skus: get().skus.map((s) => (s.id === id ? updated : s)) });
-    const firestorePayload = changedFirestoreFields(updated, { force: ['finalOrderConfirmedAt', 'finalOrderQty', 'finalOrderStep2Total'] });
+    const firestorePayload = changedFirestoreFields(updated, { force: ['finalOrderConfirmedAt', 'finalOrderQty', 'finalOrderStep2Total', 'finalOrderConfirmedOrderQty'] });
     console.log('[확정] Firestore write 시작', { id, finalOrderConfirmedAt: firestorePayload.finalOrderConfirmedAt, hasQty: !!firestorePayload.finalOrderQty });
     await trackSkuWrite(setDoc(doc(fsdb, SKUS_COL, id), stamped(firestorePayload), { merge: true }));
     // write 완료 후 실제 Firestore 상태 검증
@@ -1091,19 +1132,38 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
     }]).catch(console.error);
   },
 
+  setSeasonOnly: async (id, seasonOnly) => {
+    const sku = get().skus.find((s) => s.id === id);
+    if (!sku) return;
+    const updated: SkuData = { ...sku, seasonOnly };
+    set({ skus: get().skus.map((s) => (s.id === id ? updated : s)) });
+    try {
+      await writeSkuChanges(updated);
+    } catch (err) {
+      console.error('[setSeasonOnly] Firestore 저장 실패:', id, err);
+      throw err;
+    }
+    writeLog(id, sku.skuName, useAuth.getState().role ?? 'unknown', [{
+      field: 'seasonOnly', label: '시즌 한정(리오더 없음)',
+      from: formatLogValue(isSeasonOnly(sku)), to: formatLogValue(seasonOnly),
+    }]).catch(console.error);
+  },
+
   setCoupangEnabled: async (id, enabled) => {
     const sku = get().skus.find((s) => s.id === id);
     if (!sku) return;
-    // 재활성화/비활성화 시 STEP2 채널비중을 대응SKU 기준으로 다음 진입 때 재계산하도록 초기화
-    // (Firestore는 필드값 undefined를 허용하지 않으므로 빈 배열 사용 — 비교 로직상 undefined와 동치)
-    const updated: SkuData = {
+    // 끄기: 쿠팡 수량을 같은 달 나머지 채널로 즉시 재배분(월 합계 유지)
+    // 켜기: 다음 STEP2 진입 때 대응SKU 비중으로 다시 나누도록 표식 (월 합계 유지)
+    const toggled: SkuData = {
       ...sku,
       coupangEnabled: enabled,
-      channelQtyDerivedFromCompareSkus: [],
       channelMonthQty: enabled
         ? sku.channelMonthQty
         : sku.channelMonthQty.map((e) => (e.channel === '쿠팡' ? { ...e, qty: 0 } : e)),
+      ...(enabled ? { channelQtyDerivedFromCompareSkus: [STEP2_FORCE_RECALC_MARK] } : {}),
     };
+    const updated: SkuData = enabled ? toggled : { ...toggled, channelMonthQty: redistributeDisabled(sku, toggled) };
+    updated.monthlySplit = recalcMonthlySplit(updated);
     set({ skus: get().skus.map((s) => (s.id === id ? updated : s)) });
     try {
       await writeSkuChanges(updated);
@@ -1142,16 +1202,18 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
       } else if (mode === 'recalc') {
         backup[channel] = []; // 재계산하면 백업값은 의미 없어짐
       }
-      updates.push({
-        before: sku,
-        after: {
-          ...sku,
-          disabledChannels: disabled ? [...current, channel] : current.filter((c) => c !== channel),
-          disabledChannelBackup: backup,
-          channelMonthQty,
-          ...(mode === 'recalc' ? { channelQtyDerivedFromCompareSkus: [STEP2_FORCE_RECALC_MARK] } : {}),
-        },
-      });
+      const after: SkuData = {
+        ...sku,
+        disabledChannels: disabled ? [...current, channel] : current.filter((c) => c !== channel),
+        disabledChannelBackup: backup,
+        channelMonthQty,
+        // 켜기+재계산: 다음 STEP2 진입 때 대응SKU 비중으로 다시 나눔 (월 합계 유지)
+        ...(mode === 'recalc' && !disabled ? { channelQtyDerivedFromCompareSkus: [STEP2_FORCE_RECALC_MARK] } : {}),
+      };
+      // 끄기+재계산: 그 채널 수량을 같은 달 나머지 채널로 즉시 재배분 (월 합계 유지)
+      if (disabled && mode === 'recalc') after.channelMonthQty = redistributeDisabled(sku, after);
+      after.monthlySplit = recalcMonthlySplit(after);
+      updates.push({ before: sku, after });
     });
     if (updates.length === 0) return 0;
 
