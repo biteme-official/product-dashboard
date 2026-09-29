@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { setPin, ALL_ROLES, type Role } from '../utils/pin';
 import { useStore } from '../store';
-import { OPTOUT_CHANNELS, CATEGORIES, BRANDS, isChannelToggleLocked, type OptOutChannel, type Category, type SkuData } from '../types';
+import { OPTOUT_CHANNELS, CATEGORIES, BRANDS, isChannelToggleLocked, isSeasonOnly, type OptOutChannel, type Category, type SkuData } from '../types';
 import {
   PERM_LABELS,
   saveRolePermission,
@@ -293,6 +293,70 @@ function ChannelManageTab() {
         })}
       </div>
       {tab === '쿠팡' ? <CoupangPanel /> : <OptOutPanel key={tab} channel={tab} />}
+    </div>
+  );
+}
+
+/** 시즌 한정(리오더 없음) 상품 지정 — 수량 분배 판정 기준. 주력 구분(시즈널/스테디)과는 별개 */
+function SeasonOnlyTab() {
+  const skus = useStore((s) => s.skus);
+  const setSeasonOnly = useStore((s) => s.setSeasonOnly);
+  const [query, setQuery] = useState('');
+
+  const q = query.trim().toLowerCase();
+  const list = q
+    ? skus.filter((s) => s.skuName.toLowerCase().includes(q)).slice(0, 30)
+    : skus.filter((s) => isSeasonOnly(s));
+
+  return (
+    <div className="space-y-4">
+      <div className="text-xs text-gray-500 space-y-0.5">
+        <p>시즌 한정 = 리오더 없음 · 판매 목표 &gt; 발주량이면 품절 위험, 판매 목표 &lt; 발주량이면 과재고 위험</p>
+        <p>미지정 SKU = 리오더 가능 · 판매 목표 &gt; 발주량이면 리오더 시점 표시</p>
+        <p>주력 구분(시즈널/스테디/미해당)과 별개 · 지정한 적 없으면 주력 구분 시즈널만 시즌 한정으로 표시</p>
+      </div>
+
+      <input
+        type="text"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder="SKU명 검색"
+        className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400"
+      />
+
+      {!q && (
+        <p className="text-[11px] text-gray-400">검색어 없음 · 현재 시즌 한정 SKU만 표시</p>
+      )}
+
+      <div className="space-y-1.5 max-h-96 overflow-y-auto">
+        {list.length === 0 && (
+          <p className="text-xs text-gray-400 text-center py-6">
+            {q ? '검색 결과 없음' : '시즌 한정 SKU 없음'}
+          </p>
+        )}
+        {list.map((sku) => {
+          const on = isSeasonOnly(sku);
+          return (
+            <div key={sku.id} className="flex items-center justify-between border border-gray-200 rounded-xl px-3 py-2">
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-gray-800 truncate">{sku.skuName || '(SKU명 미입력)'}</p>
+                <p className="text-[10px] text-gray-400">
+                  {sku.category} · {sku.brand} · {sku.releaseDate || '출시일 미입력'} · 주력 {sku.skuType}
+                  {sku.seasonOnly === undefined && on && ' · 주력 시즈널로 자동 지정'}
+                </p>
+              </div>
+              <button
+                onClick={() => setSeasonOnly(sku.id, !on)}
+                className={`text-xs px-3 py-1.5 rounded-lg font-semibold transition-colors flex-shrink-0 ${
+                  on ? 'bg-violet-600 text-white hover:bg-violet-700' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                }`}
+              >
+                {on ? '시즌 한정' : '리오더 가능'}
+              </button>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -620,7 +684,7 @@ function AdminMemoTab() {
 export function AdminSection() {
   const [editing, setEditing] = useState<Role | null>(null);
   const [saved, setSaved] = useState<Role | null>(null);
-  const [activeTab, setActiveTab] = useState<'pin' | 'perm' | 'data' | 'channel' | 'memo'>('pin');
+  const [activeTab, setActiveTab] = useState<'pin' | 'perm' | 'data' | 'channel' | 'season' | 'memo'>('pin');
 
   async function handleSave(role: Role, pin: string) {
     await setPin(role, pin);
@@ -652,6 +716,12 @@ export function AdminSection() {
           className={`flex-1 text-xs py-1.5 rounded-md font-semibold transition-all ${activeTab === 'channel' ? 'bg-white shadow text-gray-800' : 'text-gray-500 hover:text-gray-700'}`}
         >
           채널 관리
+        </button>
+        <button
+          onClick={() => setActiveTab('season')}
+          className={`flex-1 text-xs py-1.5 rounded-md font-semibold transition-all ${activeTab === 'season' ? 'bg-white shadow text-gray-800' : 'text-gray-500 hover:text-gray-700'}`}
+        >
+          시즌 한정
         </button>
         <button
           onClick={() => setActiveTab('data')}
@@ -719,6 +789,8 @@ export function AdminSection() {
         )}
 
         {activeTab === 'channel' && <ChannelManageTab />}
+
+        {activeTab === 'season' && <SeasonOnlyTab />}
 
         {activeTab === 'data' && <DataCleanupTab />}
 

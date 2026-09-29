@@ -1059,6 +1059,7 @@ function MonthlyTable({
             <p>월 비중(%) = 총 발주량 대비 월 판매 목표 · 리오더 계획 시 합계 100% 초과 가능</p>
             <p>입력 즉시 STEP2 해당 월 반영 · 채널 구성비 유지 · 확정 채널 제외</p>
             <p>누적 행에서 발주량 커버 기간 · 리오더 시점 확인</p>
+            {sku.totalOrderQty === 0 && <p className="text-amber-600">총 발주량 미입력 · 발주량&amp;사이즈분배에서 먼저 입력</p>}
           </div>
           <CoverageChip sku={sku} skuMonths={skuMonths} />
         </div>
@@ -1368,10 +1369,10 @@ function MonthlyTable({
                         value={ms?.ratio ?? 0}
                         onCommit={(val) => handleMonthShareCommit(m, val)}
                         allowDecimal
-                        disabled={step1ReadOnly || allChannelsConfirmed}
+                        disabled={step1ReadOnly || allChannelsConfirmed || sku.totalOrderQty === 0}
                         placeholder="0"
                         className={`w-full text-center rounded px-1 py-1 border border-gray-200 focus:outline-none focus:ring-1 focus:ring-indigo-400 text-[11px] ${
-                          step1ReadOnly || allChannelsConfirmed ? 'bg-gray-50 text-gray-400 cursor-not-allowed' : 'bg-white'
+                          step1ReadOnly || allChannelsConfirmed || sku.totalOrderQty === 0 ? 'bg-gray-50 text-gray-400 cursor-not-allowed' : 'bg-white'
                         }`}
                       />
                       <span className="absolute right-1.5 text-[10px] text-gray-400 pointer-events-none">%</span>

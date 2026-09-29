@@ -7,10 +7,10 @@ import {
 import { fsdb } from '../lib/firebase';
 import type { AppState, Category, Month, SkuData, MonthlySplit, ColorEntry, ChannelMonthEntry, ChannelMonthQtyEntry, ChannelPricing, TrashItem, ActivityLog, LogChange } from '../types';
 import { useAuth } from './auth';
-import { MAX_SIZES, SIZE_LABELS, MONTHS, CHANNELS, BRANDS, CATEGORIES, SKU_TYPES, DEFAULT_CHANNEL_RATIOS, DEFAULT_CHANNEL_COMMISSION, getDisabledChannels, getSkuMonths, getConfirmedChannels, isChannelToggleLocked, STEP2_FORCE_RECALC_MARK, type Brand, type Channel, type OptOutChannel } from '../types';
+import { MAX_SIZES, SIZE_LABELS, MONTHS, CHANNELS, BRANDS, CATEGORIES, SKU_TYPES, DEFAULT_CHANNEL_RATIOS, DEFAULT_CHANNEL_COMMISSION, getDisabledChannels, getSkuMonths, getConfirmedChannels, isChannelToggleLocked, isSeasonOnly, STEP2_FORCE_RECALC_MARK, type Brand, type Channel, type OptOutChannel } from '../types';
 import type { CpoProject } from '../types/cpo';
 import { recalcQuantities, revenueMultiplier, calcDynamicMultiplier } from '../utils/calc';
-import { monthTotals, setMonthTotal, type PlanScope } from '../utils/qtyPlan';
+import { monthTotals, redistributeByWeights, setMonthTotal, type PlanScope } from '../utils/qtyPlan';
 import { PRICING_SCENARIOS } from '../utils/pricingScenarios';
 import { writeProductSyncFields } from '../lib/cpoFirebase';
 import { useCpoSync, markLocalFieldEdit, hasPendingLocalFieldEdit, SYNCED_FIELDS } from './cpoSync';
@@ -506,6 +506,7 @@ interface StoreActions {
   persistSku: (id: string) => Promise<void>;
   setChannelConfirmed: (id: string, field: 'step2PlatformConfirmed' | 'step2BrandConfirmed' | 'step2GlobalConfirmed', value: boolean) => Promise<void>;
   setCoupangEnabled: (id: string, enabled: boolean) => Promise<void>;
+  setSeasonOnly: (id: string, seasonOnly: boolean) => Promise<void>;
   /**
    * 글로벌/일본 채널을 여러 SKU에 한 번에 끄거나 켠다. 발주확정/글로벌확정 SKU는 건너뜀.
    * mode — 끌 때: 'keep'(끈 채널만 0, 나머지 수기값 유지) | 'recalc'(다음 STEP2 진입 시 전체 재계산)
@@ -936,7 +937,18 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
     }
   },
 
-  importSkus: async (newSkus) => {
+  importSkus: async (imported) => {
+    // 가져온 월 계획(monthlySplit)만 있고 채널×월 수량이 비어 있으면, 월 계획을 기본 채널 비중으로 나눠 채운다
+    // (수량 원본은 channelMonthQty — 비워 두면 로드 때 월 계획이 0으로 파생된다)
+    const newSkus = imported.map((sku) => {
+      if (sku.channelMonthQty.some((e) => e.qty > 0)) return sku;
+      const scope = planScopeOf(sku);
+      const targets = scope.months.map((m) => sku.monthlySplit.find((ms) => ms.month === m)?.quantity ?? 0);
+      if (targets.every((q) => q === 0)) return sku;
+      const filled: SkuData = { ...sku, channelMonthQty: redistributeByWeights(sku.channelMonthQty, scope, DEFAULT_CHANNEL_RATIOS, targets) };
+      filled.monthlySplit = recalcMonthlySplit(filled);
+      return filled;
+    });
     const batch = writeBatch(fsdb);
     newSkus.forEach((sku) => batch.set(doc(fsdb, SKUS_COL, sku.id), stamped(toFirestore(sku))));
     await trackSkuWrite(batch.commit());
@@ -1120,11 +1132,26 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
     }]).catch(console.error);
   },
 
+  setSeasonOnly: async (id, seasonOnly) => {
+    const sku = get().skus.find((s) => s.id === id);
+    if (!sku) return;
+    const updated: SkuData = { ...sku, seasonOnly };
+    set({ skus: get().skus.map((s) => (s.id === id ? updated : s)) });
+    try {
+      await writeSkuChanges(updated);
+    } catch (err) {
+      console.error('[setSeasonOnly] Firestore 저장 실패:', id, err);
+      throw err;
+    }
+    writeLog(id, sku.skuName, useAuth.getState().role ?? 'unknown', [{
+      field: 'seasonOnly', label: '시즌 한정(리오더 없음)',
+      from: formatLogValue(isSeasonOnly(sku)), to: formatLogValue(seasonOnly),
+    }]).catch(console.error);
+  },
+
   setCoupangEnabled: async (id, enabled) => {
     const sku = get().skus.find((s) => s.id === id);
     if (!sku) return;
-    // 재활성화/비활성화 시 STEP2 채널비중을 대응SKU 기준으로 다음 진입 때 재계산하도록 초기화
-    // (Firestore는 필드값 undefined를 허용하지 않으므로 빈 배열 사용 — 비교 로직상 undefined와 동치)
     // 끄기: 쿠팡 수량을 같은 달 나머지 채널로 즉시 재배분(월 합계 유지)
     // 켜기: 다음 STEP2 진입 때 대응SKU 비중으로 다시 나누도록 표식 (월 합계 유지)
     const toggled: SkuData = {
