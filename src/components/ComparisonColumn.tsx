@@ -331,7 +331,7 @@ export function ComparisonColumn({ sku, readOnly, onComparisonDataChange, onChan
   const dropdownItems = query.trim() ? suggestions : allSkus.slice(0, 20);
 
   const inputCls = `w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed`;
-  // 증감률 비교 "월 출고량" = STEP2 합계 ÷ 수량이 있는 월 수.
+  // 증감률 비교 신규값은 STEP2 기준: "연간 총출고량" = STEP2 합계, "월 출고량" = STEP2 합계 ÷ 수량이 있는 월 수.
   // STEP2 합계행과 같은 기준(전 채널 + 마케팅), 분모는 대응SKU 쪽(calcSamePeriod)처럼 실적 있는 월만 센다.
   const step2MonthTotals = getSkuMonths(sku.releaseDate).map((m) =>
     sku.channelMonthQty.reduce((sum, e) => (e.month === m ? sum + e.qty : sum), 0)
@@ -555,7 +555,7 @@ export function ComparisonColumn({ sku, readOnly, onComparisonDataChange, onChan
         oldPrice={sku.comparisonSku.price}
         newMonthlyQty={monthlyTarget}
         oldMonthlyQty={sku.comparisonSku.monthlyShipment}
-        newAnnualQty={sku.totalOrderQty}
+        newAnnualQty={step2Total}
         oldAnnualQty={sku.comparisonSku.annualShipment}
       />
 
