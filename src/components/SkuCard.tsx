@@ -81,7 +81,7 @@ function CoverageChip({ sku, skuMonths }: { sku: SkuData; skuMonths: Month[] }) 
       text = `과재고 위험 · 시즌 후 잔여 약 ${n}개`;
   }
   return (
-    <span className="inline-flex items-center gap-1 text-xs font-bold px-3 py-1 rounded-lg border border-pink-300 bg-pink-50 text-red-600 whitespace-nowrap">
+    <span className="inline-flex items-center gap-1 text-xs font-bold px-1.5 py-0.5 bg-pink-100 text-red-600 whitespace-nowrap">
       {seasonOnly && <span className="font-bold">시즌 한정 ·</span>}
       {text}
     </span>
@@ -808,7 +808,7 @@ function MonthlyTable({
   setPricingOpts: Dispatch<SetStateAction<Record<string, string>>>;
   onStep3TotalsChange: (totals: { revenue: number; profit: number } | null) => void;
 }) {
-  const [activeTab, setActiveTab] = useState<'monthly' | 'channel' | 'pricing'>('monthly');
+  const [activeTab, setActiveTab] = useState<'channel' | 'pricing'>('pricing');
   type Step2Snapshot = { channelMonthQty: SkuData['channelMonthQty']; pricingOpts: Record<string, string> };
   const [step2UndoStack, setStep2UndoStack] = useState<Step2Snapshot[]>([]);
   // step2InitBaselineQty: store(Firestore) 영구 보존값 — React state 불필요
@@ -1023,10 +1023,9 @@ function MonthlyTable({
       {/* 탭 버튼 */}
       <div className="flex gap-2 mb-3 items-end">
         {([
-          { key: 'monthly', step: 'STEP 1', label: '월별 계획', sub: 'PM · MOQ 기반 월별 수량 확인' },
-          { key: 'pricing', step: 'STEP 2', label: '채널별 목표량 설정', sub: 'MD · 채널별 수량 · 프라이싱 검토' },
+          { key: 'pricing', step: 'STEP 1·2', label: '월 계획 · 채널별 목표량', sub: 'PM 월 비중 · MD 채널별 수량 · 프라이싱' },
           { key: 'channel', step: 'STEP 3', label: '채널별 수량 확인', sub: 'MD  월별/옵션별 최종 수량' },
-        ] as { key: 'monthly' | 'channel' | 'pricing'; step: string; label: string; sub: string }[]).map(({ key, step, label, sub }) => {
+        ] as { key: 'channel' | 'pricing'; step: string; label: string; sub: string }[]).map(({ key, step, label, sub }) => {
           const isActive = activeTab === key;
           return (
             <button
@@ -1047,21 +1046,10 @@ function MonthlyTable({
       </div>
 
       {/* 탭별 안내 문구 */}
-      {activeTab === 'monthly' && (
-        <div className="flex items-start justify-between gap-3 mb-2">
-          <div className="flex flex-col gap-0.5 text-[11px] text-gray-400">
-            <p>월 비중(%) = 총 발주량 대비 월 판매 목표 · 리오더 계획 시 합계 100% 초과 가능</p>
-            <p>입력 즉시 STEP2 해당 월 반영 · 채널 구성비 유지 · 확정 채널 제외</p>
-            <p>누적 행에서 발주량 커버 기간 · 리오더 시점 확인</p>
-            {sku.totalOrderQty === 0 && <p className="text-amber-600">총 발주량 미입력 · 발주량&amp;사이즈분배에서 먼저 입력</p>}
-          </div>
-          <CoverageChip sku={sku} skuMonths={skuMonths} />
-        </div>
-      )}
       {activeTab === 'pricing' && (
         <div className="flex items-start justify-between mb-2">
           <div className="flex flex-col gap-0.5 text-[11px] text-gray-400">
-            <p>초기값: STEP1 월 계획 × 대응SKU 채널 비중 · 칸 직접 수정 시 월 비중·채널 비중 자동 재계산</p>
+            <p>초기값: 월 계획 × 대응SKU 채널 비중 · 칸 직접 수정 시 월 비중·채널 비중 자동 재계산</p>
             <p>채널 비중: [채널 비중 수정] → 여러 채널 입력 → 저장 · 월 합계 유지 · 미수정 채널이 나머지 비중 배분 · 확정 채널 제외</p>
             <p className="text-amber-600">대응SKU 변경 시 표 자동 변경 없음 · [대응SKU 비중으로 다시 나누기] 시 수기 수정값 재계산</p>
             <p>
@@ -1214,32 +1202,15 @@ function MonthlyTable({
       )}
 
       {activeTab === 'pricing' ? (
-        <PricingChannelTable
-          sku={sku}
-          readOnly={step2ReadOnly}
-          pricingOpts={pricingOpts}
-          setPricingOpts={setPricingOpts}
-          onTotalsChange={onStep3TotalsChange}
-          onBeforeEdit={captureStep2Backup}
-          varCostByChannel={varCostByChannel}
-          varCostResults={varCostResults}
-          teamCateError={teamCateError}
-          compChannelYM={compChannelYM}
-          compMode={compMode}
-          compModeLabel={compModeLabel}
-          step2Baseline={sku.step2InitBaselineQty ?? null}
-          skuMonths={skuMonths}
-          releaseYear={releaseYear}
-          shareEdit={shareEdit}
-          sharePreview={shareResolution?.ok ? shareResolution.shares : null}
-          onShareEdit={(ch, v) => setShareEdit((prev) => ({ ...(prev ?? {}), [ch]: v }))}
-        />
-      ) : activeTab === 'channel' ? (
         <>
-          <ChannelMonthTable sku={sku} readOnly={readOnly} monthlySplit={sku.monthlySplit} compChannelDist={compChannelDist} skuMonths={skuMonths} releaseYear={releaseYear} />
-          <p className="text-[11px] text-gray-400 mt-2">채널별 토글을 열어 옵션별 수량을 확인하세요. (옵션별 수량 및 비중 임의 수정 불가)</p>
-        </>
-      ) : (
+          {/* 월 계획 (PM) */}
+          <div className="flex items-baseline gap-2 mb-1">
+            <span className="text-[11px] font-bold text-gray-600">월 계획</span>
+            <span className="text-[11px] text-gray-400">
+              월 비중(%) = 총 발주량 대비 월 판매 목표 · 리오더 계획 시 합계 100% 초과 가능 · 입력 시 채널 구성비 유지 · 확정 채널 제외
+            </span>
+            {sku.totalOrderQty === 0 && <span className="text-[11px] text-amber-600">총 발주량 미입력 · 발주량&amp;사이즈분배에서 먼저 입력</span>}
+          </div>
       <div className="rounded-lg border border-gray-200 overflow-x-auto">
         <table className="w-full text-xs min-w-[640px]" style={{ tableLayout: 'fixed' }}>
           <colgroup>
@@ -1489,7 +1460,38 @@ function MonthlyTable({
           </tbody>
         </table>
       </div>
-      )}
+          {/* 채널별 목표량 (MD) */}
+          <div className="flex items-baseline gap-2 mt-4 mb-1">
+            <span className="text-[11px] font-bold text-gray-600">채널별 목표량</span>
+            <span className="text-[11px] text-gray-400">채널을 펼치면 월별 수량 · 판매가 시나리오 입력</span>
+          </div>
+        <PricingChannelTable
+          sku={sku}
+          readOnly={step2ReadOnly}
+          pricingOpts={pricingOpts}
+          setPricingOpts={setPricingOpts}
+          onTotalsChange={onStep3TotalsChange}
+          onBeforeEdit={captureStep2Backup}
+          varCostByChannel={varCostByChannel}
+          varCostResults={varCostResults}
+          teamCateError={teamCateError}
+          compChannelYM={compChannelYM}
+          compMode={compMode}
+          compModeLabel={compModeLabel}
+          step2Baseline={sku.step2InitBaselineQty ?? null}
+          skuMonths={skuMonths}
+          releaseYear={releaseYear}
+          shareEdit={shareEdit}
+          sharePreview={shareResolution?.ok ? shareResolution.shares : null}
+          onShareEdit={(ch, v) => setShareEdit((prev) => ({ ...(prev ?? {}), [ch]: v }))}
+        />
+        </>
+      ) : activeTab === 'channel' ? (
+        <>
+          <ChannelMonthTable sku={sku} readOnly={readOnly} monthlySplit={sku.monthlySplit} compChannelDist={compChannelDist} skuMonths={skuMonths} releaseYear={releaseYear} />
+          <p className="text-[11px] text-gray-400 mt-2">채널별 토글을 열어 옵션별 수량을 확인하세요. (옵션별 수량 및 비중 임의 수정 불가)</p>
+        </>
+      ) : null}
     </div>
   );
 }
