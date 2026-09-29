@@ -60,34 +60,28 @@ function CoverageChip({ sku, skuMonths }: { sku: SkuData; skuMonths: Month[] }) 
   const mLabel = (i: number) => `${skuMonths[i]}월`;
   const n = Math.abs(cov.diff).toLocaleString();
   let text: string;
-  let cls: string;
   switch (cov.status) {
     case 'match':
       text = '판매 목표 = 발주량';
-      cls = 'bg-emerald-50 text-emerald-700 border-emerald-200';
       break;
     case 'reorder':
       text = cov.coverUntilIdx >= 0
         ? `발주량으로 ${mLabel(cov.coverUntilIdx)}까지 커버 · ${mLabel(cov.firstOverIdx)}부터 리오더 약 ${n}개`
         : `첫 달부터 발주량 초과 · 리오더 약 ${n}개`;
-      cls = 'bg-indigo-50 text-indigo-700 border-indigo-200';
       break;
     case 'stockout':
       text = cov.coverUntilIdx >= 0
         ? `품절 위험 · ${mLabel(cov.coverUntilIdx)}까지 커버 · ${mLabel(cov.firstOverIdx)} 조기 품절 예상 · 목표 대비 ${n}개 부족`
         : `품절 위험 · 첫 달 조기 품절 예상 · 목표 대비 ${n}개 부족`;
-      cls = 'bg-red-50 text-red-600 border-red-200';
       break;
     case 'leftover':
       text = `잔여 재고 · 시즌 후 약 ${n}개 · 다음 시즌 이월`;
-      cls = 'bg-amber-50 text-amber-700 border-amber-200';
       break;
     default:
       text = `과재고 위험 · 시즌 후 잔여 약 ${n}개`;
-      cls = 'bg-red-50 text-red-600 border-red-200';
   }
   return (
-    <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border whitespace-nowrap ${cls}`}>
+    <span className="inline-flex items-center gap-1 text-xs font-bold px-3 py-1 rounded-lg border border-pink-300 bg-pink-50 text-red-600 whitespace-nowrap">
       {seasonOnly && <span className="font-bold">시즌 한정 ·</span>}
       {text}
     </span>
@@ -1177,6 +1171,8 @@ function MonthlyTable({
               >
                 대응SKU 비중으로 다시 나누기
               </button>
+            </div>
+            <div className="flex items-center gap-1.5">
               <button
                 onClick={() => exportSimulationXlsx({
                   sku,
