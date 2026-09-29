@@ -331,8 +331,14 @@ export function ComparisonColumn({ sku, readOnly, onComparisonDataChange, onChan
   const dropdownItems = query.trim() ? suggestions : allSkus.slice(0, 20);
 
   const inputCls = `w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed`;
-  const monthlyTarget = sku.targetSellThroughMonths > 0
-    ? Math.round(sku.totalOrderQty / sku.targetSellThroughMonths) : 0;
+  // 증감률 비교 "월 출고량" = STEP2 합계 ÷ 수량이 있는 월 수.
+  // STEP2 합계행과 같은 기준(전 채널 + 마케팅), 분모는 대응SKU 쪽(calcSamePeriod)처럼 실적 있는 월만 센다.
+  const step2MonthTotals = getSkuMonths(sku.releaseDate).map((m) =>
+    sku.channelMonthQty.reduce((sum, e) => (e.month === m ? sum + e.qty : sum), 0)
+    + ((sku.marketingMonthQty ?? {})[m] ?? 0));
+  const step2Total = step2MonthTotals.reduce((a, b) => a + b, 0);
+  const step2ActiveMonths = step2MonthTotals.filter((q) => q > 0).length;
+  const monthlyTarget = step2ActiveMonths > 0 ? Math.round(step2Total / step2ActiveMonths) : 0;
 
   return (
     <div className="space-y-3">
