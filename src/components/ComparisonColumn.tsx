@@ -727,6 +727,11 @@ function ChannelDistChart({
                 월평균 {(totalMonthly ?? Math.round(total / periodMonthsFallback)).toLocaleString()} · 연 {total.toLocaleString()}
               </span>
             </div>
+            <p className="text-[10px] text-gray-400 text-right">
+              {compareMode === 'samePeriod'
+                ? '월평균 · 작년 동기간 중 출고 있던 달 기준'
+                : '월평균 · 최근 출고 12개월 기준 · 0건 달 제외'}
+            </p>
           </div>
         );
       })()}
