@@ -326,6 +326,15 @@ export function ComparisonColumn({ sku, readOnly, onComparisonDataChange, onChan
     ? calcSamePeriod({}, releaseMonth, releaseYear).label
     : null;
   const canSamePeriod = !!releaseMonth && selectedSkus.length > 0;
+  // 기간 토글 버튼용 짧은 동기간 레이블 (예: 25년 3~10월, 25년 7월~26년 2월)
+  const samePeriodShortLabel = (() => {
+    if (!releaseMonth || !releaseYear) return null;
+    const endMonth = ((releaseMonth + 6) % 12) + 1;
+    const yy = (y: number) => String(y % 100).padStart(2, '0');
+    return endMonth >= releaseMonth
+      ? `${yy(releaseYear - 1)}년 ${releaseMonth}~${endMonth}월`
+      : `${yy(releaseYear - 1)}년 ${releaseMonth}월~${yy(releaseYear)}년 ${endMonth}월`;
+  })();
 
   // 드롭다운 아이템 목록: 검색어가 있으면 필터, 없으면 전체
   const dropdownItems = query.trim() ? suggestions : allSkus.slice(0, 20);
@@ -455,29 +464,32 @@ export function ComparisonColumn({ sku, readOnly, onComparisonDataChange, onChan
             <span className="text-[10px] px-1.5 py-0.5 bg-indigo-50 text-indigo-500 rounded border border-indigo-100 font-medium inline-block">
               Tableau 연동
             </span>
-            {!readOnly && (
-              <div className="flex items-center justify-end">
-                {compareMode === 'rolling12' ? (
-                  canSamePeriod ? (
-                    <button
-                      onClick={handleModeToggle}
-                      className="text-[10px] px-2 py-1 rounded border border-violet-200 bg-violet-50 text-violet-600 hover:bg-violet-100 transition-colors font-medium"
-                    >
-                      동기간 ({samePeriodLabel})
-                    </button>
-                  ) : (
-                    <span className="text-[10px] text-gray-300 italic">동기간 비교: 출시일을 먼저 입력해주세요</span>
-                  )
-                ) : (
+            {/* 기간 선택 세그먼트: 선택된 칸이 현재 기간. 읽기 전용도 상태는 보이고 클릭만 막음 */}
+            <div className="flex gap-0.5 p-0.5 rounded-md border border-gray-200 bg-gray-50">
+              {([
+                { mode: 'rolling12', label: '직전 12개월', sub: '최근 출고 기준', disabled: readOnly },
+                { mode: 'samePeriod', label: '동기간', sub: samePeriodShortLabel ?? '출시일 필요', disabled: readOnly || !canSamePeriod },
+              ] as const).map(({ mode, label, sub, disabled }) => {
+                const active = compareMode === mode;
+                return (
                   <button
-                    onClick={handleModeToggle}
-                    className="text-[10px] px-2 py-1 rounded border border-gray-200 bg-gray-50 text-gray-500 hover:bg-gray-100 transition-colors font-medium"
+                    key={mode}
+                    type="button"
+                    aria-pressed={active}
+                    disabled={disabled}
+                    onClick={() => { if (!active) handleModeToggle(); }}
+                    className={`flex-1 min-w-0 px-1.5 py-1 rounded text-[10px] leading-tight transition-colors ${
+                      active
+                        ? 'bg-white text-indigo-600 font-bold ring-1 ring-indigo-200'
+                        : 'text-gray-500 font-medium hover:bg-white/60'
+                    } ${disabled ? 'cursor-not-allowed' : ''} ${disabled && !active ? 'opacity-50' : ''}`}
                   >
-                    직전 12개월로 변경
+                    {label}
+                    <span className={`block text-[9px] truncate ${active ? 'text-indigo-400 font-medium' : 'text-gray-400 font-normal'}`}>{sub}</span>
                   </button>
-                )}
-              </div>
-            )}
+                );
+              })}
+            </div>
           </div>
         )}
       </div>
