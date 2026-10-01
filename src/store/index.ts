@@ -5,14 +5,14 @@ import {
   addDoc, Timestamp, deleteField, query, orderBy, limit, serverTimestamp,
 } from 'firebase/firestore';
 import { fsdb } from '../lib/firebase';
-import type { AppState, Category, Month, SkuData, MonthlySplit, ColorEntry, ChannelMonthEntry, ChannelMonthQtyEntry, ChannelPricing, TrashItem, ActivityLog, LogChange } from '../types';
+import type { AppState, Category, Month, SkuData, MonthlySplit, ColorEntry, ChannelMonthEntry, ChannelMonthQtyEntry, ChannelPricing, TrashItem, ActivityLog, LogChange, ChannelOpenScheduleEntry } from '../types';
 import { useAuth } from './auth';
 import { MAX_SIZES, SIZE_LABELS, MONTHS, CHANNELS, BRANDS, CATEGORIES, SKU_TYPES, DEFAULT_CHANNEL_RATIOS, DEFAULT_CHANNEL_COMMISSION, getDisabledChannels, getSkuMonths, getConfirmedChannels, isChannelToggleLocked, isSeasonOnly, STEP2_FORCE_RECALC_MARK, type Brand, type Channel, type OptOutChannel } from '../types';
 import type { CpoProject } from '../types/cpo';
 import { recalcQuantities, revenueMultiplier, calcDynamicMultiplier } from '../utils/calc';
 import { monthTotals, redistributeByWeights, setMonthTotal, type PlanScope } from '../utils/qtyPlan';
 import { PRICING_SCENARIOS } from '../utils/pricingScenarios';
-import { writeProductSyncFields } from '../lib/cpoFirebase';
+import { writeProductSyncFields, buildChannelScheduleMirror, writeChannelScheduleMirror } from '../lib/cpoFirebase';
 import { useCpoSync, markLocalFieldEdit, hasPendingLocalFieldEdit, SYNCED_FIELDS } from './cpoSync';
 
 export const SKUS_COL = 'skus';
@@ -516,6 +516,8 @@ interface StoreActions {
   setChannelDisabled: (ids: string[], channel: OptOutChannel, disabled: boolean, mode: 'keep' | 'recalc' | 'restore') => Promise<number>;
   setPriceConfirmed: (id: string, confirmed: boolean) => Promise<void>;
   setScheduleConfirmed: (id: string, confirmed: boolean) => Promise<void>;
+  /** 채널별 오픈일정/일정 확정을 CPO productSync에 미러링(표시 전용, CPO 연결된 SKU만) — 채널 일정을 실제로 바꾼 지점에서만 호출 */
+  pushChannelScheduleToCpo: (id: string) => void;
   setPricingRates: (id: string, patch: { specialMaxRate?: 20 | 15 | 10; regularMaxRate?: 15 | 10 | 5; seasonOffRate?: 25 | 30 }) => Promise<void>;
   setPricingScenarioHidden: (id: string, scenarioId: string, hidden: boolean) => Promise<void>;
   setPricingMemo: (id: string, memo: string) => Promise<void>;
@@ -666,6 +668,10 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
     });
     await deleteDoc(doc(fsdb, SKUS_COL, id));
     set({ skus: get().skus.filter((s) => s.id !== id) });
+    // 삭제된 SKU의 선오픈 표시가 CPO에 남지 않도록 미러 제거
+    if (useCpoSync.getState().cpoProjects[id]) {
+      writeChannelScheduleMirror(id, null).catch((err) => console.error('[deleteSku] CPO 채널 일정 미러 제거 실패:', id, err));
+    }
   },
 
   loadTrash: async () => {
@@ -712,6 +718,12 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
     await trackSkuWrite(setDoc(doc(fsdb, SKUS_COL, data.skuId as string), stamped(data.skuData as Record<string, unknown>)));
     await deleteDoc(trashRef);
     // onSnapshot이 복원된 SKU를 자동으로 로컬 상태에 반영
+    const skuId = data.skuId as string;
+    if (useCpoSync.getState().cpoProjects[skuId]) {
+      const raw = data.skuData as { channelOpenSchedule?: ChannelOpenScheduleEntry; scheduleConfirmed?: boolean; isProjectionConfirmed?: boolean };
+      writeChannelScheduleMirror(skuId, buildChannelScheduleMirror(raw.channelOpenSchedule, raw.scheduleConfirmed ?? raw.isProjectionConfirmed))
+        .catch((err) => console.error('[restoreFromTrash] CPO 채널 일정 미러 기록 실패:', skuId, err));
+    }
   },
 
   resetSku: (id) => {
@@ -725,6 +737,7 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
     };
     set({ skus: get().skus.map((s) => (s.id === id ? restored : s)) });
     trackSkuWrite(setDoc(doc(fsdb, SKUS_COL, id), stamped(toFirestore(restored)))).catch(console.error);
+    get().pushChannelScheduleToCpo(id);
   },
 
   toggleExpanded: (id) => {
@@ -1256,10 +1269,19 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
     const updated = { ...sku, scheduleConfirmed: confirmed };
     set({ skus: get().skus.map((s) => (s.id === id ? updated : s)) });
     await writeSkuChanges(updated);
+    get().pushChannelScheduleToCpo(id);
     writeLog(id, sku.skuName, useAuth.getState().role ?? 'unknown', [{
       field: 'scheduleConfirmed', label: '일정 확정',
       from: formatLogValue(!confirmed), to: formatLogValue(confirmed),
     }]).catch(console.error);
+  },
+
+  pushChannelScheduleToCpo: (id) => {
+    const sku = get().skus.find((s) => s.id === id);
+    if (!sku || !useCpoSync.getState().cpoProjects[id]) return;
+    writeChannelScheduleMirror(id, buildChannelScheduleMirror(sku.channelOpenSchedule, sku.scheduleConfirmed)).catch((err) =>
+      console.error('[pushChannelScheduleToCpo] CPO 채널 일정 미러 기록 실패:', id, err),
+    );
   },
 
   setPricingRates: async (id, patch) => {
