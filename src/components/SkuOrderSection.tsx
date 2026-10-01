@@ -912,6 +912,7 @@ function ChannelScheduleTable({ skus, onNavigateToSku }: { skus: SkuData[]; onNa
   const updateSku = useStore((s) => s.updateSku);
   const persistSku = useStore((s) => s.persistSku);
   const setScheduleConfirmed = useStore((s) => s.setScheduleConfirmed);
+  const pushChannelScheduleToCpo = useStore((s) => s.pushChannelScheduleToCpo);
   const { role } = useAuth();
   const { step2: canEdit, projectionConfirm: canConfirm } = usePermission(role);
 
@@ -936,6 +937,7 @@ function ChannelScheduleTable({ skus, onNavigateToSku }: { skus: SkuData[]; onNa
     if (!sku) return;
     updateSku(skuId, { channelOpenSchedule: { ...sku.channelOpenSchedule, [CH_KEY[ch]]: dateStr } });
     persistSku(skuId);
+    pushChannelScheduleToCpo(skuId);
   }
 
   function saveLabelOnly(skuId: string, label: string) {
@@ -943,6 +945,7 @@ function ChannelScheduleTable({ skus, onNavigateToSku }: { skus: SkuData[]; onNa
     if (!sku) return;
     updateSku(skuId, { channelOpenSchedule: { ...sku.channelOpenSchedule, 기타Label: label } });
     persistSku(skuId);
+    pushChannelScheduleToCpo(skuId);
   }
 
   function openCal(sku: SkuData, ch: ScheduleChannel, e: React.MouseEvent) {
