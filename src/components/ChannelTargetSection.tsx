@@ -382,6 +382,17 @@ export function ChannelTargetSection({ skus }: { skus: SkuData[] }) {
     </span>
   );
 
+  /** 구분 열은 고정, 월 · 연도 소계 · 합계 열은 같은 폭으로 화면 폭을 나눠 가짐 (table-fixed와 함께) */
+  const EqualCols = ({ months }: { months: Month[] }) => {
+    const n = months.length + (months.some((m) => isNextYr(m, months)) ? 3 : 2);
+    return (
+      <colgroup>
+        <col style={{ width: 104 }} />
+        {Array.from({ length: n }, (_, i) => <col key={i} />)}
+      </colgroup>
+    );
+  };
+
   /** 월 열 + 연도 소계 + 합계 머리줄 */
   const MonthHead = ({ months, ry, first = '구분' }: { months: Month[]; ry: number; first?: string }) => {
     const hasY2 = months.some((m) => isNextYr(m, months));
@@ -389,7 +400,7 @@ export function ChannelTargetSection({ skus }: { skus: SkuData[] }) {
       <tr className="bg-gray-50 border-b border-gray-200">
         <th className="px-2 py-1.5 text-left text-[11px] font-semibold text-gray-500 whitespace-nowrap">{first}</th>
         {months.map((m) => (
-          <th key={m} className={`px-2 py-1.5 text-center text-[11px] font-semibold ${isNextYr(m, months) ? 'text-blue-600 bg-blue-50/60' : 'text-gray-600'}`} style={{ minWidth: 68 }}>
+          <th key={m} className={`px-2 py-1.5 text-center text-[11px] font-semibold ${isNextYr(m, months) ? 'text-blue-600 bg-blue-50/60' : 'text-gray-600'}`}>
             {m}월{isNextYr(m, months) && <div className="text-[9px] font-normal text-blue-400">{(ry + 1) % 100}년</div>}
           </th>
         ))}
@@ -467,7 +478,7 @@ export function ChannelTargetSection({ skus }: { skus: SkuData[] }) {
                 return (
                   <td key={m} className="px-1 py-1">
                     <select value={opt} disabled={!editable} onChange={(e) => commitPricing(s, [`${ch}-${m}`], e.target.value)}
-                      className="w-full text-[10px] rounded border border-gray-200 px-0.5 py-0.5 bg-white disabled:bg-gray-50 disabled:text-gray-400">
+                      className="w-full min-w-0 text-[10px] rounded border border-gray-200 px-0.5 py-0.5 bg-white disabled:bg-gray-50 disabled:text-gray-400">
                       <option value="">채널가</option>
                       {PRICING_SCENARIOS.map((sc) => <option key={sc.id} value={sc.id}>{sc.label}</option>)}
                     </select>
@@ -779,7 +790,8 @@ export function ChannelTargetSection({ skus }: { skus: SkuData[] }) {
                       <div className="px-3 py-2 text-[11px] text-gray-400">{channel} 비운영 · 목표량 0 고정</div>
                     ) : (
                       <div className="overflow-x-auto">
-                        <table className="text-xs">
+                        <table className="w-full table-fixed text-xs min-w-[1000px]">
+                          <EqualCols months={months} />
                           <thead><MonthHead months={months} ry={releaseYearOf(s)} /></thead>
                           <tbody>{channelRows(s, channel)}</tbody>
                         </table>
@@ -825,7 +837,8 @@ export function ChannelTargetSection({ skus }: { skus: SkuData[] }) {
                   <div className="px-3 py-2 text-[11px] text-gray-500">STEP 1 미입력 · 채널별 설정 또는 SKU카드별에서 [대응SKU 기준 채우기]</div>
                 ) : (
                   <div className="overflow-x-auto">
-                    <table className="w-full text-xs min-w-[760px]">
+                    <table className="w-full table-fixed text-xs min-w-[1000px]">
+                      <EqualCols months={getSkuMonths(s.releaseDate)} />
                       <thead><MonthHead months={getSkuMonths(s.releaseDate)} ry={releaseYearOf(s)} /></thead>
                       <tbody>{planRows(s)}</tbody>
                     </table>
