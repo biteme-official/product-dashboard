@@ -463,16 +463,13 @@ export function ChannelTargetSection({ skus }: { skus: SkuData[] }) {
             <tr className="border-b border-gray-100">
               <td className="px-2 py-1 whitespace-nowrap text-[11px] text-gray-500 border-r border-gray-100">판매가 설정</td>
               {months.map((m) => {
-                const { opt, basePrice } = scenarioPrice(s, ch, m);
+                const { opt } = scenarioPrice(s, ch, m);
                 return (
                   <td key={m} className="px-1 py-1">
                     <select value={opt} disabled={!editable} onChange={(e) => commitPricing(s, [`${ch}-${m}`], e.target.value)}
                       className="w-full text-[10px] rounded border border-gray-200 px-0.5 py-0.5 bg-white disabled:bg-gray-50 disabled:text-gray-400">
                       <option value="">채널가</option>
-                      {PRICING_SCENARIOS.map((sc) => {
-                        const suffix = sc.hint ?? (basePrice > 0 ? `${Math.round((1 - sc.calcKrwPrice(basePrice, usdKrw, jpyKrw, undefined, { specialMaxRate: s.specialMaxRate ?? 20, regularMaxRate: s.regularMaxRate ?? 15, seasonOffRate: s.seasonOffRate ?? 25 }) / basePrice) * 100)}%` : '');
-                        return <option key={sc.id} value={sc.id}>{sc.label} ({suffix})</option>;
-                      })}
+                      {PRICING_SCENARIOS.map((sc) => <option key={sc.id} value={sc.id}>{sc.label}</option>)}
                     </select>
                   </td>
                 );
@@ -782,7 +779,7 @@ export function ChannelTargetSection({ skus }: { skus: SkuData[] }) {
                       <div className="px-3 py-2 text-[11px] text-gray-400">{channel} 비운영 · 목표량 0 고정</div>
                     ) : (
                       <div className="overflow-x-auto">
-                        <table className="w-full text-xs min-w-[760px]">
+                        <table className="text-xs">
                           <thead><MonthHead months={months} ry={releaseYearOf(s)} /></thead>
                           <tbody>{channelRows(s, channel)}</tbody>
                         </table>
