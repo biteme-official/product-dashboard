@@ -6,6 +6,7 @@ import { useCpoSync } from '../store/cpoSync';
 import { cpoPricingDeepLink, CPO_STATUS_STYLES } from '../types/cpo';
 import { SkuCard } from './SkuCard';
 import { PricingModal } from './PricingModal';
+import { ChannelTargetSection } from './ChannelTargetSection';
 import { NumericInput } from './NumericInput';
 import { exportBulkOrderXlsx } from '../utils/exportXlsx';
 import { CalendarPopup } from './CalendarPopup';
@@ -101,6 +102,26 @@ export function SkuOrderSection({
   const excludeOpenCompletePm = useStore((s) => s.excludeOpenCompletePm);
   const cpoProjects = useCpoSync((s) => s.cpoProjects);
   const isProjection = mode === 'projection';
+  // 프로젝션 영역 높이 = 화면 높이 − 실제 위쪽 여백. 예전엔 108px 고정이라 실제 헤더(제목 · 탭 · 서브탭)보다 작아서
+  // 페이지 전체가 조금 스크롤되며 필터 바가 밀려 올라갔다. 위치를 재서 영역 안에서만 스크롤되게 한다.
+  const projRef = useRef<HTMLDivElement>(null);
+  const [projTop, setProjTop] = useState(108);
+  useEffect(() => {
+    if (!isProjection) return;
+    let raf = 0;
+    const measure = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        const el = projRef.current;
+        if (el) setProjTop(Math.round(el.getBoundingClientRect().top + window.scrollY));
+      });
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    const ro = new ResizeObserver(measure); // 상단 배너가 생기고 없어질 때
+    ro.observe(document.body);
+    return () => { cancelAnimationFrame(raf); window.removeEventListener('resize', measure); ro.disconnect(); };
+  }, [isProjection]);
 
   const [bulkOpen, setBulkOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -316,7 +337,7 @@ export function SkuOrderSection({
 
       {isProjection ? (
         /* ── 프로젝션 공통 컨테이너 (필터바 + 서브탭 콘텐츠) ── */
-        <div className="flex flex-col gap-2" style={{ height: 'calc(100vh - 108px)' }}>
+        <div ref={projRef} className="flex flex-col gap-2" style={{ height: `calc(100vh - ${projTop + 12}px)` }}>
           {/* 필터 바 (모든 서브탭 공유) */}
           <SkuFilterBar
             skus={skus}
@@ -345,6 +366,10 @@ export function SkuOrderSection({
           ) : subTab === 'channel-schedule' ? (
             <div className="flex-1 min-h-0">
               <ChannelScheduleTable skus={displaySkus} onNavigateToSku={onNavigateToSku} />
+            </div>
+          ) : subTab === 'channel-target' ? (
+            <div className="flex-1 min-h-0">
+              <ChannelTargetSection skus={displaySkus} />
             </div>
           ) : null}
         </div>

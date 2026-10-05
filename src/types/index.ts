@@ -45,21 +45,30 @@ export function isChannelToggleLocked(sku: { finalOrderConfirmedAt?: string | nu
 export const STEP2_FORCE_RECALC_MARK = '__recalc__';
 
 export type ChannelConfirmField = 'step2PlatformConfirmed' | 'step2BrandConfirmed' | 'step2GlobalConfirmed';
-/** 채널 → STEP2 확정 그룹 (플랫폼/브랜드/글로벌). 쿠팡·사입및페어는 확정 그룹 없음 */
-export const CHANNEL_CONFIRM_GROUP: Partial<Record<Channel, { field: ChannelConfirmField; label: string }>> = {
-  '자사몰': { field: 'step2PlatformConfirmed', label: '플랫폼' },
-  '스스':   { field: 'step2BrandConfirmed',    label: '브랜드' },
-  '위탁':   { field: 'step2BrandConfirmed',    label: '브랜드' },
-  'B2B':    { field: 'step2BrandConfirmed',    label: '브랜드' },
-  '일본':   { field: 'step2GlobalConfirmed',   label: '글로벌' },
-  '글로벌': { field: 'step2GlobalConfirmed',   label: '글로벌' },
+/**
+ * 채널 → 채널별 목표량 확정 그룹 (플랫폼/브랜드/글로벌). 담당 MD와 같은 묶음(2026-10-05) —
+ * 쿠팡·사입및페어는 브랜드MD 담당이라 브랜드 확정에 포함. 마케팅은 채널이 아니라 isMarketingLocked로 플랫폼 확정을 따른다.
+ */
+export const CHANNEL_CONFIRM_GROUP: Record<Channel, { field: ChannelConfirmField; label: string }> = {
+  '자사몰':    { field: 'step2PlatformConfirmed', label: '플랫폼' },
+  '스스':      { field: 'step2BrandConfirmed',    label: '브랜드' },
+  '위탁':      { field: 'step2BrandConfirmed',    label: '브랜드' },
+  'B2B':       { field: 'step2BrandConfirmed',    label: '브랜드' },
+  '쿠팡':      { field: 'step2BrandConfirmed',    label: '브랜드' },
+  '사입및페어': { field: 'step2BrandConfirmed',    label: '브랜드' },
+  '일본':      { field: 'step2GlobalConfirmed',   label: '글로벌' },
+  '글로벌':    { field: 'step2GlobalConfirmed',   label: '글로벌' },
 };
+
+/** 마케팅 수량은 플랫폼MD 담당 — 플랫폼 확정이면 잠금 */
+export function isMarketingLocked(sku: { step2PlatformConfirmed?: boolean }): boolean {
+  return !!sku.step2PlatformConfirmed;
+}
 
 /** 확정 그룹에 속해 수량 조정에서 제외되는 채널 */
 export function getConfirmedChannels(sku: Partial<Record<ChannelConfirmField, boolean>>): Channel[] {
   return CHANNELS.filter((ch) => {
-    const g = CHANNEL_CONFIRM_GROUP[ch];
-    return !!g && !!sku[g.field];
+    return !!sku[CHANNEL_CONFIRM_GROUP[ch].field];
   });
 }
 

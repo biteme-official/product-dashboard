@@ -142,7 +142,7 @@ export function MdChannelDetail({ skus, channels, months, varCostMap, usdKrw, jp
       {/* 채널 KPI */}
       <div className="flex gap-3 flex-wrap">
         <div className="flex-1 min-w-[140px] bg-white rounded-xl border border-gray-200 px-4 py-3 shadow-sm">
-          <p className="text-[11px] text-gray-400 font-medium mb-1">STEP2 목표량</p>
+          <p className="text-[11px] text-gray-400 font-medium mb-1">채널별 목표량</p>
           <p className="text-lg font-bold text-gray-900">{channelTotal.qty.toLocaleString()}</p>
         </div>
         <div className="flex-1 min-w-[140px] bg-white rounded-xl border border-gray-200 px-4 py-3 shadow-sm">

@@ -1,5 +1,5 @@
 import type { SkuData } from '../types';
-import { BRANDS, CHANNELS, B2C_CHANNELS, B2B_CHANNELS, CHANNEL_CONFIRM_GROUP, STEP2_FORCE_RECALC_MARK, getDisabledChannels, getConfirmedChannels, adjustDistForDisabled, isSeasonOnly, DEFAULT_CHANNEL_COMMISSION, getReleaseMonth, getSkuMonths, isNextYearMonth, type Month, type Channel, type OptOutChannel } from '../types';
+import { BRANDS, CHANNELS, B2C_CHANNELS, B2B_CHANNELS, CHANNEL_CONFIRM_GROUP, STEP2_FORCE_RECALC_MARK, getDisabledChannels, getConfirmedChannels, isSeasonOnly, isMarketingLocked, DEFAULT_CHANNEL_COMMISSION, getSkuMonths, isNextYearMonth, type Month, type Channel, type OptOutChannel } from '../types';
 import type { ChannelPricing } from '../types';
 import { useStore, planScopeOf } from '../store';
 import { allocate, applyChannelShares, coverage, redistributeByWeights, resolveChannelShares, scaleOpenChannelsTo } from '../utils/qtyPlan';
@@ -9,7 +9,7 @@ import { getConfirmedPricingScenario, cpoPricingDeepLink, cpoProjectDeepLink, CP
 import { revenueMultiplier, calcDynamicMultiplier } from '../utils/calc';
 import { useState, useRef, useEffect, useMemo, type Dispatch, type SetStateAction, type ChangeEvent } from 'react';
 import {
-  fetchTeamCateData, calcVariableCostRatio, calcRolling12, classifyTableauError, TABLEAU_ERROR_MESSAGES,
+  fetchTeamCateData, classifyTableauError, TABLEAU_ERROR_MESSAGES,
   type TeamCateMap, type ChannelByYearMonth, type TableauErrorReason,
 } from '../services/tableau';
 import { SizeDistColumn } from './SizeDistColumn';
@@ -17,6 +17,8 @@ import { ComparisonColumn } from './ComparisonColumn';
 import { NumericInput } from './NumericInput';
 import { useExchangeRates } from '../utils/useExchangeRates';
 import { usePermission } from '../contexts/PermissionsContext';
+import { canConfirmGroup, isAllChannelRole, ownsChannel, type QtyChannel } from '../utils/channelOwnership';
+import { calcVarCostResults, fallbackWeightsOf, getCompQty as getCompQtyShared } from '../utils/compareData';
 import { MarketingBriefModal } from './MarketingBriefModal';
 import { PricingModal } from './PricingModal';
 import { exportSimulationXlsx } from '../utils/exportXlsx';
@@ -28,10 +30,6 @@ const MONTH_LABELS: Record<Month, string> = {
   7: '7월', 8: '8월', 9: '9월', 10: '10월', 11: '11월', 12: '12월',
 };
 
-const DEFAULT_CHANNEL_RATIO_PCT: Record<Channel, number> = {
-  '자사몰': 20, '스스': 30, '위탁': 5,
-  '쿠팡': 10, 'B2B': 15, '사입및페어': 5, '글로벌': 5, '일본': 10,
-};
 
 const CHANNEL_COLORS: Record<Channel, string> = {
   '자사몰': '#6366f1', '스스': '#8b5cf6', '위탁': '#06b6d4',
@@ -50,10 +48,14 @@ function formatWon(value: number): string {
 
 interface Props {
   sku: SkuData;
+  /** 채널 목표량 › SKU 작업대에 넣을 때 — 머리줄 토글 없이 항상 펼침 */
+  embedded?: boolean;
+  /** false면 STEP 1을 열어도 빈 표를 자동으로 채우지 않음(버튼으로만). 기본 true = 기존 카드 동작 */
+  autoInit?: boolean;
 }
 
 /** 이번 발주량 대비 시즌 판매 목표 판정 칩 (STEP1·STEP2 공용) */
-function CoverageChip({ sku, skuMonths }: { sku: SkuData; skuMonths: Month[] }) {
+export function CoverageChip({ sku, skuMonths }: { sku: SkuData; skuMonths: Month[] }) {
   const seasonOnly = isSeasonOnly(sku);
   const cov = coverage(skuMonths.map((m) => sku.monthlySplit.find((x) => x.month === m)?.quantity ?? 0), sku.totalOrderQty, seasonOnly);
   if (cov.status === 'empty') return null;
@@ -113,7 +115,7 @@ function CommitNumericInput({ value, onCommit, ...rest }: {
   );
 }
 
-export function SkuCard({ sku }: Props) {
+export function SkuCard({ sku, embedded = false, autoInit = true }: Props) {
   const toggleExpanded = useStore((s) => s.toggleExpanded);
   const updateSku = useStore((s) => s.updateSku);
   const persistSku = useStore((s) => s.persistSku);
@@ -143,17 +145,16 @@ export function SkuCard({ sku }: Props) {
   }
 
 
-  // STEP3 pricingOpts — sku 데이터로 초기화해 새로고침 후에도 유지됨
-  const [pricingOpts, _setPricingOpts] = useState<Record<string, string>>(sku.pricingOpts ?? {});
+  // 판매가 시나리오 — 스토어 값을 그대로 쓴다. 예전엔 카드를 연 시점 값을 로컬 상태로 들고 있다가 다음 수정 때
+  // 통째로 저장해서, 그 사이 다른 화면(채널 목표량 페이지 · 다른 사람)이 바꾼 다른 채널 값을 되돌릴 수 있었다
+  const pricingOpts = sku.pricingOpts ?? {};
   const [step3Totals, setStep3Totals] = useState<{ revenue: number; profit: number } | null>(null);
 
   const setPricingOpts: Dispatch<SetStateAction<Record<string, string>>> = (updater) => {
-    _setPricingOpts((prev) => {
-      const next = typeof updater === 'function' ? updater(prev) : updater;
-      updateSku(sku.id, { pricingOpts: next });
-      persistSku(sku.id);
-      return next;
-    });
+    const latest = useStore.getState().skus.find((s) => s.id === sku.id)?.pricingOpts ?? {};
+    const next = typeof updater === 'function' ? updater(latest) : updater;
+    updateSku(sku.id, { pricingOpts: next });
+    persistSku(sku.id);
   };
 
   const multiplier = calcDynamicMultiplier(sku.channelRatios) ?? revenueMultiplier(sku.category);
@@ -214,7 +215,7 @@ export function SkuCard({ sku }: Props) {
       </div>
 
       {/* 상세 입력 영역 (펼침) */}
-      {sku.isExpanded && (
+      {(embedded || sku.isExpanded) && (
         <div className="p-4 bg-white">
           <div className="grid gap-4 grid-cols-1 md:grid-cols-[1fr_1.8fr_1.4fr]">
             {/* 열 1: 기본정보 */}
@@ -243,6 +244,7 @@ export function SkuCard({ sku }: Props) {
             pricingOpts={pricingOpts}
             setPricingOpts={setPricingOpts}
             onStep3TotalsChange={setStep3Totals}
+            autoInit={autoInit}
           />
         </div>
       )}
@@ -796,6 +798,7 @@ function MonthlyTable({
   pricingOpts,
   setPricingOpts,
   onStep3TotalsChange,
+  autoInit = true,
 }: {
   sku: SkuData;
   readOnly: boolean;
@@ -807,6 +810,7 @@ function MonthlyTable({
   pricingOpts: Record<string, string>;
   setPricingOpts: Dispatch<SetStateAction<Record<string, string>>>;
   onStep3TotalsChange: (totals: { revenue: number; profit: number } | null) => void;
+  autoInit?: boolean;
 }) {
   const [activeTab, setActiveTab] = useState<'channel' | 'pricing'>('pricing');
   type Step2Snapshot = { channelMonthQty: SkuData['channelMonthQty']; pricingOpts: Record<string, string> };
@@ -824,36 +828,11 @@ function MonthlyTable({
 
   const releaseYear = sku.releaseDate ? parseInt(sku.releaseDate.split('-')[0], 10) : 2026;
 
-  // 대응SKU 출고 데이터에서 직전12개월 기간 추출 (변동비 비중 기간 동기화용)
-  const rolling12Periods = useMemo<{ year: number; month: number }[]>(() => {
-    if (!compChannelYM || compMode !== 'rolling12') return [];
-    const ymSet = new Set<string>();
-    for (const byYM of Object.values(compChannelYM)) {
-      for (const [yearNum, months] of Object.entries(byYM)) {
-        for (const [monthNum, qty] of Object.entries(months as Record<string, number>)) {
-          if (qty > 0) ymSet.add(`${yearNum}|${monthNum}`);
-        }
-      }
-    }
-    return [...ymSet]
-      .map(s => { const [y, m] = s.split('|').map(Number); return { year: y, month: m }; })
-      .sort((a, b) => a.year !== b.year ? b.year - a.year : b.month - a.month)
-      .slice(0, 12);
-  }, [compChannelYM, compMode]);
-
-  const varCostResults = useMemo<Record<string, { ratio: number; isFallback: boolean }>>(() => {
-    if (!teamCateMap) return {};
-    const result: Record<string, { ratio: number; isFallback: boolean }> = {};
-    for (const ch of [...B2C_CHANNELS, ...B2B_CHANNELS]) {
-      const r = calcVariableCostRatio(
-        teamCateMap, sku.category, ch, compMode,
-        getReleaseMonth(sku.releaseDate), releaseYear,
-        rolling12Periods.length > 0 ? rolling12Periods : undefined,
-      );
-      if (r !== null) result[ch] = r;
-    }
-    return result;
-  }, [teamCateMap, sku.category, sku.releaseDate, compMode, releaseYear, rolling12Periods]);
+  const varCostResults = useMemo<Record<string, { ratio: number; isFallback: boolean }>>(
+    () => calcVarCostResults(teamCateMap, sku, compMode, compChannelYM),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [teamCateMap, sku.category, sku.releaseDate, compMode, compChannelYM],
+  );
 
   // 계산용: ratio만 추출 (공헌이익 계산, 엑셀 내보내기 등에서 사용)
   const varCostByChannel = useMemo<Record<string, number>>(() => {
@@ -893,13 +872,15 @@ function MonthlyTable({
   const perm = usePermission(role);
   const step1ReadOnly = !perm.step1;
   const step2ReadOnly = !perm.step2;
+  // 담당 채널만 수정 (2026-10-05). 여러 채널을 한꺼번에 바꾸는 조정은 전 채널 역할(master · pm)만
+  const allChannelRole = isAllChannelRole(role);
+  const canEditChannel = (ch: QtyChannel) => !step2ReadOnly && ownsChannel(role, ch);
 
   // 대응SKU 채널 비중(비운영 채널 반영) — 없으면 기본 비중. 수량이 없던 칸을 채우거나 다시 나눌 때 쓴다
   const disabledKey = getDisabledChannels(sku).join('|');
   const fallbackWeights = useMemo<Partial<Record<Channel, number>>>(
-    () => (compChannelDist
-      ? adjustDistForDisabled(compChannelDist, disabledKey ? disabledKey.split('|') : []) as Partial<Record<Channel, number>>
-      : DEFAULT_CHANNEL_RATIO_PCT),
+    () => fallbackWeightsOf(sku, compChannelDist),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [compChannelDist, disabledKey],
   );
   const compareNames = sku.comparisonSku.compareSkuNames ?? [];
@@ -916,7 +897,7 @@ function MonthlyTable({
   // STEP2 탭 진입 시: 비어 있으면 최초 세팅, 관리 탭 재계산 표식이 있으면 월 합계 유지한 채 대응SKU 비중으로 다시 나눔.
   // 대응SKU를 바꿨다고 자동으로 덮어쓰지 않는다 — [대응SKU 비중으로 다시 나누기]로만 반영.
   useEffect(() => {
-    if (activeTab !== 'pricing') return;
+    if (activeTab !== 'pricing' || !autoInit) return;
     const latest = latestSku();
     const names = latest.comparisonSku.compareSkuNames ?? [];
     // 대응SKU가 있는데 채널 비중을 아직 못 받았으면 기다린다 (기본 비중으로 먼저 채우지 않게)
@@ -1023,8 +1004,8 @@ function MonthlyTable({
       {/* 탭 버튼 */}
       <div className="flex gap-2 mb-3 items-end">
         {([
-          { key: 'pricing', step: 'STEP 1·2', label: '월 계획 · 채널별 목표량', sub: 'PM 월 비중 · MD 채널별 수량 · 프라이싱' },
-          { key: 'channel', step: 'STEP 3', label: '채널별 수량 확인', sub: 'MD  월별/옵션별 최종 수량' },
+          { key: 'pricing', step: 'STEP 1', label: '월 계획 · 채널별 목표량', sub: 'PM 월 비중 · MD 채널별 수량 · 프라이싱' },
+          { key: 'channel', step: 'STEP 2', label: '채널별 수량 확인', sub: 'MD  월별/옵션별 최종 수량' },
         ] as { key: 'channel' | 'pricing'; step: string; label: string; sub: string }[]).map(({ key, step, label, sub }) => {
           const isActive = activeTab === key;
           return (
@@ -1127,7 +1108,7 @@ function MonthlyTable({
                   </button>
                 </>
               )}
-              {isSeasonOnly(sku) && !step2ReadOnly && (() => {
+              {isSeasonOnly(sku) && !step2ReadOnly && allChannelRole && (() => {
                 const planTotal = skuMonths.reduce((a, m) => a + (sku.monthlySplit.find((x) => x.month === m)?.quantity ?? 0), 0);
                 if (planTotal === 0 || sku.totalOrderQty === 0 || planTotal === sku.totalOrderQty) return null;
                 return (
@@ -1139,7 +1120,7 @@ function MonthlyTable({
                   </button>
                 );
               })()}
-              {!step2ReadOnly && !gridEmpty && !allChannelsConfirmed && (
+              {!step2ReadOnly && allChannelRole && !gridEmpty && !allChannelsConfirmed && (
                 <button
                   onClick={() => setShareEdit({})}
                   className="text-[11px] px-2.5 py-1 rounded-lg border border-indigo-300 bg-white hover:bg-indigo-50 text-indigo-700 font-semibold transition-colors whitespace-nowrap"
@@ -1152,12 +1133,13 @@ function MonthlyTable({
               )}
               <button
                 onClick={handleRedistribute}
-                disabled={step2ReadOnly || allChannelsConfirmed}
+                disabled={step2ReadOnly || !allChannelRole || allChannelsConfirmed}
+                title={!allChannelRole ? '여러 채널을 함께 바꾸는 조정이라 PM · MASTER만 가능' : undefined}
                 className={`text-[11px] px-2.5 py-1 rounded-lg border transition-colors whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed ${
                   compareChanged ? 'border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100' : 'border-gray-200 bg-gray-50 hover:bg-gray-100 text-gray-500'
                 }`}
               >
-                대응SKU 비중으로 다시 나누기
+                {gridEmpty ? '대응SKU 기준 채우기' : '대응SKU 비중으로 다시 나누기'}
               </button>
             </div>
             <div className="flex items-center gap-1.5">
@@ -1186,11 +1168,14 @@ function MonthlyTable({
                 field !== 'step2GlobalConfirmed' || !(['글로벌', '일본'] as const).every((ch) => (sku.disabledChannels ?? []).includes(ch)),
               ).map(({ field, label, on, off }) => {
                 const isOn = !!sku[field];
+                const canConfirm = !step2ReadOnly && canConfirmGroup(role, field);
                 return (
                   <button
                     key={field}
                     onClick={() => setChannelConfirmed(sku.id, field, !isOn)}
-                    className={`text-[11px] px-2.5 py-1 rounded-lg font-semibold transition-colors whitespace-nowrap ${isOn ? on : off}`}
+                    disabled={!canConfirm}
+                    title={canConfirm ? undefined : '담당 그룹만 확정 · 해제 가능'}
+                    className={`text-[11px] px-2.5 py-1 rounded-lg font-semibold transition-colors whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed ${isOn ? on : off}`}
                   >
                     {label}
                   </button>
@@ -1484,6 +1469,7 @@ function MonthlyTable({
           shareEdit={shareEdit}
           sharePreview={shareResolution?.ok ? shareResolution.shares : null}
           onShareEdit={(ch, v) => setShareEdit((prev) => ({ ...(prev ?? {}), [ch]: v }))}
+          canEditChannel={canEditChannel}
         />
         </>
       ) : activeTab === 'channel' ? (
@@ -1832,6 +1818,7 @@ function PricingChannelTable({
   shareEdit = null,
   sharePreview = null,
   onShareEdit,
+  canEditChannel = () => !readOnly,
 }: {
   sku: SkuData;
   readOnly: boolean;
@@ -1853,6 +1840,8 @@ function PricingChannelTable({
   /** 저장 시 적용될 비중 미리보기 (미수정 채널 포함) */
   sharePreview?: Record<Channel, number> | null;
   onShareEdit?: (channel: Channel, value: number) => void;
+  /** 담당 채널만 수정 — 목표 수량 · 판매가 시나리오 · 비중 입력 · 마케팅 */
+  canEditChannel?: (channel: QtyChannel) => boolean;
 }) {
   const releaseMonthStep2 = skuMonths[0];
   const isNextYrStep2 = (m: Month): boolean => m < releaseMonthStep2;
@@ -1907,19 +1896,8 @@ function PricingChannelTable({
   // - 동기간: 출시월 기준 정확한 연도 매핑으로 해당 월 실적을 그대로 표시 (시즈널 비교용)
   // - 직전 12개월: 컬럼별로 연도가 뒤섞이는 걸 방지하기 위해, 채널별 직전 실적 월평균을
   //   윈도우 전체 월에 균등 배분해서 표시
-  const getCompQty = (channel: Channel, month: Month): number | null => {
-    if (!compChannelYM) return null;
-    const byYM = compChannelYM[channel];
-    if (!byYM) return null;
-    if (compMode === 'samePeriod') {
-      const isNextYrM = isNextYrStep2(month);
-      const lookupYear = isNextYrM ? releaseYear : releaseYear - 1;
-      return byYM[lookupYear]?.[month] ?? null;
-    } else {
-      const { monthly } = calcRolling12(byYM);
-      return monthly > 0 ? monthly : null;
-    }
-  };
+  const getCompQty = (channel: Channel, month: Month): number | null =>
+    getCompQtyShared(compChannelYM, compMode, channel, month, skuMonths, releaseYear);
 
   const skuPricingRates = {
     specialMaxRate: sku.specialMaxRate ?? 20,
@@ -2041,7 +2019,7 @@ function PricingChannelTable({
               </td>
               {/* 채널 비중 — [채널 비중 수정] 중에는 미확정·운영 채널만 입력 */}
               <td className={`px-2 py-1.5 text-center tabular-nums text-[11px] truncate ${isExpanded ? 'font-bold text-indigo-600' : 'text-gray-500'}`}>
-                {shareEdit && !(getDisabledChannels(sku) as readonly string[]).includes(channel) && !isChannelLockedLive(channel) ? (
+                {shareEdit && canEditChannel(channel) && !(getDisabledChannels(sku) as readonly string[]).includes(channel) && !isChannelLockedLive(channel) ? (
                   <div className="relative flex items-center">
                     <NumericInput
                       allowDecimal
@@ -2140,6 +2118,7 @@ function PricingChannelTable({
                       <span className="text-[11px] font-semibold text-gray-500 whitespace-nowrap">판매가 일괄 설정</span>
                       <select
                         value={channelBulkOpt[channel] ?? ''}
+                        disabled={!canEditChannel(channel) || isChannelLockedLive(channel)}
                         onChange={(e) => setChannelBulkOpt((prev) => ({ ...prev, [channel]: e.target.value }))}
                         className="text-[11px] rounded border border-gray-300 px-1.5 py-0.5 bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-gray-400"
                       >
@@ -2160,7 +2139,7 @@ function PricingChannelTable({
                             return next;
                           });
                         }}
-                        disabled={!channelBulkOpt[channel]}
+                        disabled={!channelBulkOpt[channel] || !canEditChannel(channel) || isChannelLockedLive(channel)}
                         className="text-[11px] px-2.5 py-0.5 rounded-md bg-gray-700 text-white font-semibold hover:bg-gray-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
                       >
                         일괄반영
@@ -2240,10 +2219,10 @@ function PricingChannelTable({
                                           onChange={(val) => updateChannelMonthQty(sku.id, channel, m, val)}
                                           onBlur={() => persistSku(sku.id)}
                                           onFocus={() => onBeforeEdit?.()}
-                                          disabled={readOnly || (getDisabledChannels(sku) as readonly string[]).includes(channel) || isChannelLockedLive(channel)}
+                                          disabled={readOnly || !canEditChannel(channel) || (getDisabledChannels(sku) as readonly string[]).includes(channel) || isChannelLockedLive(channel)}
                                           placeholder="0"
                                           className={`text-right rounded-md px-1 py-1 text-[11px] border focus:outline-none focus:ring-1 focus:ring-gray-400 ${
-                                            readOnly || (getDisabledChannels(sku) as readonly string[]).includes(channel) || isChannelLockedLive(channel) ? 'bg-gray-50 text-gray-400 cursor-not-allowed border-gray-200' : 'bg-white text-gray-700 border-gray-200 hover:border-gray-400'
+                                            readOnly || !canEditChannel(channel) || (getDisabledChannels(sku) as readonly string[]).includes(channel) || isChannelLockedLive(channel) ? 'bg-gray-50 text-gray-400 cursor-not-allowed border-gray-200' : 'bg-white text-gray-700 border-gray-200 hover:border-gray-400'
                                           }`}
                                           style={{ width: '52px' }}
                                         />
@@ -2289,6 +2268,7 @@ function PricingChannelTable({
                                   <td key={m} className={`px-1.5 py-1.5 ${yearBorderInner(m)} ${isNextYrStep2(m) ? 'bg-gray-50/60' : ''}`}>
                                     <select
                                       value={optId}
+                                      disabled={!canEditChannel(channel) || isChannelLockedLive(channel)}
                                       onChange={(e) => { onBeforeEdit?.(); setPricingOpt(channel, m, e.target.value); }}
                                       className="w-full text-[10px] rounded border border-gray-200 px-1 py-0.5 bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-gray-400 hover:border-gray-400"
                                     >
@@ -2613,10 +2593,10 @@ function PricingChannelTable({
                                     onChange={(val) => updateMarketingMonthQty(sku.id, m, val)}
                                     onBlur={() => persistSku(sku.id)}
                                     onFocus={() => onBeforeEdit?.()}
-                                    disabled={readOnly}
+                                    disabled={readOnly || !canEditChannel('마케팅') || isMarketingLocked(sku)}
                                     placeholder="0"
                                     className={`text-right rounded-md px-1 py-1 text-[11px] border focus:outline-none focus:ring-1 focus:ring-pink-400 ${
-                                      readOnly ? 'bg-gray-50 text-gray-400 cursor-not-allowed border-gray-200' : 'bg-white text-gray-700 border-pink-200 hover:border-pink-400'
+                                      readOnly || !canEditChannel('마케팅') || isMarketingLocked(sku) ? 'bg-gray-50 text-gray-400 cursor-not-allowed border-gray-200' : 'bg-white text-gray-700 border-pink-200 hover:border-pink-400'
                                     }`}
                                     style={{ width: '52px' }}
                                   />

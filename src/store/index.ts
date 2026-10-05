@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { v4 as uuidv4 } from 'uuid';
 import {
   collection, doc, setDoc, getDoc, deleteDoc, onSnapshot, writeBatch, getDocs,
-  addDoc, Timestamp, deleteField, query, orderBy, limit, serverTimestamp,
+  addDoc, Timestamp, deleteField, query, orderBy, limit, serverTimestamp, runTransaction,
 } from 'firebase/firestore';
 import { fsdb } from '../lib/firebase';
 import type { AppState, Category, Month, SkuData, MonthlySplit, ColorEntry, ChannelMonthEntry, ChannelMonthQtyEntry, ChannelPricing, TrashItem, ActivityLog, LogChange, ChannelOpenScheduleEntry } from '../types';
@@ -11,6 +11,7 @@ import { MAX_SIZES, SIZE_LABELS, MONTHS, CHANNELS, BRANDS, CATEGORIES, SKU_TYPES
 import type { CpoProject } from '../types/cpo';
 import { recalcQuantities, revenueMultiplier, calcDynamicMultiplier } from '../utils/calc';
 import { monthTotals, redistributeByWeights, setMonthTotal, type PlanScope } from '../utils/qtyPlan';
+import { mergeQtyEntries, mergeRecord, removedKeys } from '../utils/cellMerge';
 import { PRICING_SCENARIOS } from '../utils/pricingScenarios';
 import { writeProductSyncFields, buildChannelScheduleMirror, writeChannelScheduleMirror } from '../lib/cpoFirebase';
 import { useCpoSync, markLocalFieldEdit, hasPendingLocalFieldEdit, SYNCED_FIELDS } from './cpoSync';
@@ -158,15 +159,90 @@ function changedFirestoreFields(sku: SkuData, opts?: { omit?: string[]; force?: 
   return out;
 }
 
+// ── 칸 단위 병합 저장 ───────────────────────────────────────────────────
+// 수량(channelMonthQty) · 판매가 시나리오(pricingOpts) · 마케팅 수량(marketingMonthQty)은 최상위 필드
+// 하나에 SKU의 모든 칸이 들어 있어서, 필드 통째로 쓰면 같은 SKU의 다른 채널을 동시에 고친 사람의 값을
+// 옛 값으로 덮는다(예: 플랫폼MD 자사몰 · 브랜드MD 스스 동시 입력). 저장할 때 서버 최신값을 트랜잭션으로
+// 읽고 "이 탭이 마지막으로 받은 값(savedSkuState) 대비 바꾼 칸"만 얹어서 쓴다.
+const CELL_MERGE_FIELDS = ['channelMonthQty', 'pricingOpts', 'marketingMonthQty'] as const;
+type CellMergeField = (typeof CELL_MERGE_FIELDS)[number];
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mergeCellField(field: CellMergeField, base: SkuData, local: SkuData, server: Record<string, any>): any {
+  if (field === 'channelMonthQty') return mergeQtyEntries(base.channelMonthQty, local.channelMonthQty, server.channelMonthQty);
+  if (field === 'pricingOpts') return mergeRecord(base.pricingOpts, local.pricingOpts, server.pricingOpts);
+  return mergeRecord(
+    base.marketingMonthQty as Record<string, number> | undefined,
+    local.marketingMonthQty as Record<string, number> | undefined,
+    server.marketingMonthQty,
+  );
+}
+
+/**
+ * 여러 SKU의 바뀐 필드를 한 트랜잭션으로 저장 — 칸 단위 필드는 서버 최신값에 병합, 나머지 필드는 그대로.
+ * 전부 저장되거나 전부 안 된다. 병합 결과를 반환(로컬 상태를 서버와 맞출 때 사용).
+ */
+async function writeSkusMerged(
+  items: { sku: SkuData; opts?: { omit?: string[]; force?: string[] } }[],
+): Promise<Map<string, Partial<SkuData>>> {
+  const result = new Map<string, Partial<SkuData>>();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // 기준값(base)은 patch를 계산하는 이 순간에 함께 고정한다 — 트랜잭션 안에서 savedSkuState를 다시 읽으면
+  // 그 사이 도착한 다른 사람의 값이 base가 되어, 옛 값을 든 이 탭이 "내가 바꿨다"고 오판해 덮어쓴다(테스트에서 재현)
+  const plans = items.map(({ sku, opts }) => ({ sku, base: savedSkuState[sku.id], patch: changedFirestoreFields(sku, opts) as Record<string, any> }))
+    .filter((p) => Object.keys(p.patch).length > 0);
+  if (plans.length === 0) return result;
+  const needsMerge = plans.some((p) => CELL_MERGE_FIELDS.some((f) => f in p.patch) && p.base);
+  if (!needsMerge) {
+    const batch = writeBatch(fsdb);
+    plans.forEach((p) => batch.set(doc(fsdb, SKUS_COL, p.sku.id), stamped(p.patch), { merge: true }));
+    await trackSkuWrite(batch.commit());
+    return result;
+  }
+  await trackSkuWrite(runTransaction(fsdb, async (tx) => {
+    const refs = plans.map((p) => doc(fsdb, SKUS_COL, p.sku.id));
+    const snaps = await Promise.all(refs.map((r) => tx.get(r)));
+    plans.forEach((p, i) => {
+      const base = p.base;
+      const out = { ...p.patch };
+      if (base && snaps[i].exists()) {
+        const server = snaps[i].data();
+        const merged: Partial<SkuData> = {};
+        for (const f of CELL_MERGE_FIELDS) {
+          if (!(f in out)) continue;
+          out[f] = mergeCellField(f, base, p.sku, server);
+          (merged as Record<string, unknown>)[f] = out[f];
+          if (f !== 'channelMonthQty') {
+            // merge 저장은 빠진 키를 지우지 않으므로 이 탭이 지운 키는 deleteField로 명시
+            const gone = removedKeys(base[f] as Record<string, unknown> | undefined, p.sku[f] as Record<string, unknown> | undefined);
+            if (gone.length) out[f] = { ...out[f], ...Object.fromEntries(gone.map((k) => [k, deleteField()])) };
+          }
+        }
+        if ('channelMonthQty' in merged || 'marketingMonthQty' in merged) {
+          // 월 계획(monthlySplit)은 병합된 수량에서 다시 파생
+          const mergedSku: SkuData = {
+            ...p.sku,
+            channelMonthQty: (merged.channelMonthQty ?? server.channelMonthQty ?? p.sku.channelMonthQty) as ChannelMonthQtyEntry[],
+            marketingMonthQty: (merged.marketingMonthQty ?? server.marketingMonthQty ?? p.sku.marketingMonthQty) as SkuData['marketingMonthQty'],
+          };
+          out.monthlySplit = recalcMonthlySplit(mergedSku);
+          merged.monthlySplit = out.monthlySplit;
+        }
+        result.set(p.sku.id, merged);
+      }
+      tx.set(refs[i], stamped(out), { merge: true });
+    });
+  }));
+  return result;
+}
+
 /** 부분 저장 — 바뀐 필드가 없으면 쓰지 않는다. 구독이 끊긴 탭이면 저장하지 않고 false 반환 */
 async function writeSkuChanges(sku: SkuData, opts?: { omit?: string[]; force?: string[] }): Promise<boolean> {
   if (skuListenerDead) {
     console.warn('[writeSkuChanges] 실시간 구독이 끊긴 탭 — 옛날 값 덮어쓰기 방지를 위해 저장 생략', sku.id);
     return false;
   }
-  const patch = changedFirestoreFields(sku, opts);
-  if (Object.keys(patch).length === 0) return true;
-  await trackSkuWrite(setDoc(doc(fsdb, SKUS_COL, sku.id), stamped(patch), { merge: true }));
+  await writeSkusMerged([{ sku, opts }]);
   return true;
 }
 
@@ -507,6 +583,8 @@ interface StoreActions {
   updateFinalOrderQty: (id: string, qty: Record<string, number>) => void;
   setFinalOrderConfirmed: (id: string, confirmed: boolean, finalOrderQty?: Record<string, number>) => Promise<void>;
   persistSku: (id: string) => Promise<void>;
+  /** 채널 목표량 페이지 일괄 작업 — 여러 SKU를 한 트랜잭션으로 저장(칸 단위 병합) + 활동 로그 한 줄씩 */
+  applySkuBatch: (updates: { id: string; patch: Partial<SkuData> }[], logLabel: string) => Promise<void>;
   setChannelConfirmed: (id: string, field: 'step2PlatformConfirmed' | 'step2BrandConfirmed' | 'step2GlobalConfirmed', value: boolean) => Promise<void>;
   setCoupangEnabled: (id: string, enabled: boolean) => Promise<void>;
   setSeasonOnly: (id: string, seasonOnly: boolean) => Promise<void>;
@@ -1130,6 +1208,32 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
       console.error('[persistSku] Firestore 저장 실패:', id, err);
       throw err;
     }
+  },
+
+  applySkuBatch: async (updates, logLabel) => {
+    if (skuListenerDead) throw new Error('실시간 구독이 끊긴 탭입니다. 새로고침 후 다시 시도해주세요.');
+    const byId = new Map(updates.map((u) => [u.id, u.patch]));
+    const prevSkus = get().skus;
+    const nextSkus = prevSkus.map((s) => {
+      const patch = byId.get(s.id);
+      if (!patch) return s;
+      const updated: SkuData = { ...s, ...patch };
+      if (patch.channelMonthQty || patch.marketingMonthQty) updated.monthlySplit = recalcMonthlySplit(updated);
+      return updated;
+    });
+    set({ skus: nextSkus });
+    const changed = nextSkus.filter((s) => byId.has(s.id));
+    try {
+      await writeSkusMerged(changed.map((sku) => ({ sku, opts: { omit: ['finalOrderConfirmedAt', 'finalOrderQty', 'finalOrderStep2Total'] } })));
+    } catch (err) {
+      // 전부 저장되지 않았으니 화면도 적용 전으로 되돌린다
+      set({ skus: get().skus.map((s) => (byId.has(s.id) ? (prevSkus.find((p) => p.id === s.id) ?? s) : s)) });
+      throw err;
+    }
+    const role = useAuth.getState().role ?? 'unknown';
+    changed.forEach((sku) => {
+      writeLog(sku.id, sku.skuName, role, [{ field: 'channelTargetBatch', label: '채널 목표량 일괄', from: '–', to: logLabel }]).catch(console.error);
+    });
   },
 
   setChannelConfirmed: async (id, field, value) => {
