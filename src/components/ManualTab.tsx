@@ -306,7 +306,7 @@ export function ManualTab() {
         <p className="text-sm text-gray-600 mb-2">
           채널(플랫폼·스스·위탁·B2B·글로벌·기타)별 오픈 예정일 개별 입력, SKU 오픈일 대비 선오픈/동시오픈 자동 배지
           표시. 기타 채널은 이름 직접 입력 + 메모란 제공. 캘린더 팝업의 [미판매로 표시] 버튼으로 "이 채널엔 안 판다"
-          상태 지정 가능.
+          상태 지정 가능. 관리 탭 › 채널 관리에서 글로벌 OFF인 SKU는 글로벌 칸 자동 미판매(수정 불가, 다시 켜면 기존 날짜 복원).
         </p>
         <table className="w-full border-collapse text-xs">
           <thead>

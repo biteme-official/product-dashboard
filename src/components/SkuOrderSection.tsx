@@ -845,6 +845,11 @@ const CH_KEY: Record<ScheduleChannel, keyof ChannelOpenScheduleEntry> = {
 
 const NONE = 'NONE'; // 미판매 센티넬
 
+/** 관리 탭 › 채널 관리에서 글로벌을 끈 SKU — 글로벌 오픈일정은 저장값과 무관하게 미판매로 본다(표시 전용, 저장값은 그대로 둬서 다시 켜면 복원). */
+function isGlobalOff(sku: SkuData): boolean {
+  return (sku.disabledChannels ?? []).includes('글로벌');
+}
+
 const SCHEDULE_CH_CLS: Record<ScheduleChannel, string> = {
   '플랫폼': 'bg-indigo-100 text-indigo-700 border-indigo-200',
   '스스':   'bg-violet-100 text-violet-700 border-violet-200',
@@ -929,6 +934,7 @@ function ChannelScheduleTable({ skus, onNavigateToSku }: { skus: SkuData[]; onNa
   }, [scheduleCal]);
 
   function getVal(sku: SkuData, ch: ScheduleChannel): string | null | undefined {
+    if (ch === '글로벌' && isGlobalOff(sku)) return NONE;
     return sku.channelOpenSchedule?.[CH_KEY[ch]] as string | null | undefined;
   }
 
@@ -1145,9 +1151,24 @@ function ScheduleDateCell({
   onReset: () => void;
 }) {
   const val = getVal(sku, channel);
+  const autoNone = channel === '글로벌' && isGlobalOff(sku);
   const isDefault = val === null || val === undefined;
   const isNone = val === NONE;
   const displayText = isDefault ? toMD(sku.releaseDate) : toMD(val);
+
+  // 글로벌 OFF SKU — 자동 미판매, 수정 불가 (관리 탭에서 다시 켜야 날짜 입력 가능)
+  if (autoNone) {
+    return (
+      <div className="relative inline-flex justify-center group">
+        <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-400 border border-gray-200 cursor-default">
+          미판매
+        </span>
+        <span className="pointer-events-none absolute top-full left-1/2 -translate-x-1/2 mt-1 z-20 hidden group-hover:block whitespace-nowrap rounded bg-gray-800 px-1.5 py-0.5 text-[10px] text-white shadow">
+          글로벌 OFF 스큐
+        </span>
+      </div>
+    );
+  }
 
   // 미판매 상태
   if (isNone) {
