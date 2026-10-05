@@ -24,7 +24,7 @@ export function CategoryTabs({ showAll, value, onChange }: Props = {}) {
   }
 
   return (
-    <div className="flex gap-1 p-3 bg-white border-b border-gray-200 overflow-x-auto scrollbar-none">
+    <div className="flex gap-1 px-3 py-2 bg-white border-b border-gray-200 overflow-x-auto scrollbar-none">
       {tabs.map((cat) => {
         const count = cat === '전체'
           ? skus.length
@@ -34,7 +34,7 @@ export function CategoryTabs({ showAll, value, onChange }: Props = {}) {
           <button
             key={cat}
             onClick={() => handleClick(cat)}
-            className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all flex-shrink-0 ${
+            className={`px-3 py-1 rounded-full text-xs font-medium transition-all flex-shrink-0 ${
               isActive
                 ? 'bg-indigo-600 text-white shadow-sm'
                 : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
@@ -42,7 +42,7 @@ export function CategoryTabs({ showAll, value, onChange }: Props = {}) {
           >
             {cat}
             <span
-              className={`ml-1.5 text-xs px-1.5 py-0.5 rounded-full ${
+              className={`ml-1.5 text-[10px] px-1.5 py-px rounded-full ${
                 isActive ? 'bg-indigo-500 text-white' : 'bg-gray-300 text-gray-600'
               }`}
             >
