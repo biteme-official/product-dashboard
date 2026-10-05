@@ -375,7 +375,7 @@ function CoupangPanel() {
     <div className="space-y-4">
       <p className="text-xs text-gray-500">
         쿠팡은 신상 미등록 전략으로 기본 비활성 채널입니다. SKU를 검색해서 개별적으로 쿠팡 채널을 활성화할 수 있습니다 —
-        활성화하면 해당 SKU에 한해 STEP2 채널별 목표량·대응SKU 실적/비중·채널별 요약에 쿠팡이 포함됩니다.
+        활성화하면 해당 SKU에 한해 STEP 1 채널별 목표량·대응SKU 실적/비중·채널별 요약에 쿠팡이 포함됩니다.
       </p>
 
       <input
@@ -483,7 +483,7 @@ function OptOutPanel({ channel }: { channel: OptOutChannel }) {
     <div className="space-y-3">
       <p className="text-xs text-gray-500">
         {channel}는 기본 활성 채널입니다. {channel} 채널을 운영하지 않는 SKU만 골라서 끌 수 있습니다 —
-        끈 SKU는 STEP2 {channel} 목표량이 0으로 고정되고, 그 비중은 나머지 채널로 배분됩니다.
+        끈 SKU는 채널별 목표량의 {channel} 수량이 0으로 고정되고, 그 비중은 나머지 채널로 배분됩니다.
         발주량 확정·글로벌 확정 상태인 SKU는 잠겨 있어 확정 취소 후 변경할 수 있습니다.
       </p>
 
@@ -539,7 +539,7 @@ function OptOutPanel({ channel }: { channel: OptOutChannel }) {
             <>
               <p>현재 {channel} 목표량 <b className="tabular-nums">{pendingQty.toLocaleString()}장</b>이 0이 됩니다. 끄기 전 값은 백업해 두었다가 다시 켤 때 복원할 수 있어요.</p>
               <div className="flex flex-col gap-1">
-                <label className="flex items-center gap-2"><input type="radio" checked={mode === 'keep'} onChange={() => setMode('keep')} className="accent-amber-500" />{channel}만 0으로 — 나머지 채널 수기 조정값은 그대로 유지 (STEP2 합계가 줄어듦)</label>
+                <label className="flex items-center gap-2"><input type="radio" checked={mode === 'keep'} onChange={() => setMode('keep')} className="accent-amber-500" />{channel}만 0으로 — 나머지 채널 수기 조정값은 그대로 유지 (채널별 목표량 합계가 줄어듦)</label>
                 <label className="flex items-center gap-2"><input type="radio" checked={mode === 'recalc'} onChange={() => setMode('recalc')} className="accent-amber-500" />{channel} 수량을 나머지 채널로 재배분 — 월 합계 유지 · 채널 구성비 유지 · 확정 채널 제외</label>
               </div>
             </>
@@ -548,8 +548,8 @@ function OptOutPanel({ channel }: { channel: OptOutChannel }) {
               {pendingBackup > 0 && (
                 <label className="flex items-center gap-2"><input type="radio" checked={mode === 'restore'} onChange={() => setMode('restore')} className="accent-amber-500" />끄기 전 목표량 복원 (<span className="tabular-nums">{pendingBackup.toLocaleString()}장</span>)</label>
               )}
-              <label className="flex items-center gap-2"><input type="radio" checked={mode === 'keep'} onChange={() => setMode('keep')} className="accent-amber-500" />0인 채로 켜기 — STEP2에서 직접 입력</label>
-              <label className="flex items-center gap-2"><input type="radio" checked={mode === 'recalc'} onChange={() => setMode('recalc')} className="accent-amber-500" />대응SKU 비중으로 다시 배분 — 다음 STEP2 진입 시 · 월 합계 유지 · 확정 채널 제외 · 수기 조정값 재계산</label>
+              <label className="flex items-center gap-2"><input type="radio" checked={mode === 'keep'} onChange={() => setMode('keep')} className="accent-amber-500" />0인 채로 켜기 — STEP 1에서 직접 입력</label>
+              <label className="flex items-center gap-2"><input type="radio" checked={mode === 'recalc'} onChange={() => setMode('recalc')} className="accent-amber-500" />대응SKU 비중으로 다시 배분 — 다음 STEP 1을 열 때 · 월 합계 유지 · 확정 채널 제외 · 수기 조정값 재계산</label>
             </div>
           )}
           <div className="flex justify-end gap-2 pt-1">

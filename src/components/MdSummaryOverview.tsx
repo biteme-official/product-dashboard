@@ -210,7 +210,7 @@ export function MdSummaryOverview({ skus, months, varCostMap, usdKrw, jpyKrw }: 
       <div className="flex gap-3 flex-wrap">
         <KpiCard label="총 SKU" value={`${skus.length}개`} />
         <KpiCard
-          label="STEP2 총 목표량"
+          label="채널별 총 목표량"
           value={allTotals.qty.toLocaleString()}
           sub={step2UnsetCount > 0 ? `⚠ 미설정 ${step2UnsetCount}개` : '전 SKU 설정 완료'}
           warn={step2UnsetCount > 0}
@@ -240,7 +240,7 @@ export function MdSummaryOverview({ skus, months, varCostMap, usdKrw, jpyKrw }: 
                 <tr className="border-b border-gray-100 bg-gray-50/40">
                   <th className="px-4 py-2 text-left font-semibold text-gray-500">브랜드</th>
                   <th className="px-4 py-2 text-right font-semibold text-gray-500">SKU</th>
-                  <th className="px-4 py-2 text-right font-semibold text-gray-500">STEP2 목표량</th>
+                  <th className="px-4 py-2 text-right font-semibold text-gray-500">채널별 목표량</th>
                   <th className="px-4 py-2 text-right font-semibold text-gray-500">순매출</th>
                   <th className="px-4 py-2 text-right font-semibold text-gray-500">공헌이익</th>
                   <th className="px-4 py-2 text-center font-semibold text-gray-500">CM율</th>
@@ -289,7 +289,7 @@ export function MdSummaryOverview({ skus, months, varCostMap, usdKrw, jpyKrw }: 
                   <th className="px-4 py-2 text-left font-semibold text-gray-500 min-w-[160px]">SKU명</th>
                   <th className="px-4 py-2 text-left font-semibold text-gray-500">브랜드</th>
                   <th className="px-4 py-2 text-right font-semibold text-gray-500">총 발주량</th>
-                  <th className="px-4 py-2 text-right font-semibold text-gray-500">STEP2 목표량</th>
+                  <th className="px-4 py-2 text-right font-semibold text-gray-500">채널별 목표량</th>
                   <th className="px-4 py-2 text-right font-semibold text-gray-500">순매출</th>
                   <th className="px-4 py-2 text-right font-semibold text-gray-500">공헌이익</th>
                   <th className="px-4 py-2 text-center font-semibold text-gray-500">CM율</th>

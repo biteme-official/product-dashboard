@@ -77,19 +77,19 @@ export function GrowthIndicator({
     <div className="p-3 bg-gray-50 rounded-lg space-y-3 border border-gray-100">
       <div className="flex items-baseline gap-1.5">
         <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">증감률 비교</span>
-        <span className="text-[10px] text-gray-400">대응SKU vs STEP2 목표량</span>
+        <span className="text-[10px] text-gray-400">대응SKU vs 채널별 목표량</span>
       </div>
       <GrowthMetric
         label="월 출고량"
         newVal={newMonthlyQty}
         oldVal={oldMonthlyQty}
-        newLabel="STEP2"
+        newLabel="목표량"
       />
       <GrowthMetric
         label="연간 총출고량"
         newVal={newAnnualQty}
         oldVal={oldAnnualQty}
-        newLabel="STEP2"
+        newLabel="목표량"
       />
       <GrowthMetric
         label="판매가"

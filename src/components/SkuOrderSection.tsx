@@ -6,6 +6,7 @@ import { useCpoSync } from '../store/cpoSync';
 import { cpoPricingDeepLink, CPO_STATUS_STYLES } from '../types/cpo';
 import { SkuCard } from './SkuCard';
 import { PricingModal } from './PricingModal';
+import { ChannelTargetSection } from './ChannelTargetSection';
 import { NumericInput } from './NumericInput';
 import { exportBulkOrderXlsx } from '../utils/exportXlsx';
 import { CalendarPopup } from './CalendarPopup';
@@ -345,6 +346,10 @@ export function SkuOrderSection({
           ) : subTab === 'channel-schedule' ? (
             <div className="flex-1 min-h-0">
               <ChannelScheduleTable skus={displaySkus} onNavigateToSku={onNavigateToSku} />
+            </div>
+          ) : subTab === 'channel-target' ? (
+            <div className="flex-1 min-h-0 overflow-auto">
+              <ChannelTargetSection skus={displaySkus} />
             </div>
           ) : null}
         </div>

@@ -1,8 +1,9 @@
 import { useStore } from '../store';
 import { useRef, useEffect, useState, useCallback, type KeyboardEvent } from 'react';
 import type { SkuData } from '../types';
-import { getReleaseMonth, getSkuMonths, isNextYearMonth } from '../types';
+import { getReleaseMonth, getSkuMonths } from '../types';
 import { GrowthIndicator } from './GrowthIndicator';
+import { calcMonthlyDisplayData } from '../utils/compareData';
 import { NumericInput } from './NumericInput';
 import { revenueMultiplier, calcDynamicMultiplier } from '../utils/calc';
 import {
@@ -24,36 +25,6 @@ import {
 } from '../services/tableau';
 
 type CompareMode = 'rolling12' | 'samePeriod';
-
-/**
- * 월별 테이블에 표시할 비교 데이터를 mode에 따라 계산 (출시일 기준 8개월 동적 윈도우)
- * - 동기간: 출시월 기준 정확한 연도 매핑으로 해당 월 실적을 그대로 표시 (시즈널 비교용)
- * - 직전 12개월: 대응SKU의 출시월이 제각각이라 컬럼별 연도가 뒤섞이므로, 대응SKU 직전
- *   실적 개월수만큼의 월평균을 윈도우 전체 월에 균등 배분해서 표시
- */
-function calcMonthlyDisplayData(
-  byYearMonth: Record<number, Record<number, number>>,
-  compareMode: CompareMode,
-  releaseDate: string | null | undefined,
-  releaseYear: number | null,
-): Partial<Record<number, number>> {
-  const result: Partial<Record<number, number>> = {};
-  const months = getSkuMonths(releaseDate);
-  if (compareMode === 'rolling12') {
-    const { monthly } = calcRolling12(byYearMonth);
-    if (monthly > 0) {
-      for (const m of months) result[m] = monthly;
-    }
-    return result;
-  }
-  for (const m of months) {
-    if (!releaseYear) continue;
-    const lookupYear = isNextYearMonth(m, releaseDate) ? releaseYear : releaseYear - 1;
-    const qty = byYearMonth[lookupYear]?.[m];
-    if (qty !== undefined) result[m] = qty;
-  }
-  return result;
-}
 
 interface Props {
   sku: SkuData;
@@ -588,7 +559,7 @@ export function ComparisonColumn({ sku, readOnly, onComparisonDataChange, onChan
               <ScoreCard
                 label="예상 순매출"
                 value={hasValue ? `₩${displayRev.toLocaleString()}` : '–'}
-                sub={hasStep3 ? 'STEP3 기준' : ''}
+                sub={hasStep3 ? '목표량 기준' : ''}
               />
               <ScoreCard
                 label="공헌이익"
@@ -598,7 +569,7 @@ export function ComparisonColumn({ sku, readOnly, onComparisonDataChange, onChan
               />
             </div>
             <p className="text-[10px] text-gray-400 px-0.5">
-              {hasStep3 ? '* STEP3 채널별 실매출 기준' : '* 하단 채널 비중 변경 시 자동반영'}
+              {hasStep3 ? '* STEP 1 채널별 목표량 실매출 기준' : '* 하단 채널 비중 변경 시 자동반영'}
             </p>
           </div>
         );

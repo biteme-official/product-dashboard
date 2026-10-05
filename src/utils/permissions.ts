@@ -12,8 +12,8 @@ export type RolePermission = {
 
 export const PERM_LABELS: Record<keyof RolePermission, string> = {
   skuBasic:          'SKU 기본정보',
-  step1:             'STEP1',
-  step2:             'STEP2',
+  step1:             '월 계획',
+  step2:             '채널별 목표량',
   projectionConfirm: '오픈일정 확정',
   orderConfirm:      '발주 확정',
 };
