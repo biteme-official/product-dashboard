@@ -21,7 +21,6 @@ import { SkuCard, CoverageChip } from './SkuCard';
 
 // ── 공용 ────────────────────────────────────────────────────────────────
 type View = 'ws' | 'ch' | 'plan';
-type GroupBy = 'open' | 'cat' | 'brand';
 const QTY_CHANNELS: QtyChannel[] = [...CHANNELS, '마케팅'];
 const GROUP_LABEL: Record<ChannelConfirmField, string> = {
   step2PlatformConfirmed: '플랫폼', step2BrandConfirmed: '브랜드', step2GlobalConfirmed: '글로벌',
@@ -135,7 +134,6 @@ export function ChannelTargetSection({ skus }: { skus: SkuData[] }) {
 
   const [view, setViewRaw] = useState<View>(() => readSession('ct:view', 'ws'));
   const setView = (v: View) => { setViewRaw(v); writeSession('ct:view', v); setPicked(new Set()); setBulk(null); };
-  const [groupBy, setGroupBy] = useState<GroupBy>('open');
   const [onlyEmpty, setOnlyEmpty] = useState(false);
   const [onlyOpen, setOnlyOpen] = useState(false);
   const [channel, setChannel] = useState<QtyChannel>(() => (ownedChannels(role)[0] ?? '자사몰'));
@@ -154,12 +152,12 @@ export function ChannelTargetSection({ skus }: { skus: SkuData[] }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   [skus, onlyEmpty, onlyOpen, role]);
 
+  // 오픈일로만 그룹화 — 카테고리 · 브랜드는 상단 필터 바에서 거른다
   const groups = useMemo(() => {
-    const key = (s: SkuData) => (groupBy === 'open' ? s.releaseDate || '' : groupBy === 'cat' ? s.category : s.brand);
     const m = new Map<string, SkuData[]>();
-    list.forEach((s) => { const k = key(s); if (!m.has(k)) m.set(k, []); m.get(k)!.push(s); });
-    return [...m.entries()].map(([k, arr]) => ({ k, arr, label: groupBy === 'open' ? fmtDate(k) : k }));
-  }, [list, groupBy]);
+    list.forEach((s) => { const k = s.releaseDate || ''; if (!m.has(k)) m.set(k, []); m.get(k)!.push(s); });
+    return [...m.entries()].map(([k, arr]) => ({ k, arr, label: fmtDate(k) }));
+  }, [list]);
 
   // 대응SKU 비교 데이터 (카드와 같은 계산, 저장 없음)
   const compById = useMemo(() => {
@@ -854,12 +852,7 @@ export function ChannelTargetSection({ skus }: { skus: SkuData[] }) {
           ))}
         </div>
         <span className="flex-1" />
-        <span className="text-[11px] text-gray-500">묶기</span>
-        <div className="inline-flex rounded-lg border border-gray-300 overflow-hidden text-[11px]">
-          {([['open', '오픈일'], ['cat', '카테고리'], ['brand', '브랜드']] as const).map(([k, l]) => (
-            <button key={k} onClick={() => setGroupBy(k)} className={`px-2.5 py-1 ${groupBy === k ? 'bg-gray-800 text-white' : 'bg-white text-gray-600'}`}>{l}</button>
-          ))}
-        </div>
+        <span className="text-[11px] text-gray-500">그룹화 · 오픈일</span>
         <label className="flex items-center gap-1 text-[11px] text-gray-500"><input type="checkbox" checked={onlyEmpty} onChange={(e) => setOnlyEmpty(e.target.checked)} />미입력만</label>
         {myGroups.length > 0 && <label className="flex items-center gap-1 text-[11px] text-gray-500"><input type="checkbox" checked={onlyOpen} onChange={(e) => setOnlyOpen(e.target.checked)} />내 그룹 미확정만</label>}
       </div>

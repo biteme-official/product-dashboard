@@ -304,7 +304,7 @@ export function ManualTab() {
 
         <h3 className="text-sm font-semibold text-gray-600 mb-2">프로젝션 &gt; 채널 목표량</h3>
         <p className="text-sm text-gray-600 mb-2">
-          SKU 카드의 STEP 1(월 계획 · 채널별 목표량)을 여러 SKU에 걸쳐 보고 고치는 화면. 계산 · 저장은 카드와 같고, 상단 필터(카테고리 · 브랜드 · 월 · 검색)를 그대로 따름.
+          SKU 카드의 STEP 1(월 계획 · 채널별 목표량)을 여러 SKU에 걸쳐 보고 고치는 화면. 계산 · 저장은 카드와 같고, 상단 필터(카테고리 · 브랜드 · 월 · 검색)를 그대로 따름. SKU는 오픈일로 그룹화.
         </p>
         <table className="w-full border-collapse text-xs mb-3">
           <thead>
