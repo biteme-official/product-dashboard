@@ -148,9 +148,11 @@ export function ChannelTargetSection({ skus }: { skus: SkuData[] }) {
 
   const list = useMemo(() => skus
     .filter((s) => (!onlyEmpty || isEmptyGrid(s)) && (!onlyOpen || myGroups.some((f) => !s[f])))
+    // 채널별 설정: 그 채널을 운영하지 않는 SKU(글로벌 · 일본 비운영, 쿠팡 미등록)는 목록에서 아예 뺀다
+    .filter((s) => view !== 'ch' || !disabledCh(s, channel))
     .slice().sort((a, b) => (a.releaseDate || '9999').localeCompare(b.releaseDate || '9999')),
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  [skus, onlyEmpty, onlyOpen, role]);
+  [skus, onlyEmpty, onlyOpen, role, view, channel]);
 
   // 오픈일로만 그룹화 — 카테고리 · 브랜드는 상단 필터 바에서 거른다
   const groups = useMemo(() => {
