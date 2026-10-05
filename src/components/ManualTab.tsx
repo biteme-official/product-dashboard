@@ -489,9 +489,9 @@ export function ManualTab() {
             <Tr><Td>목표 &lt; 발주량</Td><Td>잔여 재고 · 시즌 후 약 N개 · 다음 시즌 이월</Td><Td>과재고 위험 · 시즌 후 잔여 약 N개</Td></Tr>
           </tbody>
         </table>
-        <Callout tone="warn" title="시즌 한정 ≠ 주력 구분 '시즈널'">
-          리오더 여부는 <strong>관리 탭 &gt; 시즌 한정</strong>에서 SKU별로 지정. 기본정보의 주력 구분(시즈널/스테디/미해당)은
-          주력 상품 표시용이라 판정에 쓰지 않음. 시즌 한정으로 지정한 적 없는 SKU는 주력 구분이 시즈널인 경우만 시즌 한정으로 보고,
+        <Callout tone="warn" title="시즌 한정 ≠ SKU 구분 '시즈널'">
+          리오더 여부는 <strong>관리 탭 &gt; 시즌 한정</strong>에서 SKU별로 지정. 기본정보의 SKU 구분(시즈널/스테디/미해당)은
+          상품 분류 표시용이라 판정에 쓰지 않음. 시즌 한정으로 지정한 적 없는 SKU는 SKU 구분이 시즈널인 경우만 시즌 한정으로 보고,
           나머지는 모두 리오더 가능으로 판정.
         </Callout>
         <NoteList items={[

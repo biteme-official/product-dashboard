@@ -26,8 +26,8 @@ export function getDisabledChannels(sku: { coupangEnabled?: boolean; disabledCha
 
 /**
  * 시즌 한정(리오더 없음) 여부. 수량 분배 판정에 쓴다 — 시즌 한정이면 판매 목표 > 발주량을 품절 위험,
- * 아니면(기본) 리오더 계획으로 본다. 주력 구분(skuType)과는 별개 값이고, 관리 탭에서 지정한 적 없으면
- * 주력 구분이 시즈널인 SKU만 시즌 한정으로 간주한다.
+ * 아니면(기본) 리오더 계획으로 본다. SKU 구분(skuType)과는 별개 값이고, 관리 탭에서 지정한 적 없으면
+ * SKU 구분이 시즈널인 SKU만 시즌 한정으로 간주한다.
  */
 export function isSeasonOnly(sku: { seasonOnly?: boolean; skuType?: SkuType }): boolean {
   return sku.seasonOnly ?? sku.skuType === '시즈널';
@@ -252,7 +252,7 @@ export interface SkuData {
   step2InitBaselineQty?: ChannelMonthQtyEntry[]; // 초기화 시 계산된 수량 (비교 기준값, 영구 보존)
   channelQtyDerivedFromCompareSkus?: string[]; // channelMonthQty를 마지막으로 자동세팅한 대응SKU 목록 (재선택 감지용)
   coupangEnabled?: boolean; // true면 이 SKU만 쿠팡 채널 활성화 (관리자 탭에서 설정, 기본 false)
-  seasonOnly?: boolean; // 시즌 한정(리오더 없음) — 관리 탭에서 지정. 미지정이면 주력 구분이 시즈널일 때만 true로 본다(isSeasonOnly)
+  seasonOnly?: boolean; // 시즌 한정(리오더 없음) — 관리 탭에서 지정. 미지정이면 SKU 구분이 시즈널일 때만 true로 본다(isSeasonOnly)
   disabledChannels?: OptOutChannel[]; // 이 SKU에서 운영하지 않는 채널 (관리자 탭에서 설정, 기본 빈 배열 = 전부 활성)
   /** 채널을 끌 때 백업해둔 채널×월 목표량 — 다시 켤 때 복원용. 복원/소진 후엔 빈 배열(merge 저장이라 키 삭제 대신 비움) */
   disabledChannelBackup?: Partial<Record<OptOutChannel, ChannelMonthQtyEntry[]>>;
