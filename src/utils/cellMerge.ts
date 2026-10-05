@@ -39,5 +39,12 @@ export function mergeRecord<V>(
   for (const [k, v] of Object.entries(local ?? {})) {
     if (stable(base?.[k]) !== stable(v)) out[k] = v;
   }
+  // 이 탭이 지운 키(base엔 있고 local엔 없음)는 서버에서도 지운다 — 되돌리기로 "기본값"으로 돌아갈 때 필요
+  for (const k of removedKeys(base, local)) delete out[k];
   return out;
+}
+
+/** base엔 있는데 local엔 없는 키 — 저장 시 deleteField로 지워야 함 (merge 저장은 빠진 키를 지우지 않는다) */
+export function removedKeys<V>(base: Record<string, V> | undefined, local: Record<string, V> | undefined): string[] {
+  return Object.keys(base ?? {}).filter((k) => !(k in (local ?? {})));
 }

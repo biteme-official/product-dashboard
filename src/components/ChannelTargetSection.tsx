@@ -245,7 +245,7 @@ export function ChannelTargetSection({ skus }: { skus: SkuData[] }) {
     const months = getSkuMonths(s.releaseDate);
     const fw = fallbackWeightsOf(s, cd?.channelDist ?? null);
     if (b.type === 'fill') {
-      if (!allRole) return { skip: 'PM · MASTER만' };
+      if (!allRole || !perm.step2) return { skip: 'PM · MASTER (채널별 목표량 권한)만' };
       if (!isEmptyGrid(s)) return { skip: '이미 값 있음' };
       if (!s.totalOrderQty) return { skip: '총 발주량 미입력' };
       const scope = planScopeOf(s, fw);
@@ -414,9 +414,9 @@ export function ChannelTargetSection({ skus }: { skus: SkuData[] }) {
           {label}{sub && <div className="text-[9px] text-gray-400 leading-tight">{sub}</div>}
         </td>
         {months.map((m) => <td key={m} className="px-1.5 py-1 text-right tabular-nums text-[11px]">{cell(m)}</td>)}
-        <td className="px-2 py-1 text-right tabular-nums text-[11px] font-semibold bg-indigo-50/50">{show(t(y1))}</td>
-        {y2.length > 0 && <td className="px-2 py-1 text-right tabular-nums text-[11px] font-semibold bg-blue-50/40">{show(t(y2))}</td>}
-        <td className="px-2 py-1 text-right tabular-nums text-[11px] font-semibold bg-gray-50">{show(t(months))}</td>
+        <td className="px-2 py-1 text-right tabular-nums text-[11px] font-semibold bg-indigo-50/50 whitespace-nowrap">{show(t(y1))}</td>
+        {y2.length > 0 && <td className="px-2 py-1 text-right tabular-nums text-[11px] font-semibold bg-blue-50/40 whitespace-nowrap">{show(t(y2))}</td>}
+        <td className="px-2 py-1 text-right tabular-nums text-[11px] font-semibold bg-gray-50 whitespace-nowrap">{show(t(months))}</td>
       </tr>
     );
   };
@@ -560,7 +560,7 @@ export function ChannelTargetSection({ skus }: { skus: SkuData[] }) {
       const c = [0, 1, 2].map((i) => `${tm[i]}월 ${fmt(qtyOf(srcSku, channel, sm[i]) * k)}`).join(' · ');
       return `예) ${srcSku.skuName} ${channel} ${a} … → ${tgtSku.skuName} ${c} …${bulk.mode === 'ratio' ? ` (발주량 ${fmt(tgtSku.totalOrderQty)} ÷ ${fmt(srcSku.totalOrderQty)} = ×${Math.round(k * 100) / 100})` : ''} · 출시 첫 달끼리 맞춤`;
     };
-    const disabledType = (t: BulkType) => (t === 'fill' && !allRole) || ((t === 'pcomp' || t === 'pcopy') && !perm.step1);
+    const disabledType = (t: BulkType) => (t === 'fill' && (!allRole || !perm.step2)) || ((t === 'pcomp' || t === 'pcopy') && !perm.step1);
     return (
       <div className="sticky top-0 z-10 rounded-lg border border-indigo-300 bg-indigo-50/95 px-3 py-2 flex flex-col gap-2 shadow-sm">
         <div className="flex flex-wrap items-center gap-1.5">
@@ -771,7 +771,7 @@ export function ChannelTargetSection({ skus }: { skus: SkuData[] }) {
                     {isEmptyGrid(s) ? (
                       <div className="px-3 py-2 flex items-center gap-2 text-[11px] text-gray-500">
                         STEP 1 미입력 · 이 화면은 열기만 해서는 채우지 않음
-                        {allRole && <button onClick={() => { setPicked(new Set([s.id])); setBulk({ type: 'fill', pct: 10, src: null, mode: 'ratio', scn: '', scope: 'all' }); }} className="px-2 py-0.5 rounded border border-gray-300 bg-white text-gray-700">대응SKU 기준 채우기</button>}
+                        {allRole && perm.step2 && <button onClick={() => { setPicked(new Set([s.id])); setBulk({ type: 'fill', pct: 10, src: null, mode: 'ratio', scn: '', scope: 'all' }); }} className="px-2 py-0.5 rounded border border-gray-300 bg-white text-gray-700">대응SKU 기준 채우기</button>}
                       </div>
                     ) : off ? (
                       <div className="px-3 py-2 text-[11px] text-gray-400">{channel} 비운영 · 목표량 0 고정</div>

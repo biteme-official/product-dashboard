@@ -11,7 +11,7 @@ import { MAX_SIZES, SIZE_LABELS, MONTHS, CHANNELS, BRANDS, CATEGORIES, SKU_TYPES
 import type { CpoProject } from '../types/cpo';
 import { recalcQuantities, revenueMultiplier, calcDynamicMultiplier } from '../utils/calc';
 import { monthTotals, redistributeByWeights, setMonthTotal, type PlanScope } from '../utils/qtyPlan';
-import { mergeQtyEntries, mergeRecord } from '../utils/cellMerge';
+import { mergeQtyEntries, mergeRecord, removedKeys } from '../utils/cellMerge';
 import { PRICING_SCENARIOS } from '../utils/pricingScenarios';
 import { writeProductSyncFields, buildChannelScheduleMirror, writeChannelScheduleMirror } from '../lib/cpoFirebase';
 import { useCpoSync, markLocalFieldEdit, hasPendingLocalFieldEdit, SYNCED_FIELDS } from './cpoSync';
@@ -187,10 +187,12 @@ async function writeSkusMerged(
 ): Promise<Map<string, Partial<SkuData>>> {
   const result = new Map<string, Partial<SkuData>>();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const plans = items.map(({ sku, opts }) => ({ sku, patch: changedFirestoreFields(sku, opts) as Record<string, any> }))
+  // 기준값(base)은 patch를 계산하는 이 순간에 함께 고정한다 — 트랜잭션 안에서 savedSkuState를 다시 읽으면
+  // 그 사이 도착한 다른 사람의 값이 base가 되어, 옛 값을 든 이 탭이 "내가 바꿨다"고 오판해 덮어쓴다(테스트에서 재현)
+  const plans = items.map(({ sku, opts }) => ({ sku, base: savedSkuState[sku.id], patch: changedFirestoreFields(sku, opts) as Record<string, any> }))
     .filter((p) => Object.keys(p.patch).length > 0);
   if (plans.length === 0) return result;
-  const needsMerge = plans.some((p) => CELL_MERGE_FIELDS.some((f) => f in p.patch) && savedSkuState[p.sku.id]);
+  const needsMerge = plans.some((p) => CELL_MERGE_FIELDS.some((f) => f in p.patch) && p.base);
   if (!needsMerge) {
     const batch = writeBatch(fsdb);
     plans.forEach((p) => batch.set(doc(fsdb, SKUS_COL, p.sku.id), stamped(p.patch), { merge: true }));
@@ -201,7 +203,7 @@ async function writeSkusMerged(
     const refs = plans.map((p) => doc(fsdb, SKUS_COL, p.sku.id));
     const snaps = await Promise.all(refs.map((r) => tx.get(r)));
     plans.forEach((p, i) => {
-      const base = savedSkuState[p.sku.id];
+      const base = p.base;
       const out = { ...p.patch };
       if (base && snaps[i].exists()) {
         const server = snaps[i].data();
@@ -210,6 +212,11 @@ async function writeSkusMerged(
           if (!(f in out)) continue;
           out[f] = mergeCellField(f, base, p.sku, server);
           (merged as Record<string, unknown>)[f] = out[f];
+          if (f !== 'channelMonthQty') {
+            // merge 저장은 빠진 키를 지우지 않으므로 이 탭이 지운 키는 deleteField로 명시
+            const gone = removedKeys(base[f] as Record<string, unknown> | undefined, p.sku[f] as Record<string, unknown> | undefined);
+            if (gone.length) out[f] = { ...out[f], ...Object.fromEntries(gone.map((k) => [k, deleteField()])) };
+          }
         }
         if ('channelMonthQty' in merged || 'marketingMonthQty' in merged) {
           // 월 계획(monthlySplit)은 병합된 수량에서 다시 파생
