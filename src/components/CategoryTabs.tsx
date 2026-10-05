@@ -34,7 +34,7 @@ export function CategoryTabs({ showAll, value, onChange }: Props = {}) {
           <button
             key={cat}
             onClick={() => handleClick(cat)}
-            className={`px-3 py-1 rounded-full text-xs font-medium transition-all flex-shrink-0 ${
+            className={`px-3 py-1 rounded-full text-[13px] font-medium transition-all flex-shrink-0 ${
               isActive
                 ? 'bg-indigo-600 text-white shadow-sm'
                 : 'bg-gray-100 text-gray-600 hover:bg-gray-200'

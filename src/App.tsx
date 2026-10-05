@@ -459,7 +459,7 @@ function App() {
               <button
                 key={key}
                 onClick={() => { pushNavHistory(); setActiveMainTab(key); }}
-                className={`px-3 py-1 text-xs font-semibold rounded-t-lg border-b-2 transition-all ${
+                className={`px-3 py-1 text-[13px] font-semibold rounded-t-lg border-b-2 transition-all ${
                   isActive
                     ? 'border-indigo-600 text-indigo-700 bg-indigo-50/60'
                     : 'border-transparent text-gray-400 hover:text-gray-600 hover:bg-gray-50'
@@ -505,7 +505,7 @@ function App() {
               <button
                 key={key}
                 onClick={() => { pushNavHistory(); setProjectionSubTab(key); }}
-                className={`px-3 py-1 rounded-full text-xs font-medium transition-all flex-shrink-0 ${
+                className={`px-3 py-1 rounded-full text-[13px] font-medium transition-all flex-shrink-0 ${
                   projectionSubTab === key
                     ? 'bg-indigo-600 text-white shadow-sm'
                     : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
