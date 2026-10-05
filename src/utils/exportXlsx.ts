@@ -17,7 +17,8 @@ export function buildSkuOrderRows(sku: SkuData): (string | number)[][] {
   const sumRatios   = activeSizes.reduce((sum, s) => sum + s.ratio, 0);
   const sizeLabels  = activeSizes.map((s) => s.label);
 
-  if (!sku.hasColors || sku.colors.length === 0) {
+  const colors = sku.colors.filter((c) => !c.archived); // CPO에서 삭제된 컬러 제외
+  if (!sku.hasColors || colors.length === 0) {
     const qtys = activeSizes.map((s) => s.quantity);
     return [
       ['사이즈', ...sizeLabels, '합계'],
@@ -26,7 +27,7 @@ export function buildSkuOrderRows(sku: SkuData): (string | number)[][] {
   }
 
   const header: (string | number)[] = ['컬러 \\ 사이즈', ...sizeLabels, '합계'];
-  const dataRows = sku.colors.map((color) => {
+  const dataRows = colors.map((color) => {
     const sizeQtys = activeSizes.map((s) =>
       sumRatios > 0 ? Math.round((color.quantity * s.ratio) / sumRatios) : 0,
     );
@@ -35,14 +36,14 @@ export function buildSkuOrderRows(sku: SkuData): (string | number)[][] {
   const totalRow: (string | number)[] = ['합계'];
   for (const size of activeSizes) {
     totalRow.push(
-      sku.colors.reduce(
+      colors.reduce(
         (sum, color) =>
           sum + (sumRatios > 0 ? Math.round((color.quantity * size.ratio) / sumRatios) : 0),
         0,
       ),
     );
   }
-  totalRow.push(sku.colors.reduce((sum, c) => sum + c.quantity, 0));
+  totalRow.push(colors.reduce((sum, c) => sum + c.quantity, 0));
   return [header, ...dataRows, totalRow];
 }
 
@@ -57,7 +58,7 @@ export function buildFinalOrderRows(sku: SkuData): (string | number)[][] | null 
   const orderBase = sku.totalOrderQty > 0 ? sku.totalOrderQty : step2Total;
   const activeSizes = sku.sizes.filter((s) => s.isActive && s.ratio > 0);
   const sumRatios = activeSizes.reduce((sum, s) => sum + s.ratio, 0);
-  const activeColors = sku.hasColors ? sku.colors.filter((c) => c.name || c.quantity > 0) : [];
+  const activeColors = sku.hasColors ? sku.colors.filter((c) => !c.archived && (c.name || c.quantity > 0)) : [];
   const colorTotal = activeColors.reduce((s, c) => s + c.quantity, 0);
   const hasColors = activeColors.length > 0 && colorTotal > 0;
   const hasSizes = activeSizes.length > 0 && sumRatios > 0;
@@ -420,7 +421,7 @@ export function exportSimulationXlsx(params: SimExportParams): void {
 
   const activeSizes  = sku.sizes.filter((s) => s.isActive && s.ratio > 0);
   const sumSizeRatio = activeSizes.reduce((s, sz) => s + sz.ratio, 0);
-  const activeColors = sku.hasColors ? sku.colors.filter((c) => c.name || c.quantity > 0) : [];
+  const activeColors = sku.hasColors ? sku.colors.filter((c) => !c.archived && (c.name || c.quantity > 0)) : [];
   const totalColorQty = activeColors.reduce((s, c) => s + c.quantity, 0);
 
   let optR = R_OPT_TABLE;

@@ -323,16 +323,19 @@ function recalcMonthlySplit(sku: SkuData): MonthlySplit[] {
 
 
 function migrateColorEntry(color: any): ColorEntry {
+  // archived는 반드시 유지 — 예전엔 여기서 떨어져서 CPO에서 지운 컬러가 새로고침마다 일반 컬러로 되살아나고,
+  // useCpoOptionSync가 5분마다 다시 archived로 쓰는 반복이 있었다(테일즈 공 장난감 종류 1·2, 2026-10-05).
+  const archived = color.archived ? { archived: true } : {};
   if (typeof color.quantity === 'number') {
-    return { id: color.id, name: color.name, quantity: color.quantity };
+    return { id: color.id, name: color.name, quantity: color.quantity, ...archived };
   }
   if (color.sizeQtys && typeof color.sizeQtys === 'object') {
     const quantity = Object.values(color.sizeQtys as Record<string, number>).reduce(
       (s, q) => s + q, 0
     );
-    return { id: color.id, name: color.name, quantity };
+    return { id: color.id, name: color.name, quantity, ...archived };
   }
-  return { id: color.id, name: color.name, quantity: 0 };
+  return { id: color.id, name: color.name, quantity: 0, ...archived };
 }
 
 function migrateChannelRatios(raw: any[]): import('../types').ChannelRatio[] {
@@ -781,8 +784,9 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
       const updated = { ...s, ...patch };
       const colorAffected = 'colors' in patch || 'hasColors' in patch;
       if (colorAffected && updated.hasColors) {
+        // archived(CPO에서 삭제된) 컬러는 수량만 보존하고 발주 합계에서는 뺀다
         updated.totalOrderQty = updated.colors.reduce(
-          (sum: number, c: ColorEntry) => sum + c.quantity, 0
+          (sum: number, c: ColorEntry) => sum + (c.archived ? 0 : c.quantity), 0
         );
       }
       const qtyAffected = 'totalOrderQty' in patch || colorAffected;
