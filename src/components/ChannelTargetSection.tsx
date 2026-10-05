@@ -38,6 +38,8 @@ function RateText({ r }: { r: number | null }) {
   if (r === null) return <span className="text-gray-300">–</span>;
   return <span className={r > 0 ? 'text-blue-500' : r < 0 ? 'text-red-500' : 'text-gray-400'}>{r > 0 ? '▲ +' : r < 0 ? '▼ ' : ''}{r}%</span>;
 }
+/** 동기간 기간 표기 줄이기 — "2025년 10월~2026년 5월" → "25.10월~26.5월", "2025년 3~10월" → "25.3~10월" */
+const shortPeriod = (label: string) => label.replace(/20(\d{2})년 (\d+)/g, '$1.$2');
 const isEmptyGrid = (s: SkuData) => s.channelMonthQty.every((e) => e.qty === 0);
 const qtyOf = (s: SkuData, ch: QtyChannel, m: Month) =>
   ch === '마케팅' ? (s.marketingMonthQty?.[m] ?? 0) : (s.channelMonthQty.find((e) => e.channel === ch && e.month === m)?.qty ?? 0);
@@ -374,7 +376,7 @@ export function ChannelTargetSection({ skus }: { skus: SkuData[] }) {
     const names = compareNamesOf(s);
     if (names.length === 0) return '대응SKU 미설정';
     if (base.loading) return `${names.join(', ')} · 불러오는 중`;
-    return `${names.join(', ')} · ${cd?.modeLabel ?? ''}`;
+    return `${names.join(', ')} · ${shortPeriod(cd?.modeLabel ?? '')}`;
   };
   const confirmDots = (s: SkuData) => (
     <span className="flex items-center gap-1.5 text-[10px] text-gray-400">
@@ -528,7 +530,7 @@ export function ChannelTargetSection({ skus }: { skus: SkuData[] }) {
     const season = isSeasonOnly(s);
     return (
       <>
-        <Row label={<span className="font-bold text-gray-600">대응SKU 실적</span>} sub={cd?.names.length ? cd.modeLabel : 'SKU 미설정'} months={months} cls="bg-gray-100/70"
+        <Row label={<span className="font-bold text-gray-600">대응SKU 실적</span>} sub={cd?.names.length ? shortPeriod(cd.modeLabel) : 'SKU 미설정'} months={months} cls="bg-gray-100/70"
           total={compSum} cell={(m) => <span className="text-gray-600">{fmt(compM(m))}</span>} />
         <Row label="수량" months={months} total={sumQ} cell={(m) => <span className="font-semibold">{q(m) ? fmt(q(m)) : '–'}</span>} />
         <Row label="비중" sub="발주량 대비" months={months}
