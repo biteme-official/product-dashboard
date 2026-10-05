@@ -174,7 +174,7 @@ export function ChannelTargetSection({ skus }: { skus: SkuData[] }) {
   const shownCards = focusSku && !visited.includes(focusSku.id) ? [...visited.slice(-5), focusSku.id] : visited;
   const goTo = (id: string) => { setVisited(shownCards); setFocus(id); };
 
-  // ↑ ↓ 로 작업대 SKU 이동 (입력 중이면 무시)
+  // ↑ ↓ 로 SKU카드별 이동 (입력 중이면 무시)
   useEffect(() => {
     if (view !== 'ws') return;
     const onKey = (e: globalThis.KeyboardEvent) => {
@@ -562,7 +562,7 @@ export function ChannelTargetSection({ skus }: { skus: SkuData[] }) {
     };
     const disabledType = (t: BulkType) => (t === 'fill' && (!allRole || !perm.step2)) || ((t === 'pcomp' || t === 'pcopy') && !perm.step1);
     return (
-      <div className="sticky top-0 z-10 rounded-lg border border-indigo-300 bg-indigo-50/95 px-3 py-2 flex flex-col gap-2 shadow-sm">
+      <div className="rounded-lg border border-indigo-300 bg-indigo-50/95 px-3 py-2 flex flex-col gap-2 shadow-sm">
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="text-[11px] font-bold text-indigo-700 px-2 py-0.5 rounded-full bg-white border border-indigo-200">{pickedSkus.length}개 선택</span>
           {opts.map((t) => (
@@ -625,7 +625,7 @@ export function ChannelTargetSection({ skus }: { skus: SkuData[] }) {
               {bulk.type === 'fill' && <span>비어 있는 SKU만 · 대응SKU 채널 비중 × 발주량 8개월 균등 (카드 첫 진입 때와 같은 계산)</span>}
             </div>
             {bulk.type === 'copy' && <div className="text-[11px] text-gray-500">{copyExample()}</div>}
-            <div className="overflow-x-auto">
+            <div className="overflow-auto max-h-40">
               <table className="text-[11px] min-w-[560px] w-full bg-white rounded border border-gray-200">
                 <thead><tr className="bg-gray-50 text-gray-500">
                   <th className="px-2 py-1 text-left">SKU</th>
@@ -671,13 +671,14 @@ export function ChannelTargetSection({ skus }: { skus: SkuData[] }) {
 
   // ── 보기별 본문 ──
   let body: ReactNode;
+  let fixedTop: ReactNode = null;
   if (list.length === 0) {
     body = <div className="p-8 text-center text-sm text-gray-400">조건에 맞는 SKU가 없습니다.</div>;
   } else if (view === 'ws') {
     const idx = focusSku ? list.indexOf(focusSku) : -1;
     body = (
-      <div className="grid gap-3 md:grid-cols-[240px_minmax(0,1fr)]">
-        <div className="flex flex-col gap-1 md:max-h-[calc(100vh-260px)] md:overflow-auto pr-1">
+      <div className="grid gap-3 h-full min-h-0 md:grid-cols-[240px_minmax(0,1fr)]">
+        <div className="flex flex-col gap-1 min-h-0 overflow-auto pr-1">
           {groups.map((g) => (
             <div key={g.k} className="flex flex-col gap-1">
               <div className="text-[11px] font-semibold text-gray-500 px-1 pt-1">{g.label}</div>
@@ -692,29 +693,31 @@ export function ChannelTargetSection({ skus }: { skus: SkuData[] }) {
             </div>
           ))}
         </div>
-        <div className="min-w-0 flex flex-col gap-2">
+        <div className="min-w-0 min-h-0 flex flex-col gap-2">
           {focusSku && (
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="shrink-0 flex flex-wrap items-center gap-2">
               <button disabled={idx <= 0} onClick={() => goTo(list[idx - 1].id)} className="text-xs px-2.5 py-1 rounded-lg border border-gray-200 bg-white disabled:opacity-40">↑ 이전</button>
               <button disabled={idx >= list.length - 1} onClick={() => goTo(list[idx + 1].id)} className="text-xs px-2.5 py-1 rounded-lg border border-gray-200 bg-white disabled:opacity-40">↓ 다음</button>
               <span className="text-[11px] text-gray-400">{idx + 1} / {list.length} · ↑ ↓ 키로 이동 · 최근 연 SKU는 펼친 채널 · 되돌리기 기록 유지 · 빈 SKU는 [대응SKU 기준 채우기]로만 채움</span>
             </div>
           )}
-          {shownCards.map((id) => {
-            const s = skus.find((x) => x.id === id);
-            if (!s) return null;
-            return (
-              <div key={id} hidden={id !== focusSku?.id}>
-                <SkuCard sku={s} embedded autoInit={false} />
-              </div>
-            );
-          })}
+          <div className="flex-1 min-h-0 overflow-auto">
+            {shownCards.map((id) => {
+              const s = skus.find((x) => x.id === id);
+              if (!s) return null;
+              return (
+                <div key={id} hidden={id !== focusSku?.id}>
+                  <SkuCard sku={s} embedded autoInit={false} />
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
     );
   } else if (view === 'ch') {
-    body = (
-      <div className="flex flex-col gap-3">
+    fixedTop = (
+      <div className="flex flex-col gap-2">
         <div className="flex flex-wrap gap-1 border-b border-gray-200">
           {QTY_CHANNELS.map((c) => (
             <button key={c} onClick={() => { setChannel(c); setBulk(null); }}
@@ -736,6 +739,10 @@ export function ChannelTargetSection({ skus }: { skus: SkuData[] }) {
           )}
         </div>
         {pickedSkus.length > 0 && bulkBar()}
+      </div>
+    );
+    body = (
+      <div className="flex flex-col gap-3">
         {groups.map((g) => {
           const tot = g.arr.reduce((a, s) => a + (disabledCh(s, channel) ? 0 : getSkuMonths(s.releaseDate).reduce((x, m) => x + qtyOf(s, channel, m), 0)), 0);
           return (
@@ -792,10 +799,14 @@ export function ChannelTargetSection({ skus }: { skus: SkuData[] }) {
       </div>
     );
   } else {
+    fixedTop = (
+      <div className="flex flex-col gap-2">
+        <p className="text-[11px] text-gray-500">카드 STEP 1의 "월 계획" 표를 SKU마다 쌓은 화면 · 비중 입력은 월 계획 권한 · 입력 시 그 달 채널 구성비 유지 · 확정 채널 · 마케팅 고정</p>
+        {pickedSkus.length > 0 && bulkBar()}
+      </div>
+    );
     body = (
       <div className="flex flex-col gap-3">
-        <p className="text-[11px] text-gray-500">카드의 "월 계획" 표를 SKU마다 쌓은 화면 · 비중 입력은 월 계획 권한 · 입력 시 그 달 채널 구성비 유지 · 확정 채널 · 마케팅 고정</p>
-        {pickedSkus.length > 0 && bulkBar()}
         {groups.map((g) => (
           <div key={g.k} className="flex flex-col gap-2">
             <div className="flex items-center gap-2 pt-1">
@@ -816,7 +827,7 @@ export function ChannelTargetSection({ skus }: { skus: SkuData[] }) {
                   {confirmDots(s)}
                 </div>
                 {isEmptyGrid(s) ? (
-                  <div className="px-3 py-2 text-[11px] text-gray-500">STEP 1 미입력 · 채널별 보기 또는 작업대에서 [대응SKU 기준 채우기]</div>
+                  <div className="px-3 py-2 text-[11px] text-gray-500">STEP 1 미입력 · 채널별 설정 또는 SKU카드별에서 [대응SKU 기준 채우기]</div>
                 ) : (
                   <div className="overflow-x-auto">
                     <table className="w-full text-xs min-w-[760px]">
@@ -834,10 +845,11 @@ export function ChannelTargetSection({ skus }: { skus: SkuData[] }) {
   }
 
   return (
-    <div className="flex flex-col gap-3 p-3 bg-white rounded-xl border border-gray-200 min-h-full">
+    <div className="flex flex-col gap-3 p-3 bg-white rounded-xl border border-gray-200 h-full min-h-0">
+      <div className="shrink-0 flex flex-col gap-2">
       <div className="flex flex-wrap items-center gap-2">
         <div className="inline-flex rounded-lg border border-gray-300 overflow-hidden text-xs">
-          {([['ws', 'SKU 작업대'], ['ch', '채널별'], ['plan', '월 계획별']] as const).map(([k, l]) => (
+          {([['ws', 'SKU카드별'], ['plan', '월별 비중설정'], ['ch', '채널별 설정']] as const).map(([k, l]) => (
             <button key={k} onClick={() => setView(k)} className={`px-3 py-1.5 ${view === k ? 'bg-gray-800 text-white font-semibold' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>{l}</button>
           ))}
         </div>
@@ -860,7 +872,9 @@ export function ChannelTargetSection({ skus }: { skus: SkuData[] }) {
           <button onClick={() => setToast(null)} className="text-emerald-700/70">닫기</button>
         </div>
       )}
-      {body}
+      {fixedTop}
+      </div>
+      <div className={`flex-1 min-h-0 ${view === 'ws' && list.length > 0 ? '' : 'overflow-auto'}`}>{body}</div>
     </div>
   );
 }
