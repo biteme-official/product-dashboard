@@ -139,6 +139,9 @@ function App() {
   const [listBrandFilter, setListBrandFilter] = useState<Set<string>>(new Set());
   const [listMonthFilter, setListMonthFilter] = useState<Set<string>>(new Set());
   const [excludeOpenComplete, setExcludeOpenComplete] = useState(false);
+  // 채널 목표량은 [오픈/완료 제외]가 기본 켜짐 — 끄면 이 세션 동안 꺼진 채 유지 (다른 서브탭과 별도)
+  const [ctExcludeOpenComplete, setCtExcludeOpenComplete] = useSessionState('app:ctExcludeOpenComplete', true);
+  const isChannelTarget = projectionSubTab === 'channel-target';
   const [searchQuery, setSearchQuery] = useState('');
 
   // 채널별 요약 탭 필터 상태 (프로젝션 필터와 동일한 패턴으로 리프트)
@@ -545,12 +548,12 @@ function App() {
             listCatFilter={listCatFilter}
             listBrandFilter={listBrandFilter}
             listMonthFilter={listMonthFilter}
-            excludeOpenComplete={excludeOpenComplete}
+            excludeOpenComplete={isChannelTarget ? ctExcludeOpenComplete : excludeOpenComplete}
             searchQuery={searchQuery}
             onListCatFilterChange={setListCatFilter}
             onListBrandFilterChange={setListBrandFilter}
             onListMonthFilterChange={setListMonthFilter}
-            onExcludeOpenCompleteChange={setExcludeOpenComplete}
+            onExcludeOpenCompleteChange={isChannelTarget ? setCtExcludeOpenComplete : setExcludeOpenComplete}
             onSearchQueryChange={setSearchQuery}
             onNavigateToSku={handleNavigateToSku}
           />

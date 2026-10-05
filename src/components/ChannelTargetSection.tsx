@@ -92,13 +92,13 @@ function CellInput({ value, onCommit, disabled, suffix, className = '' }: {
     if (Number.isFinite(n) && n !== value) onCommit(n);
   };
   return (
-    <input autoFocus value={draft} onChange={(e) => setDraft(e.target.value)} onBlur={commit}
+    <input autoFocus value={draft} size={1} inputMode="decimal" onChange={(e) => setDraft(e.target.value)} onBlur={commit}
       onKeyDown={(e: KeyboardEvent<HTMLInputElement>) => {
         if (e.nativeEvent.isComposing || e.keyCode === 229) return;
         if (e.key === 'Enter') commit();
         if (e.key === 'Escape') setDraft(null);
       }}
-      className="w-full text-right tabular-nums rounded px-1 py-0.5 border border-indigo-400 bg-indigo-50 outline-none" />
+      className={`w-full min-w-0 text-right tabular-nums rounded px-1 py-0.5 border border-indigo-400 bg-indigo-50 outline-none ${className}`} />
   );
 }
 
