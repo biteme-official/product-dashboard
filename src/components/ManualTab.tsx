@@ -261,11 +261,11 @@ export function ManualTab() {
 
         <h3 className="text-sm font-semibold text-gray-600 mb-2">상단 메인 탭 <span className="font-normal text-gray-400">(로그인 직후 기본 진입 탭: 프로젝션)</span></h3>
         <TermList items={[
-          { term: '프로젝션', desc: 'LIST VIEW / 채널별 오픈일정 / 채널 목표량 세 서브탭. 로그인 시 항상 LIST VIEW로 초기화' },
+          { term: '프로젝션', desc: 'LIST VIEW / 채널별 오픈일정 / 채널 목표량 / 프라이싱 (신규, 테스트 중) 서브탭. 로그인 시 항상 LIST VIEW로 초기화' },
           { term: 'SKU 리스트', desc: 'SKU 카드 목록. SKU별 3단계 계획 진행, 카드↔목록(테이블) 뷰 토글 (프로젝션 LIST VIEW와 별개)' },
           { term: '채널별 요약', desc: '전체 SKU의 채널별 출고·매출 요약 뷰 (MD·전략 대상)' },
           { term: '메뉴얼', desc: '대시보드 사용 가이드 (현재 페이지)' },
-          { term: '관리', desc: 'PIN 관리 / 권한 관리 / 채널 관리(쿠팡·글로벌·일본) / 시즌 한정 / 데이터 정리 / 관리자 메모 6개 서브탭 (MASTER 전용)' },
+          { term: '관리', desc: 'PIN 관리 / 권한 관리 / SKU 관리(할인 정책 · 채널 관리 · 시즌 한정) / 데이터 정리 / 관리자 메모 (MASTER 전용). 할인 정책 = 브랜드별 오픈특가 · 공통 규칙 / 할인가능시점 / 주력 SKU 지정' },
         ]} />
 
         <h3 className="text-sm font-semibold text-gray-600 mb-2 mt-4">SKU 카드 구성</h3>

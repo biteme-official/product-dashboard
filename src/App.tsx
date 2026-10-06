@@ -54,7 +54,7 @@ const MAIN_TAB_LABELS: Record<MainTab, string> = {
 
 function getNavLabel(snap: NavSnapshot): string {
   if (snap.mainTab === 'projection') {
-    return snap.projectionSubTab === 'list-view' ? 'LIST VIEW' : snap.projectionSubTab === 'channel-target' ? '채널 목표량' : '채널별 오픈일정';
+    return snap.projectionSubTab === 'list-view' ? 'LIST VIEW' : snap.projectionSubTab === 'channel-target' ? '채널 목표량' : snap.projectionSubTab === 'pricing-v2' ? '프라이싱 (신규)' : '채널별 오픈일정';
   }
   return MAIN_TAB_LABELS[snap.mainTab];
 }
@@ -504,6 +504,7 @@ function App() {
               { key: 'list-view', label: 'LIST VIEW' },
               { key: 'channel-schedule', label: '채널별 오픈일정' },
               { key: 'channel-target', label: '채널 목표량' },
+              { key: 'pricing-v2', label: '프라이싱 (신규)' },
             ].map(({ key, label }) => (
               <button
                 key={key}
