@@ -142,6 +142,9 @@ function App() {
   // 채널 목표량은 [오픈/완료 제외]가 기본 켜짐 — 끄면 이 세션 동안 꺼진 채 유지 (다른 서브탭과 별도)
   const [ctExcludeOpenComplete, setCtExcludeOpenComplete] = useSessionState('app:ctExcludeOpenComplete', true);
   const isChannelTarget = projectionSubTab === 'channel-target';
+  // 프라이싱 (신규)도 [오픈/완료 제외] 기본 켜짐 — 채널 목표량과 같은 방식, 세션 상태는 별도
+  const [pvExcludeOpenComplete, setPvExcludeOpenComplete] = useSessionState('app:pvExcludeOpenComplete', true);
+  const isPricingV2 = projectionSubTab === 'pricing-v2';
   const [searchQuery, setSearchQuery] = useState('');
 
   // 채널별 요약 탭 필터 상태 (프로젝션 필터와 동일한 패턴으로 리프트)
@@ -549,12 +552,12 @@ function App() {
             listCatFilter={listCatFilter}
             listBrandFilter={listBrandFilter}
             listMonthFilter={listMonthFilter}
-            excludeOpenComplete={isChannelTarget ? ctExcludeOpenComplete : excludeOpenComplete}
+            excludeOpenComplete={isChannelTarget ? ctExcludeOpenComplete : isPricingV2 ? pvExcludeOpenComplete : excludeOpenComplete}
             searchQuery={searchQuery}
             onListCatFilterChange={setListCatFilter}
             onListBrandFilterChange={setListBrandFilter}
             onListMonthFilterChange={setListMonthFilter}
-            onExcludeOpenCompleteChange={isChannelTarget ? setCtExcludeOpenComplete : setExcludeOpenComplete}
+            onExcludeOpenCompleteChange={isChannelTarget ? setCtExcludeOpenComplete : isPricingV2 ? setPvExcludeOpenComplete : setExcludeOpenComplete}
             onSearchQueryChange={setSearchQuery}
             onNavigateToSku={handleNavigateToSku}
           />
