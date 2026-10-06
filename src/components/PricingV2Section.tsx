@@ -67,7 +67,7 @@ export function PricingV2Section({ skus }: { skus: SkuData[] }) {
   };
 
   const list = useMemo(() => skus
-    .filter((s) => !onlyOpen || !s.isPriceConfirmed || !!s.coreSku)
+    .filter((s) => !onlyOpen || !s.isPriceConfirmed)
     .slice().sort((a, b) => (a.releaseDate || '9999').localeCompare(b.releaseDate || '9999')),
   [skus, onlyOpen]);
   const groups = useMemo(() => {
@@ -146,8 +146,8 @@ export function PricingV2Section({ skus }: { skus: SkuData[] }) {
   const metrics = METRICS.filter((m) => (m.b2bOnly ? cols === 'b2b' : show[m.k]));
   const nRows = 1 + metrics.length;
   const span = 5 + keys.length + (cols === 'b2c' ? 1 : 0) + 3;
-  const confirmedN = skus.filter((s) => s.isPriceConfirmed && !s.coreSku).length;
-  const targetN = skus.filter((s) => !s.coreSku).length;
+  const confirmedN = skus.filter((s) => s.isPriceConfirmed).length;
+  const targetN = skus.length;
 
   const cell = (s: SkuData, k: PriceKey): ReactNode => {
     const cur = shown(s)[k];
@@ -263,10 +263,11 @@ export function PricingV2Section({ skus }: { skus: SkuData[] }) {
             </tr>
           </thead>
           {groups.map((g) => {
-            const tg = g.arr.filter((s) => !s.coreSku);
+            // 주력 SKU도 확정 대상 (상세 프로모션 링크는 별도로 함께 표시)
+            const tg = g.arr;
             const done = tg.filter((s) => s.isPriceConfirmed).length;
             const all = tg.length > 0 && done === tg.length;
-            const coreN = g.arr.length - tg.length;
+            const coreN = tg.filter((s) => s.coreSku).length;
             return [
               <tbody key={`${g.k}-h`}>
                 <tr className="bg-gray-100 border-y border-gray-300">
@@ -278,7 +279,7 @@ export function PricingV2Section({ skus }: { skus: SkuData[] }) {
                       {canEdit && tg.length > 0 && (
                         <button disabled={busy} onClick={() => confirm(all ? tg : tg.filter((s) => !s.isPriceConfirmed), !all)}
                           className={`text-[11px] px-2.5 py-1 rounded-md font-semibold disabled:opacity-50 ${all ? 'border border-gray-300 bg-white text-gray-600' : 'bg-indigo-600 text-white'}`}>
-                          {all ? '묶음 확정 해제' : '묶음 일괄 확정'}
+                          {all ? '묶음 확정 해제' : `묶음 일괄 확정 · 미확정 ${tg.length - done}개`}
                         </button>
                       )}
                     </div>
@@ -288,7 +289,7 @@ export function PricingV2Section({ skus }: { skus: SkuData[] }) {
               ...g.arr.map((s) => {
                 const core = !!s.coreSku;
                 const nOv = Object.keys(s.pricingOverrides ?? {}).length;
-                const lk = s.isPriceConfirmed ? 'bg-emerald-50/40' : '';
+                const lk = s.isPriceConfirmed ? 'bg-emerald-50' : '';
                 return (
                   <tbody key={s.id} className="border-b border-gray-200">
                     <tr className={lk}>
@@ -319,15 +320,16 @@ export function PricingV2Section({ skus }: { skus: SkuData[] }) {
                       <td rowSpan={nRows} className="px-2 py-1.5 align-top">{mainCh(s)}</td>
                       <td rowSpan={nRows} className="px-2 py-1.5 align-top">{whenCell(s)}</td>
                       <td rowSpan={nRows} className="px-2 py-1.5 align-top text-center">
-                        {core ? (
-                          <a href={CORE_PROMO_URL} target="_blank" rel="noopener noreferrer"
-                            className="inline-block text-[11px] px-2 py-1 rounded-md border border-blue-500 bg-blue-50 text-blue-700 whitespace-nowrap hover:bg-blue-100">상세 프로모션 보러가기 →</a>
-                        ) : (
+                        <div className="flex flex-col items-center gap-1">
                           <button disabled={!canEdit || busy} onClick={() => confirm([s], !s.isPriceConfirmed)}
-                            className={`text-[11px] px-2 py-0.5 rounded-md border disabled:opacity-50 ${s.isPriceConfirmed ? 'border-emerald-500 bg-emerald-50 text-emerald-700 font-semibold' : 'border-gray-300 text-gray-600'}`}>
+                            className={`text-[11px] px-2 py-0.5 rounded-md border disabled:opacity-50 ${s.isPriceConfirmed ? 'border-emerald-500 bg-emerald-500 text-white font-semibold' : 'border-gray-300 bg-white text-gray-600'}`}>
                             {s.isPriceConfirmed ? '확정됨' : '확정'}
                           </button>
-                        )}
+                          {core && (
+                            <a href={CORE_PROMO_URL} target="_blank" rel="noopener noreferrer"
+                              className="block text-center leading-tight text-[10px] px-1.5 py-0.5 rounded-md border border-blue-500 bg-blue-50 text-blue-700 hover:bg-blue-100">상세 프로모션<br />보러가기 →</a>
+                          )}
+                        </div>
                       </td>
                     </tr>
                     {metrics.map((m) => (
