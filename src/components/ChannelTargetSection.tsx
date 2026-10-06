@@ -417,21 +417,20 @@ export function ChannelTargetSection({ skus }: { skus: SkuData[] }) {
     );
   };
   const Row = ({ label, sub, months, cell, total, cls = '', fmtTotal = fmt }: {
-    label: ReactNode; sub?: string; months: Month[]; cell: (m: Month) => ReactNode; total?: (ms: Month[]) => number | null; cls?: string; fmtTotal?: (n: number) => ReactNode;
+    label: ReactNode; sub?: string; months: Month[]; cell: (m: Month) => ReactNode; total?: (ms: Month[]) => number | null; cls?: string; fmtTotal?: (n: number, ms: Month[]) => ReactNode;
   }) => {
     const y1 = months.filter((m) => !isNextYr(m, months));
     const y2 = months.filter((m) => isNextYr(m, months));
-    const t = (ms: Month[]) => (total ? total(ms) : null);
-    const show = (v: number | null) => (v == null ? <span className="text-gray-300">–</span> : fmtTotal(v));
+    const show = (ms: Month[]) => { const v = total ? total(ms) : null; return v == null ? <span className="text-gray-300">–</span> : fmtTotal(v, ms); };
     return (
       <tr className={`border-b border-gray-100 ${cls}`}>
         <td className="px-2 py-1 whitespace-nowrap text-[11px] text-gray-500 border-r border-gray-100">
           {label}{sub && <div className="text-[9px] text-gray-400 leading-tight">{sub}</div>}
         </td>
         {months.map((m) => <td key={m} className="px-1.5 py-1 text-right tabular-nums text-[11px]">{cell(m)}</td>)}
-        <td className="px-2 py-1 text-right tabular-nums text-[11px] font-semibold bg-indigo-50/50 whitespace-nowrap">{show(t(y1))}</td>
-        {y2.length > 0 && <td className="px-2 py-1 text-right tabular-nums text-[11px] font-semibold bg-blue-50/40 whitespace-nowrap">{show(t(y2))}</td>}
-        <td className="px-2 py-1 text-right tabular-nums text-[11px] font-semibold bg-gray-50 whitespace-nowrap">{show(t(months))}</td>
+        <td className="px-2 py-1 text-right tabular-nums text-[11px] font-semibold bg-indigo-50/50 whitespace-nowrap">{show(y1)}</td>
+        {y2.length > 0 && <td className="px-2 py-1 text-right tabular-nums text-[11px] font-semibold bg-blue-50/40 whitespace-nowrap">{show(y2)}</td>}
+        <td className="px-2 py-1 text-right tabular-nums text-[11px] font-semibold bg-gray-50 whitespace-nowrap">{show(months)}</td>
       </tr>
     );
   };
@@ -443,9 +442,35 @@ export function ChannelTargetSection({ skus }: { skus: SkuData[] }) {
     const cd = compById[s.id];
     const editable = canEditCh(ch) && !lockedCh(s, ch) && !disabledCh(s, ch);
     const sumQ = (ms: Month[]) => ms.reduce((a, m) => a + qtyOf(s, ch, m), 0);
+    // 전 채널 합계 = 판매 채널 합 (마케팅 제외) · 마케팅 탭은 마케팅까지 더한 값 대비 비중
+    const allAt = (m: Month) => CHANNELS.reduce((a, c) => a + qtyOf(s, c, m), 0) + (ch === '마케팅' ? qtyOf(s, ch, m) : 0);
+    const allSum = (ms: Month[]) => ms.reduce((a, m) => a + allAt(m), 0);
+    const shareOf = (a: number, b: number) => (b > 0 ? Math.round((a / b) * 100) : null);
+    const compAt = (c: Channel, m: Month) => (cd?.channelYM ? getCompQty(cd.channelYM, cd.mode, c, m, months, ry) ?? 0 : 0);
+    const compShare = (ms: Month[]) => {
+      if (ch === '마케팅' || !cd?.channelYM) return null;
+      const all = ms.reduce((a, m) => a + CHANNELS.reduce((x, c) => x + compAt(c, m), 0), 0);
+      return shareOf(ms.reduce((a, m) => a + compAt(ch, m), 0), all);
+    };
+    const shareCell = (p: number | null, cp: number | null) => (
+      <span className="inline-flex flex-col items-end leading-tight">
+        <span className="font-semibold text-gray-800">{p == null ? '–' : `${p}%`}</span>
+        {cp != null && <span className="text-[9px] text-gray-400">대응 {cp}%</span>}
+      </span>
+    );
+    const shareRows = (
+      <>
+        <Row label={<span className="font-semibold text-gray-600">전 채널 합계</span>} sub={ch === '마케팅' ? '판매 채널 + 마케팅' : '마케팅 제외'} months={months} cls="bg-indigo-50/30"
+          total={allSum} cell={(m) => <span className="text-gray-700">{fmt(allAt(m))}</span>} />
+        <Row label={<span className="font-semibold text-gray-600">{ch} 비중</span>} sub={ch === '마케팅' ? undefined : '아래 = 대응SKU'} months={months} cls="bg-indigo-50/30 border-b-2 border-b-gray-200"
+          total={(ms) => shareOf(sumQ(ms), allSum(ms))} fmtTotal={(v, ms) => shareCell(v, compShare(ms))}
+          cell={(m) => shareCell(shareOf(qtyOf(s, ch, m), allAt(m)), compShare([m]))} />
+      </>
+    );
     if (ch === '마케팅') {
       return (
         <>
+          {shareRows}
           <Row label="수량" months={months} total={sumQ}
             cell={(m) => <CellInput value={qtyOf(s, ch, m)} disabled={!editable} onCommit={(v) => commitQty(s, ch, m, v)} />} />
           <Row label={<span className="text-red-500">예상 비용</span>} months={months} total={(ms) => s.cost * sumQ(ms)} fmtTotal={won}
@@ -461,6 +486,7 @@ export function ChannelTargetSection({ skus }: { skus: SkuData[] }) {
     const pro = (m: Month) => Math.round(rev(m) * (1 - vc) - s.cost * qtyOf(s, ch, m));
     return (
       <>
+        {shareRows}
         <Row label={<span className="font-bold text-gray-600">대응SKU</span>} sub={cd?.mode === 'samePeriod' ? '동기간' : '직전 12개월'} months={months} cls="bg-gray-100/70"
           total={compSum} cell={(m) => <span className="text-gray-600">{fmt(comp(m))}</span>} />
         <Row label={<span className="font-semibold text-gray-700">목표 수량</span>} months={months} total={sumQ}
@@ -757,19 +783,20 @@ export function ChannelTargetSection({ skus }: { skus: SkuData[] }) {
       <div className="flex flex-col gap-3">
         {groups.map((g) => {
           const tot = g.arr.reduce((a, s) => a + (disabledCh(s, channel) ? 0 : getSkuMonths(s.releaseDate).reduce((x, m) => x + qtyOf(s, channel, m), 0)), 0);
+          const all = g.arr.reduce((a, s) => a + getSkuMonths(s.releaseDate).reduce((x, m) => x + CHANNELS.reduce((y, c) => y + qtyOf(s, c, m), 0) + (channel === '마케팅' ? qtyOf(s, channel, m) : 0), 0), 0);
           return (
             <div key={g.k} className="flex flex-col gap-2">
               <div className="flex items-center gap-2 pt-1">
                 {checkbox(g.arr.map((s) => s.id), `${g.label} 전체 선택`)}
                 <b className="text-sm text-gray-800">{g.label}</b>
-                <span className="text-[11px] text-gray-500">{g.arr.length}개 · {channel} 합계 {fmt(tot)}</span>
+                <span className="text-[11px] text-gray-500">{g.arr.length}개 · {channel} 합계 {fmt(tot)}{all > 0 && ` · 전체 ${fmt(all)} 중 ${Math.round((tot / all) * 100)}%`}</span>
               </div>
               {g.arr.map((s) => {
                 const months = getSkuMonths(s.releaseDate);
                 const off = disabledCh(s, channel);
                 const field = channel === '마케팅' ? 'step2PlatformConfirmed' as const : CHANNEL_CONFIRM_GROUP[channel].field;
                 const t = months.reduce((a, m) => a + qtyOf(s, channel, m), 0);
-                const sum = CHANNELS.reduce((a, c) => a + months.reduce((x, m) => x + qtyOf(s, c, m), 0), 0);
+                const sum = CHANNELS.reduce((a, c) => a + months.reduce((x, m) => x + qtyOf(s, c, m), 0), 0) + (channel === '마케팅' ? t : 0);
                 return (
                   <div key={s.id} className={`rounded-lg border overflow-hidden ${picked.has(s.id) ? 'border-indigo-400 ring-1 ring-indigo-300' : lockedCh(s, channel) ? 'border-emerald-300' : 'border-gray-200'}`}>
                     <div className="flex flex-wrap items-center gap-2 px-2.5 py-1.5 bg-gray-50 border-b border-gray-200">
@@ -778,7 +805,11 @@ export function ChannelTargetSection({ skus }: { skus: SkuData[] }) {
                       <span className="text-[11px] text-gray-500">{s.brand} · {s.category} · 발주량 {fmt(s.totalOrderQty)} · 대응 {compText(s)}</span>
                       {notes(s)}
                       <span className="flex-1" />
-                      {!isEmptyGrid(s) && !off && channel !== '마케팅' && <span className="text-[11px] text-gray-500">비중 {sum ? Math.round((t / sum) * 100) : 0}%</span>}
+                      {!isEmptyGrid(s) && !off && (
+                        <span className="inline-flex items-baseline gap-1 px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 text-[11px] font-bold tabular-nums">
+                          {channel} {fmt(t)}<span className="font-medium text-gray-500">/ 전체 {fmt(sum)}</span>· {sum ? Math.round((t / sum) * 100) : 0}%
+                        </span>
+                      )}
                       <CoverageChip sku={s} skuMonths={months} />
                       {undoBtn(s)}
                       <button disabled={!perm.step2 || !canConfirmGroup(role, field) || isEmptyGrid(s) || busy}
