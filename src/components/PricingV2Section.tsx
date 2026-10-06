@@ -252,10 +252,10 @@ export function PricingV2Section({ skus }: { skus: SkuData[] }) {
               <th className="px-2 py-1.5 text-right">정가</th><th className="px-2 py-1.5 text-right">판매가</th>
               {keys.map((x) => (
                 <th key={x.k} className={`px-2 py-1.5 text-right ${x.k === 'pre' ? 'bg-violet-50' : x.k === 'live' ? 'bg-orange-50' : ''}`}>
-                  {x.label}{x.sub && <div className="text-[9px] font-normal text-gray-400">{x.sub}</div>}
+                  {x.label}{x.sub && <div className="text-[10px] font-normal text-gray-400 whitespace-nowrap">{x.sub}</div>}
                 </th>
               ))}
-              {cols === 'b2c' && <th className="px-2 py-1.5 text-left">프로모션</th>}
+              {cols === 'b2c' && <th className="px-2 py-1.5 text-left whitespace-nowrap">오픈라이브 여부</th>}
               <th className="px-2 py-1.5 text-left">메인 채널</th><th className="px-2 py-1.5 text-left">할인가능시점</th><th className="px-2 py-1.5 text-center">가격 확정</th>
             </tr>
           </thead>
@@ -306,7 +306,8 @@ export function PricingV2Section({ skus }: { skus: SkuData[] }) {
                       {cols === 'b2c' && (
                         <td rowSpan={nRows} className="px-2 py-1.5 align-top">
                           <button disabled={!canEdit || !!s.isPriceConfirmed} onClick={() => toggleLive(s)}
-                            className={`text-[11px] px-2 py-0.5 rounded-full border disabled:opacity-60 ${s.pricingPromoLive ? 'border-orange-500 bg-orange-50 text-orange-700 font-semibold' : 'border-gray-200 text-gray-400'}`}>라이브</button>
+                            aria-label={`${s.skuName} 오픈라이브 ${s.pricingPromoLive ? '끄기' : '켜기'}`}
+                            className={`text-[11px] w-12 py-0.5 rounded-full border disabled:opacity-60 ${s.pricingPromoLive ? 'border-orange-500 bg-orange-500 text-white font-semibold' : 'border-gray-300 text-gray-400'}`}>{s.pricingPromoLive ? 'ON' : 'OFF'}</button>
                         </td>
                       )}
                       <td rowSpan={nRows} className="px-2 py-1.5 align-top">{mainCh(s)}</td>

@@ -202,7 +202,7 @@ function CoreTab() {
         <input value={q} onChange={(e) => { setQ(e.target.value); setMsg(''); }} placeholder="SKU명 검색" className="flex-1 text-sm px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400" />
         <span className="text-xs text-gray-500 whitespace-nowrap">주력 SKU {skus.filter((s) => s.coreSku).length}개</span>
       </div>
-      <p className="text-[11px] text-gray-400">검색 → 주력 ON → 메인 채널 선택 · 주력 SKU는 선오픈 최저가가 생기고, 프라이싱 탭에 메인 채널 · 상세 프로모션 버튼 표시 · 검색어가 없으면 주력 SKU만 표시</p>
+      <p className="text-[11px] text-gray-400">검색 → 체크 → 주력 지정 → 메인 채널 선택 · 주력 SKU는 선오픈 최저가가 생기고, 프라이싱 탭에 메인 채널 · 상세 프로모션 버튼 표시 · 검색어가 없으면 주력 SKU만 표시</p>
       {rows.length > 0 && (
         <div className="flex items-center gap-2 flex-wrap bg-indigo-50 rounded-lg px-3 py-2 text-xs">
           <label className="flex items-center gap-1.5 text-gray-600">
@@ -225,13 +225,12 @@ function CoreTab() {
       <div className="divide-y divide-gray-100 border border-gray-200 rounded-xl max-h-[60vh] overflow-auto">
         {rows.map((s) => (
           <div key={s.id} className={`flex items-center gap-2 px-3 py-2 text-xs flex-wrap ${picked.has(s.id) ? 'bg-indigo-50/50' : ''}`}>
-            <input type="checkbox" checked={picked.has(s.id)} onChange={(e) => togglePick(s.id, e.target.checked)} className="accent-gray-500" aria-label={`${s.skuName} 선택`} />
-            <label className="flex items-center gap-2 flex-1 min-w-[180px]">
-              <input type="checkbox" checked={!!s.coreSku} className="accent-indigo-500" aria-label={`${s.skuName} 주력 지정`}
-                onChange={(e) => save(s.id, e.target.checked ? { coreSku: true, coreMainChannel: s.coreMainChannel ?? '자사몰' } : { coreSku: false })} />
+            {/* SKU별 체크박스는 선택 하나만 — 주력 지정 · 해제는 위 일괄 버튼으로 */}
+            <label className="flex items-center gap-2 flex-1 min-w-[180px] cursor-pointer">
+              <input type="checkbox" checked={picked.has(s.id)} onChange={(e) => togglePick(s.id, e.target.checked)} className="accent-indigo-500" aria-label={`${s.skuName} 선택`} />
               <span className="truncate">{s.skuName}</span>
               <span className="text-gray-400">{s.brand} · {s.category}</span>
-              {s.coreSku && <span className="text-[10px] px-1.5 rounded-full bg-indigo-100 text-indigo-700">주력</span>}
+              {s.coreSku && <span className="text-[10px] px-1.5 rounded-full bg-indigo-100 text-indigo-700 font-semibold">주력</span>}
             </label>
             <select disabled={!s.coreSku} value={s.coreMainChannel ?? '자사몰'} onChange={(e) => save(s.id, { coreMainChannel: e.target.value as MainCh })}
               className="text-xs border border-gray-200 rounded px-1.5 py-1 disabled:opacity-40" aria-label="메인 채널">
@@ -245,7 +244,7 @@ function CoreTab() {
         ))}
         {rows.length === 0 && <p className="text-xs text-gray-400 px-3 py-3">{q ? '검색 결과 없음' : '주력 SKU 없음 · 위에서 검색해 지정'}</p>}
       </div>
-      <p className="text-[11px] text-gray-400">왼쪽 회색 체크 = 일괄 작업 선택 · 파란 체크 = 주력 ON/OFF · 메인 채널 일괄 설정은 주력 SKU에만 적용</p>
+      <p className="text-[11px] text-gray-400">SKU 체크 → [주력 지정] · [주력 해제] · [메인 채널 일괄 설정] · 메인 채널은 주력 SKU만 행에서 바로 바꿀 수도 있음</p>
     </div>
   );
 }

@@ -40,8 +40,8 @@ export const ROUND_LABEL: Record<RoundMode, string> = {
 };
 
 export type PriceKey = 'open' | 'pre' | 'live' | 'reg' | 'spec' | 'b2bOpen' | 'b2b' | 'buy' | 'popup' | 'glob' | 'jp';
-export const B2C_KEYS: { k: PriceKey; label: string }[] = [
-  { k: 'pre', label: '선오픈 최저가' }, { k: 'live', label: '라이브' }, { k: 'open', label: '오픈특가' },
+export const B2C_KEYS: { k: PriceKey; label: string; sub?: string }[] = [
+  { k: 'pre', label: '선오픈 최저가', sub: '*주력SKU 프로모션' }, { k: 'live', label: '라이브' }, { k: 'open', label: '오픈특가', sub: '*기본 오픈할인가' },
   { k: 'reg', label: '상시 최대' }, { k: 'spec', label: '특가 최대' },
 ];
 export const B2B_KEYS: { k: PriceKey; label: string; sub?: string }[] = [
