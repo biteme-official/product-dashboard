@@ -16,6 +16,7 @@ import { CategoryTabs } from './components/CategoryTabs';
 import { SkuOrderSection } from './components/SkuOrderSection';
 import { MdSummarySection } from './components/MdSummarySection';
 import { BrandFilter } from './components/BrandFilter';
+import { usePricingPolicy } from './hooks/usePricingPolicy';
 import { ManualTab } from './components/ManualTab';
 import { LoginScreen } from './components/LoginScreen';
 import { AdminSection } from './components/AdminSection';
@@ -94,6 +95,8 @@ function App() {
   useCpoDeleteSync();
   useCpoPriceSync();
   useCpoFieldSync();
+  // 할인 정책 구독 유지 — STEP 1 판매가 · 채널별 요약 · 엑셀이 getPricingPolicy()로 현재값을 읽음
+  usePricingPolicy();
   useCpoOptionSync();
   const skuSyncError = useSkuSyncStatus((s) => s.error);
   const skuSaveError = useSkuSyncStatus((s) => s.saveError);

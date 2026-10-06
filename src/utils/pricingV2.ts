@@ -18,6 +18,8 @@ export type RoundMode = '900' | '100' | '10';
 export interface BrandPolicy {
   // B2C
   openRate: number; round: RoundMode; reg: number; spec: number;
+  /** 시즌오프(의류) 할인율 — STEP 1 판매가 선택지 전용 */
+  seasonOff: number;
   // B2B — B2B 상시 = 판매가 b2bRate%(10원 반올림), B2B 오픈 = B2B 상시에서 b2bOpenDisc% 추가 할인(10원 반올림),
   //       사입 = 판매가 buyRate%(10원 올림), 팝업/페어 = 판매가 popupRate% 할인(10원 버림)
   b2bRate: number; b2bOpenDisc: number; buyRate: number; popupRate: number;
@@ -32,9 +34,9 @@ export interface PricingPolicy {
 
 export const DEFAULT_PRICING_POLICY: PricingPolicy = {
   brands: {
-    '바잇미': { openRate: 20, round: '900', reg: 15, spec: 20, b2bRate: 65, b2bOpenDisc: 10, buyRate: 50, popupRate: 10 },
-    'SSFW': { openRate: 10, round: '10', reg: 10, spec: 20, b2bRate: 65, b2bOpenDisc: 10, buyRate: 50, popupRate: 10 },
-    '그외': { openRate: 10, round: '10', reg: 10, spec: 20, b2bRate: 65, b2bOpenDisc: 10, buyRate: 50, popupRate: 10 },
+    '바잇미': { openRate: 20, round: '900', reg: 15, spec: 20, seasonOff: 25, b2bRate: 65, b2bOpenDisc: 10, buyRate: 50, popupRate: 10 },
+    'SSFW': { openRate: 10, round: '10', reg: 10, spec: 20, seasonOff: 25, b2bRate: 65, b2bOpenDisc: 10, buyRate: 50, popupRate: 10 },
+    '그외': { openRate: 10, round: '10', reg: 10, spec: 20, seasonOff: 25, b2bRate: 65, b2bOpenDisc: 10, buyRate: 50, popupRate: 10 },
   },
   common: { preThr: 10000, prePct: 5, preMinus: 1000, livePct: 5, liveMax: 1000 },
   weeks: { '장난감': 4, '용품': 8, '식품': null, '잡화': null, '의류': null },
@@ -141,6 +143,17 @@ export function legacyPricesV2(sku: SkuData, core: boolean, policy: PricingPolic
     glob: scenario('글로벌 공급가').calcKrwPrice(sku.price, fx.usd),
     jp: v('일본 공급가'),
   };
+}
+
+/**
+ * 화면에 보이는 SKU 가격 (프라이싱 탭과 같음)
+ * 미확정 = 정책 + 수동값 · 확정 = 확정 시점 가격 · 개편 전 확정 = 기존 계산값
+ */
+export function shownPricesV2(sku: SkuData, policy: PricingPolicy, fx: { usd: number; jpy: number }): PriceSet {
+  const auto = calcPricesV2({ price: sku.price, brand: sku.brand, core: !!sku.coreSku, live: !!sku.pricingPromoLive, overrides: sku.pricingOverrides }, policy, fx);
+  if (!sku.isPriceConfirmed) return auto;
+  if (sku.pricingSnapshot) return { ...auto, ...sku.pricingSnapshot } as PriceSet;
+  return legacyPricesV2(sku, !!sku.coreSku, policy, fx);
 }
 
 /** 할인가능시점 = SKU 오픈일 + n주 (주 수 없으면 null) */

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useSyncExternalStore } from 'react';
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 import { fsdb } from '../lib/firebase';
 import { DEFAULT_PRICING_POLICY, type PricingPolicy } from '../utils/pricingV2';
@@ -22,14 +22,33 @@ function withDefaults(raw: Partial<PricingPolicy> | undefined): PricingPolicy {
   };
 }
 
+// ── 앱 전체가 정책 문서 하나를 같이 구독 (SKU 카드 수백 개가 각자 구독하지 않게) ──
+// 계산 유틸(채널별 요약 · 엑셀 등)은 getPricingPolicy()로 현재값을 바로 읽음
+let state: { policy: PricingPolicy; loaded: boolean } = { policy: DEFAULT_PRICING_POLICY, loaded: false };
+const listeners = new Set<() => void>();
+let unsub: (() => void) | null = null;
+
+function subscribe(cb: () => void) {
+  listeners.add(cb);
+  if (!unsub) {
+    unsub = onSnapshot(
+      POLICY_DOC,
+      (snap) => { state = { policy: withDefaults(snap.exists() ? (snap.data() as Partial<PricingPolicy>) : undefined), loaded: true }; listeners.forEach((l) => l()); },
+      (err) => { console.error('[pricingPolicy] 구독 실패', err); state = { ...state, loaded: true }; listeners.forEach((l) => l()); },
+    );
+  }
+  return () => {
+    listeners.delete(cb);
+    if (listeners.size === 0 && unsub) { unsub(); unsub = null; }
+  };
+}
+
+export function getPricingPolicy(): PricingPolicy {
+  return state.policy;
+}
+
 export function usePricingPolicy(): { policy: PricingPolicy; loaded: boolean } {
-  const [state, setState] = useState<{ policy: PricingPolicy; loaded: boolean }>({ policy: DEFAULT_PRICING_POLICY, loaded: false });
-  useEffect(() => onSnapshot(
-    POLICY_DOC,
-    (snap) => setState({ policy: withDefaults(snap.exists() ? (snap.data() as Partial<PricingPolicy>) : undefined), loaded: true }),
-    (err) => { console.error('[pricingPolicy] 구독 실패', err); setState((s) => ({ ...s, loaded: true })); },
-  ), []);
-  return state;
+  return useSyncExternalStore(subscribe, () => state);
 }
 
 /** 바뀐 항목만 merge 저장 (예: { brands: { SSFW: { openRate: 10 } } }) */

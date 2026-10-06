@@ -1,7 +1,8 @@
 import * as XLSX from 'xlsx';
 import type { SkuData, Channel } from '../types';
 import { B2C_CHANNELS, B2B_CHANNELS, getSkuMonths, isNextYearMonth, getDisabledChannels } from '../types';
-import { PRICING_SCENARIOS, type PricingRates } from './pricingScenarios';
+import { step1Pricer } from './step1Price';
+import { getPricingPolicy } from '../hooks/usePricingPolicy';
 
 function todayYymmdd(): string {
   const d = new Date();
@@ -200,13 +201,6 @@ function colLetter(c: number): string {
   return s;
 }
 
-/** 현재 설정된 시나리오에 따른 단가 계산 (SkuCard/pricingScenarios.ts와 동일 로직 재사용) */
-function simScenarioPrice(optId: string, base: number, usdKrw: number, jpyKrw: number, rates: PricingRates): number {
-  if (!optId) return base;
-  const s = PRICING_SCENARIOS.find((x) => x.id === optId);
-  return s ? s.calcKrwPrice(base, usdKrw, jpyKrw, undefined, rates) : base;
-}
-
 export function exportSimulationXlsx(params: SimExportParams): void {
   const {
     sku, pricingOpts, compMonthlyData, compChannelDist,
@@ -277,11 +271,8 @@ export function exportSimulationXlsx(params: SimExportParams): void {
 
   const skuMonths = getSkuMonths(sku.releaseDate);
   const MONTH_LABELS = skuMonths.map((m) => `${m}월${isNextYearMonth(m, sku.releaseDate) ? '(익년)' : ''}`);
-  const skuPricingRates: PricingRates = {
-    specialMaxRate: sku.specialMaxRate ?? 20,
-    regularMaxRate: sku.regularMaxRate ?? 15,
-    seasonOffRate: sku.seasonOffRate ?? 25,
-  };
+  // 판매가 선택지 단가 = 프라이싱 탭과 같은 가격 (할인 정책 · 확정 가격)
+  const priceOf = step1Pricer(sku, getPricingPolicy(), { usd: usdKrw, jpy: jpyKrw });
   const DEFAULT_OPT_CH: Partial<Record<Channel, string>> = {
     '쿠팡': 'B2B 상시 운영', 'B2B': 'B2B 상시 운영',
     '사입및페어': 'B2B 상시 운영', '글로벌': '글로벌 공급가', '일본': '일본 공급가',
@@ -328,7 +319,7 @@ export function exportSimulationXlsx(params: SimExportParams): void {
     sv(r, C_LABEL, chLabel(ch));
     skuMonths.forEach((m, mi) => {
       const optId = pricingOpts[`${ch}-${m}`] ?? DEFAULT_OPT_CH[ch] ?? '';
-      sv(r, C_M[mi], simScenarioPrice(optId, base, usdKrw, jpyKrw, skuPricingRates));
+      sv(r, C_M[mi], priceOf(optId, base));
     });
   });
 

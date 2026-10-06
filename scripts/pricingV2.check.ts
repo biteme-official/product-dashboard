@@ -1,5 +1,7 @@
 // 프라이싱 개편 계산 검증: node scripts/pricingV2.check.ts
 import { calcPricesV2, discountPct, DEFAULT_PRICING_POLICY as P } from '../src/utils/pricingV2.ts';
+import { step1Pricer } from '../src/utils/step1Price.ts';
+import type { SkuData } from '../src/types/index.ts';
 let fail = 0;
 const eq = (name: string, a: unknown, b: unknown) => { const ok = JSON.stringify(a) === JSON.stringify(b); if (!ok) { fail++; console.error('FAIL', name, a, '!=', b); } else console.log('ok', name); };
 const fx = { usd: 1400, jpy: 9 };
@@ -27,5 +29,16 @@ eq('B2C 10원 내림 (15,950 × 90% = 14,355 → 14,350 · × 80% = 12,760)', [r
 r = g(15950, '바잇미', false, false, { reg: { pct: 7 }, b2b: { pct: 7 } });
 eq('% 입력: B2C 10원 내림 · B2B 10원 올림 (14,833.5)', [r.reg, r.b2b], [14830, 14840]);
 eq('할인율 정수 반올림 (15.5% → 16 · 15.3% → 15 · 14.5% → 15)', [discountPct(845, 1000), discountPct(847, 1000), discountPct(855, 1000)], [16, 15, 15]);
+// STEP 1 판매가 선택지 = 프라이싱 탭 가격
+const sku = (o: Partial<SkuData>) => ({ price: 15900, brand: '바잇미', ...o }) as SkuData;
+let pr = step1Pricer(sku({}), P, fx);
+eq('STEP1 일반: 신상위크 · 선단독 · 선오픈 → 라이브(오픈라이브 OFF여도 계산)', [pr('신상위크', 15900), pr('선단독', 15900), pr('선오픈 최저가', 15900), pr('라이브 할인', 15900)], [11300, 11300, 11300, 11300]);
+eq('STEP1 오픈특가 · 상시 · 특가 · 시즌오프 = 할인 정책 (SKU별 할인율 무시)', [pr('오픈특가', 15900), pr('상시 최대할인율', 15900), pr('특가 최대할인율', 15900), pr('시즌오프(의류전용)', 15900)], [11900, 13510, 12720, 11920]);
+eq('STEP1 채널가 · 모르는 선택지 = 그대로', [pr('', 15900), pr('없는값', 15900)], [15900, 15900]);
+eq('STEP1 채널 전용 판매가 20,000 → 그 금액 기준 정책 계산', pr('오픈특가', 20000), 15900);
+pr = step1Pricer(sku({ coreSku: true }), P, fx);
+eq('STEP1 주력: 신상위크 → 선오픈 최저가', [pr('신상위크', 15900), pr('선오픈 최저가', 15900)], [10900, 10900]);
+pr = step1Pricer(sku({ isPriceConfirmed: true, pricingSnapshot: { open: 12000, live: null } }), P, fx);
+eq('STEP1 확정 SKU = 확정 가격 · 라이브 없으면 확정 오픈특가에서 계산', [pr('오픈특가', 15900), pr('라이브 할인', 15900)], [12000, 11400]);
 if (fail) { console.error(`${fail}건 실패`); process.exit(1); }
 console.log('전부 통과');

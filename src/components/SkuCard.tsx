@@ -22,6 +22,8 @@ import { calcVarCostResults, fallbackWeightsOf, getCompQty as getCompQtyShared }
 import { MarketingBriefModal } from './MarketingBriefModal';
 import { exportSimulationXlsx } from '../utils/exportXlsx';
 import { PRICING_SCENARIOS, PRICING_DEFAULT_OPT } from '../utils/pricingScenarios';
+import { STEP1_OPTIONS, normalizeStep1Opt, step1Pricer } from '../utils/step1Price';
+import { usePricingPolicy } from '../hooks/usePricingPolicy';
 import { CalendarPopup } from './CalendarPopup';
 
 const MONTH_LABELS: Record<Month, string> = {
@@ -1849,7 +1851,8 @@ function PricingChannelTable({
   const [marketingExpanded, setMarketingExpanded] = useState(false);
   // 채널별 일괄반영 선택값 (UI-only, 로컬)
   const [channelBulkOpt, setChannelBulkOpt] = useState<Partial<Record<Channel, string>>>({});
-  const { usdKrw, jpyKrw, isLive } = useExchangeRates();;
+  const { usdKrw, jpyKrw, isLive } = useExchangeRates();
+  const { policy } = usePricingPolicy();
 
   // prop 드릴링 대신 스토어에서 확정 상태를 직접 구독 — 버튼 클릭 즉시 인풋이 비활성화됨
   const liveConfirmKey = useStore((s) => {
@@ -1873,8 +1876,9 @@ function PricingChannelTable({
     });
   };
 
+  // 예전 선택지(신상위크 · 선단독)는 주력 = 선오픈 최저가 · 일반 = 라이브로 보여줌
   const getPricingOpt = (channel: Channel, month: Month) =>
-    pricingOpts[`${channel}-${month}`] ?? PRICING_DEFAULT_OPT[channel] ?? '';
+    normalizeStep1Opt(pricingOpts[`${channel}-${month}`] ?? PRICING_DEFAULT_OPT[channel] ?? '', !!sku.coreSku);
 
   const setPricingOpt = (channel: Channel, month: Month, optId: string) =>
     setPricingOpts((prev) => ({ ...prev, [`${channel}-${month}`]: optId }));
@@ -1886,18 +1890,10 @@ function PricingChannelTable({
   const getCompQty = (channel: Channel, month: Month): number | null =>
     getCompQtyShared(compChannelYM, compMode, channel, month, skuMonths, releaseYear);
 
-  const skuPricingRates = {
-    specialMaxRate: sku.specialMaxRate ?? 20,
-    regularMaxRate: sku.regularMaxRate ?? 15,
-    seasonOffRate: sku.seasonOffRate ?? 25,
-  };
-
-  /** basePrice 기준으로 시나리오 KRW 가격을 반환 (시나리오 없으면 base 그대로) */
-  const calcScenarioPrice = (optId: string, base: number): number => {
-    if (!optId) return base;
-    const s = PRICING_SCENARIOS.find((x) => x.id === optId);
-    return s ? s.calcKrwPrice(base, usdKrw, jpyKrw, undefined, skuPricingRates) : base;
-  };
+  /** basePrice 기준 선택지 가격 — 프라이싱 탭과 같은 가격 (할인 정책 · 확정 가격, 선택지 없으면 base 그대로) */
+  const calcScenarioPrice = step1Pricer(sku, policy, { usd: usdKrw, jpy: jpyKrw });
+  const step1Opts = STEP1_OPTIONS.filter((o) => !o.coreOnly || sku.coreSku);
+  const optSuffix = (id: string, base: number) => (base > 0 ? `${Math.round((1 - calcScenarioPrice(id, base) / base) * 100)}%` : '');
 
   const getPricing = (channel: Channel): ChannelPricing => {
     const found = sku.channelPricing?.find((cp) => cp.channel === channel);
@@ -2110,11 +2106,9 @@ function PricingChannelTable({
                         className="text-[11px] rounded border border-gray-300 px-1.5 py-0.5 bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-gray-400"
                       >
                         <option value="">-- 전략 선택 --</option>
-                        {PRICING_SCENARIOS.map((s) => {
-                          const bPrice = cp.price > 0 ? cp.price : sku.price;
-                          const suffix = s.hint ?? (bPrice > 0 ? `${Math.round((1 - s.calcKrwPrice(bPrice, usdKrw, jpyKrw, undefined, skuPricingRates) / bPrice) * 100)}%` : '');
-                          return <option key={s.id} value={s.id}>{s.label} ({suffix})</option>;
-                        })}
+                        {step1Opts.map((o) => (
+                          <option key={o.id} value={o.id}>{o.label} ({optSuffix(o.id, cp.price > 0 ? cp.price : sku.price)})</option>
+                        ))}
                       </select>
                       <button
                         onClick={() => {
@@ -2260,10 +2254,9 @@ function PricingChannelTable({
                                       className="w-full text-[10px] rounded border border-gray-200 px-1 py-0.5 bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-gray-400 hover:border-gray-400"
                                     >
                                       <option value="">채널가</option>
-                                      {PRICING_SCENARIOS.map((s) => {
-                                        const suffix = s.hint ?? (basePrice > 0 ? `${Math.round((1 - s.calcKrwPrice(basePrice, usdKrw, jpyKrw, undefined, skuPricingRates) / basePrice) * 100)}%` : '');
-                                        return <option key={s.id} value={s.id}>{s.label} ({suffix})</option>;
-                                      })}
+                                      {step1Opts.map((o) => (
+                                        <option key={o.id} value={o.id}>{o.label} ({optSuffix(o.id, basePrice)})</option>
+                                      ))}
                                     </select>
                                   </td>
                                 );

@@ -77,6 +77,7 @@ function PolicyTab() {
         </div>
         <div className={row}><span className="w-24 text-gray-500">상시 최대</span>판매가 <NumField value={p.reg} onSave={(v) => v != null && save({ brands: { [brand]: { reg: v } } })} />% 할인</div>
         <div className={row}><span className="w-24 text-gray-500">특가 최대</span>판매가 <NumField value={p.spec} onSave={(v) => v != null && save({ brands: { [brand]: { spec: v } } })} />% 할인</div>
+        <div className={row}><span className="w-24 text-gray-500">시즌오프</span>판매가 <NumField value={p.seasonOff} onSave={(v) => v != null && save({ brands: { [brand]: { seasonOff: v } } })} />% 할인 <span className="text-gray-400">(의류 · STEP 1 판매가 선택지 전용)</span></div>
         <p className="text-[11px] text-gray-400">* 할인가 기준 할인율 계산 시 소수점 이하 반올림 · 할인율 기준 할인가 계산 시 10원 단위 내림</p>
         <p className="text-xs font-semibold text-gray-700 pt-2">{brand} 정책 · <span className="text-gray-500">B2B</span></p>
         <div className={row}><span className="w-24 text-gray-500">B2B 상시</span>판매가의 <NumField value={p.b2bRate} onSave={(v) => v != null && save({ brands: { [brand]: { b2bRate: v } } })} />% → 10원 단위 반올림</div>
