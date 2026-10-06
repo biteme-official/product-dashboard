@@ -5,7 +5,6 @@ import { useAuth } from '../store/auth';
 import { useCpoSync } from '../store/cpoSync';
 import { cpoPricingDeepLink, CPO_STATUS_STYLES } from '../types/cpo';
 import { SkuCard } from './SkuCard';
-import { PricingModal } from './PricingModal';
 import { ChannelTargetSection } from './ChannelTargetSection';
 import { PricingV2Section } from './PricingV2Section';
 import { NumericInput } from './NumericInput';
@@ -15,7 +14,6 @@ import { SkuFilterBar, SearchInput } from './SkuFilterBar';
 import { catCls } from '../utils/categoryColors';
 import type { SkuData, ChannelOpenScheduleEntry } from '../types';
 import { usePermission } from '../contexts/PermissionsContext';
-import { canEditPricing } from '../utils/pin';
 
 type ViewMode = 'list' | 'gallery';
 
@@ -461,17 +459,13 @@ interface CalendarState { skuId: string; field: 'releaseDate' | 'arrivalDate' | 
 function SkuListTable({ skus, onNavigateToSku }: { skus: SkuData[]; onNavigateToSku?: (sku: SkuData) => void }) {
   const updateSku = useStore((s) => s.updateSku);
   const persistSku = useStore((s) => s.persistSku);
-  const setPriceConfirmed = useStore((s) => s.setPriceConfirmed);
   const cpoProjects = useCpoSync((s) => s.cpoProjects);
   const { role } = useAuth();
   const { skuBasic } = usePermission(role);
   const canEdit = skuBasic;
   const canEditDate = skuBasic;
-  const canConfirmPrice = canEditPricing(role); // 가격확정/해제 — 마스터/PM/플랫폼MD/브랜드MD
 
   const [editingCell, setEditingCell] = useState<EditingCell | null>(null);
-  const [pricingSkuId, setPricingSkuId] = useState<string | null>(null);
-  const pricingSku = pricingSkuId ? skus.find((s) => s.id === pricingSkuId) ?? null : null;
 
   const [calendarState, setCalendarState] = useState<CalendarState | null>(null);
   const calendarRef = useRef<HTMLDivElement>(null);
@@ -530,7 +524,6 @@ function SkuListTable({ skus, onNavigateToSku }: { skus: SkuData[]; onNavigateTo
 
   return (
     <>
-      {pricingSku && <PricingModal sku={pricingSku} onClose={() => setPricingSkuId(null)} />}
       {calendarState && (
         <CalendarPopup
           selectedDate={calendarState.selectedDate}
@@ -552,8 +545,6 @@ function SkuListTable({ skus, onNavigateToSku }: { skus: SkuData[]; onNavigateTo
               <th className="px-3 py-2.5 text-center font-semibold text-gray-600 whitespace-nowrap">자사몰 세팅</th>
               <th className="px-3 py-2.5 text-left font-semibold text-gray-600 whitespace-nowrap">입고예정일</th>
               <th className="px-3 py-2.5 text-left font-semibold text-gray-600 whitespace-nowrap">촬영예정일</th>
-              <th className="px-3 py-2.5 text-center font-semibold text-gray-600 whitespace-nowrap">프라이싱</th>
-              <th className="px-3 py-2.5 text-center font-semibold text-gray-600 whitespace-nowrap">가격확정</th>
               <th className="px-3 py-2.5 text-right font-semibold text-gray-600 whitespace-nowrap">
                 원가{canEdit && <span className="ml-1 text-[9px] font-normal text-indigo-400">편집</span>}
               </th>
@@ -707,37 +698,6 @@ function SkuListTable({ skus, onNavigateToSku }: { skus: SkuData[]; onNavigateTo
                     ) : (
                       <span className={`text-[12px] tabular-nums ${isPast(sku.shootingDate) ? 'text-gray-400' : 'text-gray-500'}`}>
                         {formatReleaseDate(sku.shootingDate) ?? <span className="text-gray-300">–</span>}
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-2 py-1.5 text-center">
-                    <button
-                      onClick={() => setPricingSkuId(sku.id)}
-                      className="px-2 py-1 text-[11px] font-medium rounded-md border border-indigo-200 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 hover:border-indigo-300 transition-colors whitespace-nowrap"
-                    >
-                      프라이싱
-                    </button>
-                  </td>
-                  {/* 가격확정 — 확정/해제 모두 마스터/PM/플랫폼MD/브랜드MD만 가능 */}
-                  <td className="px-2 py-1.5 text-center">
-                    {canConfirmPrice ? (
-                      <button
-                        onClick={() => setPriceConfirmed(sku.id, !(sku.isPriceConfirmed ?? false))}
-                        className={`px-2 py-0.5 text-[11px] font-semibold rounded-full border transition-colors whitespace-nowrap ${
-                          sku.isPriceConfirmed
-                            ? 'bg-amber-100 text-amber-700 border-amber-300 hover:bg-amber-200'
-                            : 'bg-gray-100 text-gray-500 border-gray-200 hover:bg-gray-200'
-                        }`}
-                      >
-                        {sku.isPriceConfirmed ? '🔒 확정' : '미확정'}
-                      </button>
-                    ) : (
-                      <span className={`px-2 py-0.5 text-[11px] font-semibold rounded-full border whitespace-nowrap ${
-                        sku.isPriceConfirmed
-                          ? 'bg-amber-100 text-amber-700 border-amber-300'
-                          : 'bg-gray-100 text-gray-400 border-gray-200'
-                      }`}>
-                        {sku.isPriceConfirmed ? '🔒 확정' : '미확정'}
                       </span>
                     )}
                   </td>

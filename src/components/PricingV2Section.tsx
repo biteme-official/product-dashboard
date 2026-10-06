@@ -12,8 +12,8 @@ import {
 } from '../utils/pricingV2';
 
 /**
- * 프로젝션 › 프라이싱 (신규) — 개편안 A안 비교 그리드.
- * 기존 LIST VIEW 프라이싱 창 · 가격확정 열은 테스트가 끝날 때까지 그대로 둔다(같은 isPriceConfirmed 사용).
+ * 프로젝션 › 프라이싱 — 개편안 A안 비교 그리드. 가격 확정(isPriceConfirmed)은 이 탭에서만 변경.
+ * 기존 LIST VIEW 프라이싱 창 · 가격확정 열은 삭제됨 — 개편 전 확정 SKU는 "기존 확정"으로 그 가격 그대로 표시.
  */
 type GroupBy = 'date' | 'brand' | 'both';
 type Metric = 'fx' | 'sale' | 'reg' | 'cost';
@@ -240,7 +240,7 @@ export function PricingV2Section({ skus }: { skus: SkuData[] }) {
           {!loaded && <span className="text-gray-400">정책 불러오는 중</span>}
         </div>
         <p className="text-[10px] text-gray-400">
-          테스트용 신규 탭 · 가격 칸 클릭 → 금액 또는 10% 입력 (Enter 저장 · Esc 취소 · 비우면 자동값) · 파란 숫자 = 수동 · 주력 SKU만 선오픈 최저가 · 라이브는 선오픈 최저가(없으면 오픈특가) 기준
+          가격 칸 클릭 → 금액 또는 10% 입력 (Enter 저장 · Esc 취소 · 비우면 자동값) · 파란 숫자 = 수동 · 주력 SKU만 선오픈 최저가 · 라이브는 선오픈 최저가(없으면 오픈특가) 기준
           {!canEdit && ' · 보기 전용 (수정 · 확정은 MASTER · PM · 플랫폼MD · 브랜드MD)'}
         </p>
       </div>
