@@ -85,13 +85,13 @@ export function PricingV2Section({ skus }: { skus: SkuData[] }) {
     setDraft(o && typeof o === 'object' ? `${o.pct}%` : String(shown(s)[k] ?? ''));
     setEditing({ id: s.id, k });
   };
-  const parse = (s: SkuData, raw: string): { empty?: true; err?: string; val?: PriceOverride; label?: string } => {
+  const parse = (s: SkuData, k: PriceKey, raw: string): { empty?: true; err?: string; val?: PriceOverride; label?: string } => {
     const t = raw.replace(/[,\s원]/g, '');
     if (t === '') return { empty: true };
     if (t.endsWith('%')) {
       const pc = Number(t.slice(0, -1));
       if (!(pc > 0 && pc < 100)) return { err: '0~100% 사이' };
-      return { val: { pct: pc }, label: `판매가 × ${r1(100 - pc)}% → ${fmt(pctPrice(s.price, pc))}원` };
+      return { val: { pct: pc }, label: `판매가 × ${r1(100 - pc)}% → ${fmt(pctPrice(s.price, pc, k))}원` };
     }
     const n = Number(t);
     if (!(n > 0)) return { err: '숫자 또는 10% 형식' };
@@ -102,7 +102,7 @@ export function PricingV2Section({ skus }: { skus: SkuData[] }) {
     if (!editing) return;
     const s = useStore.getState().skus.find((x) => x.id === editing.id);
     if (save && s) {
-      const r = parse(s, draft);
+      const r = parse(s, editing.k, draft);
       if (r.err) return;
       const next = { ...(s.pricingOverrides ?? {}) };
       delete next[editing.k];
@@ -150,7 +150,7 @@ export function PricingV2Section({ skus }: { skus: SkuData[] }) {
     const cur = shown(s)[k];
     if (cur == null) return <span className="text-gray-300">–</span>;
     if (editing && editing.id === s.id && editing.k === k) {
-      const r = parse(s, draft);
+      const r = parse(s, k, draft);
       return (
         <div className="flex flex-col items-end gap-0.5">
           <input autoFocus value={draft} size={1} onChange={(e) => setDraft(e.target.value)} onBlur={() => commit(true)}

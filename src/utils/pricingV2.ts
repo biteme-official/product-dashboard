@@ -5,7 +5,8 @@
  * B2C  · 오픈특가      = 브랜드 정책 (판매가 n% 할인 → 끝자리 규칙)
  *      · 선오픈 최저가 = 주력 SKU만 · 기존 신상위크 로직 (오픈특가 1만원 이하 5% · 초과 −1,000원)
  *      · 라이브        = 선오픈 최저가(없으면 오픈특가)의 5% 추가 할인, 최대 1,000원
- *      · 상시 최대 · 특가 최대 = 판매가 n% 할인 (10원 올림)
+ *      · 상시 최대 · 특가 최대 = 판매가 n% 할인 (10원 내림)
+ *      → B2C는 할인율로 계산한 가격을 전부 10원 단위 내림, 할인율 표시는 정수 반올림
  * B2B  · B2B 오픈 · B2B 상시 · 사입 · 글로벌 · 일본 = 기존 시나리오 계산 그대로
  *      · 팝업/페어     = 상시 판매가 10% 할인 → 10원 단위 버림 (B2B 비율 · 팝업은 브랜드별 정책)
  * 앞 단계 실제값(수동 포함) 기준으로 다음 단계를 이어서 계산한다.
@@ -42,7 +43,7 @@ export const DEFAULT_PRICING_POLICY: PricingPolicy = {
 export const ROUND_LABEL: Record<RoundMode, string> = {
   '900': '1,000원 단위 900 맞춤',
   '100': '100원 단위 내림',
-  '10': '10원 단위 올림',
+  '10': '10원 단위 내림',
 };
 
 export type PriceKey = 'open' | 'pre' | 'live' | 'reg' | 'spec' | 'b2bOpen' | 'b2b' | 'buy' | 'popup' | 'glob' | 'jp';
@@ -70,12 +71,14 @@ export function roundOpen(x: number, mode: RoundMode): number {
   if (mode === '100') return Math.floor(x / 100) * 100;
   return x;
 }
-/** 할인율 입력 → 판매가 × (100 − n)% → 10원 단위 올림 */
-export const pctPrice = (base: number, pct: number) => ceil10(base * (1 - pct / 100));
+const B2C_KEY_SET = new Set<PriceKey>(['open', 'pre', 'live', 'reg', 'spec']);
+/** 할인율 입력 → 판매가 × (100 − n)% → B2C 10원 단위 내림 · B2B 10원 단위 올림(기존 그대로) */
+export const pctPrice = (base: number, pct: number, k: PriceKey = 'open') =>
+  (B2C_KEY_SET.has(k) ? floor10 : ceil10)(base * (1 - pct / 100));
 export const preFrom = (open: number, c: CommonPolicy) =>
-  open <= c.preThr ? ceil10(open * (1 - c.prePct / 100)) : Math.max(0, open - c.preMinus);
+  open <= c.preThr ? floor10(open * (1 - c.prePct / 100)) : Math.max(0, open - c.preMinus);
 export const liveFrom = (x: number, c: CommonPolicy) =>
-  ceil10(x - Math.min(Math.round((x * c.livePct) / 100), c.liveMax));
+  floor10(x - Math.min(Math.round((x * c.livePct) / 100), c.liveMax));
 
 const scenario = (id: string) => PRICING_SCENARIOS.find((s) => s.id === id)!;
 
@@ -96,16 +99,16 @@ export function calcPricesV2(
   const ov: Partial<Record<PriceKey, number>> = {};
   if (useOverrides) {
     for (const [k, v] of Object.entries(input.overrides ?? {})) {
-      ov[k as PriceKey] = typeof v === 'object' && v ? pctPrice(b, v.pct) : (v as number);
+      ov[k as PriceKey] = typeof v === 'object' && v ? pctPrice(b, v.pct, k as PriceKey) : (v as number);
     }
   }
-  const open = ov.open ?? roundOpen(ceil10(b * (1 - p.openRate / 100)), p.round);
+  const open = ov.open ?? roundOpen(floor10(b * (1 - p.openRate / 100)), p.round);
   const pre = input.core ? (ov.pre ?? preFrom(open, c)) : null;
   const live = input.live ? (ov.live ?? liveFrom(pre ?? open, c)) : null;
   return {
     open, pre, live,
-    reg: ov.reg ?? ceil10(b * (1 - p.reg / 100)),
-    spec: ov.spec ?? ceil10(b * (1 - p.spec / 100)),
+    reg: ov.reg ?? floor10(b * (1 - p.reg / 100)),
+    spec: ov.spec ?? floor10(b * (1 - p.spec / 100)),
     b2bOpen: ov.b2bOpen ?? round10(b * (p.b2bRate / 100) * (1 - p.b2bOpenDisc / 100)),
     b2b: ov.b2b ?? round10(b * (p.b2bRate / 100)),
     buy: ov.buy ?? ceil10(b * (p.buyRate / 100)),
@@ -149,5 +152,6 @@ export function discountStart(releaseDate: string | undefined, weeks: number | n
   return d;
 }
 
-/** 판매가 대비 할인율(%) — 소수 1자리 */
-export const discountPct = (price: number, base: number) => (base > 0 ? Math.round((1 - price / base) * 1000) / 10 : 0);
+/** 판매가 대비 할인율(%) — 정수 반올림 (15.5% → 16% · 15.3% → 15%). 부동소수 오차는 소수 6자리에서 정리 */
+export const discountPct = (price: number, base: number) =>
+  (base > 0 ? Math.round(Number(((1 - price / base) * 100).toFixed(6))) : 0);
