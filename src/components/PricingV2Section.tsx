@@ -58,6 +58,8 @@ export function PricingV2Section({ skus }: { skus: SkuData[] }) {
   const auto = (s: SkuData, useOv = true): PriceSet =>
     calcPricesV2({ price: s.price, brand: s.brand, core: !!s.coreSku, live: !!s.pricingPromoLive, overrides: s.pricingOverrides }, policy, fx, useOv);
   const isLegacy = (s: SkuData) => !!s.isPriceConfirmed && !s.pricingSnapshot;
+  // 기존 창은 [신상위크] ON이면 라이브도 함께 계산 → 개편 전 확정 SKU는 신상위크 ON도 라이브 ON으로 표시
+  const liveOn = (s: SkuData) => !!s.pricingPromoLive || (isLegacy(s) && !!s.pricingPromoNewWeek);
   const shown = (s: SkuData): PriceSet => {
     if (!s.isPriceConfirmed) return auto(s);
     if (s.pricingSnapshot) return { ...auto(s), ...s.pricingSnapshot } as PriceSet;
@@ -126,7 +128,8 @@ export function PricingV2Section({ skus }: { skus: SkuData[] }) {
         const now = auto(s, false);
         const ov: Record<string, PriceOverride> = { ...(s.pricingOverrides ?? {}) };
         (Object.keys(old) as PriceKey[]).forEach((k) => { if (old[k] != null && old[k] !== now[k] && !AUTO_LOCKED_KEYS.has(k)) ov[k] = old[k]!; });
-        return { id: s.id, patch: { pricingOverrides: ov } };
+        // 기존 라이브 가격이 있으면 오픈라이브도 켜서 해제 후에도 라이브 가격이 그대로 보이게
+        return { id: s.id, patch: old.live != null ? { pricingOverrides: ov, pricingPromoLive: true } : { pricingOverrides: ov } };
       });
       await setPriceConfirmedV2(targets.map((s) => ({ id: s.id, confirmed, snapshot: confirmed ? auto(s) : null })));
       if (legacyKeep.length) await applySkuBatch(legacyKeep, '개편 전 확정가를 수동값으로 유지');
@@ -294,7 +297,10 @@ export function PricingV2Section({ skus }: { skus: SkuData[] }) {
                         <div className="text-[11px] text-gray-500">{[s.brand, s.category, ...(groupBy !== 'date' ? [mdStr(s.releaseDate)] : [])].join(' · ')}</div>
                         <div className="flex flex-wrap gap-1 mt-0.5">
                           {core && <span className="text-[10px] px-1.5 rounded-full border border-gray-300 text-gray-600">주력 SKU</span>}
-                          {isLegacy(s) && <span className="text-[10px] px-1.5 rounded-full border border-dashed border-emerald-500 text-emerald-700" title="개편 전 확정 가격 그대로">기존 확정</span>}
+                          {isLegacy(s) && (canEdit ? (
+                            <button disabled={busy} onClick={() => confirm([s], false)} title="확정 해제 · 기존 가격은 수동값으로 유지 → 가격 · 오픈라이브 수정 가능"
+                              className="text-[10px] px-1.5 rounded-full border border-dashed border-emerald-500 text-emerald-700 hover:bg-emerald-50 disabled:opacity-50">기존 확정 · 수정하기</button>
+                          ) : <span className="text-[10px] px-1.5 rounded-full border border-dashed border-emerald-500 text-emerald-700" title="개편 전 확정 가격 그대로">기존 확정</span>)}
                           {canEdit && !s.isPriceConfirmed && nOv > 0 && <button onClick={() => clearOverrides(s)} className="text-[10px] px-1.5 rounded-full border border-gray-300 text-gray-500 hover:text-gray-700">수동 {nOv} · 되돌리기</button>}
                         </div>
                       </td>
@@ -306,8 +312,8 @@ export function PricingV2Section({ skus }: { skus: SkuData[] }) {
                       {cols === 'b2c' && (
                         <td rowSpan={nRows} className="px-2 py-1.5 align-top">
                           <button disabled={!canEdit || !!s.isPriceConfirmed} onClick={() => toggleLive(s)}
-                            aria-label={`${s.skuName} 오픈라이브 ${s.pricingPromoLive ? '끄기' : '켜기'}`}
-                            className={`text-[11px] w-12 py-0.5 rounded-full border disabled:opacity-60 ${s.pricingPromoLive ? 'border-orange-500 bg-orange-500 text-white font-semibold' : 'border-gray-300 text-gray-400'}`}>{s.pricingPromoLive ? 'ON' : 'OFF'}</button>
+                            aria-label={`${s.skuName} 오픈라이브 ${liveOn(s) ? '끄기' : '켜기'}`}
+                            className={`text-[11px] w-12 py-0.5 rounded-full border disabled:opacity-60 ${liveOn(s) ? 'border-orange-500 bg-orange-500 text-white font-semibold' : 'border-gray-300 text-gray-400'}`}>{liveOn(s) ? 'ON' : 'OFF'}</button>
                         </td>
                       )}
                       <td rowSpan={nRows} className="px-2 py-1.5 align-top">{mainCh(s)}</td>
