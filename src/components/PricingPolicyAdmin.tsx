@@ -152,41 +152,100 @@ function TimingTab() {
   );
 }
 
+type MainCh = '자사몰' | '스스' | '기타';
+
 function CoreTab() {
   const skus = useStore((s) => s.skus);
   const updateSku = useStore((s) => s.updateSku);
   const persistSku = useStore((s) => s.persistSku);
+  const applySkuBatch = useStore((s) => s.applySkuBatch);
   const [q, setQ] = useState('');
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [bulkCh, setBulkCh] = useState<MainCh>('자사몰');
+  const [bulkEtc, setBulkEtc] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+  // 검색 결과 또는 (검색어 없으면) 지금 주력 SKU 목록 — 전체 선택 · 일괄 작업 대상
   const rows = q.trim() ? skus.filter((s) => s.skuName.includes(q.trim())) : skus.filter((s) => s.coreSku);
+  const rowIds = rows.map((s) => s.id);
+  const pickedRows = rows.filter((s) => picked.has(s.id));
+  const allPicked = rows.length > 0 && rowIds.every((id) => picked.has(id));
   const save = (id: string, patch: Parameters<typeof updateSku>[1]) => { updateSku(id, patch); persistSku(id).catch(console.error); };
+  const togglePick = (id: string, on: boolean) => setPicked((p) => { const n = new Set(p); if (on) n.add(id); else n.delete(id); return n; });
+  const run = async (label: string, updates: { id: string; patch: Parameters<typeof updateSku>[1] }[], skipped = 0) => {
+    if (updates.length === 0) { setMsg(skipped ? `바꿀 SKU 없음 · ${skipped}개 건너뜀` : '바꿀 SKU 없음'); return; }
+    setBusy(true);
+    try {
+      await applySkuBatch(updates, label);
+      setMsg(`${updates.length}개 SKU ${label}${skipped ? ` · ${skipped}개 건너뜀` : ''}`);
+    } catch (err) {
+      console.error(err);
+      setMsg('저장에 실패했어요. 새로고침 후 다시 시도해 주세요.');
+    } finally { setBusy(false); }
+  };
+  const bulkCore = (on: boolean) => {
+    const targets = pickedRows.filter((s) => !!s.coreSku !== on);
+    run(on ? '주력 SKU 지정' : '주력 SKU 해제',
+      targets.map((s) => ({ id: s.id, patch: on ? { coreSku: true, coreMainChannel: s.coreMainChannel ?? '자사몰' } : { coreSku: false } })),
+      pickedRows.length - targets.length);
+  };
+  const bulkChannel = () => {
+    if (bulkCh === '기타' && !bulkEtc.trim()) { setMsg('기타 채널명을 입력해 주세요'); return; }
+    const targets = pickedRows.filter((s) => s.coreSku); // 메인 채널은 주력 SKU에만 의미가 있음
+    run(`메인 채널 ${bulkCh === '기타' ? bulkEtc.trim() : bulkCh}로 일괄 설정`,
+      targets.map((s) => ({ id: s.id, patch: { coreMainChannel: bulkCh, ...(bulkCh === '기타' ? { coreMainChannelEtc: bulkEtc.trim() } : {}) } })),
+      pickedRows.length - targets.length);
+  };
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-2">
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="SKU명 검색" className="flex-1 text-sm px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+        <input value={q} onChange={(e) => { setQ(e.target.value); setMsg(''); }} placeholder="SKU명 검색" className="flex-1 text-sm px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400" />
         <span className="text-xs text-gray-500 whitespace-nowrap">주력 SKU {skus.filter((s) => s.coreSku).length}개</span>
       </div>
       <p className="text-[11px] text-gray-400">검색 → 주력 ON → 메인 채널 선택 · 주력 SKU는 선오픈 최저가가 생기고, 프라이싱 탭에 메인 채널 · 상세 프로모션 버튼 표시 · 검색어가 없으면 주력 SKU만 표시</p>
-      <div className="divide-y divide-gray-100 border border-gray-200 rounded-xl">
-        {rows.slice(0, 60).map((s) => (
-          <div key={s.id} className="flex items-center gap-2 px-3 py-2 text-xs flex-wrap">
+      {rows.length > 0 && (
+        <div className="flex items-center gap-2 flex-wrap bg-indigo-50 rounded-lg px-3 py-2 text-xs">
+          <label className="flex items-center gap-1.5 text-gray-600">
+            <input type="checkbox" className="accent-indigo-500" checked={allPicked}
+              onChange={(e) => setPicked((p) => { const n = new Set(p); rowIds.forEach((id) => (e.target.checked ? n.add(id) : n.delete(id))); return n; })} />
+            {pickedRows.length > 0 ? `${pickedRows.length}개 선택` : `${q.trim() ? '검색 결과' : '목록'} ${rows.length}개 전체 선택`}
+          </label>
+          <span className="flex-1" />
+          <button disabled={busy || pickedRows.length === 0} onClick={() => bulkCore(true)} className="px-2.5 py-1 rounded-md bg-indigo-600 text-white font-semibold disabled:opacity-40">주력 지정</button>
+          <button disabled={busy || pickedRows.length === 0} onClick={() => bulkCore(false)} className="px-2.5 py-1 rounded-md border border-gray-300 bg-white text-gray-600 disabled:opacity-40">주력 해제</button>
+          <span className="w-px h-4 bg-gray-300" />
+          <select value={bulkCh} onChange={(e) => setBulkCh(e.target.value as MainCh)} className="border border-gray-200 rounded px-1.5 py-1 bg-white" aria-label="일괄 메인 채널">
+            <option>자사몰</option><option>스스</option><option>기타</option>
+          </select>
+          {bulkCh === '기타' && <input value={bulkEtc} onChange={(e) => setBulkEtc(e.target.value)} placeholder="채널명" className="w-24 px-2 py-1 border border-gray-200 rounded bg-white" />}
+          <button disabled={busy || pickedRows.length === 0} onClick={bulkChannel} className="px-2.5 py-1 rounded-md border border-indigo-400 bg-white text-indigo-700 font-semibold disabled:opacity-40">메인 채널 일괄 설정</button>
+        </div>
+      )}
+      {msg && <p className="text-xs text-indigo-600">{msg}</p>}
+      <div className="divide-y divide-gray-100 border border-gray-200 rounded-xl max-h-[60vh] overflow-auto">
+        {rows.map((s) => (
+          <div key={s.id} className={`flex items-center gap-2 px-3 py-2 text-xs flex-wrap ${picked.has(s.id) ? 'bg-indigo-50/50' : ''}`}>
+            <input type="checkbox" checked={picked.has(s.id)} onChange={(e) => togglePick(s.id, e.target.checked)} className="accent-gray-500" aria-label={`${s.skuName} 선택`} />
             <label className="flex items-center gap-2 flex-1 min-w-[180px]">
-              <input type="checkbox" checked={!!s.coreSku} className="accent-indigo-500"
+              <input type="checkbox" checked={!!s.coreSku} className="accent-indigo-500" aria-label={`${s.skuName} 주력 지정`}
                 onChange={(e) => save(s.id, e.target.checked ? { coreSku: true, coreMainChannel: s.coreMainChannel ?? '자사몰' } : { coreSku: false })} />
               <span className="truncate">{s.skuName}</span>
               <span className="text-gray-400">{s.brand} · {s.category}</span>
+              {s.coreSku && <span className="text-[10px] px-1.5 rounded-full bg-indigo-100 text-indigo-700">주력</span>}
             </label>
-            <select disabled={!s.coreSku} value={s.coreMainChannel ?? '자사몰'} onChange={(e) => save(s.id, { coreMainChannel: e.target.value as '자사몰' | '스스' | '기타' })}
-              className="text-xs border border-gray-200 rounded px-1.5 py-1 disabled:opacity-40">
+            <select disabled={!s.coreSku} value={s.coreMainChannel ?? '자사몰'} onChange={(e) => save(s.id, { coreMainChannel: e.target.value as MainCh })}
+              className="text-xs border border-gray-200 rounded px-1.5 py-1 disabled:opacity-40" aria-label="메인 채널">
               <option>자사몰</option><option>스스</option><option>기타</option>
             </select>
             {s.coreSku && s.coreMainChannel === '기타' && (
-              <input defaultValue={s.coreMainChannelEtc ?? ''} placeholder="채널명 직접 입력" onBlur={(e) => e.target.value !== (s.coreMainChannelEtc ?? '') && save(s.id, { coreMainChannelEtc: e.target.value })}
+              <input key={`${s.id}-${s.coreMainChannelEtc ?? ''}`} defaultValue={s.coreMainChannelEtc ?? ''} placeholder="채널명 직접 입력" onBlur={(e) => e.target.value !== (s.coreMainChannelEtc ?? '') && save(s.id, { coreMainChannelEtc: e.target.value })}
                 className="text-xs px-2 py-1 border border-gray-200 rounded w-32" />
             )}
           </div>
         ))}
         {rows.length === 0 && <p className="text-xs text-gray-400 px-3 py-3">{q ? '검색 결과 없음' : '주력 SKU 없음 · 위에서 검색해 지정'}</p>}
       </div>
+      <p className="text-[11px] text-gray-400">왼쪽 회색 체크 = 일괄 작업 선택 · 파란 체크 = 주력 ON/OFF · 메인 채널 일괄 설정은 주력 SKU에만 적용</p>
     </div>
   );
 }
