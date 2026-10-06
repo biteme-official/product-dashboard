@@ -16,6 +16,7 @@
  *   TEST_MODE        true면 채널 대신 TEST_USER_ID로 보냄
  *
  * 처음 한 번: previewDigest → sendTest → setupWeeklyTrigger → TEST_MODE=false
+ * 지금 바로 채널로 보내기: sendNow
  * 프로젝트 설정의 시간대는 반드시 (GMT+09:00) 서울.
  *
  * 원본: product-dashboard 레포 apps-script/price-confirm-digest.gs (편집기에 붙여넣어 사용)
@@ -66,6 +67,12 @@ function previewDigest() {
 function sendTest() {
   const today = todayKst_();
   postSlack_(PropertiesService.getScriptProperties().getProperty('TEST_USER_ID'), buildDigest_(collectTargets_(today), today));
+}
+
+/** 지금 바로 #데이터팀(CHANNEL_ID)으로 보내기 (요일 · 중복 체크 · TEST_MODE 무시) */
+function sendNow() {
+  const today = todayKst_();
+  postSlack_(PropertiesService.getScriptProperties().getProperty('CHANNEL_ID'), buildDigest_(collectTargets_(today), today));
 }
 
 /** 매주 월요일 15시 트리거 등록 (이 함수의 트리거만 다시 만듦) */
