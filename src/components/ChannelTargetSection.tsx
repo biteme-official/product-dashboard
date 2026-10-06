@@ -11,7 +11,9 @@ import {
   buildCompareData, calcVarCostResults, compareNamesOf, fallbackWeightsOf, getCompQty, type CompareData,
 } from '../utils/compareData';
 import { allocate, redistributeByWeights, setMonthTotal } from '../utils/qtyPlan';
-import { PRICING_DEFAULT_OPT, PRICING_SCENARIOS } from '../utils/pricingScenarios';
+import { PRICING_DEFAULT_OPT } from '../utils/pricingScenarios';
+import { STEP1_OPTIONS, normalizeStep1Opt, step1Pricer } from '../utils/step1Price';
+import { usePricingPolicy } from '../hooks/usePricingPolicy';
 import { useExchangeRates } from '../utils/useExchangeRates';
 import {
   fetchChannelShipments, fetchSkuShipments, fetchTeamCateData,
@@ -126,6 +128,7 @@ export function ChannelTargetSection({ skus }: { skus: SkuData[] }) {
   const myGroups = CONFIRM_FIELDS.filter((f) => canConfirmGroup(role, f));
   const base = useTableauBase();
   const { usdKrw, jpyKrw } = useExchangeRates();
+  const { policy } = usePricingPolicy();
   const applySkuBatch = useStore((s) => s.applySkuBatch);
   const updateChannelMonthQty = useStore((s) => s.updateChannelMonthQty);
   const updateMarketingMonthQty = useStore((s) => s.updateMarketingMonthQty);
@@ -231,10 +234,9 @@ export function ChannelTargetSection({ skus }: { skus: SkuData[] }) {
   const scenarioPrice = (s: SkuData, ch: Channel, m: Month) => {
     const cp = s.channelPricing?.find((x) => x.channel === ch);
     const basePrice = cp && cp.price > 0 ? cp.price : s.price;
-    const opt = s.pricingOpts?.[`${ch}-${m}`] ?? PRICING_DEFAULT_OPT[ch] ?? '';
-    const sc = opt ? PRICING_SCENARIOS.find((x) => x.id === opt) : null;
-    const rates = { specialMaxRate: s.specialMaxRate ?? 20, regularMaxRate: s.regularMaxRate ?? 15, seasonOffRate: s.seasonOffRate ?? 25 };
-    return { opt, basePrice, price: sc ? sc.calcKrwPrice(basePrice, usdKrw, jpyKrw, undefined, rates) : basePrice };
+    const raw = s.pricingOpts?.[`${ch}-${m}`] ?? PRICING_DEFAULT_OPT[ch] ?? '';
+    // 판매가 = 프라이싱 탭과 같은 가격 (예전 신상위크 · 선단독은 선오픈 최저가/라이브로 표시)
+    return { opt: normalizeStep1Opt(raw, !!s.coreSku), basePrice, price: step1Pricer(s, policy, { usd: usdKrw, jpy: jpyKrw })(raw, basePrice) };
   };
   const varCostOf = (s: SkuData) => {
     const cd = compById[s.id];
@@ -484,7 +486,7 @@ export function ChannelTargetSection({ skus }: { skus: SkuData[] }) {
                     <select value={opt} disabled={!editable} onChange={(e) => commitPricing(s, [`${ch}-${m}`], e.target.value)}
                       className="w-full min-w-0 text-[10px] rounded border border-gray-200 px-0.5 py-0.5 bg-white disabled:bg-gray-50 disabled:text-gray-400">
                       <option value="">채널가</option>
-                      {PRICING_SCENARIOS.map((sc) => <option key={sc.id} value={sc.id}>{sc.label}</option>)}
+                      {STEP1_OPTIONS.filter((o) => !o.coreOnly || s.coreSku).map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
                     </select>
                   </td>
                 );
@@ -494,7 +496,7 @@ export function ChannelTargetSection({ skus }: { skus: SkuData[] }) {
                   <select value="" onChange={(e) => e.target.value && commitPricing(s, months.map((m) => `${ch}-${m}`), e.target.value)}
                     className="w-full text-[10px] rounded border border-gray-300 px-0.5 py-0.5 bg-white">
                     <option value="">일괄반영…</option>
-                    {PRICING_SCENARIOS.map((sc) => <option key={sc.id} value={sc.id}>{sc.label}</option>)}
+                    {STEP1_OPTIONS.filter((o) => !o.coreOnly || s.coreSku).map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
                   </select>
                 )}
               </td>
@@ -623,7 +625,7 @@ export function ChannelTargetSection({ skus }: { skus: SkuData[] }) {
                 <>
                   <select value={bulk.scn} onChange={(e) => setBulk({ ...bulk, scn: e.target.value })} className="rounded border border-gray-300 px-1 py-0.5 bg-white">
                     <option value="">시나리오 선택</option>
-                    {PRICING_SCENARIOS.map((sc) => <option key={sc.id} value={sc.id}>{sc.label}</option>)}
+                    {STEP1_OPTIONS.map((o) => <option key={o.id} value={o.id}>{o.coreOnly ? `${o.label} (주력 · 일반은 라이브)` : o.label}</option>)}
                   </select>
                   <span className="inline-flex rounded border border-gray-300 overflow-hidden">
                     {(['all', 'first'] as const).map((m) => (

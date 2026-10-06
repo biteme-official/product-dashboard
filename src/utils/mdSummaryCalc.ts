@@ -1,19 +1,19 @@
 import { CATEGORIES, CHANNELS, getReleaseMonth, getSkuMonths, isSkuActiveForYearMonth } from '../types';
 import type { SkuData, Channel, Month, YearMonth } from '../types';
 import { calcVariableCostRatio, type TeamCateMap } from '../services/tableau';
-import { PRICING_SCENARIOS, PRICING_DEFAULT_OPT, type PricingRates } from './pricingScenarios';
+import { PRICING_DEFAULT_OPT } from './pricingScenarios';
+import { step1Pricer } from './step1Price';
+import { getPricingPolicy } from '../hooks/usePricingPolicy';
 
 export type MonthMetrics = { qty: number; revenue: number; profit: number };
 export const ZERO_METRICS: MonthMetrics = { qty: 0, revenue: 0, profit: 0 };
 
 /**
- * SKU카드 STEP2(PricingChannelTable.calcRow)와 동일하게 PRICING_SCENARIOS를 그대로 사용.
- * 시나리오 공식이 여기서 따로 복제되지 않으므로 pricingScenarios.ts만 고치면 양쪽에 반영된다.
+ * 판매가 선택지 단가 — SKU 카드 · 채널 목표량과 같은 step1Pricer (프라이싱 탭 가격 · 할인 정책) 사용.
+ * 정책은 앱 전체 구독값(getPricingPolicy). 환율 미지정 시 기본값(1,400 · 9.0).
  */
-export function calcScenarioPrice(optId: string, base: number, usdRate?: number, jpyRate?: number, rates?: PricingRates): number {
-  if (!optId) return base;
-  const s = PRICING_SCENARIOS.find((x) => x.id === optId);
-  return s ? s.calcKrwPrice(base, usdRate, jpyRate, undefined, rates) : base;
+export function calcScenarioPrice(sku: SkuData, optId: string, base: number, usdRate = 1400, jpyRate = 9.0): number {
+  return step1Pricer(sku, getPricingPolicy(), { usd: usdRate, jpy: jpyRate })(optId, base);
 }
 
 /**
@@ -57,12 +57,7 @@ export function calcChannelMonthMetrics(
   const cp = sku.channelPricing?.find((p) => p.channel === channel);
   const effectivePrice = cp && cp.price > 0 ? cp.price : sku.price;
   const optId = sku.pricingOpts?.[`${channel}-${month}`] ?? PRICING_DEFAULT_OPT[channel] ?? '';
-  const rates: PricingRates = {
-    specialMaxRate: sku.specialMaxRate ?? 20,
-    regularMaxRate: sku.regularMaxRate ?? 15,
-    seasonOffRate: sku.seasonOffRate ?? 25,
-  };
-  const scenarioPrice = calcScenarioPrice(optId, effectivePrice, usdRate, jpyRate, rates);
+  const scenarioPrice = calcScenarioPrice(sku, optId, effectivePrice, usdRate, jpyRate);
   const revenue = Math.round((scenarioPrice / 1.1) * qty);
   // 공헌이익 = 순매출 − 원가 − 변동비(Tableau 팀카테 역산, fallback 25%) — STEP2/SkuCard와 동일 공식
   const varRatio = varCostMap[varCostKey(sku.category, channel)] ?? 0.25;

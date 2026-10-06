@@ -7,7 +7,7 @@ import { useExchangeRates } from '../utils/useExchangeRates';
 import { usePricingPolicy, CORE_PROMO_URL } from '../hooks/usePricingPolicy';
 import { PRICING_SCENARIOS } from '../utils/pricingScenarios';
 import {
-  AUTO_LOCKED_KEYS, B2B_KEYS, B2C_KEYS, calcPricesV2, discountPct, discountStart, legacyPricesV2, pctPrice,
+  AUTO_LOCKED_KEYS, B2B_KEYS, B2C_KEYS, calcPricesV2, discountPct, discountStart, legacyPricesV2, pctPrice, shownPricesV2,
   type PriceKey, type PriceOverride, type PriceSet,
 } from '../utils/pricingV2';
 
@@ -60,11 +60,7 @@ export function PricingV2Section({ skus }: { skus: SkuData[] }) {
   const isLegacy = (s: SkuData) => !!s.isPriceConfirmed && !s.pricingSnapshot;
   // 기존 창은 [신상위크] ON이면 라이브도 함께 계산 → 개편 전 확정 SKU는 신상위크 ON도 라이브 ON으로 표시
   const liveOn = (s: SkuData) => !!s.pricingPromoLive || (isLegacy(s) && !!s.pricingPromoNewWeek);
-  const shown = (s: SkuData): PriceSet => {
-    if (!s.isPriceConfirmed) return auto(s);
-    if (s.pricingSnapshot) return { ...auto(s), ...s.pricingSnapshot } as PriceSet;
-    return legacyPricesV2(s, !!s.coreSku, policy, fx); // 개편 전에 확정된 SKU — 기존 계산값 그대로
-  };
+  const shown = (s: SkuData): PriceSet => shownPricesV2(s, policy, fx);
 
   const list = useMemo(() => skus
     .filter((s) => !onlyOpen || !s.isPriceConfirmed)
