@@ -164,13 +164,14 @@ function changedFirestoreFields(sku: SkuData, opts?: { omit?: string[]; force?: 
 // 하나에 SKU의 모든 칸이 들어 있어서, 필드 통째로 쓰면 같은 SKU의 다른 채널을 동시에 고친 사람의 값을
 // 옛 값으로 덮는다(예: 플랫폼MD 자사몰 · 브랜드MD 스스 동시 입력). 저장할 때 서버 최신값을 트랜잭션으로
 // 읽고 "이 탭이 마지막으로 받은 값(savedSkuState) 대비 바꾼 칸"만 얹어서 쓴다.
-const CELL_MERGE_FIELDS = ['channelMonthQty', 'pricingOpts', 'marketingMonthQty'] as const;
+const CELL_MERGE_FIELDS = ['channelMonthQty', 'pricingOpts', 'marketingMonthQty', 'pricingOverrides'] as const;
 type CellMergeField = (typeof CELL_MERGE_FIELDS)[number];
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mergeCellField(field: CellMergeField, base: SkuData, local: SkuData, server: Record<string, any>): any {
   if (field === 'channelMonthQty') return mergeQtyEntries(base.channelMonthQty, local.channelMonthQty, server.channelMonthQty);
   if (field === 'pricingOpts') return mergeRecord(base.pricingOpts, local.pricingOpts, server.pricingOpts);
+  if (field === 'pricingOverrides') return mergeRecord(base.pricingOverrides, local.pricingOverrides, server.pricingOverrides);
   return mergeRecord(
     base.marketingMonthQty as Record<string, number> | undefined,
     local.marketingMonthQty as Record<string, number> | undefined,
@@ -596,6 +597,8 @@ interface StoreActions {
    */
   setChannelDisabled: (ids: string[], channel: OptOutChannel, disabled: boolean, mode: 'keep' | 'recalc' | 'restore') => Promise<number>;
   setPriceConfirmed: (id: string, confirmed: boolean) => Promise<void>;
+  /** 프라이싱 신규 탭 — 확정 시 그 시점 전체 가격(snapshot)을 함께 저장, 해제 시 snapshot 비움. 여러 SKU 한 번에(묶음 확정) */
+  setPriceConfirmedV2: (items: { id: string; confirmed: boolean; snapshot: Record<string, number | null> | null }[]) => Promise<void>;
   setScheduleConfirmed: (id: string, confirmed: boolean) => Promise<void>;
   /** 채널별 오픈일정/일정 확정을 CPO productSync에 미러링(표시 전용, CPO 연결된 SKU만) — 채널 일정을 실제로 바꾼 지점에서만 호출 */
   pushChannelScheduleToCpo: (id: string) => void;
@@ -1369,6 +1372,32 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
       field: 'isPriceConfirmed', label: '가격 확정',
       from: formatLogValue(!confirmed), to: formatLogValue(confirmed),
     }]).catch(console.error);
+  },
+
+  setPriceConfirmedV2: async (items) => {
+    if (skuListenerDead) throw new Error('실시간 구독이 끊긴 탭입니다. 새로고침 후 다시 시도해주세요.');
+    const byId = new Map(items.map((i) => [i.id, i]));
+    const prev = get().skus;
+    const next = prev.map((s) => {
+      const it = byId.get(s.id);
+      return it ? { ...s, isPriceConfirmed: it.confirmed, pricingSnapshot: it.confirmed ? it.snapshot : null } : s;
+    });
+    set({ skus: next });
+    try {
+      await writeSkusMerged(next.filter((s) => byId.has(s.id)).map((sku) => ({ sku, opts: { omit: ['finalOrderConfirmedAt', 'finalOrderQty', 'finalOrderStep2Total'] } })));
+    } catch (err) {
+      set({ skus: get().skus.map((s) => (byId.has(s.id) ? (prev.find((p) => p.id === s.id) ?? s) : s)) });
+      throw err;
+    }
+    const role = useAuth.getState().role ?? 'unknown';
+    items.forEach((it) => {
+      const sku = prev.find((s) => s.id === it.id);
+      if (!sku) return;
+      writeLog(it.id, sku.skuName, role, [{
+        field: 'isPriceConfirmed', label: '가격 확정 (프라이싱 신규)',
+        from: formatLogValue(!it.confirmed), to: formatLogValue(it.confirmed),
+      }]).catch(console.error);
+    });
   },
 
   setScheduleConfirmed: async (id, confirmed) => {

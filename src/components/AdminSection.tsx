@@ -1,3 +1,4 @@
+import { PricingPolicyAdmin } from './PricingPolicyAdmin';
 import { useState, useRef, useEffect } from 'react';
 import { setPin, ALL_ROLES, type Role } from '../utils/pin';
 import { useStore } from '../store';
@@ -684,7 +685,9 @@ function AdminMemoTab() {
 export function AdminSection() {
   const [editing, setEditing] = useState<Role | null>(null);
   const [saved, setSaved] = useState<Role | null>(null);
-  const [activeTab, setActiveTab] = useState<'pin' | 'perm' | 'data' | 'channel' | 'season' | 'memo'>('pin');
+  const [activeTab, setActiveTab] = useState<'pin' | 'perm' | 'data' | 'sku' | 'memo'>('pin');
+  // SKU 관리 하위 메뉴 — 할인 정책(신규) · 채널 관리 · 시즌 한정
+  const [skuMenu, setSkuMenu] = useState<'discount' | 'channel' | 'season'>('discount');
 
   async function handleSave(role: Role, pin: string) {
     await setPin(role, pin);
@@ -712,16 +715,10 @@ export function AdminSection() {
           권한 관리
         </button>
         <button
-          onClick={() => setActiveTab('channel')}
-          className={`flex-1 text-xs py-1.5 rounded-md font-semibold transition-all ${activeTab === 'channel' ? 'bg-white shadow text-gray-800' : 'text-gray-500 hover:text-gray-700'}`}
+          onClick={() => setActiveTab('sku')}
+          className={`flex-1 text-xs py-1.5 rounded-md font-semibold transition-all ${activeTab === 'sku' ? 'bg-white shadow text-gray-800' : 'text-gray-500 hover:text-gray-700'}`}
         >
-          채널 관리
-        </button>
-        <button
-          onClick={() => setActiveTab('season')}
-          className={`flex-1 text-xs py-1.5 rounded-md font-semibold transition-all ${activeTab === 'season' ? 'bg-white shadow text-gray-800' : 'text-gray-500 hover:text-gray-700'}`}
-        >
-          시즌 한정
+          SKU 관리
         </button>
         <button
           onClick={() => setActiveTab('data')}
@@ -788,9 +785,22 @@ export function AdminSection() {
           </>
         )}
 
-        {activeTab === 'channel' && <ChannelManageTab />}
+        {activeTab === 'sku' && (
+          <div className="space-y-3">
+            <div className="flex gap-1 border-b border-gray-200">
+              {([['discount', '할인 정책'], ['channel', '채널 관리'], ['season', '시즌 한정']] as const).map(([k, l]) => (
+                <button key={k} onClick={() => setSkuMenu(k)}
+                  className={`px-3 py-1.5 text-xs border-b-2 -mb-px ${skuMenu === k ? 'border-indigo-600 text-gray-900 font-semibold' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+                  {l}{k === 'discount' && <span className="ml-1 text-[9px] font-bold text-indigo-600">NEW</span>}
+                </button>
+              ))}
+            </div>
+            {skuMenu === 'discount' && <PricingPolicyAdmin />}
+            {skuMenu === 'channel' && <ChannelManageTab />}
+            {skuMenu === 'season' && <SeasonOnlyTab />}
+          </div>
+        )}
 
-        {activeTab === 'season' && <SeasonOnlyTab />}
 
         {activeTab === 'data' && <DataCleanupTab />}
 

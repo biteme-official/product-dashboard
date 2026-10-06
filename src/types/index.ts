@@ -256,6 +256,17 @@ export interface SkuData {
   pricingPromoLive?: boolean;                       // 프라이싱 모달 B2C 라이브 프로모션 on/off, 기본 false
   pricingPromoExclusive?: boolean;                  // 프라이싱 모달 B2C 선단독 프로모션 on/off, 기본 false
   pricingMode?: 'auto' | 'manual';                  // 프라이싱 모달 자동/수동 모드, 기본 auto
+  // ── 프라이싱 개편(프로젝션 › 프라이싱 신규 탭) ── 기존 필드는 그대로 두고 추가만
+  /** 칸별 수동값 (금액 또는 판매가 대비 할인율) — key: PriceKey(open · pre · live · reg · spec · b2bOpen · b2b · buy · popup · jp) */
+  pricingOverrides?: Record<string, number | { pct: number }>;
+  /** 가격 확정 시점의 전체 가격 — 확정 SKU는 이 값만 표시(정책 · 판매가가 바뀌어도 유지) */
+  pricingSnapshot?: Record<string, number | null> | null;
+  /** 주력 SKU — 선오픈 최저가 계산 대상, 상세 프로모션은 별도 페이지 */
+  coreSku?: boolean;
+  coreMainChannel?: '자사몰' | '스스' | '기타';
+  coreMainChannelEtc?: string;
+  /** 할인가능시점 주 수 상품별 예외 (null/없음 = 카테고리 기본값) */
+  discountWeeksOverride?: number | null;
   manualScenarios?: ManualScenarioEntry[];          // 수동 모드 시나리오명·실제가격 (최초 전환 시 자동계산값 스냅샷, 이후 독립)
   channelOpenSchedule?: ChannelOpenScheduleEntry; // 채널별 오픈일정
   step2InitBaselineQty?: ChannelMonthQtyEntry[]; // 초기화 시 계산된 수량 (비교 기준값, 영구 보존)

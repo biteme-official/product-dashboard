@@ -9,7 +9,8 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "import-data": "node scripts/import.mjs"
+    "import-data": "node scripts/import.mjs",
+    "check:pricing": "rolldown scripts/pricingV2.check.ts --format esm --platform node --file node_modules/.cache/pricingV2.check.mjs && node node_modules/.cache/pricingV2.check.mjs"
   },
   "dependencies": {
     "dexie": "^4.4.3",
