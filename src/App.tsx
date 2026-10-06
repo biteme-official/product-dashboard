@@ -440,7 +440,7 @@ function App() {
       </header>
 
       {/* 탭 + 카테고리 탭 + 브랜드 필터 (sticky) */}
-      <div className="sticky top-0 z-10 bg-white shadow-sm">
+      <div data-app-sticky className="sticky top-0 z-10 bg-white shadow-sm">
         {/* 최상단 탭 */}
         <div className="flex items-center gap-1 px-3 pt-1.5 pb-0 border-b border-gray-100">
           {/* 뒤로가기 버튼 */}
