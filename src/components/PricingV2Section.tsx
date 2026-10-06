@@ -12,8 +12,8 @@ import {
 } from '../utils/pricingV2';
 
 /**
- * 프로젝션 › 프라이싱 (신규) — 개편안 A안 비교 그리드.
- * 기존 LIST VIEW 프라이싱 창 · 가격확정 열은 테스트가 끝날 때까지 그대로 둔다(같은 isPriceConfirmed 사용).
+ * 프로젝션 › 프라이싱 — 개편안 A안 비교 그리드. 가격 확정(isPriceConfirmed)은 이 탭에서만 변경.
+ * 기존 LIST VIEW 프라이싱 창 · 가격확정 열은 삭제됨 — 개편 전 확정 SKU는 "기존 확정"으로 그 가격 그대로 표시.
  */
 type GroupBy = 'date' | 'brand' | 'both';
 type Metric = 'fx' | 'sale' | 'reg' | 'cost';
@@ -58,6 +58,8 @@ export function PricingV2Section({ skus }: { skus: SkuData[] }) {
   const auto = (s: SkuData, useOv = true): PriceSet =>
     calcPricesV2({ price: s.price, brand: s.brand, core: !!s.coreSku, live: !!s.pricingPromoLive, overrides: s.pricingOverrides }, policy, fx, useOv);
   const isLegacy = (s: SkuData) => !!s.isPriceConfirmed && !s.pricingSnapshot;
+  // 기존 창은 [신상위크] ON이면 라이브도 함께 계산 → 개편 전 확정 SKU는 신상위크 ON도 라이브 ON으로 표시
+  const liveOn = (s: SkuData) => !!s.pricingPromoLive || (isLegacy(s) && !!s.pricingPromoNewWeek);
   const shown = (s: SkuData): PriceSet => {
     if (!s.isPriceConfirmed) return auto(s);
     if (s.pricingSnapshot) return { ...auto(s), ...s.pricingSnapshot } as PriceSet;
@@ -65,7 +67,7 @@ export function PricingV2Section({ skus }: { skus: SkuData[] }) {
   };
 
   const list = useMemo(() => skus
-    .filter((s) => !onlyOpen || !s.isPriceConfirmed || !!s.coreSku)
+    .filter((s) => !onlyOpen || !s.isPriceConfirmed)
     .slice().sort((a, b) => (a.releaseDate || '9999').localeCompare(b.releaseDate || '9999')),
   [skus, onlyOpen]);
   const groups = useMemo(() => {
@@ -126,7 +128,8 @@ export function PricingV2Section({ skus }: { skus: SkuData[] }) {
         const now = auto(s, false);
         const ov: Record<string, PriceOverride> = { ...(s.pricingOverrides ?? {}) };
         (Object.keys(old) as PriceKey[]).forEach((k) => { if (old[k] != null && old[k] !== now[k] && !AUTO_LOCKED_KEYS.has(k)) ov[k] = old[k]!; });
-        return { id: s.id, patch: { pricingOverrides: ov } };
+        // 기존 라이브 가격이 있으면 오픈라이브도 켜서 해제 후에도 라이브 가격이 그대로 보이게
+        return { id: s.id, patch: old.live != null ? { pricingOverrides: ov, pricingPromoLive: true } : { pricingOverrides: ov } };
       });
       await setPriceConfirmedV2(targets.map((s) => ({ id: s.id, confirmed, snapshot: confirmed ? auto(s) : null })));
       if (legacyKeep.length) await applySkuBatch(legacyKeep, '개편 전 확정가를 수동값으로 유지');
@@ -143,8 +146,8 @@ export function PricingV2Section({ skus }: { skus: SkuData[] }) {
   const metrics = METRICS.filter((m) => (m.b2bOnly ? cols === 'b2b' : show[m.k]));
   const nRows = 1 + metrics.length;
   const span = 5 + keys.length + (cols === 'b2c' ? 1 : 0) + 3;
-  const confirmedN = skus.filter((s) => s.isPriceConfirmed && !s.coreSku).length;
-  const targetN = skus.filter((s) => !s.coreSku).length;
+  const confirmedN = skus.filter((s) => s.isPriceConfirmed).length;
+  const targetN = skus.length;
 
   const cell = (s: SkuData, k: PriceKey): ReactNode => {
     const cur = shown(s)[k];
@@ -240,7 +243,7 @@ export function PricingV2Section({ skus }: { skus: SkuData[] }) {
           {!loaded && <span className="text-gray-400">정책 불러오는 중</span>}
         </div>
         <p className="text-[10px] text-gray-400">
-          테스트용 신규 탭 · 가격 칸 클릭 → 금액 또는 10% 입력 (Enter 저장 · Esc 취소 · 비우면 자동값) · 파란 숫자 = 수동 · 주력 SKU만 선오픈 최저가 · 라이브는 선오픈 최저가(없으면 오픈특가) 기준
+          가격 칸 클릭 → 금액 또는 10% 입력 (Enter 저장 · Esc 취소 · 비우면 자동값) · 파란 숫자 = 수동 · 주력 SKU만 선오픈 최저가 · 라이브는 선오픈 최저가(없으면 오픈특가) 기준
           {!canEdit && ' · 보기 전용 (수정 · 확정은 MASTER · PM · 플랫폼MD · 브랜드MD)'}
         </p>
       </div>
@@ -260,10 +263,11 @@ export function PricingV2Section({ skus }: { skus: SkuData[] }) {
             </tr>
           </thead>
           {groups.map((g) => {
-            const tg = g.arr.filter((s) => !s.coreSku);
+            // 주력 SKU도 확정 대상 (상세 프로모션 링크는 별도로 함께 표시)
+            const tg = g.arr;
             const done = tg.filter((s) => s.isPriceConfirmed).length;
             const all = tg.length > 0 && done === tg.length;
-            const coreN = g.arr.length - tg.length;
+            const coreN = tg.filter((s) => s.coreSku).length;
             return [
               <tbody key={`${g.k}-h`}>
                 <tr className="bg-gray-100 border-y border-gray-300">
@@ -275,7 +279,7 @@ export function PricingV2Section({ skus }: { skus: SkuData[] }) {
                       {canEdit && tg.length > 0 && (
                         <button disabled={busy} onClick={() => confirm(all ? tg : tg.filter((s) => !s.isPriceConfirmed), !all)}
                           className={`text-[11px] px-2.5 py-1 rounded-md font-semibold disabled:opacity-50 ${all ? 'border border-gray-300 bg-white text-gray-600' : 'bg-indigo-600 text-white'}`}>
-                          {all ? '묶음 확정 해제' : '묶음 일괄 확정'}
+                          {all ? '묶음 확정 해제' : `묶음 일괄 확정 · 미확정 ${tg.length - done}개`}
                         </button>
                       )}
                     </div>
@@ -285,7 +289,7 @@ export function PricingV2Section({ skus }: { skus: SkuData[] }) {
               ...g.arr.map((s) => {
                 const core = !!s.coreSku;
                 const nOv = Object.keys(s.pricingOverrides ?? {}).length;
-                const lk = s.isPriceConfirmed ? 'bg-emerald-50/40' : '';
+                const lk = s.isPriceConfirmed ? 'bg-emerald-50' : '';
                 return (
                   <tbody key={s.id} className="border-b border-gray-200">
                     <tr className={lk}>
@@ -294,7 +298,10 @@ export function PricingV2Section({ skus }: { skus: SkuData[] }) {
                         <div className="text-[11px] text-gray-500">{[s.brand, s.category, ...(groupBy !== 'date' ? [mdStr(s.releaseDate)] : [])].join(' · ')}</div>
                         <div className="flex flex-wrap gap-1 mt-0.5">
                           {core && <span className="text-[10px] px-1.5 rounded-full border border-gray-300 text-gray-600">주력 SKU</span>}
-                          {isLegacy(s) && <span className="text-[10px] px-1.5 rounded-full border border-dashed border-emerald-500 text-emerald-700" title="개편 전 확정 가격 그대로">기존 확정</span>}
+                          {isLegacy(s) && (canEdit ? (
+                            <button disabled={busy} onClick={() => confirm([s], false)} title="확정 해제 · 기존 가격은 수동값으로 유지 → 가격 · 오픈라이브 수정 가능"
+                              className="text-[10px] px-1.5 rounded-full border border-dashed border-emerald-500 text-emerald-700 hover:bg-emerald-50 disabled:opacity-50">기존 확정 · 수정하기</button>
+                          ) : <span className="text-[10px] px-1.5 rounded-full border border-dashed border-emerald-500 text-emerald-700" title="개편 전 확정 가격 그대로">기존 확정</span>)}
                           {canEdit && !s.isPriceConfirmed && nOv > 0 && <button onClick={() => clearOverrides(s)} className="text-[10px] px-1.5 rounded-full border border-gray-300 text-gray-500 hover:text-gray-700">수동 {nOv} · 되돌리기</button>}
                         </div>
                       </td>
@@ -306,22 +313,23 @@ export function PricingV2Section({ skus }: { skus: SkuData[] }) {
                       {cols === 'b2c' && (
                         <td rowSpan={nRows} className="px-2 py-1.5 align-top">
                           <button disabled={!canEdit || !!s.isPriceConfirmed} onClick={() => toggleLive(s)}
-                            aria-label={`${s.skuName} 오픈라이브 ${s.pricingPromoLive ? '끄기' : '켜기'}`}
-                            className={`text-[11px] w-12 py-0.5 rounded-full border disabled:opacity-60 ${s.pricingPromoLive ? 'border-orange-500 bg-orange-500 text-white font-semibold' : 'border-gray-300 text-gray-400'}`}>{s.pricingPromoLive ? 'ON' : 'OFF'}</button>
+                            aria-label={`${s.skuName} 오픈라이브 ${liveOn(s) ? '끄기' : '켜기'}`}
+                            className={`text-[11px] w-12 py-0.5 rounded-full border disabled:opacity-60 ${liveOn(s) ? 'border-orange-500 bg-orange-500 text-white font-semibold' : 'border-gray-300 text-gray-400'}`}>{liveOn(s) ? 'ON' : 'OFF'}</button>
                         </td>
                       )}
                       <td rowSpan={nRows} className="px-2 py-1.5 align-top">{mainCh(s)}</td>
                       <td rowSpan={nRows} className="px-2 py-1.5 align-top">{whenCell(s)}</td>
                       <td rowSpan={nRows} className="px-2 py-1.5 align-top text-center">
-                        {core ? (
-                          <a href={CORE_PROMO_URL} target="_blank" rel="noopener noreferrer"
-                            className="inline-block text-[11px] px-2 py-1 rounded-md border border-blue-500 bg-blue-50 text-blue-700 whitespace-nowrap hover:bg-blue-100">상세 프로모션 보러가기 →</a>
-                        ) : (
+                        <div className="flex flex-col items-center gap-1">
                           <button disabled={!canEdit || busy} onClick={() => confirm([s], !s.isPriceConfirmed)}
-                            className={`text-[11px] px-2 py-0.5 rounded-md border disabled:opacity-50 ${s.isPriceConfirmed ? 'border-emerald-500 bg-emerald-50 text-emerald-700 font-semibold' : 'border-gray-300 text-gray-600'}`}>
+                            className={`text-[11px] px-2 py-0.5 rounded-md border disabled:opacity-50 ${s.isPriceConfirmed ? 'border-emerald-500 bg-emerald-500 text-white font-semibold' : 'border-gray-300 bg-white text-gray-600'}`}>
                             {s.isPriceConfirmed ? '확정됨' : '확정'}
                           </button>
-                        )}
+                          {core && (
+                            <a href={CORE_PROMO_URL} target="_blank" rel="noopener noreferrer"
+                              className="block text-center leading-tight text-[10px] px-1.5 py-0.5 rounded-md border border-blue-500 bg-blue-50 text-blue-700 hover:bg-blue-100">상세 프로모션<br />보러가기 →</a>
+                          )}
+                        </div>
                       </td>
                     </tr>
                     {metrics.map((m) => (

@@ -194,7 +194,7 @@ export function ManualTab() {
         </Callout>
         <NoteList items={[
           <>위 권한은 고정값 아님 — <strong>관리 탭 &gt; 권한 관리</strong>에서 역할별 5개 항목(SKU 기본정보 / 월 계획 / 채널별 목표량 / 오픈일정 확정 / 발주 확정) 언제든 on/off 가능. master 행만 항상 전체 고정. 월 계획 = 월 비중 입력, 채널별 목표량 = 담당 채널 목표량 입력.</>,
-          <>프라이싱 시나리오(할인율 선택·자동/수동 전환·가격확정)는 <Perm>마스터·PM·플랫폼MD·브랜드MD</Perm>만 편집 — 11장.</>,
+          <>프라이싱(가격 수정 · 가격 확정)은 <Perm>마스터·PM·플랫폼MD·브랜드MD</Perm>만 편집 — 11장.</>,
           <>담당 채널만 수정 — 담당이 아닌 채널의 목표량 · 판매가 시나리오 · 비중 칸은 보기만. 확정 버튼도 담당 그룹만 누를 수 있음(MASTER · PM은 전체). 여러 채널을 함께 바꾸는 [채널 비중 수정] · [대응SKU 비중으로 다시 나누기] · [판매 목표를 발주량에 맞추기]는 MASTER · PM만.</>,
         ]} />
       </section>
@@ -240,8 +240,8 @@ export function ManualTab() {
         </div>
 
         <Callout tone="warn" title="⚠️ 가격 잠금은 두 가지가 서로 다름">
-          "CPO 잠금"(판매가·원가·정가, CPO 연동 여부로 결정)과 "가격확정 잠금"(8·11장 🔒 토글, 역할 권한으로 확정)은
-          별개 메커니즘. CPO 연동 SKU도 가격확정 가능 — 걸면 프라이싱 모달 시나리오 표까지 추가로 잠김. 두 잠금
+          "CPO 잠금"(판매가·원가·정가, CPO 연동 여부로 결정)과 "가격확정 잠금"(11장 프라이싱 탭, 역할 권한으로 확정)은
+          별개 메커니즘. CPO 연동 SKU도 가격확정 가능 — 걸면 프라이싱 탭 가격 칸까지 추가로 잠김. 두 잠금
           동시 적용 가능.
         </Callout>
 
@@ -261,7 +261,7 @@ export function ManualTab() {
 
         <h3 className="text-sm font-semibold text-gray-600 mb-2">상단 메인 탭 <span className="font-normal text-gray-400">(로그인 직후 기본 진입 탭: 프로젝션)</span></h3>
         <TermList items={[
-          { term: '프로젝션', desc: 'LIST VIEW / 채널별 오픈일정 / 채널 목표량 / 프라이싱 (신규, 테스트 중) 서브탭. 로그인 시 항상 LIST VIEW로 초기화' },
+          { term: '프로젝션', desc: 'LIST VIEW / 채널별 오픈일정 / 채널 목표량 / 프라이싱 서브탭. 로그인 시 항상 LIST VIEW로 초기화' },
           { term: 'SKU 리스트', desc: 'SKU 카드 목록. SKU별 3단계 계획 진행, 카드↔목록(테이블) 뷰 토글 (프로젝션 LIST VIEW와 별개)' },
           { term: '채널별 요약', desc: '전체 SKU의 채널별 출고·매출 요약 뷰 (MD·전략 대상)' },
           { term: '메뉴얼', desc: '대시보드 사용 가이드 (현재 페이지)' },
@@ -271,8 +271,7 @@ export function ManualTab() {
         <h3 className="text-sm font-semibold text-gray-600 mb-2 mt-4">SKU 카드 구성</h3>
         <TermList items={[
           { term: '카드 상단 기본 정보', desc: 'SKU명 / 브랜드 / 카테고리 / 제품 유형 / 출시일 / 원가 / 판매가 / 총 발주량 / MOQ / 사이즈·컬러 수. CPO 연동 SKU는 진행상태·담당자 뱃지 추가(3장)' },
-          { term: '가격확정 토글', desc: <>프라이싱 모달 시나리오 표(할인율·자동/수동 편집) 잠금. SKU 카드 판매가·원가·정가 입력과는 별개 — CPO 연동 SKU는 확정 여부 무관하게 항상 CPO 전용 읽기전용(3장). <Perm>마스터·PM·플랫폼MD·브랜드MD</Perm>만 조작</> },
-          { term: '프라이싱 시나리오 버튼', desc: '판매가·원가 위 위치. 클릭 시 전체 B2C/B2B 시나리오 모달' },
+          { term: '가격 확정', desc: <>프로젝션 › 프라이싱 탭에서 SKU 가격 잠금(확정 시점 가격 저장). SKU 카드 판매가·원가·정가 입력과는 별개 — CPO 연동 SKU는 확정 여부 무관하게 항상 CPO 전용 읽기전용(3장). <Perm>마스터·PM·플랫폼MD·브랜드MD</Perm>만 조작</> },
           { term: '대응 SKU 패널', desc: '기존 SKU 검색·선택, Tableau 실적 자동 로드, 비교 기간 설정' },
           { term: '마케팅 브리프 버튼', desc: 'SKU별 마케팅 전략 작성 패널 (CPO 연동 SKU는 [기획 보러가기]로 대체 — 12장)' },
           { term: 'STEP 탭', desc: 'STEP 1 월 계획 · 채널별 목표량 (한 화면, 카드 열면 기본) / STEP 2 채널별 수량 확인' },
@@ -296,7 +295,6 @@ export function ManualTab() {
             <Tr><Td>기본 정보</Td><Td>카테고리·브랜드·SKU명·판매가·원가·MOQ·총 발주량</Td></Tr>
             <Tr><Td>오픈일 / 자사몰 세팅</Td><Td>오픈일(확정 뱃지 포함) · 자사몰 세팅 완료 여부 체크(계산에는 영향 없는 진행상황 표시용)</Td></Tr>
             <Tr><Td>입고예정일 / 촬영예정일</Td><Td>준비 일정 표시</Td></Tr>
-            <Tr><Td>프라이싱 / 가격확정</Td><Td>[프라이싱] 버튼 — 클릭 시 해당 SKU 프라이싱 시나리오 모달 팝업. 가격확정 상태도 이 컬럼에서 토글</Td></Tr>
             <Tr><Td>채널 목표량 확정</Td><Td>각 채널 그룹(플랫폼·브랜드·글로벌)별 확정 여부 뱃지 표시</Td></Tr>
             <Tr><Td>발주 확정</Td><Td>PM(또는 MASTER) 최종 발주 확정 상태 표시 ("PM확정" 뱃지)</Td></Tr>
           </tbody>
@@ -478,7 +476,7 @@ export function ManualTab() {
             <Tr><Td>비중 (입력)</Td><Td>총 발주량 대비 월 판매 목표(%). 리오더까지 계획하면 합계 100% 초과 가능 — 예: 160% = 발주량의 1.6배 판매 계획. 입력칸에서 벗어나거나 Enter 시 반영</Td></Tr>
             <Tr><Td>누적</Td><Td>월별 누적 판매 목표. 발주량을 넘는 달부터 주황 표시 + "리오더 시작"(시즌 한정은 "품절 예상")</Td></Tr>
             <Tr><Td>증감율</Td><Td>대응SKU 실적 대비 월별·연도별 증감 (참고용)</Td></Tr>
-            <Tr><Td>가격확정</Td><Td>프라이싱 모달 시나리오 표(할인율·자동/수동 편집) 잠금. <Perm>마스터·PM·플랫폼MD·브랜드MD</Perm>만 조작 — 판매가·정가 자체는 CPO 연동 여부로 별도 결정(3장)</Td></Tr>
+            <Tr><Td>가격 확정됨 표시</Td><Td>🔒 배지만 표시 — 확정 · 해제는 프로젝션 › 프라이싱 탭. <Perm>마스터·PM·플랫폼MD·브랜드MD</Perm>만 조작 — 판매가·정가 자체는 CPO 연동 여부로 별도 결정(3장)</Td></Tr>
           </tbody>
         </table>
 
@@ -689,46 +687,34 @@ export function ManualTab() {
         <Eyebrow color="amber">PART 4 · 프라이싱</Eyebrow>
         <h2 className="text-lg font-bold text-gray-900 mb-3">💰 11. 프라이싱 시나리오</h2>
         <Callout>
-          쉽게 말하면 — 오픈특가·세일·B2B 납품·일본/글로벌 공급 등 "이 상황이면 얼마" 를 미리 다 계산해서 한 번에
-          보여주는 시뮬레이터. STEP 1 채널별 목표량처럼 채널별로 하나씩 고르지 않고, <strong>모든 시나리오를 동시에</strong> 봄.
+          쉽게 말하면 — 오픈특가·라이브·상시/특가·B2B 납품·일본/글로벌 공급 등 "이 상황이면 얼마"를 SKU 여러 개 한 표에서
+          비교하고 확정하는 곳. 위치: <strong>프로젝션 › 프라이싱</strong>. 할인율은 <strong>관리 › SKU 관리 › 할인 정책</strong>의 브랜드별 값.
         </Callout>
         <p className="text-sm text-gray-600 mb-3">
-          [프라이싱 시나리오](SKU 카드) 또는 [프라이싱](LIST VIEW) 클릭 → 모든 판매가 시나리오를 보여주는 모달.
-          STEP 1 채널별 설정과 달리 <strong>전체 B2C/B2B를 동시에 조회</strong>하는 참고용 뷰.
+          기존 SKU별 프라이싱 창(SKU 카드 [프라이싱 시나리오] · LIST VIEW [프라이싱] · [가격확정] 열)은 삭제 — 가격 확인 · 수정 · 확정은 이 탭에서만.
         </p>
 
         <FeatureGrid>
-          <FeatureCard title="모달 상단 KPI">
-            원가·판매가·정가·상시할인율·원가율 표시. 모든 시나리오의 base 가격 = SKU 판매가.
+          <FeatureCard title="표 구성">
+            오픈일 · 브랜드 · 오픈일+브랜드로 묶어 보기. [B2C | B2B] 전환. 표시 옵션: 판매가 대비 · 정가 대비 할인율 · 원가율(B2C) · 외화(B2B).
+            [오픈/완료 제외] 기본 켜짐 · [미확정만] 체크로 남은 SKU만.
           </FeatureCard>
 
-          <FeatureCard title="자동 · 수동 모드">
-            [자동]/[수동] 토글로 표시 방식 전환. 자동 = 계산식 값 그대로. 수동 전환 시 그 시점 자동값을 스냅샷해서
-            채움 → 이후 시나리오명·가격 자유 편집(자동값이 바뀌어도 수동값은 독립 유지). 할인율 3종 + 글로벌
-            공급가는 수동에서도 자동계산 고정. 행 추가·삭제 가능(+ 항목 추가 / 행 옆 ×).
+          <FeatureCard title="가격 칸 수정">
+            칸 클릭 → 금액 또는 <code>10%</code> 입력 (Enter 저장 · Esc 취소 · 비우면 자동값). 파란 숫자 = 수동값.
+            글로벌 공급가는 자동 고정. 확정된 SKU는 수정 불가.
             <br /><Perm>마스터·PM·플랫폼MD·브랜드MD</Perm>
           </FeatureCard>
 
-          <FeatureCard title="가격확정 시 잠금">
-            가격확정 토글 ON → 시나리오 표 전체(할인율·자동/수동·수동값) 잠김 + "🔒 가격이 확정되어..." 안내 +
-            [확정 해제] 버튼. CPO 잠금(3장)과는 별개 메커니즘, 동시 적용 가능.
+          <FeatureCard title="가격 확정">
+            SKU별 [가격 확정] 또는 묶음 단위 일괄 확정 · 해제. 확정 시 그 시점 전체 가격 저장 → 이후 할인 정책 · 판매가가 바뀌어도 그대로
+            ("정책 변경 · 현재 ○○" 표시). 개편 전에 확정된 SKU는 [기존 확정] 표시 · 기존 계산 가격 유지. CPO 잠금(3장)과는 별개.
             <br /><Perm>마스터·PM·플랫폼MD·브랜드MD</Perm> (확정·해제 모두)
           </FeatureCard>
 
-          <FeatureCard title="메모">
-            B2C 표 상단, 프라이싱 관련 자유 메모(최대 200자).
-            <br /><Perm>마스터·PM·플랫폼MD·브랜드MD</Perm>만 입력, 나머지는 열람만.
-          </FeatureCard>
-
-          <FeatureCard title="행 숨기기 · 복원">
-            6개 행(상시/특가/시즌오프 할인율, 사입/글로벌/일본 공급가) SKU별 숨김 가능(행 옆 × → "숨긴 항목: OOO
-            복원" 칩으로 복원). 이 모달만의 표시 옵션 — 채널별 판매가 선택지·실제 계산엔 무영향.
-          </FeatureCard>
-
-          <FeatureCard title="B2C 오픈 프로모션 토글">
-            B2C 테이블 상단 <span className="text-red-600 font-medium">[신상위크]</span>·<span className="text-orange-500 font-medium">[라이브]</span>·<span className="text-emerald-600 font-medium">[선단독]</span> 버튼.
-            기본값은 3행 모두 비활성(흐리게). [신상위크] = 신상위크+라이브 동시 ON, [라이브] = 라이브만 단독 ON.
-            세 토글 독립 작동, 선택 상태 Firestore 저장(새로고침 유지).
+          <FeatureCard title="주력 SKU · 오픈라이브">
+            선오픈 최저가 = 주력 SKU만 계산(관리 › 할인 정책 › 주력 SKU 지정). [오픈라이브 여부] ON → 라이브 가격 계산.
+            메인 채널 칩 · 상세 프로모션 링크 · 할인가능시점(오픈일 + 카테고리별 n주) 함께 표시.
           </FeatureCard>
         </FeatureGrid>
 
@@ -745,17 +731,17 @@ export function ManualTab() {
             <Tr><Td>10원 단위 올림 (ceil10)</Td><Td>1원 자리가 0이 아니면 10원 위로</Td><Td>12,341 → 12,350 · 12,340 → 12,340</Td></Tr>
             <Tr><Td>10원 단위 반올림 (round10)</Td><Td>1원 자리 5 이상 올림, 4 이하 버림</Td><Td>12,345 → 12,350 · 12,344 → 12,340</Td></Tr>
             <Tr><Td>10원 단위 버림 (floor10)</Td><Td>1원 자리를 버림</Td><Td>12,349 → 12,340</Td></Tr>
-            <Tr><Td>1,000원 단위 900 맞춤</Td><Td>10원 처리한 값(기존 창: 올림 · 신규 탭: 내림)에서 901을 빼고 1,000원 단위로 내린 뒤 +900 → 그 값 아래에서 끝자리가 900인 가장 큰 값 (이미 ○,900이면 한 단계 아래)</Td><Td>12,720 → 11,900 · 12,910 → 12,900 · 12,900 → 11,900</Td></Tr>
-            <Tr><Td>100원 단위 내림</Td><Td>100원 아래를 버림 (프라이싱 신규 탭 정책에서 선택 가능)</Td><Td>12,790 → 12,700</Td></Tr>
+            <Tr><Td>1,000원 단위 900 맞춤</Td><Td>10원 처리한 값(STEP 1 기존 계산: 올림 · 프라이싱 탭: 내림)에서 901을 빼고 1,000원 단위로 내린 뒤 +900 → 그 값 아래에서 끝자리가 900인 가장 큰 값 (이미 ○,900이면 한 단계 아래)</Td><Td>12,720 → 11,900 · 12,910 → 12,900 · 12,900 → 11,900</Td></Tr>
+            <Tr><Td>100원 단위 내림</Td><Td>100원 아래를 버림 (할인 정책에서 브랜드별 선택 가능)</Td><Td>12,790 → 12,700</Td></Tr>
             <Tr><Td>1원 단위 반올림 (round)</Td><Td>라이브 차감액 계산에만 사용</Td><Td>9,410 × 5% = 470.5 → 471</Td></Tr>
           </tbody>
         </table>
 
-        <h3 className="text-sm font-semibold text-gray-600 mb-2">B2C 시나리오 계산식 (기존 프라이싱 창)</h3>
-        <p className="text-xs text-gray-500 mb-1">* base = SKU 판매가</p>
+        <h3 className="text-sm font-semibold text-gray-600 mb-2">STEP 1 채널별 판매가 선택지 · B2C 계산식 (기존 계산)</h3>
+        <p className="text-xs text-gray-500 mb-1">* base = SKU 판매가 · STEP 1 채널별 판매가 선택 · 매출 계산 · 엑셀 추출 · 개편 전 [기존 확정] 가격에 쓰이는 계산</p>
         <p className="text-sm text-gray-500 mb-2">
-          특가 최대할인율(20/15/10%)·상시 최대할인율(15/10/5%)·시즌오프 할인율(25/30%)은 SKU별 직접 선택.
-          {' '}<Perm>마스터·PM·플랫폼MD·브랜드MD</Perm> (해당 SKU에만 반영). 계산식 기본값: 20%/15%/25%.
+          특가 최대할인율(20/15/10%) · 상시 최대할인율(15/10/5%) · 시즌오프 할인율(25/30%)은 기존 창에서 SKU별로 저장된 값 그대로 사용
+          (기존 창 삭제로 더 이상 변경 불가). 저장값 없으면 20% / 15% / 25%.
         </p>
         <table className="w-full border-collapse text-xs mb-4">
           <thead>
@@ -778,7 +764,7 @@ export function ManualTab() {
           </tbody>
         </table>
 
-        <h3 className="text-sm font-semibold text-gray-600 mb-2">B2B 시나리오 계산식 (기존 프라이싱 창)</h3>
+        <h3 className="text-sm font-semibold text-gray-600 mb-2">STEP 1 채널별 판매가 선택지 · B2B 계산식 (기존 계산)</h3>
         <table className="w-full border-collapse text-xs mb-4">
           <thead>
             <tr className="bg-gray-100">
@@ -798,8 +784,8 @@ export function ManualTab() {
           </tbody>
         </table>
 
-        <h3 className="text-sm font-semibold text-gray-600 mb-2">프로젝션 › 프라이싱 (신규) 탭 계산식</h3>
-        <p className="text-xs text-gray-500 mb-1">* B2C는 할인율로 계산한 가격을 전부 <strong>10원 단위 내림</strong> (기존 창은 10원 단위 올림) · B2B는 기존 계산 그대로</p>
+        <h3 className="text-sm font-semibold text-gray-600 mb-2">프로젝션 › 프라이싱 탭 계산식</h3>
+        <p className="text-xs text-gray-500 mb-1">* B2C는 할인율로 계산한 가격을 전부 <strong>10원 단위 내림</strong> (STEP 1 기존 계산은 10원 단위 올림) · B2B는 기존 계산 그대로</p>
         <p className="text-xs text-gray-500 mb-1">* 할인율은 관리 › SKU 관리 › 할인 정책의 브랜드별 · 공통 값 (기본값 괄호) · 앞 칸의 실제값(수동 포함) 기준으로 다음 칸을 이어서 계산</p>
         <table className="w-full border-collapse text-xs mb-4">
           <thead>
@@ -818,7 +804,7 @@ export function ManualTab() {
             <Tr><Td>B2B 오픈</Td><Td>판매가 × B2B % × (1 − 추가 할인 %) (65 · 10)</Td><Td>10원 단위 반올림</Td></Tr>
             <Tr><Td>사입 공급가</Td><Td>판매가 × 사입 % (50)</Td><Td>10원 단위 올림</Td></Tr>
             <Tr><Td>팝업/페어</Td><Td>판매가 × (1 − 팝업 %) (10)</Td><Td>10원 단위 버림</Td></Tr>
-            <Tr><Td>글로벌 · 일본 공급가</Td><Td>기존 창과 같은 공식</Td><Td>원화 10원 단위 올림 · 글로벌은 자동 고정</Td></Tr>
+            <Tr><Td>글로벌 · 일본 공급가</Td><Td>STEP 1 기존 계산과 같은 공식</Td><Td>원화 10원 단위 올림 · 글로벌은 자동 고정</Td></Tr>
           </tbody>
         </table>
 
@@ -832,10 +818,8 @@ export function ManualTab() {
             </tr>
           </thead>
           <tbody>
-            <Tr><Td>기존 프라이싱 창</Td><Td>특가 최대할인율(20/15/10%) 선택</Td><Td>특가 최대 · 오픈특가가 다시 계산되고(위 끝자리 규칙), 오픈특가를 기준으로 하는 신상위크 · 선단독 · 라이브도 함께 바뀜</Td></Tr>
-            <Tr><Td>기존 프라이싱 창</Td><Td>상시 최대할인율(15/10/5%) · 시즌오프(25/30%) 선택</Td><Td>해당 행만 다시 계산 (10원 단위 올림)</Td></Tr>
-            <Tr><Td>관리 › 할인 정책</Td><Td>브랜드 · 공통 % 변경</Td><Td>프라이싱 (신규) 탭의 <strong>미확정</strong> SKU에 바로 반영 · 가격 확정된 SKU는 확정 시점 가격 유지("정책 변경 · 현재 ○○" 표시)</Td></Tr>
-            <Tr><Td>프라이싱 (신규) 칸 입력</Td><Td><code>10%</code>처럼 % 붙여 입력</Td><Td>판매가 × (100 − n)% → B2C 칸: 10원 단위 내림 (15,950 × 93% = 14,833.5 → 14,830) · B2B 칸: 기존대로 10원 단위 올림 (→ 14,840). 소수 % 가능 (15,900 × 87.5% = 13,912.5 → B2C 13,910). 판매가가 바뀌면 같은 %로 다시 계산 · 확정 시 금액으로 고정</Td></Tr>
+            <Tr><Td>관리 › 할인 정책</Td><Td>브랜드 · 공통 % 변경</Td><Td>프라이싱 탭의 <strong>미확정</strong> SKU에 바로 반영 · 가격 확정된 SKU는 확정 시점 가격 유지("정책 변경 · 현재 ○○" 표시)</Td></Tr>
+            <Tr><Td>프라이싱 탭 칸 입력</Td><Td><code>10%</code>처럼 % 붙여 입력</Td><Td>판매가 × (100 − n)% → B2C 칸: 10원 단위 내림 (15,950 × 93% = 14,833.5 → 14,830) · B2B 칸: 기존대로 10원 단위 올림 (→ 14,840). 소수 % 가능 (15,900 × 87.5% = 13,912.5 → B2C 13,910). 판매가가 바뀌면 같은 %로 다시 계산 · 확정 시 금액으로 고정</Td></Tr>
           </tbody>
         </table>
 
@@ -851,13 +835,12 @@ export function ManualTab() {
           <tbody>
             <Tr><Td>판매가 대비 할인율 (상시가 대비)</Td><Td>(1 − 가격 ÷ 판매가) × 100</Td><Td>정수 반올림 (소수 첫째 자리 5 이상 올림 · 4 이하 버림) — 예: 판매가 46,000에 39,000 입력 → 15.2% → 15% · 15.5% → 16% · 15.3% → 15%</Td></Tr>
             <Tr><Td>정가 대비 할인율</Td><Td>(1 − 가격 ÷ 정가) × 100</Td><Td>정수 반올림 (판매가 대비와 같음)</Td></Tr>
-            <Tr><Td>원가율</Td><Td>원가 ÷ 가격 × 100</Td><Td>기존 창: 정수 반올림 · 신규 탭: 소수 1자리 반올림</Td></Tr>
-            <Tr><Td>상시할인율 (기존 창 상단)</Td><Td>(1 − 판매가 ÷ 정가) × 100</Td><Td>소수 1자리 반올림</Td></Tr>
-            <Tr><Td>금액 직접 입력 (기존 창 수동 모드 · 신규 탭 칸 입력)</Td><Td>입력한 금액 그대로 저장 — 끝자리 처리 없음. 할인율 · 원가율만 위 식으로 다시 계산</Td><Td>신규 탭은 판매가보다 큰 금액 · 0 이하는 저장 안 함</Td></Tr>
+            <Tr><Td>원가율</Td><Td>원가 ÷ 가격 × 100</Td><Td>소수 1자리 반올림</Td></Tr>
+            <Tr><Td>금액 직접 입력 (프라이싱 탭 칸 입력)</Td><Td>입력한 금액 그대로 저장 — 끝자리 처리 없음. 할인율 · 원가율만 위 식으로 다시 계산</Td><Td>판매가보다 큰 금액 · 0 이하는 저장 안 함 · 자동값과 같으면 수동 저장 안 함</Td></Tr>
           </tbody>
         </table>
 
-        <h3 className="text-sm font-semibold text-gray-600 mb-2">원가율 색상 기준 (프라이싱 모달 내)</h3>
+        <h3 className="text-sm font-semibold text-gray-600 mb-2">원가율 색상 기준 (프라이싱 탭 B2C)</h3>
         <table className="w-full border-collapse text-xs mb-2">
           <thead>
             <tr className="bg-gray-100">
@@ -871,7 +854,7 @@ export function ManualTab() {
             <Tr><Td>40% 초과</Td><Td>빨간색</Td></Tr>
           </tbody>
         </table>
-        <p className="text-xs text-gray-400">* 할인율은 반올림 정수 표시. 비활성 시나리오(신상위크·라이브 할인·선단독)는 회색 흐리게.</p>
+        <p className="text-xs text-gray-400">* 할인율은 정수 반올림 · 원가율은 소수 1자리 표시.</p>
         <p className="mt-1 text-xs text-gray-400">* 쿠팡·B2B·사입및페어는 시나리오 미설정 시 'B2B 상시 운영' 자동 적용. 글로벌은 '글로벌 공급가', 일본은 '일본 공급가' 자동 적용.</p>
       </section>
 
@@ -996,7 +979,7 @@ export function ManualTab() {
             <Tr><Td>캐싱 방식</Td><Td>브라우저 localStorage에 24시간 TTL로 저장. 캐시 유효 시 API 호출 없음</Td></Tr>
             <Tr><Td>Fallback</Td><Td>API 실패 시 USD 1,400 · JPY 9.0 고정값 사용</Td></Tr>
             <Tr><Td>JPY/KRW 계산</Td><Td>USD/KRW ÷ USD/JPY 교차 계산</Td></Tr>
-            <Tr><Td>적용 범위</Td><Td>채널별 목표량 글로벌·일본 공급가 시나리오 / 프라이싱 시나리오 모달</Td></Tr>
+            <Tr><Td>적용 범위</Td><Td>채널별 목표량 글로벌·일본 공급가 시나리오 / 프로젝션 › 프라이싱 탭</Td></Tr>
             <Tr><Td>UI 표시</Td><Td>실 판매가 행 라벨에 현재 환율 표시 (라이브: 인디고색 / fallback: 회색)</Td></Tr>
           </tbody>
         </table>

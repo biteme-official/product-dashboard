@@ -20,7 +20,6 @@ import { usePermission } from '../contexts/PermissionsContext';
 import { canConfirmGroup, isAllChannelRole, ownsChannel, type QtyChannel } from '../utils/channelOwnership';
 import { calcVarCostResults, fallbackWeightsOf, getCompQty as getCompQtyShared } from '../utils/compareData';
 import { MarketingBriefModal } from './MarketingBriefModal';
-import { PricingModal } from './PricingModal';
 import { exportSimulationXlsx } from '../utils/exportXlsx';
 import { PRICING_SCENARIOS, PRICING_DEFAULT_OPT } from '../utils/pricingScenarios';
 import { CalendarPopup } from './CalendarPopup';
@@ -491,7 +490,6 @@ function BasicInfoColumn({ sku, readOnly }: { sku: SkuData; readOnly?: boolean }
   const updateSku = useStore((s) => s.updateSku);
   const persistSku = useStore((s) => s.persistSku);
   const [briefOpen, setBriefOpen] = useState(false);
-  const [pricingModalOpen, setPricingModalOpen] = useState(false);
 
   // CPO에 대응 기획이 있으면 판매가/원가/정가는 그쪽이 원본 — Product에선 잠그고 표시만 함
   const cpoProject = useCpoSync((s) => s.cpoProjects[sku.id]);
@@ -675,18 +673,7 @@ function BasicInfoColumn({ sku, readOnly }: { sku: SkuData; readOnly?: boolean }
         )}
       </div>
 
-      <button
-        onClick={() => setPricingModalOpen(true)}
-        className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold rounded-lg border transition-colors border-gray-200 bg-white text-gray-500 hover:bg-gray-50 hover:text-gray-700"
-      >
-        <span className="flex items-center gap-1.5">
-          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a2 2 0 012-2z" />
-          </svg>
-          프라이싱 시나리오
-        </span>
-      </button>
-      {pricingModalOpen && <PricingModal sku={sku} onClose={() => setPricingModalOpen(false)} />}
+      <p className="text-[11px] text-gray-400">프라이싱 시나리오 · 가격 확정 → 프로젝션 › 프라이싱</p>
 
       {priceLockedByCpo ? (
         <>

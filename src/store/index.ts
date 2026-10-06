@@ -12,7 +12,6 @@ import type { CpoProject } from '../types/cpo';
 import { recalcQuantities, revenueMultiplier, calcDynamicMultiplier } from '../utils/calc';
 import { monthTotals, redistributeByWeights, setMonthTotal, type PlanScope } from '../utils/qtyPlan';
 import { mergeQtyEntries, mergeRecord, removedKeys } from '../utils/cellMerge';
-import { PRICING_SCENARIOS } from '../utils/pricingScenarios';
 import { writeProductSyncFields, buildChannelScheduleMirror, writeChannelScheduleMirror } from '../lib/cpoFirebase';
 import { useCpoSync, markLocalFieldEdit, hasPendingLocalFieldEdit, SYNCED_FIELDS } from './cpoSync';
 
@@ -596,15 +595,11 @@ interface StoreActions {
    * 반환값: 실제로 변경된 SKU 수
    */
   setChannelDisabled: (ids: string[], channel: OptOutChannel, disabled: boolean, mode: 'keep' | 'recalc' | 'restore') => Promise<number>;
-  setPriceConfirmed: (id: string, confirmed: boolean) => Promise<void>;
   /** 프라이싱 신규 탭 — 확정 시 그 시점 전체 가격(snapshot)을 함께 저장, 해제 시 snapshot 비움. 여러 SKU 한 번에(묶음 확정) */
   setPriceConfirmedV2: (items: { id: string; confirmed: boolean; snapshot: Record<string, number | null> | null }[]) => Promise<void>;
   setScheduleConfirmed: (id: string, confirmed: boolean) => Promise<void>;
   /** 채널별 오픈일정/일정 확정을 CPO productSync에 미러링(표시 전용, CPO 연결된 SKU만) — 채널 일정을 실제로 바꾼 지점에서만 호출 */
   pushChannelScheduleToCpo: (id: string) => void;
-  setPricingRates: (id: string, patch: { specialMaxRate?: 20 | 15 | 10; regularMaxRate?: 15 | 10 | 5; seasonOffRate?: 25 | 30 }) => Promise<void>;
-  setPricingScenarioHidden: (id: string, scenarioId: string, hidden: boolean) => Promise<void>;
-  setPricingMemo: (id: string, memo: string) => Promise<void>;
   setPricingPromo: (id: string, patch: { pricingPromoOpenSpecial?: boolean; pricingPromoNewWeek?: boolean; pricingPromoLive?: boolean; pricingPromoExclusive?: boolean }) => Promise<void>;
   setExpandedIds: (ids: string[]) => void;
   cleanupInitialSnapshots: () => Promise<number>;
@@ -1362,17 +1357,6 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
     return updates.length;
   },
 
-  setPriceConfirmed: async (id, confirmed) => {
-    const sku = get().skus.find((s) => s.id === id);
-    if (!sku) return;
-    const updated = { ...sku, isPriceConfirmed: confirmed };
-    set({ skus: get().skus.map((s) => (s.id === id ? updated : s)) });
-    await writeSkuChanges(updated);
-    writeLog(id, sku.skuName, useAuth.getState().role ?? 'unknown', [{
-      field: 'isPriceConfirmed', label: '가격 확정',
-      from: formatLogValue(!confirmed), to: formatLogValue(confirmed),
-    }]).catch(console.error);
-  },
 
   setPriceConfirmedV2: async (items) => {
     if (skuListenerDead) throw new Error('실시간 구독이 끊긴 탭입니다. 새로고침 후 다시 시도해주세요.');
@@ -1421,52 +1405,8 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
     );
   },
 
-  setPricingRates: async (id, patch) => {
-    const sku = get().skus.find((s) => s.id === id);
-    if (!sku) return;
-    const updated = { ...sku, ...patch };
-    set({ skus: get().skus.map((s) => (s.id === id ? updated : s)) });
-    await writeSkuChanges(updated);
-    const labels: Record<string, string> = {
-      specialMaxRate: '특가 최대할인율', regularMaxRate: '상시 최대할인율', seasonOffRate: '시즌오프 할인율',
-    };
-    const changes = (Object.keys(patch) as (keyof typeof patch)[]).map((field) => ({
-      field, label: labels[field],
-      from: formatLogValue(sku[field as keyof SkuData]), to: formatLogValue(patch[field]),
-    }));
-    writeLog(id, sku.skuName, useAuth.getState().role ?? 'unknown', changes).catch(console.error);
-  },
 
-  setPricingScenarioHidden: async (id, scenarioId, hidden) => {
-    const sku = get().skus.find((s) => s.id === id);
-    if (!sku) return;
-    const prevHidden = sku.hiddenPricingScenarios ?? [];
-    const nextHidden = hidden
-      ? (prevHidden.includes(scenarioId) ? prevHidden : [...prevHidden, scenarioId])
-      : prevHidden.filter((s) => s !== scenarioId);
-    const updated = { ...sku, hiddenPricingScenarios: nextHidden };
-    set({ skus: get().skus.map((s) => (s.id === id ? updated : s)) });
-    await writeSkuChanges(updated);
-    const label = PRICING_SCENARIOS.find((s) => s.id === scenarioId)?.label ?? scenarioId;
-    writeLog(id, sku.skuName, useAuth.getState().role ?? 'unknown', [{
-      field: 'hiddenPricingScenarios', label: `${label} 행 표시`,
-      from: formatLogValue(!hidden), to: formatLogValue(hidden),
-    }]).catch(console.error);
-  },
 
-  setPricingMemo: async (id, memo) => {
-    const sku = get().skus.find((s) => s.id === id);
-    if (!sku) return;
-    const prevMemo = sku.pricingMemo ?? '';
-    if (prevMemo === memo) return;
-    const updated = { ...sku, pricingMemo: memo };
-    set({ skus: get().skus.map((s) => (s.id === id ? updated : s)) });
-    await writeSkuChanges(updated);
-    writeLog(id, sku.skuName, useAuth.getState().role ?? 'unknown', [{
-      field: 'pricingMemo', label: '프라이싱 메모',
-      from: formatLogValue(prevMemo), to: formatLogValue(memo),
-    }]).catch(console.error);
-  },
 
   setPricingPromo: async (id, patch) => {
     const sku = get().skus.find((s) => s.id === id);

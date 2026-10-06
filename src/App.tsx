@@ -54,7 +54,7 @@ const MAIN_TAB_LABELS: Record<MainTab, string> = {
 
 function getNavLabel(snap: NavSnapshot): string {
   if (snap.mainTab === 'projection') {
-    return snap.projectionSubTab === 'list-view' ? 'LIST VIEW' : snap.projectionSubTab === 'channel-target' ? '채널 목표량' : snap.projectionSubTab === 'pricing-v2' ? '프라이싱 (신규)' : '채널별 오픈일정';
+    return snap.projectionSubTab === 'list-view' ? 'LIST VIEW' : snap.projectionSubTab === 'channel-target' ? '채널 목표량' : snap.projectionSubTab === 'pricing-v2' ? '프라이싱' : '채널별 오픈일정';
   }
   return MAIN_TAB_LABELS[snap.mainTab];
 }
@@ -142,7 +142,7 @@ function App() {
   // 채널 목표량은 [오픈/완료 제외]가 기본 켜짐 — 끄면 이 세션 동안 꺼진 채 유지 (다른 서브탭과 별도)
   const [ctExcludeOpenComplete, setCtExcludeOpenComplete] = useSessionState('app:ctExcludeOpenComplete', true);
   const isChannelTarget = projectionSubTab === 'channel-target';
-  // 프라이싱 (신규)도 [오픈/완료 제외] 기본 켜짐 — 채널 목표량과 같은 방식, 세션 상태는 별도
+  // 프라이싱도 [오픈/완료 제외] 기본 켜짐 — 채널 목표량과 같은 방식, 세션 상태는 별도
   const [pvExcludeOpenComplete, setPvExcludeOpenComplete] = useSessionState('app:pvExcludeOpenComplete', true);
   const isPricingV2 = projectionSubTab === 'pricing-v2';
   const [searchQuery, setSearchQuery] = useState('');
@@ -507,7 +507,7 @@ function App() {
               { key: 'list-view', label: 'LIST VIEW' },
               { key: 'channel-schedule', label: '채널별 오픈일정' },
               { key: 'channel-target', label: '채널 목표량' },
-              { key: 'pricing-v2', label: '프라이싱 (신규)' },
+              { key: 'pricing-v2', label: '프라이싱' },
             ].map(({ key, label }) => (
               <button
                 key={key}
