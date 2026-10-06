@@ -20,5 +20,7 @@ r = g(15900, '바잇미', true, true, { open: { pct: 10 } });
 eq('수동 10% → 오픈특가 14,310 → 선오픈 · 라이브 이어서', [r.open, r.pre, r.live], [14310, 13310, 12650]);
 r = g(15900, '바잇미', true, true, { pre: 9000 });
 eq('선오픈 수동 9,000 → 라이브 8,550', [r.pre, r.live], [9000, 8550]);
+r = g(15900, '바잇미', false, false);
+eq('B2B 기본값 = 기존 시나리오 (상시 65% · 오픈 −10% · 사입 50%)', [r.b2b, r.b2bOpen, r.buy], [10340, 9300, 7950]);
 if (fail) { console.error(`${fail}건 실패`); process.exit(1); }
 console.log('전부 통과');

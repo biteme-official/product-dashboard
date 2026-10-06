@@ -7,15 +7,21 @@
  *      · 라이브        = 선오픈 최저가(없으면 오픈특가)의 5% 추가 할인, 최대 1,000원
  *      · 상시 최대 · 특가 최대 = 판매가 n% 할인 (10원 올림)
  * B2B  · B2B 오픈 · B2B 상시 · 사입 · 글로벌 · 일본 = 기존 시나리오 계산 그대로
- *      · 팝업/페어     = 상시 판매가 10% 할인 → 10원 단위 버림
+ *      · 팝업/페어     = 상시 판매가 10% 할인 → 10원 단위 버림 (B2B 비율 · 팝업은 브랜드별 정책)
  * 앞 단계 실제값(수동 포함) 기준으로 다음 단계를 이어서 계산한다.
  */
 import type { Brand, Category, SkuData } from '../types';
 import { PRICING_SCENARIOS } from './pricingScenarios';
 
 export type RoundMode = '900' | '100' | '10';
-export interface BrandPolicy { openRate: number; round: RoundMode; reg: number; spec: number }
-export interface CommonPolicy { preThr: number; prePct: number; preMinus: number; livePct: number; liveMax: number; popupRate: number }
+export interface BrandPolicy {
+  // B2C
+  openRate: number; round: RoundMode; reg: number; spec: number;
+  // B2B — B2B 상시 = 판매가 b2bRate%(10원 반올림), B2B 오픈 = B2B 상시에서 b2bOpenDisc% 추가 할인(10원 반올림),
+  //       사입 = 판매가 buyRate%(10원 올림), 팝업/페어 = 판매가 popupRate% 할인(10원 버림)
+  b2bRate: number; b2bOpenDisc: number; buyRate: number; popupRate: number;
+}
+export interface CommonPolicy { preThr: number; prePct: number; preMinus: number; livePct: number; liveMax: number }
 export interface PricingPolicy {
   brands: Record<Brand, BrandPolicy>;
   common: CommonPolicy;
@@ -25,11 +31,11 @@ export interface PricingPolicy {
 
 export const DEFAULT_PRICING_POLICY: PricingPolicy = {
   brands: {
-    '바잇미': { openRate: 20, round: '900', reg: 15, spec: 20 },
-    'SSFW': { openRate: 10, round: '10', reg: 10, spec: 20 },
-    '그외': { openRate: 10, round: '10', reg: 10, spec: 20 },
+    '바잇미': { openRate: 20, round: '900', reg: 15, spec: 20, b2bRate: 65, b2bOpenDisc: 10, buyRate: 50, popupRate: 10 },
+    'SSFW': { openRate: 10, round: '10', reg: 10, spec: 20, b2bRate: 65, b2bOpenDisc: 10, buyRate: 50, popupRate: 10 },
+    '그외': { openRate: 10, round: '10', reg: 10, spec: 20, b2bRate: 65, b2bOpenDisc: 10, buyRate: 50, popupRate: 10 },
   },
-  common: { preThr: 10000, prePct: 5, preMinus: 1000, livePct: 5, liveMax: 1000, popupRate: 10 },
+  common: { preThr: 10000, prePct: 5, preMinus: 1000, livePct: 5, liveMax: 1000 },
   weeks: { '장난감': 4, '용품': 8, '식품': null, '잡화': null, '의류': null },
 };
 
@@ -57,6 +63,7 @@ export type PriceSet = Record<PriceKey, number | null>;
 
 export const ceil10 = (x: number) => Math.ceil(x / 10) * 10;
 export const floor10 = (x: number) => Math.floor(x / 10) * 10;
+export const round10 = (x: number) => Math.round(x / 10) * 10;
 
 export function roundOpen(x: number, mode: RoundMode): number {
   if (mode === '900') return Math.floor((x - 901) / 1000) * 1000 + 900;
@@ -99,10 +106,10 @@ export function calcPricesV2(
     open, pre, live,
     reg: ov.reg ?? ceil10(b * (1 - p.reg / 100)),
     spec: ov.spec ?? ceil10(b * (1 - p.spec / 100)),
-    b2bOpen: ov.b2bOpen ?? scenario('B2B 오픈 할인').calcKrwPrice(b),
-    b2b: ov.b2b ?? scenario('B2B 상시 운영').calcKrwPrice(b),
-    buy: ov.buy ?? scenario('사입 공급가').calcKrwPrice(b),
-    popup: ov.popup ?? floor10(b * (1 - c.popupRate / 100)),
+    b2bOpen: ov.b2bOpen ?? round10(b * (p.b2bRate / 100) * (1 - p.b2bOpenDisc / 100)),
+    b2b: ov.b2b ?? round10(b * (p.b2bRate / 100)),
+    buy: ov.buy ?? ceil10(b * (p.buyRate / 100)),
+    popup: ov.popup ?? floor10(b * (1 - p.popupRate / 100)),
     glob: scenario('글로벌 공급가').calcKrwPrice(b, fx.usd),
     jp: ov.jp ?? scenario('일본 공급가').calcKrwPrice(b, fx.usd, fx.jpy),
   };
@@ -127,7 +134,7 @@ export function legacyPricesV2(sku: SkuData, core: boolean, policy: PricingPolic
     b2bOpen: v('B2B 오픈 할인'),
     b2b: v('B2B 상시 운영'),
     buy: v('사입 공급가'),
-    popup: floor10(sku.price * (1 - policy.common.popupRate / 100)),
+    popup: floor10(sku.price * (1 - (policy.brands[sku.brand] ?? policy.brands['바잇미']).popupRate / 100)),
     glob: scenario('글로벌 공급가').calcKrwPrice(sku.price, fx.usd),
     jp: v('일본 공급가'),
   };

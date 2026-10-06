@@ -67,7 +67,7 @@ function PolicyTab() {
         {msg && <span className="text-xs text-indigo-600">{msg}</span>}
       </div>
       <div className="border border-gray-200 rounded-xl p-3 space-y-2">
-        <p className="text-xs font-semibold text-gray-700">{brand} 정책</p>
+        <p className="text-xs font-semibold text-gray-700">{brand} 정책 · <span className="text-gray-500">B2C</span></p>
         <div className={row}>
           <span className="w-24 text-gray-500">오픈특가</span>판매가
           <NumField value={p.openRate} onSave={(v) => v != null && save({ brands: { [brand]: { openRate: v } } })} />% 할인 →
@@ -77,6 +77,12 @@ function PolicyTab() {
         </div>
         <div className={row}><span className="w-24 text-gray-500">상시 최대</span>판매가 <NumField value={p.reg} onSave={(v) => v != null && save({ brands: { [brand]: { reg: v } } })} />% 할인</div>
         <div className={row}><span className="w-24 text-gray-500">특가 최대</span>판매가 <NumField value={p.spec} onSave={(v) => v != null && save({ brands: { [brand]: { spec: v } } })} />% 할인</div>
+        <p className="text-xs font-semibold text-gray-700 pt-2">{brand} 정책 · <span className="text-gray-500">B2B</span></p>
+        <div className={row}><span className="w-24 text-gray-500">B2B 상시</span>판매가의 <NumField value={p.b2bRate} onSave={(v) => v != null && save({ brands: { [brand]: { b2bRate: v } } })} />% → 10원 단위 반올림</div>
+        <div className={row}><span className="w-24 text-gray-500">B2B 오픈</span>B2B 상시에서 <NumField value={p.b2bOpenDisc} onSave={(v) => v != null && save({ brands: { [brand]: { b2bOpenDisc: v } } })} />% 추가 할인 → 10원 단위 반올림</div>
+        <div className={row}><span className="w-24 text-gray-500">사입 공급가</span>판매가의 <NumField value={p.buyRate} onSave={(v) => v != null && save({ brands: { [brand]: { buyRate: v } } })} />% → 10원 단위 올림</div>
+        <div className={row}><span className="w-24 text-gray-500">팝업/페어</span>상시 판매가 <NumField value={p.popupRate} onSave={(v) => v != null && save({ brands: { [brand]: { popupRate: v } } })} />% 할인 → 10원 단위 버림</div>
+        <div className={row}><span className="w-24 text-gray-500">글로벌 · 일본</span><span className="text-gray-400">환율 기준 공급가 (현행 공식 그대로 · 글로벌은 자동 고정)</span></div>
         <p className="text-xs font-semibold text-gray-700 pt-2">공통 규칙 · 전 브랜드</p>
         <div className={row}>
           <span className="w-24 text-violet-600">선오픈 최저가</span>주력 SKU만 · 오픈특가
@@ -89,14 +95,14 @@ function PolicyTab() {
           <NumField value={c.livePct} onSave={(v) => v != null && save({ common: { livePct: v } })} />% · 최대 −
           <NumField value={c.liveMax} width={64} onSave={(v) => v != null && save({ common: { liveMax: v } })} />원
         </div>
-        <div className={row}><span className="w-24 text-gray-500">팝업/페어</span>상시 판매가 <NumField value={c.popupRate} onSave={(v) => v != null && save({ common: { popupRate: v } })} />% 할인 → 10원 단위 버림</div>
         <p className="text-[11px] text-gray-400 pt-1">가격 확정된 SKU는 확정 시점 가격 유지 · 정책을 바꾸면 미확정 SKU만 바뀜</p>
       </div>
       <div className="border border-gray-200 rounded-xl p-3 space-y-1.5 bg-gray-50">
         <div className="flex items-center gap-2 text-xs text-gray-600">미리보기 · 판매가 <NumField value={sample} width={80} onSave={(v) => v && setSample(v)} />원</div>
         {([
           ['선오픈 최저가 (주력)', core.pre], ['라이브 · 주력', core.live], ['라이브 · 일반', normal.live], ['오픈특가', core.open],
-          ['상시 최대', core.reg], ['특가 최대', core.spec], ['팝업/페어 (B2B)', core.popup],
+          ['상시 최대', core.reg], ['특가 최대', core.spec],
+          ['B2B 상시', core.b2b], ['B2B 오픈', core.b2bOpen], ['사입 공급가', core.buy], ['팝업/페어', core.popup], ['글로벌 공급가', core.glob], ['일본 공급가', core.jp],
         ] as [string, number | null][]).map(([l, v]) => (
           <div key={l} className="flex justify-between text-xs"><span className="text-gray-500">{l}</span><span className="tabular-nums font-semibold">{v == null ? '–' : `${v.toLocaleString()} (${discountPct(v, sample)}%)`}</span></div>
         ))}
