@@ -330,7 +330,7 @@ export function ManualTab() {
             <ul>
               <li>리오더 여부 = <b>관리 › SKU 관리 › 시즌 한정</b>에서 SKU별 지정</li>
               <li>SKU 구분(시즈널 · 스테디 · 미해당)은 분류 표시용</li>
-              <li>시즌 한정 지정한 적 없는 SKU → SKU 구분이 시즈널일 때만 시즌 한정으로 봄</li>
+              <li>시즌 한정 지정한 적 없는 SKU → <b>카테고리 의류</b> · SKU 구분 시즈널이면 시즌 한정으로 봄 (관리 탭에서 해제 가능)</li>
             </ul>
           </Callout>
         </Section>

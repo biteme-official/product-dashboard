@@ -314,7 +314,7 @@ function SeasonOnlyTab() {
       <div className="text-xs text-gray-500 space-y-0.5">
         <p>시즌 한정 = 리오더 없음 · 판매 목표 &gt; 발주량이면 품절 위험, 판매 목표 &lt; 발주량이면 과재고 위험</p>
         <p>미지정 SKU = 리오더 가능 · 판매 목표 &gt; 발주량이면 리오더 시점 표시</p>
-        <p>SKU 구분(시즈널/스테디/미해당)과 별개 · 지정한 적 없으면 SKU 구분 시즈널만 시즌 한정으로 표시</p>
+        <p>SKU 구분(시즈널/스테디/미해당)과 별개 · 지정한 적 없으면 카테고리 의류 · SKU 구분 시즈널을 시즌 한정으로 표시</p>
       </div>
 
       <input
@@ -343,7 +343,7 @@ function SeasonOnlyTab() {
                 <p className="text-xs font-medium text-gray-800 truncate">{sku.skuName || '(SKU명 미입력)'}</p>
                 <p className="text-[10px] text-gray-400">
                   {sku.category} · {sku.brand} · {sku.releaseDate || '출시일 미입력'} · SKU 구분 {sku.skuType}
-                  {sku.seasonOnly === undefined && on && ' · SKU 구분 시즈널로 자동 지정'}
+                  {sku.seasonOnly === undefined && on && (sku.category === '의류' ? ' · 의류 자동 지정' : ' · SKU 구분 시즈널로 자동 지정')}
                 </p>
               </div>
               <button
