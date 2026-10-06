@@ -732,8 +732,27 @@ export function ManualTab() {
           </FeatureCard>
         </FeatureGrid>
 
-        <h3 className="text-sm font-semibold text-gray-600 mb-2">B2C 시나리오 계산식</h3>
-        <p className="text-xs text-gray-500 mb-1">* ceil10(x) = x를 10원 단위 올림 (B2B 오픈 할인·B2B 상시 운영만 예외적으로 round10 유지) &nbsp;|&nbsp; 오픈특가 = floor((ceil10(base × (1 − 특가최대할인율)) − 901) ÷ 1000) × 1000 + 900</p>
+        <h3 className="text-sm font-semibold text-gray-600 mb-2">끝자리 처리 규칙</h3>
+        <table className="w-full border-collapse text-xs mb-4">
+          <thead>
+            <tr className="bg-gray-100">
+              <Th>표기</Th>
+              <Th>처리</Th>
+              <Th>예시</Th>
+            </tr>
+          </thead>
+          <tbody>
+            <Tr><Td>10원 단위 올림 (ceil10)</Td><Td>1원 자리가 0이 아니면 10원 위로</Td><Td>12,341 → 12,350 · 12,340 → 12,340</Td></Tr>
+            <Tr><Td>10원 단위 반올림 (round10)</Td><Td>1원 자리 5 이상 올림, 4 이하 버림</Td><Td>12,345 → 12,350 · 12,344 → 12,340</Td></Tr>
+            <Tr><Td>10원 단위 버림 (floor10)</Td><Td>1원 자리를 버림</Td><Td>12,349 → 12,340</Td></Tr>
+            <Tr><Td>1,000원 단위 900 맞춤</Td><Td>10원 올림한 값에서 901을 빼고 1,000원 단위로 내린 뒤 +900 → 그 값 아래에서 끝자리가 900인 가장 큰 값 (이미 ○,900이면 한 단계 아래)</Td><Td>12,720 → 11,900 · 12,910 → 12,900 · 12,900 → 11,900</Td></Tr>
+            <Tr><Td>100원 단위 내림</Td><Td>100원 아래를 버림 (프라이싱 신규 탭 정책에서 선택 가능)</Td><Td>12,790 → 12,700</Td></Tr>
+            <Tr><Td>1원 단위 반올림 (round)</Td><Td>라이브 차감액 계산에만 사용</Td><Td>9,410 × 5% = 470.5 → 471</Td></Tr>
+          </tbody>
+        </table>
+
+        <h3 className="text-sm font-semibold text-gray-600 mb-2">B2C 시나리오 계산식 (기존 프라이싱 창)</h3>
+        <p className="text-xs text-gray-500 mb-1">* base = SKU 판매가</p>
         <p className="text-sm text-gray-500 mb-2">
           특가 최대할인율(20/15/10%)·상시 최대할인율(15/10/5%)·시즌오프 할인율(25/30%)은 SKU별 직접 선택.
           {' '}<Perm>마스터·PM·플랫폼MD·브랜드MD</Perm> (해당 SKU에만 반영). 계산식 기본값: 20%/15%/25%.
@@ -743,43 +762,97 @@ export function ManualTab() {
             <tr className="bg-gray-100">
               <Th>시나리오</Th>
               <Th>계산식 (KRW)</Th>
+              <Th>끝자리 처리</Th>
+              <Th>예시 (판매가 15,900 · 기본 할인율)</Th>
               <Th>비고</Th>
             </tr>
           </thead>
           <tbody>
-            <Tr><Td>오픈특가</Td><Td>floor((ceil10(base × (1 − 특가최대할인율)) − 901) ÷ 1000) × 1000 + 900</Td><Td>[오픈특가] 토글 활성 시 (기본 ON) · 특가 최대할인율 연동</Td></Tr>
-            <Tr><Td>신상위크</Td><Td>오픈특가 ≤ 10,000: ceil10(오픈특가 × 0.95) / 오픈특가 {'>'} 10,000: max(0, 오픈특가 − 1,000)</Td><Td>[신상위크] 토글 활성 시</Td></Tr>
-            <Tr><Td>라이브 할인</Td><Td>기준가(신상위크 or 오픈특가)에서 min(round(기준가×0.05), 1,000) 차감 후 ceil10</Td><Td>[신상위크] ON → 신상위크 기준 / [라이브] ON → 오픈특가 기준</Td></Tr>
-            <Tr><Td>선단독</Td><Td>오픈특가 ≤ 10,000: ceil10(오픈특가 × 0.95) / 오픈특가 {'>'} 10,000: max(0, 오픈특가 − 1,000)</Td><Td>[선단독] 토글 활성 시</Td></Tr>
-            <Tr><Td>상시 최대할인율</Td><Td>ceil10(base × (1 − 상시최대할인율))</Td><Td>항상 활성 · 15%/10%/5% 중 SKU별 선택</Td></Tr>
-            <Tr><Td>특가 최대할인율</Td><Td>ceil10(base × (1 − 특가최대할인율))</Td><Td>항상 활성 · 20%/15%/10% 중 SKU별 선택</Td></Tr>
-            <Tr><Td>시즌오프 (의류전용)</Td><Td>ceil10(base × (1 − 시즌오프할인율))</Td><Td>항상 활성 · 25%/30% 중 SKU별 선택</Td></Tr>
+            <Tr><Td>오픈특가</Td><Td>base × (1 − 특가최대할인율)</Td><Td>10원 단위 올림 → 1,000원 단위 900 맞춤</Td><Td>12,720 → 11,900</Td><Td>[오픈특가] 토글 활성 시 (기본 ON) · 특가 최대할인율 연동</Td></Tr>
+            <Tr><Td>신상위크</Td><Td>오픈특가 ≤ 10,000: 오픈특가 × 0.95 / 오픈특가 {'>'} 10,000: 오픈특가 − 1,000</Td><Td>≤ 10,000: 10원 단위 올림 / {'>'} 10,000: 끝자리 그대로 (0 미만이면 0)</Td><Td>11,900 → 10,900 (9,900 → 9,410)</Td><Td>[신상위크] 토글 활성 시</Td></Tr>
+            <Tr><Td>라이브 할인</Td><Td>기준가 − min(기준가 × 5%, 1,000)</Td><Td>차감액 1원 단위 반올림 → 차감 후 10원 단위 올림</Td><Td>10,900 − 545 = 10,355 → 10,360</Td><Td>[신상위크] ON → 신상위크 기준 / [라이브]만 ON → 오픈특가 기준</Td></Tr>
+            <Tr><Td>선단독</Td><Td>신상위크와 같은 계산</Td><Td>신상위크와 같음</Td><Td>10,900</Td><Td>[선단독] 토글 활성 시</Td></Tr>
+            <Tr><Td>상시 최대할인율</Td><Td>base × (1 − 상시최대할인율)</Td><Td>10원 단위 올림</Td><Td>13,515 → 13,520</Td><Td>항상 활성 · 15%/10%/5% 중 SKU별 선택</Td></Tr>
+            <Tr><Td>특가 최대할인율</Td><Td>base × (1 − 특가최대할인율)</Td><Td>10원 단위 올림</Td><Td>12,720 → 12,720</Td><Td>항상 활성 · 20%/15%/10% 중 SKU별 선택</Td></Tr>
+            <Tr><Td>시즌오프 (의류전용)</Td><Td>base × (1 − 시즌오프할인율)</Td><Td>10원 단위 올림</Td><Td>11,925 → 11,930</Td><Td>항상 활성 · 25%/30% 중 SKU별 선택</Td></Tr>
           </tbody>
         </table>
 
-        <h3 className="text-sm font-semibold text-gray-600 mb-2">B2B 시나리오 계산식</h3>
-        <table className="w-full border-collapse text-xs mb-3">
+        <h3 className="text-sm font-semibold text-gray-600 mb-2">B2B 시나리오 계산식 (기존 프라이싱 창)</h3>
+        <table className="w-full border-collapse text-xs mb-4">
           <thead>
             <tr className="bg-gray-100">
               <Th>시나리오</Th>
               <Th>계산식 (KRW)</Th>
+              <Th>끝자리 처리</Th>
+              <Th>예시 (판매가 15,900)</Th>
               <Th>외화 보조 표시</Th>
             </tr>
           </thead>
           <tbody>
-            <Tr><Td>B2B 오픈 할인</Td><Td>round10(base × 0.65 × 0.90)</Td><Td>— (반올림 유지)</Td></Tr>
-            <Tr><Td>B2B 상시 운영</Td><Td>round10(base × 0.65)</Td><Td>— (반올림 유지)</Td></Tr>
-            <Tr><Td>사입 공급가</Td><Td>ceil10(base × 0.50)</Td><Td>—</Td></Tr>
-            <Tr>
-              <Td>글로벌 공급가</Td>
-              <Td>ceil10( (base ÷ 1250 × 1.6) ÷ 2 × USD/KRW )</Td>
-              <Td>USD $ = (base ÷ 1250 × 1.6) ÷ 2</Td>
-            </Tr>
-            <Tr>
-              <Td>일본 공급가</Td>
-              <Td>ceil10( (base ÷ JPY/KRW × 1.3) ÷ 2 × JPY/KRW )</Td>
-              <Td>JPY ¥ = (base ÷ JPY/KRW × 1.3) ÷ 2</Td>
-            </Tr>
+            <Tr><Td>B2B 오픈 할인</Td><Td>base × 0.65 × 0.90</Td><Td>10원 단위 반올림</Td><Td>9,301.5 → 9,300</Td><Td>—</Td></Tr>
+            <Tr><Td>B2B 상시 운영</Td><Td>base × 0.65</Td><Td>10원 단위 반올림</Td><Td>10,335 → 10,340</Td><Td>—</Td></Tr>
+            <Tr><Td>사입 공급가</Td><Td>base × 0.50</Td><Td>10원 단위 올림</Td><Td>7,950 → 7,950</Td><Td>—</Td></Tr>
+            <Tr><Td>글로벌 공급가</Td><Td>(base ÷ 1250 × 1.6) ÷ 2 × USD/KRW</Td><Td>원화 10원 단위 올림 · 수동 수정 불가(자동 고정)</Td><Td>USD/KRW 1,400 기준 14,246.4 → 14,250</Td><Td>USD $ = (base ÷ 1250 × 1.6) ÷ 2, 소수 2자리 반올림</Td></Tr>
+            <Tr><Td>일본 공급가</Td><Td>(base ÷ JPY/KRW × 1.3) ÷ 2 × JPY/KRW</Td><Td>원화 10원 단위 올림</Td><Td>10,335 → 10,340</Td><Td>JPY ¥ = (base ÷ JPY/KRW × 1.3) ÷ 2, 1엔 단위 반올림</Td></Tr>
+          </tbody>
+        </table>
+
+        <h3 className="text-sm font-semibold text-gray-600 mb-2">프로젝션 › 프라이싱 (신규) 탭 계산식</h3>
+        <p className="text-xs text-gray-500 mb-1">* 할인율은 관리 › SKU 관리 › 할인 정책의 브랜드별 · 공통 값 (기본값 괄호) · 앞 칸의 실제값(수동 포함) 기준으로 다음 칸을 이어서 계산</p>
+        <table className="w-full border-collapse text-xs mb-4">
+          <thead>
+            <tr className="bg-gray-100">
+              <Th>항목</Th>
+              <Th>계산식 (KRW)</Th>
+              <Th>끝자리 처리</Th>
+            </tr>
+          </thead>
+          <tbody>
+            <Tr><Td>오픈특가</Td><Td>판매가 × (1 − 브랜드 오픈특가 %) (바잇미 20 · SSFW 10 · 그외 10)</Td><Td>10원 단위 올림 → 브랜드별 끝자리 규칙 (바잇미: 1,000원 단위 900 맞춤 · SSFW · 그외: 10원 단위 올림 그대로)</Td></Tr>
+            <Tr><Td>선오픈 최저가</Td><Td>주력 SKU만 · 오픈특가 ≤ 10,000: 오픈특가 × 0.95 / {'>'} 10,000: 오픈특가 − 1,000</Td><Td>≤ 10,000: 10원 단위 올림 / {'>'} 10,000: 끝자리 그대로</Td></Tr>
+            <Tr><Td>라이브</Td><Td>기준가 − min(기준가 × 5%, 1,000) · 기준가 = 선오픈 최저가(주력) 또는 오픈특가(일반)</Td><Td>차감액 1원 단위 반올림 → 차감 후 10원 단위 올림</Td></Tr>
+            <Tr><Td>상시 최대 · 특가 최대</Td><Td>판매가 × (1 − 브랜드 %) (상시: 바잇미 15 · SSFW · 그외 10 / 특가: 20)</Td><Td>10원 단위 올림</Td></Tr>
+            <Tr><Td>B2B 상시</Td><Td>판매가 × 브랜드 B2B % (65)</Td><Td>10원 단위 반올림</Td></Tr>
+            <Tr><Td>B2B 오픈</Td><Td>판매가 × B2B % × (1 − 추가 할인 %) (65 · 10)</Td><Td>10원 단위 반올림</Td></Tr>
+            <Tr><Td>사입 공급가</Td><Td>판매가 × 사입 % (50)</Td><Td>10원 단위 올림</Td></Tr>
+            <Tr><Td>팝업/페어</Td><Td>판매가 × (1 − 팝업 %) (10)</Td><Td>10원 단위 버림</Td></Tr>
+            <Tr><Td>글로벌 · 일본 공급가</Td><Td>기존 창과 같은 공식</Td><Td>원화 10원 단위 올림 · 글로벌은 자동 고정</Td></Tr>
+          </tbody>
+        </table>
+
+        <h3 className="text-sm font-semibold text-gray-600 mb-2">할인율을 세팅하면 → 가격</h3>
+        <table className="w-full border-collapse text-xs mb-4">
+          <thead>
+            <tr className="bg-gray-100">
+              <Th>어디서</Th>
+              <Th>무엇을 바꾸면</Th>
+              <Th>가격 반영</Th>
+            </tr>
+          </thead>
+          <tbody>
+            <Tr><Td>기존 프라이싱 창</Td><Td>특가 최대할인율(20/15/10%) 선택</Td><Td>특가 최대 · 오픈특가가 다시 계산되고(위 끝자리 규칙), 오픈특가를 기준으로 하는 신상위크 · 선단독 · 라이브도 함께 바뀜</Td></Tr>
+            <Tr><Td>기존 프라이싱 창</Td><Td>상시 최대할인율(15/10/5%) · 시즌오프(25/30%) 선택</Td><Td>해당 행만 다시 계산 (10원 단위 올림)</Td></Tr>
+            <Tr><Td>관리 › 할인 정책</Td><Td>브랜드 · 공통 % 변경</Td><Td>프라이싱 (신규) 탭의 <strong>미확정</strong> SKU에 바로 반영 · 가격 확정된 SKU는 확정 시점 가격 유지("정책 변경 · 현재 ○○" 표시)</Td></Tr>
+            <Tr><Td>프라이싱 (신규) 칸 입력</Td><Td><code>10%</code>처럼 % 붙여 입력</Td><Td>판매가 × (100 − n)% → 10원 단위 올림 (예: 15,900 × 90% = 14,310). 소수 % 가능 (12.5% → 13,912.5 → 13,920). 판매가가 바뀌면 같은 %로 다시 계산 · 확정 시 금액으로 고정</Td></Tr>
+          </tbody>
+        </table>
+
+        <h3 className="text-sm font-semibold text-gray-600 mb-2">가격을 세팅하면 → 할인율 · 원가율</h3>
+        <table className="w-full border-collapse text-xs mb-4">
+          <thead>
+            <tr className="bg-gray-100">
+              <Th>항목</Th>
+              <Th>계산</Th>
+              <Th>표시 자릿수</Th>
+            </tr>
+          </thead>
+          <tbody>
+            <Tr><Td>판매가 대비 할인율 (상시가 대비)</Td><Td>(1 − 가격 ÷ 판매가) × 100</Td><Td>기존 창: 정수 반올림 · 신규 탭: 소수 1자리 반올림</Td></Tr>
+            <Tr><Td>정가 대비 할인율</Td><Td>(1 − 가격 ÷ 정가) × 100</Td><Td>기존 창: 정수 반올림 · 신규 탭: 소수 1자리 반올림</Td></Tr>
+            <Tr><Td>원가율</Td><Td>원가 ÷ 가격 × 100</Td><Td>기존 창: 정수 반올림 · 신규 탭: 소수 1자리 반올림</Td></Tr>
+            <Tr><Td>상시할인율 (기존 창 상단)</Td><Td>(1 − 판매가 ÷ 정가) × 100</Td><Td>소수 1자리 반올림</Td></Tr>
+            <Tr><Td>금액 직접 입력 (기존 창 수동 모드 · 신규 탭 칸 입력)</Td><Td>입력한 금액 그대로 저장 — 끝자리 처리 없음. 할인율 · 원가율만 위 식으로 다시 계산</Td><Td>신규 탭은 판매가보다 큰 금액 · 0 이하는 저장 안 함</Td></Tr>
           </tbody>
         </table>
 
