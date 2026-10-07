@@ -561,7 +561,7 @@ export function ChannelTargetSection({ skus }: { skus: SkuData[] }) {
     const season = isSeasonOnly(s);
     return (
       <>
-        <Row label={<span className="font-bold text-gray-600">대응SKU 실적</span>} sub={cd?.names.length ? shortPeriod(cd.modeLabel) : 'SKU 미설정'} months={months} cls="bg-gray-100/70"
+        <Row label={<span className="font-bold text-gray-600">대응SKU 실적{cd && Object.keys(cd.monthly).length > 0 && <span className="font-normal text-gray-400"> ({cd.monthlyActiveOnly ? '비운영 채널 제외' : '비운영 채널 포함'})</span>}</span>} sub={cd?.names.length ? shortPeriod(cd.modeLabel) : 'SKU 미설정'} months={months} cls="bg-gray-100/70"
           total={compSum} cell={(m) => <span className="text-gray-600">{fmt(compM(m))}</span>} />
         <Row label="수량" months={months} total={sumQ} cell={(m) => <span className="font-semibold">{q(m) ? fmt(q(m)) : '–'}</span>} />
         <Row label="비중" sub="발주량 대비" months={months}

@@ -660,7 +660,7 @@ function ChannelDistChart({
   return (
     <div className="rounded-lg border border-gray-200 p-2.5 space-y-2">
       <div className="flex items-center justify-between">
-        <span className="text-xs font-semibold text-gray-600">채널별 월평균 출고 (자동) <span className="text-[10px] font-normal text-gray-400">참고 · 비운영 포함</span></span>
+        <span className="text-xs font-semibold text-gray-600">채널별 월평균 출고 (자동) <span className="text-[10px] font-normal text-gray-400">참고 · 비운영 채널 포함</span></span>
         {periodLabel && (
           <span className="text-[10px] text-gray-400 bg-gray-50 px-1.5 py-0.5 rounded border border-gray-100">{periodLabel}</span>
         )}

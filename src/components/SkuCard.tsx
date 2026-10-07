@@ -18,7 +18,7 @@ import { NumericInput } from './NumericInput';
 import { useExchangeRates } from '../utils/useExchangeRates';
 import { usePermission } from '../contexts/PermissionsContext';
 import { canConfirmGroup, isAllChannelRole, ownsChannel, type QtyChannel } from '../utils/channelOwnership';
-import { calcVarCostResults, fallbackWeightsOf, getCompQtyAdj } from '../utils/compareData';
+import { calcVarCostResults, compMonthlyActive, fallbackWeightsOf, getCompQtyAdj } from '../utils/compareData';
 import { MarketingBriefModal } from './MarketingBriefModal';
 import { exportSimulationXlsx } from '../utils/exportXlsx';
 import { PRICING_SCENARIOS, PRICING_DEFAULT_OPT } from '../utils/pricingScenarios';
@@ -779,7 +779,7 @@ function BasicInfoColumn({ sku, readOnly }: { sku: SkuData; readOnly?: boolean }
 function MonthlyTable({
   sku,
   readOnly,
-  compMonthlyData,
+  compMonthlyData: compMonthlyTotal,
   compModeLabel,
   compMode,
   compChannelDist,
@@ -816,6 +816,14 @@ function MonthlyTable({
   }, []);
 
   const releaseYear = sku.releaseDate ? parseInt(sku.releaseDate.split('-')[0], 10) : 2026;
+
+  // 대응SKU 실적 — 채널 데이터 있으면 운영 채널 합(비운영 채널 제외), 없으면 SKU 토탈(비운영 채널 포함)
+  const compMonthlyActiveOnly = useMemo(
+    () => compMonthlyActive(sku, compChannelYM, compMode, getSkuMonths(sku.releaseDate), releaseYear),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [compChannelYM, compMode, sku.releaseDate, releaseYear, getDisabledChannels(sku).join('|')],
+  );
+  const compMonthlyData = compMonthlyActiveOnly ?? compMonthlyTotal;
 
   const varCostResults = useMemo<Record<string, { ratio: number; isFallback: boolean }>>(
     () => calcVarCostResults(teamCateMap, sku, compMode, compChannelYM),
@@ -1137,6 +1145,7 @@ function MonthlyTable({
                   sku,
                   pricingOpts,
                   compMonthlyData,
+                  compMonthlyActiveOnly: !!compMonthlyActiveOnly,
                   compChannelDist,
                   varCostByChannel,
                   usdKrw: mtUsdKrw,
@@ -1225,7 +1234,7 @@ function MonthlyTable({
               return (
                 <tr className="border-b border-gray-100 bg-gray-50/50">
                   <td className="px-3 py-2 whitespace-nowrap">
-                    <div className="text-gray-500 font-medium text-[11px]">대응SKU 실적</div>
+                    <div className="text-gray-500 font-medium text-[11px]">대응SKU 실적{hasData && <span className="font-normal text-gray-400"> ({compMonthlyActiveOnly ? '비운영 채널 제외' : '비운영 채널 포함'})</span>}</div>
                     <div className="text-[10px] leading-tight mt-0.5">
                       {hasData ? (
                         <span className="text-indigo-400">{compModeLabel}</span>

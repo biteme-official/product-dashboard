@@ -4,7 +4,7 @@
  */
 import {
   adjustDistForDisabled, getDisabledChannels, getReleaseMonth, getSkuMonths, isNextYearMonth,
-  B2C_CHANNELS, B2B_CHANNELS,
+  B2C_CHANNELS, B2B_CHANNELS, CHANNELS,
   type Channel, type Month, type SkuData,
 } from '../types';
 import {
@@ -63,8 +63,10 @@ export interface CompareData {
   names: string[];
   mode: CompareMode;
   modeLabel: string;
-  /** 월 계획 표 "대응SKU 실적" 행 (월 → 수량) */
+  /** 월 계획 표 "대응SKU 실적" 행 (월 → 수량) — 채널 데이터 있으면 비운영 채널 제외, 없으면 SKU 토탈 */
   monthly: Partial<Record<number, number>>;
+  /** monthly가 비운영 채널 제외 값인지 (false = SKU 토탈 · 비운영 채널 포함) */
+  monthlyActiveOnly: boolean;
   /** 채널×연월 원시 실적 (채널 펼침 상세 "대응SKU" 행) */
   channelYM: ChannelByYearMonth | null;
   /** 기간 내 채널별 실적 (채널 비중 기준) */
@@ -89,7 +91,7 @@ export function buildCompareData(
   const ry = releaseYearOf(sku);
   const effMode: CompareMode = mode === 'samePeriod' && rm && ry ? 'samePeriod' : 'rolling12';
   if (found.length === 0) {
-    return { names, mode: effMode, modeLabel: effMode === 'samePeriod' ? '동기간' : '직전 12개월/월평균', monthly: {}, channelYM: null, channelDist: null };
+    return { names, mode: effMode, modeLabel: effMode === 'samePeriod' ? '동기간' : '직전 12개월/월평균', monthly: {}, monthlyActiveOnly: false, channelYM: null, channelDist: null };
   }
   const aggregated = aggregateByYearMonth(found);
   const modeLabel = effMode === 'samePeriod' && rm && ry ? calcSamePeriod(aggregated, rm, ry).label : '직전 12개월/월평균';
@@ -102,7 +104,8 @@ export function buildCompareData(
     channelYM = Object.keys(agg).length > 0 ? agg : null;
     channelDist = Object.keys(qty).length > 0 ? qty : null;
   }
-  return { names, mode: effMode, modeLabel, monthly, channelYM, channelDist };
+  const active = compMonthlyActive(sku, channelYM, effMode, getSkuMonths(sku.releaseDate), ry ?? 2026);
+  return { names, mode: effMode, modeLabel, monthly: active ?? monthly, monthlyActiveOnly: !!active, channelYM, channelDist };
 }
 
 /**
@@ -152,6 +155,31 @@ export function getCompQtyAdj(
   if (!partner || !disabled.includes(partner)) return own;
   const moved = getCompQty(channelYM, mode, partner, month, skuMonths, releaseYear);
   return own == null && moved == null ? null : (own ?? 0) + (moved ?? 0);
+}
+
+/**
+ * 대응SKU 월별 실적 — 운영 채널 실적 합 (비운영 채널 제외 · 해외 한쪽 OFF면 남은 쪽 합산).
+ * 채널 데이터가 없으면 null → 호출부에서 SKU 토탈(비운영 채널 포함)로 대체.
+ */
+export function compMonthlyActive(
+  sku: SkuData,
+  channelYM: ChannelByYearMonth | null | undefined,
+  mode: CompareMode | undefined,
+  skuMonths: Month[],
+  releaseYear: number,
+): Partial<Record<number, number>> | null {
+  if (!channelYM) return null;
+  const out: Partial<Record<number, number>> = {};
+  for (const m of skuMonths) {
+    let sum = 0;
+    let has = false;
+    for (const c of CHANNELS) {
+      const q = getCompQtyAdj(sku, channelYM, mode, c, m, skuMonths, releaseYear);
+      if (q != null) { sum += q; has = true; }
+    }
+    if (has) out[m] = sum;
+  }
+  return out;
 }
 
 /** 비운영 반영 대응SKU 채널 분포 (기간 합) — 비운영 채널 0, 해외 한쪽 OFF면 남은 쪽으로 합산 */

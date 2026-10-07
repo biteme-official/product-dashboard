@@ -185,6 +185,8 @@ export interface SimExportParams {
   sku: SkuData;
   pricingOpts: Record<string, string>;
   compMonthlyData: Partial<Record<number, number>>;
+  /** compMonthlyData가 운영 채널 합(비운영 채널 제외)인지 */
+  compMonthlyActiveOnly?: boolean;
   compChannelDist: Record<string, number> | null;
   varCostByChannel: Record<string, number>;
   usdKrw?: number;
@@ -204,7 +206,7 @@ function colLetter(c: number): string {
 
 export function exportSimulationXlsx(params: SimExportParams): void {
   const {
-    sku, pricingOpts, compMonthlyData, compChannelDist,
+    sku, pricingOpts, compMonthlyData, compMonthlyActiveOnly, compChannelDist,
     varCostByChannel, usdKrw = 1400, jpyKrw = 9.0,
   } = params;
 
@@ -286,7 +288,7 @@ export function exportSimulationXlsx(params: SimExportParams): void {
   sv(R_INFO, 6, '판매가(원)'); sv(R_INFO, C_PRICE, sku.price);
 
   // ── Section 2 ──────────────────────────────────────────────────────────
-  sv(R_S2_TITLE, 0, '▶ 대응 SKU 2025 월별 실적');
+  sv(R_S2_TITLE, 0, `▶ 대응 SKU 2025 월별 실적 (${compMonthlyActiveOnly ? '비운영 채널 제외' : '비운영 채널 포함'})`);
   sv(R_COMP_M_HDR, 0, '월');
   MONTH_LABELS.forEach((lb, i) => sv(R_COMP_M_HDR, C_M[i], lb));
   sv(R_COMP_M_HDR, C_QTOT, '합계');
