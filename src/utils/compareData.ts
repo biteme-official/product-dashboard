@@ -130,6 +130,37 @@ export function getCompQty(
   return monthly > 0 ? monthly : null;
 }
 
+/**
+ * 비운영 반영 대응SKU 채널×월 수량 — 대응SKU 비중 · 증감 · 대응 대비 계산용 ([대응SKU 기준 채우기]와 같은 규칙).
+ * - 비운영 채널(쿠팡 미활성 · 글로벌/일본 OFF)은 null → 비중 분모에서도 빠짐
+ * - 해외 한쪽만 OFF면 꺼진 쪽 실적을 남은 해외 채널로 합산 (태블로 "해외" 출고를 40/60 임의 분할한 값이라)
+ * SKU카드 대응SKU 채널별 실적 차트는 참고용이라 원본 그대로 둔다.
+ */
+export function getCompQtyAdj(
+  sku: SkuData,
+  channelYM: ChannelByYearMonth | null | undefined,
+  mode: CompareMode | undefined,
+  channel: Channel,
+  month: Month,
+  skuMonths: Month[],
+  releaseYear: number,
+): number | null {
+  const disabled = getDisabledChannels(sku);
+  if (disabled.includes(channel)) return null;
+  const own = getCompQty(channelYM, mode, channel, month, skuMonths, releaseYear);
+  const partner: Channel | null = channel === '글로벌' ? '일본' : channel === '일본' ? '글로벌' : null;
+  if (!partner || !disabled.includes(partner)) return own;
+  const moved = getCompQty(channelYM, mode, partner, month, skuMonths, releaseYear);
+  return own == null && moved == null ? null : (own ?? 0) + (moved ?? 0);
+}
+
+/** 비운영 반영 대응SKU 채널 분포 (기간 합) — 비운영 채널 0, 해외 한쪽 OFF면 남은 쪽으로 합산 */
+export function compDistForShare(sku: SkuData, dist: Record<string, number>): Record<string, number> {
+  const disabled = getDisabledChannels(sku);
+  const adj = adjustDistForDisabled(dist, disabled);
+  return Object.fromEntries(Object.entries(adj).map(([ch, q]) => [ch, (disabled as readonly string[]).includes(ch) ? 0 : q]));
+}
+
 /** 수량이 없던 칸을 채우거나 다시 나눌 때 쓰는 채널 비중 — 대응SKU 비중(비운영 반영), 없으면 기본 비중 */
 export function fallbackWeightsOf(sku: SkuData, channelDist: Record<string, number> | null): Partial<Record<Channel, number>> {
   return channelDist

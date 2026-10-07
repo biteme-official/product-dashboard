@@ -8,7 +8,7 @@ import { useAuth } from '../store/auth';
 import { usePermission } from '../contexts/PermissionsContext';
 import { canConfirmGroup, isAllChannelRole, ownedChannels, ownsChannel, type QtyChannel } from '../utils/channelOwnership';
 import {
-  buildCompareData, calcVarCostResults, compareNamesOf, fallbackWeightsOf, getCompQty, type CompareData,
+  buildCompareData, calcVarCostResults, compareNamesOf, fallbackWeightsOf, getCompQtyAdj, type CompareData,
 } from '../utils/compareData';
 import { allocate, redistributeByWeights, setMonthTotal } from '../utils/qtyPlan';
 import { PRICING_DEFAULT_OPT } from '../utils/pricingScenarios';
@@ -304,7 +304,7 @@ export function ChannelTargetSection({ skus }: { skus: SkuData[] }) {
     if (b.type === 'comp') {
       if (!cd?.channelYM) return { skip: '대응SKU 미설정' };
       let n = 0;
-      const entries = setCh((m) => { const c = getCompQty(cd.channelYM, cd.mode, ch, m, months, releaseYearOf(s)); if (c == null) return null; n++; return c * (1 + b.pct / 100); });
+      const entries = setCh((m) => { const c = getCompQtyAdj(s, cd.channelYM, cd.mode, ch, m, months, releaseYearOf(s)); if (c == null) return null; n++; return c * (1 + b.pct / 100); });
       if (!n) return { skip: '대응 실적 없음' };
       return { patch: { channelMonthQty: entries }, note: n < months.length ? `대응 실적 없는 ${months.length - n}개월은 유지` : '' };
     }
@@ -327,7 +327,7 @@ export function ChannelTargetSection({ skus }: { skus: SkuData[] }) {
     const sumOf = (entries: ChannelMonthQtyEntry[]) => entries.filter((e) => months.includes(e.month) && (isPlan || e.channel === channel)).reduce((a, e) => a + e.qty, 0);
     const cd = compById[s.id];
     const compSum = cd?.channelYM && !isPlan && channel !== '마케팅'
-      ? months.reduce((a, m) => a + (getCompQty(cd.channelYM, cd.mode, channel as Channel, m, months, releaseYearOf(s)) ?? 0), 0)
+      ? months.reduce((a, m) => a + (getCompQtyAdj(s, cd.channelYM, cd.mode, channel as Channel, m, months, releaseYearOf(s)) ?? 0), 0)
       : isPlan && cd ? months.reduce((a, m) => a + (cd.monthly[m] ?? 0), 0) : 0;
     const before = sumOf(s.channelMonthQty);
     const after = r.patch?.channelMonthQty ? sumOf(r.patch.channelMonthQty) : before;
@@ -446,7 +446,8 @@ export function ChannelTargetSection({ skus }: { skus: SkuData[] }) {
     const allAt = (m: Month) => CHANNELS.reduce((a, c) => a + qtyOf(s, c, m), 0) + (ch === '마케팅' ? qtyOf(s, ch, m) : 0);
     const allSum = (ms: Month[]) => ms.reduce((a, m) => a + allAt(m), 0);
     const shareOf = (a: number, b: number) => (b > 0 ? Math.round((a / b) * 100) : null);
-    const compAt = (c: Channel, m: Month) => (cd?.channelYM ? getCompQty(cd.channelYM, cd.mode, c, m, months, ry) ?? 0 : 0);
+    // 대응SKU 쪽도 비운영 채널 제외 · 해외 한쪽 OFF면 남은 쪽 합산 (채우기와 같은 규칙)
+    const compAt = (c: Channel, m: Month) => (cd?.channelYM ? getCompQtyAdj(s, cd.channelYM, cd.mode, c, m, months, ry) ?? 0 : 0);
     const compShare = (ms: Month[]) => {
       if (ch === '마케팅' || !cd?.channelYM) return null;
       const all = ms.reduce((a, m) => a + CHANNELS.reduce((x, c) => x + compAt(c, m), 0), 0);
@@ -462,7 +463,7 @@ export function ChannelTargetSection({ skus }: { skus: SkuData[] }) {
       <>
         <Row label={<span className="font-semibold text-gray-600">전 채널 합계</span>} sub={ch === '마케팅' ? '판매 채널 + 마케팅' : '마케팅 제외'} months={months} cls="bg-indigo-50/30"
           total={allSum} cell={(m) => <span className="text-gray-700">{fmt(allAt(m))}</span>} />
-        <Row label={<span className="font-semibold text-gray-600">{ch} 비중</span>} sub={ch === '마케팅' ? undefined : '아래 = 대응SKU'} months={months} cls="bg-indigo-50/30 border-b-2 border-b-gray-200"
+        <Row label={<span className="font-semibold text-gray-600">{ch} 비중</span>} sub={ch === '마케팅' ? undefined : '아래 = 대응SKU · 비운영 제외'} months={months} cls="bg-indigo-50/30 border-b-2 border-b-gray-200"
           total={(ms) => shareOf(sumQ(ms), allSum(ms))} fmtTotal={(v, ms) => shareCell(v, compShare(ms))}
           cell={(m) => shareCell(shareOf(qtyOf(s, ch, m), allAt(m)), compShare([m]))} />
       </>
@@ -478,7 +479,7 @@ export function ChannelTargetSection({ skus }: { skus: SkuData[] }) {
         </>
       );
     }
-    const comp = (m: Month) => (cd ? getCompQty(cd.channelYM, cd.mode, ch, m, months, ry) : null);
+    const comp = (m: Month) => (cd ? getCompQtyAdj(s, cd.channelYM, cd.mode, ch, m, months, ry) : null);
     const compSum = (ms: Month[]) => (cd?.channelYM ? ms.reduce((a, m) => a + (comp(m) ?? 0), 0) : null);
     const baseQty = (m: Month) => s.step2InitBaselineQty?.find((e) => e.channel === ch && e.month === m)?.qty ?? null;
     const vc = varCostOf(s)[ch]?.ratio ?? 0.25;
