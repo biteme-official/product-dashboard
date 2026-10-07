@@ -2,6 +2,7 @@ import * as XLSX from 'xlsx';
 import type { SkuData, Channel } from '../types';
 import { B2C_CHANNELS, B2B_CHANNELS, getSkuMonths, isNextYearMonth, getDisabledChannels } from '../types';
 import { step1Pricer } from './step1Price';
+import { compDistForShare } from './compareData';
 import { getPricingPolicy } from '../hooks/usePricingPolicy';
 
 function todayYymmdd(): string {
@@ -297,12 +298,14 @@ export function exportSimulationXlsx(params: SimExportParams): void {
   // ── Section 3 ──────────────────────────────────────────────────────────
   sv(R_S3_TITLE, 0, '▶ 대응 SKU 채널별 비중');
   sv(R_COMP_CH_HDR, 0, '채널');
-  ALL_CH.forEach((ch, i) => sv(R_COMP_CH_HDR, i + 1, ch));
+  ALL_CH.forEach((ch, i) => sv(R_COMP_CH_HDR, i + 1, chLabel(ch)));
   sv(R_COMP_CH_DATA, 0, '비중%');
-  const distTotal = compChannelDist
-    ? ALL_CH.reduce((s, ch) => s + (compChannelDist[ch] ?? 0), 0) : 0;
+  // 비운영 채널 제외 · 해외 한쪽 OFF면 남은 쪽 합산 (대시보드 대응SKU 비중과 같은 규칙)
+  const shareDist = compChannelDist ? compDistForShare(sku, compChannelDist) : null;
+  const distTotal = shareDist
+    ? ALL_CH.reduce((s, ch) => s + (shareDist[ch] ?? 0), 0) : 0;
   ALL_CH.forEach((ch, i) => {
-    const pct = (compChannelDist && distTotal > 0) ? (compChannelDist[ch] ?? 0) / distTotal : 0;
+    const pct = (shareDist && distTotal > 0) ? (shareDist[ch] ?? 0) / distTotal : 0;
     spct(R_COMP_CH_DATA, i + 1, pct);
   });
 

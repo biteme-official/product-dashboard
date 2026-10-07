@@ -18,7 +18,7 @@ import { NumericInput } from './NumericInput';
 import { useExchangeRates } from '../utils/useExchangeRates';
 import { usePermission } from '../contexts/PermissionsContext';
 import { canConfirmGroup, isAllChannelRole, ownsChannel, type QtyChannel } from '../utils/channelOwnership';
-import { calcVarCostResults, fallbackWeightsOf, getCompQty as getCompQtyShared } from '../utils/compareData';
+import { calcVarCostResults, fallbackWeightsOf, getCompQtyAdj } from '../utils/compareData';
 import { MarketingBriefModal } from './MarketingBriefModal';
 import { exportSimulationXlsx } from '../utils/exportXlsx';
 import { PRICING_SCENARIOS, PRICING_DEFAULT_OPT } from '../utils/pricingScenarios';
@@ -1887,8 +1887,9 @@ function PricingChannelTable({
   // - 동기간: 출시월 기준 정확한 연도 매핑으로 해당 월 실적을 그대로 표시 (시즈널 비교용)
   // - 직전 12개월: 컬럼별로 연도가 뒤섞이는 걸 방지하기 위해, 채널별 직전 실적 월평균을
   //   윈도우 전체 월에 균등 배분해서 표시
+  // - 비운영 채널은 –, 해외 한쪽 OFF면 남은 쪽에 합산 (채우기와 같은 규칙 · 원본은 대응SKU 채널별 실적 차트)
   const getCompQty = (channel: Channel, month: Month): number | null =>
-    getCompQtyShared(compChannelYM, compMode, channel, month, skuMonths, releaseYear);
+    getCompQtyAdj(sku, compChannelYM, compMode, channel, month, skuMonths, releaseYear);
 
   /** basePrice 기준 선택지 가격 — 프라이싱 탭과 같은 가격 (할인 정책 · 확정 가격, 선택지 없으면 base 그대로) */
   const calcScenarioPrice = step1Pricer(sku, policy, { usd: usdKrw, jpy: jpyKrw });
