@@ -416,12 +416,14 @@ export function ChannelTargetSection({ skus }: { skus: SkuData[] }) {
       </tr>
     );
   };
-  const Row = ({ label, sub, months, cell, total, cls = '', fmtTotal = fmt }: {
+  const Row = ({ label, sub, months, cell, total, cls = '', fmtTotal = fmt, fmtEmpty }: {
     label: ReactNode; sub?: string; months: Month[]; cell: (m: Month) => ReactNode; total?: (ms: Month[]) => number | null; cls?: string; fmtTotal?: (n: number, ms: Month[]) => ReactNode;
+    /** 합계 값이 없을 때(null) 표시 — 없으면 '–' */
+    fmtEmpty?: (ms: Month[]) => ReactNode;
   }) => {
     const y1 = months.filter((m) => !isNextYr(m, months));
     const y2 = months.filter((m) => isNextYr(m, months));
-    const show = (ms: Month[]) => { const v = total ? total(ms) : null; return v == null ? <span className="text-gray-300">–</span> : fmtTotal(v, ms); };
+    const show = (ms: Month[]) => { const v = total ? total(ms) : null; return v != null ? fmtTotal(v, ms) : fmtEmpty ? fmtEmpty(ms) : <span className="text-gray-300">–</span>; };
     return (
       <tr className={`border-b border-gray-100 ${cls}`}>
         <td className="px-2 py-1 whitespace-nowrap text-[11px] text-gray-500 border-r border-gray-100">
@@ -464,7 +466,7 @@ export function ChannelTargetSection({ skus }: { skus: SkuData[] }) {
         <Row label={<span className="font-semibold text-gray-600">전 채널 합계</span>} sub={ch === '마케팅' ? '판매 채널 + 마케팅' : '마케팅 제외'} months={months} cls="bg-indigo-50/30"
           total={allSum} cell={(m) => <span className="text-gray-700">{fmt(allAt(m))}</span>} />
         <Row label={<span className="font-semibold text-gray-600">{ch} 비중</span>} sub={ch === '마케팅' ? undefined : '아래 = 대응SKU · 비운영 제외'} months={months} cls="bg-indigo-50/30 border-b-2 border-b-gray-200"
-          total={(ms) => shareOf(sumQ(ms), allSum(ms))} fmtTotal={(v, ms) => shareCell(v, compShare(ms))}
+          total={(ms) => shareOf(sumQ(ms), allSum(ms))} fmtTotal={(v, ms) => shareCell(v, compShare(ms))} fmtEmpty={(ms) => shareCell(null, compShare(ms))}
           cell={(m) => shareCell(shareOf(qtyOf(s, ch, m), allAt(m)), compShare([m]))} />
       </>
     );
