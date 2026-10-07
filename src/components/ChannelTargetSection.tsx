@@ -8,7 +8,7 @@ import { useAuth } from '../store/auth';
 import { usePermission } from '../contexts/PermissionsContext';
 import { canConfirmGroup, isAllChannelRole, ownedChannels, ownsChannel, type QtyChannel } from '../utils/channelOwnership';
 import {
-  buildCompareData, calcVarCostResults, compareNamesOf, fallbackWeightsOf, getCompQtyAdj, type CompareData,
+  buildCompareData, calcVarCostResults, compareNamesOf, compDistForShare, fallbackWeightsOf, getCompQtyAdj, type CompareData,
 } from '../utils/compareData';
 import { allocate, redistributeByWeights, setMonthTotal } from '../utils/qtyPlan';
 import { PRICING_DEFAULT_OPT } from '../utils/pricingScenarios';
@@ -450,8 +450,11 @@ export function ChannelTargetSection({ skus }: { skus: SkuData[] }) {
     const shareOf = (a: number, b: number) => (b > 0 ? Math.round((a / b) * 100) : null);
     // 대응SKU 쪽도 비운영 채널 제외 · 해외 한쪽 OFF면 남은 쪽 합산 (채우기와 같은 규칙)
     const compAt = (c: Channel, m: Month) => (cd?.channelYM ? getCompQtyAdj(s, cd.channelYM, cd.mode, c, m, months, ry) ?? 0 : 0);
+    // 직전 12개월은 채널마다 평균 낸 달이 달라 월평균끼리 비교하면 왜곡 → 채우기와 같은 기간 총량 비중
+    const shareDist = cd?.mode === 'rolling12' && cd.channelDist ? compDistForShare(s, cd.channelDist) : null;
     const compShare = (ms: Month[]) => {
       if (ch === '마케팅' || !cd?.channelYM) return null;
+      if (shareDist) return shareOf(shareDist[ch] ?? 0, CHANNELS.reduce((a, c) => a + (shareDist[c] ?? 0), 0));
       const all = ms.reduce((a, m) => a + CHANNELS.reduce((x, c) => x + compAt(c, m), 0), 0);
       return shareOf(ms.reduce((a, m) => a + compAt(ch, m), 0), all);
     };

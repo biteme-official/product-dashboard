@@ -159,6 +159,9 @@ export function getCompQtyAdj(
 
 /**
  * 대응SKU 월별 실적 — 운영 채널 실적 합 (비운영 채널 제외 · 해외 한쪽 OFF면 남은 쪽 합산).
+ * 운영 채널 출고를 연·월별로 먼저 합친 뒤 SKU 토탈과 같은 방식으로 계산한다
+ * (직전 12개월 = 출고 있던 최근 12개월 평균 · 동기간 = 그 달 실적). 채널별 월평균을 더하면
+ * 채널마다 평균 낸 달이 달라 부풀기 때문.
  * 채널 데이터가 없으면 null → 호출부에서 SKU 토탈(비운영 채널 포함)로 대체.
  */
 export function compMonthlyActive(
@@ -169,16 +172,28 @@ export function compMonthlyActive(
   releaseYear: number,
 ): Partial<Record<number, number>> | null {
   if (!channelYM) return null;
-  const out: Partial<Record<number, number>> = {};
-  for (const m of skuMonths) {
-    let sum = 0;
-    let has = false;
-    for (const c of CHANNELS) {
-      const q = getCompQtyAdj(sku, channelYM, mode, c, m, skuMonths, releaseYear);
-      if (q != null) { sum += q; has = true; }
+  const disabled = getDisabledChannels(sku);
+  const partnerOf = (c: Channel): Channel | null => (c === '글로벌' ? '일본' : c === '일본' ? '글로벌' : null);
+  // 해외 한쪽만 OFF면 꺼진 쪽 실적도 남은 쪽으로 합산되므로 포함
+  const included = CHANNELS.filter((c) => !disabled.includes(c) || (partnerOf(c) != null && !disabled.includes(partnerOf(c)!)));
+  const combined: Record<number, Record<number, number>> = {};
+  for (const c of included) {
+    for (const [ys, byM] of Object.entries(channelYM[c] ?? {})) {
+      const y = Number(ys);
+      combined[y] ??= {};
+      for (const [ms, q] of Object.entries(byM)) combined[y][Number(ms)] = (combined[y][Number(ms)] ?? 0) + (q as number);
     }
-    if (has) out[m] = sum;
   }
+  const out: Partial<Record<number, number>> = {};
+  if (mode === 'samePeriod') {
+    for (const m of skuMonths) {
+      const q = combined[m < skuMonths[0] ? releaseYear : releaseYear - 1]?.[m];
+      if (q !== undefined) out[m] = q;
+    }
+    return out;
+  }
+  const { monthly } = calcRolling12(combined);
+  if (monthly > 0) for (const m of skuMonths) out[m] = monthly;
   return out;
 }
 
