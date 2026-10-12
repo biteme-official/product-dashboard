@@ -2,7 +2,7 @@
  * 원가 · 판매가 · 정가 확인 요청 (stock 시트 ≠ 대시보드) — price-confirm-digest.gs와 같은 프로젝트에 추가하는 파일
  * (listDocs_ · postSlack_ · notifyError_ · todayKst_ · md_ · esc_ 등은 price-confirm-digest.gs 함수를 같이 씀)
  *
- * 매주 월요일 10:30(KST) — 오픈 전(오픈일 > 오늘) SKU 중 stock 시트와 원가 · 판매가 · 정가가 다른 SKU를 #데이터팀에 보냄.
+ * 매주 첫 영업일 10:30(KST, 보통 월요일 · 월요일이 공휴일이면 화요일 등 — 주말·공휴일엔 안 보냄) — 오픈 전(오픈일 > 오늘) SKU 중 stock 시트와 원가 · 판매가 · 정가가 다른 SKU를 #데이터팀에 보냄.
  *   - 매칭: stock I열 SKU명 = 대시보드 SKU명 (띄어쓰기 무시) · stock 미등록 SKU는 개수만 표시
  *   - 비교: stock K 원가 · L 판매가 · R 정가 ↔ 대시보드 원가 · 판매가 · 정가
  *           어느 한쪽이 0 · 빈칸이면 그 항목은 비교 안 함 · 옵션별 값이 여러 개면 그중 하나와 같으면 같다고 봄
@@ -19,10 +19,10 @@ const DIFF_FIELDS = [['cost', '원가', 'cost'], ['price', '판매가', 'price']
 
 // ───────────────────────── 실행 함수 ─────────────────────────
 
-/** 트리거용 — 월요일에만, 같은 날 한 번만 */
+/** 트리거용 — 그 주 첫 영업일에만(isFirstBusinessDayOfWeek_ · price-confirm-digest.gs), 같은 날 한 번만 */
 function weeklyStockDiffDigest() {
   const today = todayKst_();
-  if (dowOf_(today) !== 1) return;
+  if (!isFirstBusinessDayOfWeek_(today)) return;
   const props = PropertiesService.getScriptProperties();
   if (props.getProperty('LAST_SENT_STOCK') === today) return;
   try {
@@ -53,14 +53,14 @@ function sendStockDiffNow() {
   postSlack_(PropertiesService.getScriptProperties().getProperty('CHANNEL_ID'), buildStockDiff_(collectStockDiff_(today), today));
 }
 
-/** 매주 월요일 10:30 트리거 등록 (이 함수의 트리거만 다시 만듦 · 가격 확정 알림 트리거는 그대로) */
+/** 매일 10:30 트리거 등록 — 그 주 첫 영업일인지는 weeklyStockDiffDigest 가 판단 (이 함수의 트리거만 다시 만듦 · 가격 확정 알림 트리거는 그대로) */
 function setupStockDiffTrigger() {
   ScriptApp.getProjectTriggers()
     .filter((t) => t.getHandlerFunction() === 'weeklyStockDiffDigest')
     .forEach((t) => ScriptApp.deleteTrigger(t));
   ScriptApp.newTrigger('weeklyStockDiffDigest').timeBased()
-    .onWeekDay(ScriptApp.WeekDay.MONDAY).atHour(10).nearMinute(30).everyWeeks(1).create();
-  console.log('트리거 등록: 매주 월요일 10:30');
+    .everyDays(1).atHour(10).nearMinute(30).create();
+  console.log('트리거 등록: 매일 10:30 (그 주 첫 영업일에만 보냄)');
 }
 
 // ───────────────────────── 비교 ─────────────────────────

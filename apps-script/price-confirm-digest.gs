@@ -1,7 +1,7 @@
 /**
  * 가격 확정 요청 알림 (Apps Script · 독립 프로젝트)
  *
- * 매주 월요일 15시(KST) — 오늘 ~ 3주 뒤 그 주 금요일 사이 오픈 예정이면서 가격 확정이 안 된 SKU를
+ * 매주 첫 영업일 15시(KST, 보통 월요일 · 월요일이 공휴일이면 화요일 등) — 오늘 ~ 3주 뒤 그 주 금요일 사이 오픈 예정이면서 가격 확정이 안 된 SKU를
  * 오픈일 → 브랜드로 묶고 카테고리(LIST VIEW 순서) 순으로 정렬해 pb_bot으로 #데이터팀에 보낸다.
  *
  * 대상: Product 대시보드 skus 컬렉션 (휴지통 SKU는 이미 빠져 있음)
@@ -15,7 +15,11 @@
  *   TEST_USER_ID     테스트 DM 받을 슬랙 사용자 ID (예: U02C3QYLRTR)
  *   TEST_MODE        true면 채널 대신 TEST_USER_ID로 보냄
  *
+ * 주말·공휴일(아래 HOLIDAYS_KR)엔 보내지 않는다. 트리거는 매일 15시에 돌고, 그 주 첫 영업일에만 보낸다.
+ *
  * 처음 한 번: previewDigest → sendTest → setupWeeklyTrigger → TEST_MODE=false
+ * (2026-10-12 휴일 처리 이후 이 파일을 다시 붙여넣었다면 setupWeeklyTrigger · setupStockDiffTrigger 를 한 번씩 다시 실행 —
+ *  예전 「월요일만」 트리거로는 월요일이 공휴일인 주에 화요일 발송이 안 됨)
  * 지금 바로 채널로 보내기: sendNow
  * 프로젝트 설정의 시간대는 반드시 (GMT+09:00) 서울.
  *
@@ -36,10 +40,10 @@ const DOW = '일월화수목금토';
 
 // ───────────────────────── 실행 함수 ─────────────────────────
 
-/** 트리거용 — 월요일에만, 같은 날 한 번만 보냄 */
+/** 트리거용 — 그 주 첫 영업일에만, 같은 날 한 번만 보냄 */
 function weeklyPriceConfirmDigest() {
   const today = todayKst_();
-  if (dowOf_(today) !== 1) return;
+  if (!isFirstBusinessDayOfWeek_(today)) return;
   const props = PropertiesService.getScriptProperties();
   if (props.getProperty('LAST_SENT') === today) return;
   try {
@@ -75,14 +79,14 @@ function sendNow() {
   postSlack_(PropertiesService.getScriptProperties().getProperty('CHANNEL_ID'), buildDigest_(collectTargets_(today), today));
 }
 
-/** 매주 월요일 15시 트리거 등록 (이 함수의 트리거만 다시 만듦) */
+/** 매일 15시 트리거 등록 — 그 주 첫 영업일인지는 weeklyPriceConfirmDigest 가 판단 (이 함수의 트리거만 다시 만듦) */
 function setupWeeklyTrigger() {
   ScriptApp.getProjectTriggers()
     .filter((t) => t.getHandlerFunction() === 'weeklyPriceConfirmDigest')
     .forEach((t) => ScriptApp.deleteTrigger(t));
   ScriptApp.newTrigger('weeklyPriceConfirmDigest').timeBased()
-    .onWeekDay(ScriptApp.WeekDay.MONDAY).atHour(15).nearMinute(0).everyWeeks(1).create();
-  console.log('트리거 등록: 매주 월요일 15시');
+    .everyDays(1).atHour(15).nearMinute(0).create();
+  console.log('트리거 등록: 매일 15시 (그 주 첫 영업일에만 보냄)');
 }
 
 // ───────────────────────── 대상 SKU ─────────────────────────
@@ -216,6 +220,25 @@ function ymd_(d) { return d.toISOString().slice(0, 10); }
 function addDays_(ymd, n) { const d = parse_(ymd); d.setUTCDate(d.getUTCDate() + n); return ymd_(d); }
 /** 1 = 월 … 7 = 일 */
 function dowOf_(ymd) { const w = parse_(ymd).getUTCDay(); return w === 0 ? 7 : w; }
+
+// ───────────────────────── 주말 · 공휴일 ─────────────────────────
+
+// 한국 공휴일(주말과 겹친 날 · 대체공휴일 포함). 목록에 없는 해는 주말만 쉬는 날로 봄 — 2028년 추가 필요.
+const HOLIDAYS_KR = [
+  '2026-01-01', '2026-02-16', '2026-02-17', '2026-02-18', '2026-03-01', '2026-03-02', '2026-05-01', '2026-05-05',
+  '2026-05-24', '2026-05-25', '2026-06-03', '2026-06-06', '2026-08-15', '2026-08-17', '2026-09-24', '2026-09-25',
+  '2026-09-26', '2026-10-03', '2026-10-05', '2026-10-09', '2026-12-25',
+  '2027-01-01', '2027-02-06', '2027-02-07', '2027-02-08', '2027-02-09', '2027-03-01', '2027-05-01', '2027-05-03',
+  '2027-05-05', '2027-05-13', '2027-06-06', '2027-07-17', '2027-07-19', '2027-08-15', '2027-08-16', '2027-09-14',
+  '2027-09-15', '2027-09-16', '2027-10-03', '2027-10-04', '2027-10-09', '2027-10-11', '2027-12-25', '2027-12-27',
+];
+function isBusinessDay_(ymd) { return dowOf_(ymd) <= 5 && HOLIDAYS_KR.indexOf(ymd) < 0; }
+/** 오늘이 영업일이고 이번 주 월요일~어제가 전부 쉬는 날이면 true (보통 월요일, 월요일이 공휴일이면 화요일 등) */
+function isFirstBusinessDayOfWeek_(ymd) {
+  if (!isBusinessDay_(ymd)) return false;
+  for (let d = addDays_(ymd, 1 - dowOf_(ymd)); d < ymd; d = addDays_(d, 1)) if (isBusinessDay_(d)) return false;
+  return true;
+}
 function md_(ymd) { const d = parse_(ymd); return `${d.getUTCMonth() + 1}/${d.getUTCDate()}(${DOW[d.getUTCDay()]})`; }
 function won_(n) { return typeof n === 'number' && n > 0 ? n.toLocaleString('ko-KR') : '–'; }
 /** 슬랙 mrkdwn 특수문자 */
