@@ -2,6 +2,7 @@
  * STEP 1 채널×월 판매가 선택지 → 실제 가격.
  * 프라이싱 탭과 같은 가격을 씀 (미확정 = 할인 정책 · 확정 = 확정 가격). SKU별 할인율은 더 이상 쓰지 않음.
  * 예전 선택지 신상위크 · 선단독 → 주력 SKU는 선오픈 최저가, 일반 SKU는 라이브 가격.
+ * 상시 최대는 프라이싱 탭에서 빈 값(일반 SKU)이어도 선택하면 브랜드 정책 할인율로 계산.
  */
 import type { SkuData } from '../types';
 import { floor10, liveFrom, preFrom, calcPricesV2, shownPricesV2, type PriceKey, type PriceSet, type PricingPolicy } from './pricingV2';
@@ -43,7 +44,7 @@ export function step1Pricer(sku: SkuData, policy: PricingPolicy, fx: { usd: numb
     if (!v) {
       v = base === sku.price
         ? shownPricesV2(sku, policy, fx)
-        : calcPricesV2({ price: base, brand: sku.brand, core, live: true }, policy, fx);
+        : calcPricesV2({ price: base, brand: sku.brand, category: sku.category, core, live: true }, policy, fx);
       sets.set(base, v);
     }
     return v;
@@ -58,6 +59,7 @@ export function step1Pricer(sku: SkuData, policy: PricingPolicy, fx: { usd: numb
     const open = set.open ?? base;
     if (opt.key === 'pre') return set.pre ?? preFrom(open, policy.common);
     if (opt.key === 'live') return set.live ?? liveFrom(set.pre ?? open, policy.common);
+    if (opt.key === 'reg') return set.reg ?? floor10(base * (1 - brand.reg / 100));
     return set[opt.key] ?? base;
   };
 }

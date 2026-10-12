@@ -3,9 +3,11 @@
  * 개편안: https://claude.ai/artifact/DSEC8eveeWs1Q7xvjwEagA
  *
  * B2C  · 오픈특가      = 브랜드 정책 (판매가 n% 할인 → 끝자리 규칙)
+ *                        카테고리 예외(기본: 장난감 10%)가 있으면 브랜드 정책 대신 판매가 n% 할인 → 10원 내림
  *      · 선오픈 최저가 = 주력 SKU만 · 기존 신상위크 로직 (오픈특가 1만원 이하 5% · 초과 −1,000원)
  *      · 라이브        = 선오픈 최저가(없으면 오픈특가)의 5% 추가 할인, 최대 1,000원
- *      · 상시 최대 · 특가 최대 = 판매가 n% 할인 (10원 내림)
+ *      · 상시 최대     = 주력 SKU만 · 판매가 n% 할인 (10원 내림) — 일반 SKU는 빈 값(수동 입력만)
+ *      · 특가 최대     = 판매가 n% 할인 (10원 내림) · 전 SKU 공통
  *      → B2C는 할인율로 계산한 가격을 전부 10원 단위 내림, 할인율 표시는 정수 반올림
  * B2B  · B2B 오픈 · B2B 상시 · 사입 · 글로벌 · 일본 = 기존 시나리오 계산 그대로
  *      · 팝업/페어     = 상시 판매가 10% 할인 → 10원 단위 버림 (B2B 비율 · 팝업은 브랜드별 정책)
@@ -30,6 +32,8 @@ export interface PricingPolicy {
   common: CommonPolicy;
   /** 카테고리별 할인가능시점 (오픈 후 n주). null = 미정 */
   weeks: Partial<Record<Category, number | null>>;
+  /** 카테고리별 오픈특가 할인율(%) — 있으면 브랜드 정책 대신 판매가 n% 할인 → 10원 내림. null = 브랜드 정책 */
+  catOpen: Partial<Record<Category, number | null>>;
 }
 
 export const DEFAULT_PRICING_POLICY: PricingPolicy = {
@@ -40,7 +44,9 @@ export const DEFAULT_PRICING_POLICY: PricingPolicy = {
   },
   common: { preThr: 10000, prePct: 5, preMinus: 1000, livePct: 5, liveMax: 1000 },
   weeks: { '장난감': 4, '용품': 8, '식품': null, '잡화': null, '의류': null },
+  catOpen: { '장난감': 10 },
 };
+
 
 export const ROUND_LABEL: Record<RoundMode, string> = {
   '900': '1,000원 단위 900 맞춤',
@@ -51,7 +57,7 @@ export const ROUND_LABEL: Record<RoundMode, string> = {
 export type PriceKey = 'open' | 'pre' | 'live' | 'reg' | 'spec' | 'b2bOpen' | 'b2b' | 'buy' | 'popup' | 'glob' | 'jp';
 export const B2C_KEYS: { k: PriceKey; label: string; sub?: string }[] = [
   { k: 'pre', label: '선오픈 최저가', sub: '*주력SKU 프로모션' }, { k: 'live', label: '라이브' }, { k: 'open', label: '오픈특가', sub: '*기본 오픈할인가' },
-  { k: 'reg', label: '상시 최대' }, { k: 'spec', label: '특가 최대' },
+  { k: 'reg', label: '상시 최대', sub: '*주력SKU만' }, { k: 'spec', label: '특가 최대' },
 ];
 export const B2B_KEYS: { k: PriceKey; label: string; sub?: string }[] = [
   { k: 'b2bOpen', label: 'B2B 오픈' }, { k: 'b2b', label: 'B2B 상시' }, { k: 'buy', label: '사입 공급가' },
@@ -87,6 +93,8 @@ const scenario = (id: string) => PRICING_SCENARIOS.find((s) => s.id === id)!;
 export interface PriceInput {
   price: number;
   brand: Brand;
+  /** 없으면 카테고리 예외 없이 브랜드 정책만 */
+  category?: Category;
   core: boolean;
   live: boolean;
   overrides?: Record<string, PriceOverride>;
@@ -104,12 +112,13 @@ export function calcPricesV2(
       ov[k as PriceKey] = typeof v === 'object' && v ? pctPrice(b, v.pct, k as PriceKey) : (v as number);
     }
   }
-  const open = ov.open ?? roundOpen(floor10(b * (1 - p.openRate / 100)), p.round);
+  const catRate = input.category ? policy.catOpen?.[input.category] : null;
+  const open = ov.open ?? (catRate != null ? floor10(b * (1 - catRate / 100)) : roundOpen(floor10(b * (1 - p.openRate / 100)), p.round));
   const pre = input.core ? (ov.pre ?? preFrom(open, c)) : null;
   const live = input.live ? (ov.live ?? liveFrom(pre ?? open, c)) : null;
   return {
     open, pre, live,
-    reg: ov.reg ?? floor10(b * (1 - p.reg / 100)),
+    reg: ov.reg ?? (input.core ? floor10(b * (1 - p.reg / 100)) : null),
     spec: ov.spec ?? floor10(b * (1 - p.spec / 100)),
     b2bOpen: ov.b2bOpen ?? round10(b * (p.b2bRate / 100) * (1 - p.b2bOpenDisc / 100)),
     b2b: ov.b2b ?? round10(b * (p.b2bRate / 100)),
@@ -150,7 +159,7 @@ export function legacyPricesV2(sku: SkuData, core: boolean, policy: PricingPolic
  * 미확정 = 정책 + 수동값 · 확정 = 확정 시점 가격 · 개편 전 확정 = 기존 계산값
  */
 export function shownPricesV2(sku: SkuData, policy: PricingPolicy, fx: { usd: number; jpy: number }): PriceSet {
-  const auto = calcPricesV2({ price: sku.price, brand: sku.brand, core: !!sku.coreSku, live: !!sku.pricingPromoLive, overrides: sku.pricingOverrides }, policy, fx);
+  const auto = calcPricesV2({ price: sku.price, brand: sku.brand, category: sku.category, core: !!sku.coreSku, live: !!sku.pricingPromoLive, overrides: sku.pricingOverrides }, policy, fx);
   if (!sku.isPriceConfirmed) return auto;
   if (sku.pricingSnapshot) return { ...auto, ...sku.pricingSnapshot } as PriceSet;
   return legacyPricesV2(sku, !!sku.coreSku, policy, fx);
