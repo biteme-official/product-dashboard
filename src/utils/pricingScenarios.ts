@@ -84,9 +84,10 @@ export const PRICING_SCENARIOS: PricingScenario[] = [
 ];
 
 export const PRICING_DEFAULT_OPT: Partial<Record<Channel, string>> = {
+  '팝업/페어': '팝업/페어',
   '쿠팡':    'B2B 상시 운영',
   'B2B':     'B2B 상시 운영',
-  '사입및페어': 'B2B 상시 운영',
+  '사입':    '사입 공급가',
   '글로벌':  '글로벌 공급가',
   '일본':    '일본 공급가',
 };

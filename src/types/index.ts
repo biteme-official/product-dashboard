@@ -6,10 +6,11 @@ export const CATEGORIES: Category[] = ['식품', '용품', '잡화', '의류', '
 export const SKU_TYPES: SkuType[] = ['시즈널', '스테디', '미해당'];
 export const BRANDS = ['바잇미', 'SSFW', '그외'] as const;
 export type Brand = typeof BRANDS[number];
-export const CHANNELS = ['자사몰', '스스', '위탁', '쿠팡', 'B2B', '사입및페어', '글로벌', '일본'] as const;
+// 2026-10: '사입및페어' → '사입'(B2B) · '팝업/페어'(B2C) 분리 (예전 이름은 utils/legacyChannel.ts에서 읽을 때 변환)
+export const CHANNELS = ['자사몰', '스스', '위탁', '팝업/페어', '쿠팡', 'B2B', '사입', '글로벌', '일본'] as const;
 export type Channel = typeof CHANNELS[number];
-export const B2C_CHANNELS: readonly Channel[] = ['자사몰', '스스', '위탁'];
-export const B2B_CHANNELS: readonly Channel[] = ['쿠팡', 'B2B', '사입및페어', '글로벌', '일본'];
+export const B2C_CHANNELS: readonly Channel[] = ['자사몰', '스스', '위탁', '팝업/페어'];
+export const B2B_CHANNELS: readonly Channel[] = ['쿠팡', 'B2B', '사입', '글로벌', '일본'];
 /** 기본 활성이지만 관리 탭에서 SKU별로 끌 수 있는 채널 (쿠팡과 반대 방향) */
 export const OPTOUT_CHANNELS = ['글로벌', '일본'] as const;
 export type OptOutChannel = typeof OPTOUT_CHANNELS[number];
@@ -47,7 +48,7 @@ export const STEP2_FORCE_RECALC_MARK = '__recalc__';
 export type ChannelConfirmField = 'step2PlatformConfirmed' | 'step2BrandConfirmed' | 'step2GlobalConfirmed';
 /**
  * 채널 → 채널별 목표량 확정 그룹 (플랫폼/브랜드/글로벌). 담당 MD와 같은 묶음(2026-10-05) —
- * 쿠팡·사입및페어는 브랜드MD 담당이라 브랜드 확정에 포함. 마케팅은 채널이 아니라 isMarketingLocked로 플랫폼 확정을 따른다.
+ * 쿠팡·사입·팝업/페어는 브랜드MD 담당이라 브랜드 확정에 포함. 마케팅은 채널이 아니라 isMarketingLocked로 플랫폼 확정을 따른다.
  */
 export const CHANNEL_CONFIRM_GROUP: Record<Channel, { field: ChannelConfirmField; label: string }> = {
   '자사몰':    { field: 'step2PlatformConfirmed', label: '플랫폼' },
@@ -55,7 +56,8 @@ export const CHANNEL_CONFIRM_GROUP: Record<Channel, { field: ChannelConfirmField
   '위탁':      { field: 'step2BrandConfirmed',    label: '브랜드' },
   'B2B':       { field: 'step2BrandConfirmed',    label: '브랜드' },
   '쿠팡':      { field: 'step2BrandConfirmed',    label: '브랜드' },
-  '사입및페어': { field: 'step2BrandConfirmed',    label: '브랜드' },
+  '사입':      { field: 'step2BrandConfirmed',    label: '브랜드' },
+  '팝업/페어': { field: 'step2BrandConfirmed',    label: '브랜드' },
   '일본':      { field: 'step2GlobalConfirmed',   label: '글로벌' },
   '글로벌':    { field: 'step2GlobalConfirmed',   label: '글로벌' },
 };
@@ -99,7 +101,8 @@ export const DEFAULT_CHANNEL_RATIOS: Record<Channel, number> = {
   '위탁': 10,
   '쿠팡': 0,
   'B2B': 15,
-  '사입및페어': 0,
+  '사입': 0,
+  '팝업/페어': 0,
   '글로벌': 15,
   '일본': 15,
 };
@@ -199,7 +202,8 @@ export const DEFAULT_CHANNEL_COMMISSION: Record<Channel, number> = {
   '위탁': 25,
   '쿠팡': 35,
   'B2B': 0,
-  '사입및페어': 0,
+  '사입': 0,
+  '팝업/페어': 0,
   '글로벌': 0,
   '일본': 0,
 };

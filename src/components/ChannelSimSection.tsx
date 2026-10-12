@@ -211,7 +211,7 @@ export function ChannelSimSection() {
             </span>
             <span className="flex items-center gap-1.5 text-xs text-gray-500">
               <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-violet-100 text-violet-700">B2B</span>
-              쿠팡·B2B·사입및페어·글로벌·일본 — 판매가 × 55%
+              쿠팡·B2B·사입·글로벌·일본 — 판매가 × 55%
             </span>
           </div>
 
@@ -315,7 +315,7 @@ export function ChannelSimSection() {
             </span>
             <span className="flex items-center gap-1.5 text-xs text-gray-500">
               <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-violet-100 text-violet-700">B2B</span>
-              쿠팡·B2B·사입및페어·글로벌·일본 — 판매가 × 55%
+              쿠팡·B2B·사입·글로벌·일본 — 판매가 × 55%
             </span>
           </div>
 

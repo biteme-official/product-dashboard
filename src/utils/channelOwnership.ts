@@ -10,7 +10,7 @@ export type QtyChannel = Channel | '마케팅';
  */
 const OWNED_CHANNELS: Partial<Record<Role, readonly QtyChannel[]>> = {
   platform_md: ['자사몰', '마케팅'],
-  brand_md: ['스스', '위탁', 'B2B', '쿠팡', '사입및페어'],
+  brand_md: ['스스', '위탁', '팝업/페어', 'B2B', '쿠팡', '사입'],
   global: ['글로벌', '일본'],
 };
 

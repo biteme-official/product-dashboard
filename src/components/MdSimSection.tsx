@@ -183,7 +183,7 @@ export function MdSimSection() {
               <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-violet-100 text-violet-700">
                 B2B
               </span>
-              쿠팡·B2B·사입및페어·글로벌·일본 — 판매가 × 55%
+              쿠팡·B2B·사입·글로벌·일본 — 판매가 × 55%
             </span>
           </div>
 
