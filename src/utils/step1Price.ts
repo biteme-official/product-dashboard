@@ -57,7 +57,7 @@ export function step1Pricer(sku: SkuData, policy: PricingPolicy, fx: { usd: numb
     if (opt.key === 'season') return floor10(base * (1 - brand.seasonOff / 100));
     let set = setFor(base);
     // 확정 가격에 숫자가 아닌 값(NaN)이 저장돼 있으면 그 칸만 정책 계산값으로 대신함 (매출 합계가 NaN으로 깨지는 것 방지)
-    if (opt.key !== 'season' && Number.isNaN(set[opt.key])) {
+    if (Number.isNaN(set[opt.key])) {
       const calc = calcPricesV2({ price: base, brand: sku.brand, category: sku.category, core, live: true }, policy, fx);
       set = { ...set, [opt.key]: calc[opt.key] };
     }
