@@ -257,7 +257,7 @@ export function PricingV2Section({ skus }: { skus: SkuData[] }) {
               <th className="px-2 py-1.5 text-left">상품</th><th className="px-2 py-1.5 text-right">원가</th><th />
               <th className="px-2 py-1.5 text-right">정가</th><th className="px-2 py-1.5 text-right">판매가</th>
               {keys.map((x) => (
-                <th key={x.k} className={`px-2 py-1.5 text-right ${x.k === 'pre' ? 'bg-violet-50' : x.k === 'live' ? 'bg-orange-50' : ''}`}>
+                <th key={x.k} className={`py-1.5 text-right ${x.k === 'pre' ? 'px-1 w-[1%] bg-violet-50' : x.k === 'live' ? 'px-2 bg-orange-50' : 'px-2'}`}>
                   {x.label}{x.sub && <div className="text-[10px] font-normal text-gray-400 whitespace-nowrap">{x.sub}</div>}
                 </th>
               ))}
