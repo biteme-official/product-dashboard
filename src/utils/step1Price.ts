@@ -17,10 +17,10 @@ export const STEP1_OPTIONS: Step1Option[] = [
   { id: '상시 최대할인율', label: '상시 최대', key: 'reg' },
   { id: '특가 최대할인율', label: '특가 최대', key: 'spec' },
   { id: '시즌오프(의류전용)', label: '시즌오프(의류)', key: 'season' },
+  { id: '팝업/페어', label: '팝업/페어', key: 'popup' },
   { id: 'B2B 오픈 할인', label: 'B2B 오픈', key: 'b2bOpen' },
   { id: 'B2B 상시 운영', label: 'B2B 상시', key: 'b2b' },
   { id: '사입 공급가', label: '사입 공급가', key: 'buy' },
-  { id: '팝업/페어', label: '팝업/페어', key: 'popup' },
   { id: '글로벌 공급가', label: '글로벌 공급가', key: 'glob' },
   { id: '일본 공급가', label: '일본 공급가', key: 'jp' },
 ];

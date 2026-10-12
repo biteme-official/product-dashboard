@@ -8,9 +8,10 @@
  *      · 라이브        = 선오픈 최저가(없으면 오픈특가)의 5% 추가 할인, 최대 1,000원
  *      · 상시 최대     = 주력 SKU만 · 판매가 n% 할인 (10원 내림) — 일반 SKU는 빈 값(수동 입력만)
  *      · 특가 최대     = 판매가 n% 할인 (10원 내림) · 전 SKU 공통
+ *      · 팝업/페어     = 판매가 n% 할인 (10원 내림) · 브랜드별 정책
  *      → B2C는 할인율로 계산한 가격을 전부 10원 단위 내림, 할인율 표시는 정수 반올림
  * B2B  · B2B 오픈 · B2B 상시 · 사입 · 글로벌 · 일본 = 기존 시나리오 계산 그대로
- *      · 팝업/페어     = 상시 판매가 10% 할인 → 10원 단위 버림 (B2B 비율 · 팝업은 브랜드별 정책)
+ *        (B2B 비율은 브랜드별 정책)
  * 앞 단계 실제값(수동 포함) 기준으로 다음 단계를 이어서 계산한다.
  */
 import type { Brand, Category, SkuData } from '../types';
@@ -22,9 +23,11 @@ export interface BrandPolicy {
   openRate: number; round: RoundMode; reg: number; spec: number;
   /** 시즌오프(의류) 할인율 — STEP 1 판매가 선택지 전용 */
   seasonOff: number;
+  /** 팝업/페어(B2C) = 판매가 popupRate% 할인 (10원 내림) */
+  popupRate: number;
   // B2B — B2B 상시 = 판매가 b2bRate%(10원 반올림), B2B 오픈 = B2B 상시에서 b2bOpenDisc% 추가 할인(10원 반올림),
-  //       사입 = 판매가 buyRate%(10원 올림), 팝업/페어 = 판매가 popupRate% 할인(10원 버림)
-  b2bRate: number; b2bOpenDisc: number; buyRate: number; popupRate: number;
+  //       사입 = 판매가 buyRate%(10원 올림)
+  b2bRate: number; b2bOpenDisc: number; buyRate: number;
 }
 export interface CommonPolicy { preThr: number; prePct: number; preMinus: number; livePct: number; liveMax: number }
 export interface PricingPolicy {
@@ -57,11 +60,11 @@ export const ROUND_LABEL: Record<RoundMode, string> = {
 export type PriceKey = 'open' | 'pre' | 'live' | 'reg' | 'spec' | 'b2bOpen' | 'b2b' | 'buy' | 'popup' | 'glob' | 'jp';
 export const B2C_KEYS: { k: PriceKey; label: string; sub?: string }[] = [
   { k: 'pre', label: '선오픈 최저가', sub: '*주력SKU 프로모션' }, { k: 'live', label: '라이브' }, { k: 'open', label: '오픈특가', sub: '*기본 오픈할인가' },
-  { k: 'reg', label: '상시 최대', sub: '*주력SKU만' }, { k: 'spec', label: '특가 최대' },
+  { k: 'reg', label: '상시 최대', sub: '*주력SKU만' }, { k: 'spec', label: '특가 최대' }, { k: 'popup', label: '팝업/페어' },
 ];
 export const B2B_KEYS: { k: PriceKey; label: string; sub?: string }[] = [
   { k: 'b2bOpen', label: 'B2B 오픈' }, { k: 'b2b', label: 'B2B 상시' }, { k: 'buy', label: '사입 공급가' },
-  { k: 'popup', label: '팝업/페어' }, { k: 'glob', label: '글로벌 공급가', sub: '자동 고정' }, { k: 'jp', label: '일본 공급가' },
+  { k: 'glob', label: '글로벌 공급가', sub: '자동 고정' }, { k: 'jp', label: '일본 공급가' },
 ];
 /** 수동 수정 불가 (기존 프라이싱 창과 같음) */
 export const AUTO_LOCKED_KEYS = new Set<PriceKey>(['glob']);
@@ -79,7 +82,7 @@ export function roundOpen(x: number, mode: RoundMode): number {
   if (mode === '100') return Math.floor(x / 100) * 100;
   return x;
 }
-const B2C_KEY_SET = new Set<PriceKey>(['open', 'pre', 'live', 'reg', 'spec']);
+const B2C_KEY_SET = new Set<PriceKey>(['open', 'pre', 'live', 'reg', 'spec', 'popup']);
 /** 할인율 입력 → 판매가 × (100 − n)% → B2C 10원 단위 내림 · B2B 10원 단위 올림(기존 그대로) */
 export const pctPrice = (base: number, pct: number, k: PriceKey = 'open') =>
   (B2C_KEY_SET.has(k) ? floor10 : ceil10)(base * (1 - pct / 100));
@@ -120,10 +123,10 @@ export function calcPricesV2(
     open, pre, live,
     reg: ov.reg ?? (input.core ? floor10(b * (1 - p.reg / 100)) : null),
     spec: ov.spec ?? floor10(b * (1 - p.spec / 100)),
+    popup: ov.popup ?? floor10(b * (1 - p.popupRate / 100)),
     b2bOpen: ov.b2bOpen ?? round10(b * (p.b2bRate / 100) * (1 - p.b2bOpenDisc / 100)),
     b2b: ov.b2b ?? round10(b * (p.b2bRate / 100)),
     buy: ov.buy ?? ceil10(b * (p.buyRate / 100)),
-    popup: ov.popup ?? floor10(b * (1 - p.popupRate / 100)),
     glob: scenario('글로벌 공급가').calcKrwPrice(b, fx.usd),
     jp: ov.jp ?? scenario('일본 공급가').calcKrwPrice(b, fx.usd, fx.jpy),
   };
