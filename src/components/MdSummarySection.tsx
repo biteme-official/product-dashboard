@@ -235,18 +235,31 @@ export function MdSummarySection({
     setSelectedChannels(next);
   }
 
-  const visibleSkus = categoryFiltered.filter((s) =>
-    searchQuery === '' || s.skuName.toLowerCase().includes(searchQuery.toLowerCase()),
-  );
+  const query = searchQuery.trim().toLowerCase();
+  const visibleSkus = query
+    ? categoryFiltered.filter((s) => s.skuName.toLowerCase().includes(query))
+    : categoryFiltered;
 
+  // 집계 대상: 체크한 SKU가 있으면 그것만, 없으면 검색어에 걸린 SKU (검색어도 없으면 전체)
   const filtered = selectedSkuIds.size === 0
-    ? categoryFiltered
+    ? visibleSkus
     : categoryFiltered.filter((s) => selectedSkuIds.has(s.id));
 
-  const allSelected = selectedSkuIds.size === categoryFiltered.length && categoryFiltered.length > 0;
+  // "전체 선택"은 지금 목록에 보이는 SKU(검색 결과) 기준
+  const allSelected = visibleSkus.length > 0 && visibleSkus.every((s) => selectedSkuIds.has(s.id));
+  const everySkuSelected = selectedSkuIds.size === categoryFiltered.length && categoryFiltered.length > 0;
 
   function toggleAll() {
-    setSelectedSkuIds(allSelected ? new Set() : new Set(categoryFiltered.map((s) => s.id)));
+    const next = new Set(selectedSkuIds);
+    for (const s of visibleSkus) {
+      if (allSelected) next.delete(s.id); else next.add(s.id);
+    }
+    setSelectedSkuIds(next);
+  }
+
+  function clearSkuFilter() {
+    setSearchQuery('');
+    setSelectedSkuIds(new Set());
   }
 
   function toggleSku(id: string) {
@@ -333,7 +346,7 @@ export function MdSummarySection({
       </div>
 
       {/* SKU 필터 드롭다운 */}
-      <div ref={dropdownRef} className="relative">
+      <div ref={dropdownRef} className="relative flex items-center gap-1.5">
         <button
           onClick={() => setDropdownOpen((v) => !v)}
           className="flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-xs text-gray-600 hover:border-indigo-300 hover:text-indigo-600 transition-colors shadow-sm"
@@ -342,19 +355,30 @@ export function MdSummarySection({
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
           <span>
-            {selectedSkuIds.size === 0
-              ? `SKU 전체 (${categoryFiltered.length})`
-              : allSelected
+            {selectedSkuIds.size > 0
+              ? everySkuSelected
                 ? `SKU 전체 선택 (${categoryFiltered.length})`
-                : `SKU ${selectedSkuIds.size}개 선택`}
+                : `SKU ${selectedSkuIds.size}개 선택`
+              : query
+                ? `SKU 검색 "${searchQuery.trim()}" (${visibleSkus.length})`
+                : `SKU 전체 (${categoryFiltered.length})`}
           </span>
           <svg className={`w-3 h-3 text-gray-400 transition-transform ${dropdownOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
           </svg>
         </button>
+        {(query || selectedSkuIds.size > 0) && (
+          <button
+            onClick={clearSkuFilter}
+            className="px-1.5 py-1 text-xs text-gray-400 hover:text-gray-600"
+            title="SKU 검색 · 선택 해제"
+          >
+            ✕
+          </button>
+        )}
 
         {dropdownOpen && (
-          <div className="absolute z-30 mt-1 w-72 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
+          <div className="absolute z-30 top-full left-0 mt-1 w-72 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
             <div className="p-2 border-b border-gray-100">
               <input
                 type="text"
@@ -373,7 +397,9 @@ export function MdSummarySection({
                   onChange={toggleAll}
                   className="w-3.5 h-3.5 rounded accent-indigo-600"
                 />
-                <span className="text-xs font-semibold text-gray-700">전체 선택 ({categoryFiltered.length})</span>
+                <span className="text-xs font-semibold text-gray-700">
+                  {query ? '검색 결과 전체 선택' : '전체 선택'} ({visibleSkus.length})
+                </span>
               </label>
             </div>
             <div className="max-h-56 overflow-y-auto px-2 py-1.5">
