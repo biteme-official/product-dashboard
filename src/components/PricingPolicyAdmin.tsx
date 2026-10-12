@@ -79,12 +79,12 @@ function PolicyTab() {
         <div className={row}><span className="w-24 text-gray-500">상시 최대</span>판매가 <NumField value={p.reg} onSave={(v) => v != null && save({ brands: { [brand]: { reg: v } } })} />% 할인 <span className="text-gray-400">(주력 SKU만 · 일반 SKU는 빈 값)</span></div>
         <div className={row}><span className="w-24 text-gray-500">특가 최대</span>판매가 <NumField value={p.spec} onSave={(v) => v != null && save({ brands: { [brand]: { spec: v } } })} />% 할인</div>
         <div className={row}><span className="w-24 text-gray-500">시즌오프</span>판매가 <NumField value={p.seasonOff} onSave={(v) => v != null && save({ brands: { [brand]: { seasonOff: v } } })} />% 할인 <span className="text-gray-400">(의류 · STEP 1 판매가 선택지 전용)</span></div>
+        <div className={row}><span className="w-24 text-gray-500">팝업/페어</span>판매가 <NumField value={p.popupRate} onSave={(v) => v != null && save({ brands: { [brand]: { popupRate: v } } })} />% 할인</div>
         <p className="text-[11px] text-gray-400">* 할인가 기준 할인율 계산 시 소수점 이하 반올림 · 할인율 기준 할인가 계산 시 10원 단위 내림</p>
         <p className="text-xs font-semibold text-gray-700 pt-2">{brand} 정책 · <span className="text-gray-500">B2B</span></p>
         <div className={row}><span className="w-24 text-gray-500">B2B 상시</span>판매가의 <NumField value={p.b2bRate} onSave={(v) => v != null && save({ brands: { [brand]: { b2bRate: v } } })} />% → 10원 단위 반올림</div>
         <div className={row}><span className="w-24 text-gray-500">B2B 오픈</span>B2B 상시에서 <NumField value={p.b2bOpenDisc} onSave={(v) => v != null && save({ brands: { [brand]: { b2bOpenDisc: v } } })} />% 추가 할인 → 10원 단위 반올림</div>
         <div className={row}><span className="w-24 text-gray-500">사입 공급가</span>판매가의 <NumField value={p.buyRate} onSave={(v) => v != null && save({ brands: { [brand]: { buyRate: v } } })} />% → 10원 단위 올림</div>
-        <div className={row}><span className="w-24 text-gray-500">팝업/페어</span>상시 판매가 <NumField value={p.popupRate} onSave={(v) => v != null && save({ brands: { [brand]: { popupRate: v } } })} />% 할인 → 10원 단위 버림</div>
         <div className={row}><span className="w-24 text-gray-500">글로벌 · 일본</span><span className="text-gray-400">환율 기준 공급가 (현행 공식 그대로 · 글로벌은 자동 고정)</span></div>
         <p className="text-xs font-semibold text-gray-700 pt-2">공통 규칙 · 전 브랜드</p>
         <div className={row}>
@@ -112,8 +112,8 @@ function PolicyTab() {
         {([
           ['선오픈 최저가 (주력)', core.pre], ['라이브 · 주력', core.live], ['라이브 · 일반', normal.live], ['오픈특가', core.open],
           ['오픈특가 · 장난감', toy.open], ['라이브 · 장난감', toy.live],
-          ['상시 최대 (주력)', core.reg], ['상시 최대 · 일반', normal.reg], ['특가 최대', core.spec],
-          ['B2B 상시', core.b2b], ['B2B 오픈', core.b2bOpen], ['사입 공급가', core.buy], ['팝업/페어', core.popup], ['글로벌 공급가', core.glob], ['일본 공급가', core.jp],
+          ['상시 최대 (주력)', core.reg], ['상시 최대 · 일반', normal.reg], ['특가 최대', core.spec], ['팝업/페어', core.popup],
+          ['B2B 상시', core.b2b], ['B2B 오픈', core.b2bOpen], ['사입 공급가', core.buy], ['글로벌 공급가', core.glob], ['일본 공급가', core.jp],
         ] as [string, number | null][]).map(([l, v]) => (
           <div key={l} className="flex justify-between text-xs"><span className="text-gray-500">{l}</span><span className="tabular-nums font-semibold">{v == null ? '–' : `${v.toLocaleString()} (${discountPct(v, sample)}%)`}</span></div>
         ))}
