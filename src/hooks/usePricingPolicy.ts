@@ -19,6 +19,7 @@ function withDefaults(raw: Partial<PricingPolicy> | undefined): PricingPolicy {
     },
     common: { ...d.common, ...(raw?.common ?? {}) },
     weeks: { ...d.weeks, ...(raw?.weeks ?? {}) },
+    catOpen: { ...d.catOpen, ...(raw?.catOpen ?? {}) },
   };
 }
 
@@ -52,6 +53,6 @@ export function usePricingPolicy(): { policy: PricingPolicy; loaded: boolean } {
 }
 
 /** 바뀐 항목만 merge 저장 (예: { brands: { SSFW: { openRate: 10 } } }) */
-export function savePricingPolicy(patch: Partial<{ brands: Partial<Record<string, Partial<PricingPolicy['brands']['바잇미']>>>; common: Partial<PricingPolicy['common']>; weeks: Partial<PricingPolicy['weeks']> }>): Promise<void> {
+export function savePricingPolicy(patch: Partial<{ brands: Partial<Record<string, Partial<PricingPolicy['brands']['바잇미']>>>; common: Partial<PricingPolicy['common']>; weeks: Partial<PricingPolicy['weeks']>; catOpen: Partial<PricingPolicy['catOpen']> }>): Promise<void> {
   return setDoc(POLICY_DOC, patch, { merge: true });
 }

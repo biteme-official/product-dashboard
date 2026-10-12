@@ -56,7 +56,7 @@ export function PricingV2Section({ skus }: { skus: SkuData[] }) {
 
   // ── 가격 ──
   const auto = (s: SkuData, useOv = true): PriceSet =>
-    calcPricesV2({ price: s.price, brand: s.brand, core: !!s.coreSku, live: !!s.pricingPromoLive, overrides: s.pricingOverrides }, policy, fx, useOv);
+    calcPricesV2({ price: s.price, brand: s.brand, category: s.category, core: !!s.coreSku, live: !!s.pricingPromoLive, overrides: s.pricingOverrides }, policy, fx, useOv);
   const isLegacy = (s: SkuData) => !!s.isPriceConfirmed && !s.pricingSnapshot;
   // 기존 창은 [신상위크] ON이면 라이브도 함께 계산 → 개편 전 확정 SKU는 신상위크 ON도 라이브 ON으로 표시
   const liveOn = (s: SkuData) => !!s.pricingPromoLive || (isLegacy(s) && !!s.pricingPromoNewWeek);
@@ -104,7 +104,7 @@ export function PricingV2Section({ skus }: { skus: SkuData[] }) {
       if (r.err) return;
       const next = { ...(s.pricingOverrides ?? {}) };
       delete next[editing.k];
-      const autoV = calcPricesV2({ price: s.price, brand: s.brand, core: !!s.coreSku, live: !!s.pricingPromoLive, overrides: next }, policy, fx)[editing.k];
+      const autoV = calcPricesV2({ price: s.price, brand: s.brand, category: s.category, core: !!s.coreSku, live: !!s.pricingPromoLive, overrides: next }, policy, fx)[editing.k];
       if (!r.empty && !(typeof r.val === 'number' && r.val === autoV)) next[editing.k] = r.val!;
       updateSku(s.id, { pricingOverrides: next });
       persistSku(s.id).catch(() => setMsg('저장에 실패했어요. 새로고침 후 다시 시도해 주세요.'));
@@ -147,15 +147,22 @@ export function PricingV2Section({ skus }: { skus: SkuData[] }) {
 
   const cell = (s: SkuData, k: PriceKey): ReactNode => {
     const cur = shown(s)[k];
-    if (cur == null) return <span className="text-gray-300">–</span>;
-    if (editing && editing.id === s.id && editing.k === k) {
+    const isEditing = !!editing && editing.id === s.id && editing.k === k;
+    if (cur == null && !isEditing) {
+      // 상시 최대는 주력 SKU만 자동 계산 — 일반 SKU · 장난감은 빈 칸을 눌러 수동 입력만 가능
+      if (k === 'reg' && canEdit && !s.isPriceConfirmed) {
+        return <button type="button" onClick={() => startEdit(s, k)} title="눌러서 직접 입력" className="w-full text-right rounded px-1 text-gray-300 hover:bg-gray-100 cursor-pointer">–</button>;
+      }
+      return <span className="text-gray-300">–</span>;
+    }
+    if (isEditing) {
       const r = parse(s, k, draft);
       return (
         <div className="flex flex-col items-end gap-0.5">
           <input autoFocus value={draft} size={1} onChange={(e) => setDraft(e.target.value)} onBlur={() => commit(true)}
             onKeyDown={(e: KeyboardEvent<HTMLInputElement>) => { if (e.nativeEvent.isComposing || e.keyCode === 229) return; if (e.key === 'Enter') commit(true); if (e.key === 'Escape') commit(false); }}
             placeholder="금액 · 10%" className="w-full min-w-0 text-right tabular-nums text-xs px-1 py-0.5 border border-indigo-400 bg-indigo-50 rounded outline-none" />
-          <span className={`text-[10px] ${r.err ? 'text-red-500' : 'text-gray-400'}`}>{r.empty ? '비우면 자동값' : r.err ?? r.label}</span>
+          <span className={`text-[10px] ${r.err ? 'text-red-500' : 'text-gray-400'}`}>{r.empty ? (auto(s, false)[k] == null ? '비우면 빈 값' : '비우면 자동값') : r.err ?? r.label}</span>
         </div>
       );
     }

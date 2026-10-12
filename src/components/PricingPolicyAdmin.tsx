@@ -55,6 +55,7 @@ function PolicyTab() {
   const fx = { usd: usdKrw, jpy: jpyKrw };
   const core = calcPricesV2({ price: sample, brand, core: true, live: true }, policy, fx);
   const normal = calcPricesV2({ price: sample, brand, core: false, live: true }, policy, fx);
+  const toy = calcPricesV2({ price: sample, brand, category: '장난감', core: false, live: true }, policy, fx);
   const row = 'flex items-center gap-2 text-xs text-gray-600 flex-wrap';
   return (
     <div className="space-y-3">
@@ -75,7 +76,7 @@ function PolicyTab() {
             {Object.entries(ROUND_LABEL).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
           </select>
         </div>
-        <div className={row}><span className="w-24 text-gray-500">상시 최대</span>판매가 <NumField value={p.reg} onSave={(v) => v != null && save({ brands: { [brand]: { reg: v } } })} />% 할인</div>
+        <div className={row}><span className="w-24 text-gray-500">상시 최대</span>판매가 <NumField value={p.reg} onSave={(v) => v != null && save({ brands: { [brand]: { reg: v } } })} />% 할인 <span className="text-gray-400">(주력 SKU만 · 일반 SKU · 장난감은 빈 값)</span></div>
         <div className={row}><span className="w-24 text-gray-500">특가 최대</span>판매가 <NumField value={p.spec} onSave={(v) => v != null && save({ brands: { [brand]: { spec: v } } })} />% 할인</div>
         <div className={row}><span className="w-24 text-gray-500">시즌오프</span>판매가 <NumField value={p.seasonOff} onSave={(v) => v != null && save({ brands: { [brand]: { seasonOff: v } } })} />% 할인 <span className="text-gray-400">(의류 · STEP 1 판매가 선택지 전용)</span></div>
         <p className="text-[11px] text-gray-400">* 할인가 기준 할인율 계산 시 소수점 이하 반올림 · 할인율 기준 할인가 계산 시 10원 단위 내림</p>
@@ -97,13 +98,21 @@ function PolicyTab() {
           <NumField value={c.livePct} onSave={(v) => v != null && save({ common: { livePct: v } })} />% · 최대 −
           <NumField value={c.liveMax} width={64} onSave={(v) => v != null && save({ common: { liveMax: v } })} />원
         </div>
+        <p className="text-xs font-semibold text-gray-700 pt-2">카테고리 예외 · 전 브랜드</p>
+        <div className={row}>
+          <span className="w-24 text-amber-600">장난감 오픈특가</span>판매가
+          <NumField value={policy.catOpen['장난감'] ?? null} allowEmpty placeholder="브랜드" onSave={(v) => save({ catOpen: { '장난감': v } })} />% 할인 → 10원 단위 내림
+          <span className="text-gray-400">(브랜드 정책 대신 적용 · 비우면 브랜드 정책)</span>
+        </div>
+        <div className={row}><span className="w-24 text-amber-600">상시 최대</span><span className="text-gray-400">주력 SKU만 자동 계산 · 일반 SKU · 장난감(주력 포함)은 빈 값 → 프라이싱 탭에서 칸을 눌러 직접 입력 가능</span></div>
         <p className="text-[11px] text-gray-400 pt-1">가격 확정된 SKU는 확정 시점 가격 유지 · 정책을 바꾸면 미확정 SKU만 바뀜</p>
       </div>
       <div className="border border-gray-200 rounded-xl p-3 space-y-1.5 bg-gray-50">
         <div className="flex items-center gap-2 text-xs text-gray-600">미리보기 · 판매가 <NumField value={sample} width={80} onSave={(v) => v && setSample(v)} />원</div>
         {([
           ['선오픈 최저가 (주력)', core.pre], ['라이브 · 주력', core.live], ['라이브 · 일반', normal.live], ['오픈특가', core.open],
-          ['상시 최대', core.reg], ['특가 최대', core.spec],
+          ['오픈특가 · 장난감', toy.open], ['라이브 · 장난감', toy.live],
+          ['상시 최대 (주력)', core.reg], ['상시 최대 · 일반 · 장난감', normal.reg], ['특가 최대', core.spec],
           ['B2B 상시', core.b2b], ['B2B 오픈', core.b2bOpen], ['사입 공급가', core.buy], ['팝업/페어', core.popup], ['글로벌 공급가', core.glob], ['일본 공급가', core.jp],
         ] as [string, number | null][]).map(([l, v]) => (
           <div key={l} className="flex justify-between text-xs"><span className="text-gray-500">{l}</span><span className="tabular-nums font-semibold">{v == null ? '–' : `${v.toLocaleString()} (${discountPct(v, sample)}%)`}</span></div>
