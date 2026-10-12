@@ -62,5 +62,8 @@ pr = step1Pricer(sku({ category: '장난감' }), P, fx);
 eq('STEP1 장난감: 오픈특가 10% · 상시 최대는 빈 값이어도 브랜드 %로 계산 · 채널 전용가도 10%', [pr('오픈특가', 15900), pr('상시 최대할인율', 15900), pr('특가 최대할인율', 15900), pr('오픈특가', 20000)], [14310, 13510, 12720, 18000]);
 pr = step1Pricer(sku({ category: '장난감', isPriceConfirmed: true, pricingSnapshot: { open: 11900, reg: 13510 } }), P, fx);
 eq('STEP1 확정된 장난감 = 확정 가격 그대로', [pr('오픈특가', 15900), pr('상시 최대할인율', 15900)], [11900, 13510]);
+pr = step1Pricer(sku({ isPriceConfirmed: true, pricingSnapshot: { open: 12000, glob: NaN, jp: NaN } }), P, fx);
+const calcSet = calcPricesV2({ price: 15900, brand: '바잇미', core: false, live: true }, P, fx);
+eq('STEP1 확정 가격에 NaN이 있으면 그 칸만 정책 계산값 · 나머지는 확정 가격', [pr('글로벌 공급가', 15900), pr('일본 공급가', 15900), pr('오픈특가', 15900)], [calcSet.glob, calcSet.jp, 12000]);
 if (fail) { console.error(`${fail}건 실패`); process.exit(1); }
 console.log('전부 통과');
