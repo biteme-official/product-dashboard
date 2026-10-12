@@ -149,7 +149,7 @@ export function PricingV2Section({ skus }: { skus: SkuData[] }) {
     const cur = shown(s)[k];
     const isEditing = !!editing && editing.id === s.id && editing.k === k;
     if (cur == null && !isEditing) {
-      // 상시 최대는 주력 SKU만 자동 계산 — 일반 SKU · 장난감은 빈 칸을 눌러 수동 입력만 가능
+      // 상시 최대는 주력 SKU만 자동 계산 — 일반 SKU는 빈 칸을 눌러 수동 입력만 가능
       if (k === 'reg' && canEdit && !s.isPriceConfirmed) {
         return <button type="button" onClick={() => startEdit(s, k)} title="눌러서 직접 입력" className="w-full text-right rounded px-1 text-gray-300 hover:bg-gray-100 cursor-pointer">–</button>;
       }

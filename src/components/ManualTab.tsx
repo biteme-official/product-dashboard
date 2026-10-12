@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode }
 import { BRANDS, CATEGORIES, type Brand, type Category } from '../types';
 import { usePricingPolicy } from '../hooks/usePricingPolicy';
 import { useExchangeRates } from '../utils/useExchangeRates';
-import { calcPricesV2, regApplies, REG_OFF_CATEGORIES, ROUND_LABEL, type PriceKey } from '../utils/pricingV2';
+import { calcPricesV2, ROUND_LABEL, type PriceKey } from '../utils/pricingV2';
 
 /**
  * 메뉴얼 탭 — CPO 대시보드 매뉴얼과 같은 구성(역할별 바로가기 · 고정 섹션 탭 · 카드 · 단계 흐름 · 예시 그림).
@@ -635,7 +635,7 @@ function PricingSection() {
     open: catRate != null
       ? `${category} 예외 · × ${100 - catRate}% → 10원 내림`
       : `× ${100 - p.openRate}% = ${fmt(price * (1 - p.openRate / 100))} → 10원 내림${p.round === '10' ? '' : ` → ${ROUND_LABEL[p.round]}`}`,
-    reg: regApplies(core, category) ? `× ${100 - p.reg}% → 10원 내림` : REG_OFF_CATEGORIES.has(category) ? `${category}은 빈 값 · 직접 입력만` : '주력 SKU만 · 직접 입력 가능',
+    reg: core ? `× ${100 - p.reg}% → 10원 내림` : '주력 SKU만 · 직접 입력 가능',
     spec: `× ${100 - p.spec}% → 10원 내림`,
     b2bOpen: `× ${p.b2bRate}% × ${100 - p.b2bOpenDisc}% → 10원 반올림`,
     b2b: `× ${p.b2bRate}% → 10원 반올림`,
@@ -671,7 +671,7 @@ function PricingSection() {
           <li>앞 칸 실제값(수동 포함) 기준으로 다음 칸 계산 → 오픈특가를 고치면 선오픈 · 라이브도 따라 바뀜</li>
           <li>선오픈 최저가 = 주력 SKU만 · 라이브 = 오픈라이브 ON일 때만</li>
           <li><b>장난감</b> = 브랜드와 상관없이 오픈특가 판매가 10% 할인 (10원 내림) · 선오픈 · 라이브는 이 오픈특가에서 이어서 계산</li>
-          <li><b>상시 최대</b> = 주력 SKU만 자동 계산 · 일반 SKU · 장난감(주력 포함)은 빈 칸 → 눌러서 직접 입력 가능 · 특가 최대는 전 SKU 공통</li>
+          <li><b>상시 최대</b> = 주력 SKU만 자동 계산 · 일반 SKU는 빈 칸 → 눌러서 직접 입력 가능 · 특가 최대는 전 SKU 공통</li>
         </ul>
       </Card>
 
@@ -726,7 +726,7 @@ function PricingSection() {
           ['오픈특가 · 장난감', '판매가 × (1 − 장난감 %) (10)', '10원 내림', '브랜드 정책 대신 적용 · 15,900 → 14,310'],
           ['선오픈 최저가', <>≤10,000: 오픈특가 × 0.95<br />&gt;10,000: 오픈특가 − 1,000</>, <>≤1만: 10원 내림<br />&gt;1만: 그대로</>, '주력 SKU만 · 9,900 → 9,400 · 11,900 → 10,900'],
           ['라이브', '기준가 − min(기준가 × 5%, 1,000)', '차감액 1원 반올림 → 10원 내림', '선오픈(없으면 오픈특가)에서 5% 더 · 최대 1,000원'],
-          ['상시 최대', '판매가 × (1 − 상시 %)', '10원 내림', '주력 SKU만 · 바잇미 15% · SSFW · 그외 10% · 일반 SKU · 장난감은 빈 값(직접 입력만)'],
+          ['상시 최대', '판매가 × (1 − 상시 %)', '10원 내림', '주력 SKU만 · 바잇미 15% · SSFW · 그외 10% · 일반 SKU는 빈 값(직접 입력만)'],
           ['특가 최대', '판매가 × (1 − 특가 %)', '10원 내림', '전 SKU · 전 브랜드 20%'],
         ]} />
       </Card>
@@ -780,7 +780,7 @@ function PricingSection() {
         <div className="grid2">
           <Mini title="보기">오픈일 · 브랜드 · 오픈일+브랜드로 묶기 · [B2C | B2B] 전환 · 판매가 대비 · 정가 대비 · 원가율 · 외화 표시 · [미확정만] · [오픈/완료 제외] 기본 ON</Mini>
           <Mini title="수정">칸 클릭 → 금액 또는 % → Enter 저장 · Esc 취소 · 비우면 자동값 · 상시 최대 빈 칸(–)도 클릭해 입력 · <span style={{ color: 'var(--sky)', fontWeight: 700 }}>파란 숫자</span> = 수동 · [수동 n · 되돌리기]</Mini>
-          <Mini title="주력 SKU">선오픈 최저가 · 상시 최대 계산(장난감 제외) · 메인 채널 칩 · [상세 프로모션 보러가기] (확정 버튼 아래)</Mini>
+          <Mini title="주력 SKU">선오픈 최저가 · 상시 최대 계산 · 메인 채널 칩 · [상세 프로모션 보러가기] (확정 버튼 아래)</Mini>
           <Mini title="할인가능시점">SKU 오픈일 + 카테고리별 n주 · 장난감 4주 · 용품 8주 · 식품 · 잡화 · 의류 미정 (기본값) · SKU별 예외 가능</Mini>
         </div>
         <p className="perm"><span className="rb master">MASTER</span><span className="rb pm">PM</span><span className="rb pmd">플랫폼MD</span><span className="rb bmd">브랜드MD</span> 수정 · 확정 · 그 외 보기만</p>
@@ -817,7 +817,7 @@ function PricingSection() {
           ['선오픈 최저가', '프라이싱 탭 선오픈 최저가', '주력 SKU만 · 일반 SKU는 라이브로'],
           ['라이브', '프라이싱 탭 라이브', '오픈라이브 OFF여도 계산'],
           ['오픈특가 · 특가 최대', '프라이싱 탭 같은 칸', '장난감 오픈특가 = 판매가 10% 할인'],
-          ['상시 최대', '프라이싱 탭 상시 최대', '빈 값(일반 SKU · 장난감)이어도 고르면 브랜드 상시 %로 계산'],
+          ['상시 최대', '프라이싱 탭 상시 최대', '빈 값(일반 SKU)이어도 고르면 브랜드 상시 %로 계산'],
           ['시즌오프(의류)', '판매가 × (1 − 시즌오프 %) → 10원 내림', '할인 정책 브랜드별 · 기본 25%'],
           ['B2B 오픈 · B2B 상시 · 사입 · 팝업/페어 · 글로벌 · 일본', '프라이싱 탭 같은 칸', ''],
         ]} />

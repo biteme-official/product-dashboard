@@ -6,7 +6,7 @@
  *                        카테고리 예외(기본: 장난감 10%)가 있으면 브랜드 정책 대신 판매가 n% 할인 → 10원 내림
  *      · 선오픈 최저가 = 주력 SKU만 · 기존 신상위크 로직 (오픈특가 1만원 이하 5% · 초과 −1,000원)
  *      · 라이브        = 선오픈 최저가(없으면 오픈특가)의 5% 추가 할인, 최대 1,000원
- *      · 상시 최대     = 주력 SKU만 · 판매가 n% 할인 (10원 내림) — 일반 SKU · 장난감은 빈 값(수동 입력만)
+ *      · 상시 최대     = 주력 SKU만 · 판매가 n% 할인 (10원 내림) — 일반 SKU는 빈 값(수동 입력만)
  *      · 특가 최대     = 판매가 n% 할인 (10원 내림) · 전 SKU 공통
  *      → B2C는 할인율로 계산한 가격을 전부 10원 단위 내림, 할인율 표시는 정수 반올림
  * B2B  · B2B 오픈 · B2B 상시 · 사입 · 글로벌 · 일본 = 기존 시나리오 계산 그대로
@@ -47,10 +47,6 @@ export const DEFAULT_PRICING_POLICY: PricingPolicy = {
   catOpen: { '장난감': 10 },
 };
 
-/** 상시 최대를 계산하지 않는 카테고리 (주력 SKU여도 빈 값) */
-export const REG_OFF_CATEGORIES = new Set<Category>(['장난감']);
-/** 상시 최대 기본 계산 대상 = 주력 SKU · 제외 카테고리 아님 */
-export const regApplies = (core: boolean, category?: Category) => core && !(category && REG_OFF_CATEGORIES.has(category));
 
 export const ROUND_LABEL: Record<RoundMode, string> = {
   '900': '1,000원 단위 900 맞춤',
@@ -61,7 +57,7 @@ export const ROUND_LABEL: Record<RoundMode, string> = {
 export type PriceKey = 'open' | 'pre' | 'live' | 'reg' | 'spec' | 'b2bOpen' | 'b2b' | 'buy' | 'popup' | 'glob' | 'jp';
 export const B2C_KEYS: { k: PriceKey; label: string; sub?: string }[] = [
   { k: 'pre', label: '선오픈 최저가', sub: '*주력SKU 프로모션' }, { k: 'live', label: '라이브' }, { k: 'open', label: '오픈특가', sub: '*기본 오픈할인가' },
-  { k: 'reg', label: '상시 최대', sub: '*주력SKU만 · 장난감 제외' }, { k: 'spec', label: '특가 최대' },
+  { k: 'reg', label: '상시 최대', sub: '*주력SKU만' }, { k: 'spec', label: '특가 최대' },
 ];
 export const B2B_KEYS: { k: PriceKey; label: string; sub?: string }[] = [
   { k: 'b2bOpen', label: 'B2B 오픈' }, { k: 'b2b', label: 'B2B 상시' }, { k: 'buy', label: '사입 공급가' },
@@ -122,7 +118,7 @@ export function calcPricesV2(
   const live = input.live ? (ov.live ?? liveFrom(pre ?? open, c)) : null;
   return {
     open, pre, live,
-    reg: ov.reg ?? (regApplies(input.core, input.category) ? floor10(b * (1 - p.reg / 100)) : null),
+    reg: ov.reg ?? (input.core ? floor10(b * (1 - p.reg / 100)) : null),
     spec: ov.spec ?? floor10(b * (1 - p.spec / 100)),
     b2bOpen: ov.b2bOpen ?? round10(b * (p.b2bRate / 100) * (1 - p.b2bOpenDisc / 100)),
     b2b: ov.b2b ?? round10(b * (p.b2bRate / 100)),
