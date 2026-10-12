@@ -128,7 +128,7 @@ function parseCSV(csv: string): Array<{ skuName: string; monthNum: number; year:
 }
 
 // 채널 차트·집계에서 제외할 채널
-const EXCLUDED_CHANNELS = new Set(['협찬', '기타', 'CS', '공구', '팝업']);
+const EXCLUDED_CHANNELS = new Set(['협찬', '기타', 'CS', '공구']);
 
 // 가중 분배: { channel, ratio } 배열 → 수량을 비중대로 나눔
 type WeightedTarget = { channel: string; ratio: number }[];
@@ -139,8 +139,9 @@ const TABLEAU_CHANNEL_NORMALIZE: Record<string, string | WeightedTarget> = {
   'SSFW 스스':    '스스',
   'SSFW 자사몰':  '스스',
   '바잇미 자사몰': '자사몰',
-  '사입':         '사입및페어',
-  '페어':         '사입및페어',
+  // 사입은 앱 채널명과 같아 그대로 · 팝업과 페어 실적은 하나로 합침
+  '팝업':         '팝업/페어',
+  '페어':         '팝업/페어',
   '해외':         [{ channel: '글로벌', ratio: 0.4 }, { channel: '일본', ratio: 0.6 }],
 };
 
@@ -450,7 +451,8 @@ export const CHANNEL_TO_TABLEAU: Record<string, string> = {
   '스스': '스스',
   '쿠팡': '쿠팡',
   'B2B': 'B2B',
-  '사입및페어': '그외',
+  '사입': '그외',
+  '팝업/페어': '그외',
   '위탁': '그외',
   '글로벌': '해외',
   '일본': '해외',

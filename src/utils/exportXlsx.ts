@@ -2,6 +2,7 @@ import * as XLSX from 'xlsx';
 import type { SkuData, Channel } from '../types';
 import { B2C_CHANNELS, B2B_CHANNELS, getSkuMonths, isNextYearMonth, getDisabledChannels } from '../types';
 import { step1Pricer } from './step1Price';
+import { PRICING_DEFAULT_OPT } from './pricingScenarios';
 import { compDistForShare } from './compareData';
 import { getPricingPolicy } from '../hooks/usePricingPolicy';
 
@@ -276,10 +277,7 @@ export function exportSimulationXlsx(params: SimExportParams): void {
   const MONTH_LABELS = skuMonths.map((m) => `${m}월${isNextYearMonth(m, sku.releaseDate) ? '(익년)' : ''}`);
   // 판매가 선택지 단가 = 프라이싱 탭과 같은 가격 (할인 정책 · 확정 가격)
   const priceOf = step1Pricer(sku, getPricingPolicy(), { usd: usdKrw, jpy: jpyKrw });
-  const DEFAULT_OPT_CH: Partial<Record<Channel, string>> = {
-    '쿠팡': 'B2B 상시 운영', 'B2B': 'B2B 상시 운영',
-    '사입및페어': 'B2B 상시 운영', '글로벌': '글로벌 공급가', '일본': '일본 공급가',
-  };
+  const DEFAULT_OPT_CH = PRICING_DEFAULT_OPT;
 
   // ── Section 1 ──────────────────────────────────────────────────────────
   sv(R_S1_TITLE, 0, '▶ SKU 기본 정보');

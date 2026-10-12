@@ -34,7 +34,7 @@ const MONTH_LABELS: Record<Month, string> = {
 
 const CHANNEL_COLORS: Record<Channel, string> = {
   '자사몰': '#6366f1', '스스': '#8b5cf6', '위탁': '#06b6d4',
-  '쿠팡': '#f97316', 'B2B': '#10b981', '사입및페어': '#6b7280',
+  '쿠팡': '#f97316', 'B2B': '#10b981', '사입': '#6b7280', '팝업/페어': '#a855f7',
   '글로벌': '#ec4899', '일본': '#ef4444',
 };
 

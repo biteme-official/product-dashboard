@@ -12,6 +12,7 @@ import type { CpoProject } from '../types/cpo';
 import { recalcQuantities, revenueMultiplier, calcDynamicMultiplier } from '../utils/calc';
 import { monthTotals, redistributeByWeights, setMonthTotal, type PlanScope } from '../utils/qtyPlan';
 import { mergeQtyEntries, mergeRecord, removedKeys } from '../utils/cellMerge';
+import { renameLegacyChannels } from '../utils/legacyChannel';
 import { writeProductSyncFields, buildChannelScheduleMirror, writeChannelScheduleMirror } from '../lib/cpoFirebase';
 import { useCpoSync, markLocalFieldEdit, hasPendingLocalFieldEdit, SYNCED_FIELDS } from './cpoSync';
 
@@ -206,7 +207,8 @@ async function writeSkusMerged(
       const base = p.base;
       const out = { ...p.patch };
       if (base && snaps[i].exists()) {
-        const server = snaps[i].data();
+        // 서버 문서에 예전 채널명이 남아 있으면 같은 칸으로 맞춘 뒤 병합
+        const server = renameLegacyChannels(snaps[i].data());
         const merged: Partial<SkuData> = {};
         for (const f of CELL_MERGE_FIELDS) {
           if (!(f in out)) continue;
@@ -420,7 +422,6 @@ function migrateChannelRatios(raw: any[]): import('../types').ChannelRatio[] {
   if (oldEntry) {
     result = result.filter((cr) => cr.channel !== '위탁및사입');
     if (!result.find((cr) => cr.channel === '위탁')) result.push({ channel: '위탁', ratio: oldEntry.ratio });
-    if (!result.find((cr) => cr.channel === '사입및페어')) result.push({ channel: '사입및페어', ratio: 0 });
   }
   const existing = new Set(result.map((cr) => cr.channel));
   for (const ch of CHANNELS) {
@@ -447,7 +448,9 @@ function deriveChannelMonthlySplit(sku: { channelRatios: any[]; monthlySplit: an
   );
 }
 
-function applyMigration(raw: any): SkuData {
+function applyMigration(rawDoc: any): SkuData {
+  // 예전 채널명('사입및페어')은 읽을 때 지금 이름('팝업/페어')으로 변환
+  const raw = renameLegacyChannels(rawDoc);
   const defaultChannelRatios = CHANNELS.map((channel) => ({ channel, ratio: DEFAULT_CHANNEL_RATIOS[channel] }));
   const base: SkuData = {
     brand: BRANDS[0],
@@ -503,6 +506,12 @@ function applyMigration(raw: any): SkuData {
     base.colors = base.colors.map((c: any) => migrateColorEntry(c));
   }
   base.channelRatios = migrateChannelRatios(base.channelRatios);
+  // 새로 생긴 채널(예: 사입)의 판매가 · 수수료 행이 없으면 기본값으로 채움 — 없으면 채널 전용 판매가 · 수수료 수정이 저장되지 않음
+  if (Array.isArray(base.channelPricing)) {
+    const have = new Set(base.channelPricing.map((cp) => cp.channel));
+    const add = CHANNELS.filter((ch) => !have.has(ch)).map((channel) => ({ channel, price: 0, commissionRate: DEFAULT_CHANNEL_COMMISSION[channel] } as ChannelPricing));
+    if (add.length) base.channelPricing = [...base.channelPricing, ...add];
+  }
   if (base._initialSnapshot.channelRatios) {
     base._initialSnapshot = {
       ...base._initialSnapshot,
@@ -543,6 +552,13 @@ function applyMigration(raw: any): SkuData {
     if (isCMSEmpty(base.channelMonthlySplit)) {
       base.channelMonthlySplit = deriveChannelMonthlySplit(base);
     }
+  }
+  // 새로 생긴 채널(예: 사입)의 채널×월 칸이 없으면 0으로 채움 — 수량 수정 · 다시 나누기는 있는 칸만 고치므로 칸이 없으면 입력이 사라짐
+  if (Array.isArray(base.channelMonthQty) && base.channelMonthQty.length > 0) {
+    const have = new Set(base.channelMonthQty.map((e) => `${e.channel}|${e.month}`));
+    const monthsInUse = [...new Set([...skuMonths, ...base.channelMonthQty.map((e) => e.month)])];
+    const add = CHANNELS.flatMap((channel) => monthsInUse.filter((month) => !have.has(`${channel}|${month}`)).map((month) => ({ channel, month, qty: 0 } as ChannelMonthQtyEntry)));
+    if (add.length) base.channelMonthQty = [...base.channelMonthQty, ...add];
   }
   // 비활성 채널 채널×월 목표량 강제 0 (쿠팡은 coupangEnabled인 SKU만 예외)
   const disabledCh = getDisabledChannels(base) as readonly string[];
