@@ -146,7 +146,7 @@ function buildStockDiff_(r, today) {
     chunk_(parts, 2900).forEach((text) => blocks.push({ type: 'section', text: { type: 'mrkdwn', text } }));
   });
   blocks.push({ type: 'divider' });
-  blocks.push({ type: 'section', text: { type: 'mrkdwn', text: `👉 맞는 값으로 *stock* 또는 *대시보드(CPO)* 수정 부탁드려요 · <${DASHBOARD_URL}|대시보드 열기>` } });
+  blocks.push({ type: 'section', text: { type: 'mrkdwn', text: `👉 맞는 값으로 *stock* 또는 *대시보드(CPO)* 수정해주세요 · <${DASHBOARD_URL}|대시보드 열기>` } });
   blocks.push({ type: 'context', elements: [{ type: 'mrkdwn', text: `${foot} · 옵션별 값이 여러 개면 그중 하나와 같으면 일치로 봄` }] });
   if (blocks.length > 50) blocks.splice(47, blocks.length - 49, { type: 'context', elements: [{ type: 'mrkdwn', text: '… 목록이 길어 일부 생략' }] });
   return { text: `🔍 원가 · 판매가 · 정가 확인 요청 · stock과 다른 오픈 전 SKU ${r.diffs.length}개`, blocks };
