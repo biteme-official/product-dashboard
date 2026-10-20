@@ -8,7 +8,7 @@ import {
   type Channel, type Month, type SkuData,
 } from '../types';
 import {
-  aggregateByYearMonth, aggregateChannelByYearMonth, calcChannelPeriodQty, calcRolling12, calcSamePeriod,
+  aggregateByYearMonth, aggregateChannelByYearMonth, calcChannelPeriodQty, calcRolling12,
   calcVariableCostRatio,
   type ChannelByYearMonth, type ChannelDataMap, type SkuShipmentInfo, type TeamCateMap,
 } from '../services/tableau';
@@ -71,6 +71,100 @@ export interface CompareData {
   channelYM: ChannelByYearMonth | null;
   /** 기간 내 채널별 실적 (채널 비중 기준) */
   channelDist: Record<string, number> | null;
+  /** 동기간일 때 대응SKU별 기준연도 (직전 12개월이면 빈 배열) */
+  bases: CompareBase[];
+}
+
+// ── 동기간 기준연도 (대응SKU별) ──────────────────────────────────────────
+// 기존 계산은 모두 "출시연도−1 시즌"을 조회하므로, 대응SKU마다 정한 기준연도 시즌 실적을
+// 출시연도−1 위치로 옮겨(연도 shift) 넘긴다. 그래서 하위 계산 함수는 그대로 둔다.
+
+/** SKU명 속 출시연도 표기 → 연도 (끝 `_25`, 중간 `_25_블랙` 모두). 없으면 null */
+export function suffixYearOf(name: string): number | null {
+  const m = name.match(/_(\d{2})(?=_|$)/);
+  return m ? 2000 + Number(m[1]) : null;
+}
+
+/** manual = 직접 지정 · suffix = SKU명 _YY · auto = 출시연도−1 실적 없어 자동 보정 · default = 출시연도−1 */
+export type BaseYearSource = 'manual' | 'suffix' | 'auto' | 'default';
+export interface CompareBase { name: string; year: number; source: BaseYearSource; defaultYear: number }
+
+/** base 연도 시즌(출시월부터 8개월, 해 넘긴 달은 base+1)의 연·월 목록 */
+function seasonPairs(rm: number, base: number): { year: number; month: number }[] {
+  return Array.from({ length: 8 }, (_, i) => {
+    const month = ((rm - 1 + i) % 12) + 1;
+    return { year: month >= rm ? base : base + 1, month };
+  });
+}
+
+/** 대응SKU 실적이 있는 시즌 시작 연도 목록 (최신순) — 기준연도 선택지 */
+export function seasonYearsWithData(byYM: Record<number, Record<number, number>>, rm: number): number[] {
+  const years = Object.keys(byYM).map(Number);
+  const cands = new Set<number>();
+  for (const y of years) { cands.add(y); cands.add(y - 1); }
+  return [...cands]
+    .filter((b) => seasonPairs(rm, b).some(({ year, month }) => (byYM[year]?.[month] ?? 0) > 0))
+    .sort((a, b) => b - a);
+}
+
+/** 대응SKU 하나의 동기간 기준연도: 직접 지정 > SKU명 _YY > 출시연도−1 (비어 있으면 실적 있는 최근 시즌) */
+export function resolveBaseYear(
+  s: SkuShipmentInfo, rm: number, ry: number, baseYears: Record<string, number> | undefined,
+): CompareBase {
+  const defaultYear = ry - 1;
+  const manual = baseYears?.[s.name];
+  if (manual) return { name: s.name, year: manual, source: 'manual', defaultYear };
+  const suffix = suffixYearOf(s.name);
+  if (suffix && suffix <= defaultYear) return { name: s.name, year: suffix, source: 'suffix', defaultYear };
+  const withData = seasonYearsWithData(s.byYearMonth, rm);
+  if (withData.length === 0 || withData.includes(defaultYear)) return { name: s.name, year: defaultYear, source: 'default', defaultYear };
+  const prev = withData.find((y) => y < defaultYear);
+  return prev ? { name: s.name, year: prev, source: 'auto', defaultYear } : { name: s.name, year: defaultYear, source: 'default', defaultYear };
+}
+
+function shiftYears<T>(byYM: Record<number, T>, offset: number): Record<number, T> {
+  if (offset === 0) return byYM;
+  return Object.fromEntries(Object.entries(byYM).map(([y, v]) => [Number(y) + offset, v]));
+}
+
+/**
+ * 동기간 비교용으로 대응SKU 실적 정렬 — 각 SKU 기준연도 시즌을 출시연도−1 시즌 자리로 옮긴다.
+ * 직전 12개월이거나 출시일이 없으면 원본 그대로 (bases 빈 배열).
+ */
+export function alignCompareSkus(
+  releaseDate: string | null | undefined,
+  baseYears: Record<string, number> | undefined,
+  found: SkuShipmentInfo[],
+  channelMap: ChannelDataMap | null,
+  mode: CompareMode,
+): { shipments: SkuShipmentInfo[]; channelMap: ChannelDataMap | null; bases: CompareBase[] } {
+  const rm = getReleaseMonth(releaseDate ?? '');
+  const ry = releaseDate ? parseInt(releaseDate.split('-')[0], 10) : NaN;
+  if (mode !== 'samePeriod' || !rm || !ry) return { shipments: found, channelMap, bases: [] };
+  const bases = found.map((s) => resolveBaseYear(s, rm, ry, baseYears));
+  const shipments = found.map((s, i) => ({ ...s, byYearMonth: shiftYears(s.byYearMonth, ry - 1 - bases[i].year) }));
+  let cm: ChannelDataMap | null = null;
+  if (channelMap) {
+    cm = new Map();
+    found.forEach((s, i) => {
+      const byCh = channelMap.get(s.name);
+      if (!byCh) return;
+      const off = ry - 1 - bases[i].year;
+      cm!.set(s.name, Object.fromEntries(Object.entries(byCh).map(([ch, byYM]) => [ch, shiftYears(byYM, off)])));
+    });
+  }
+  return { shipments, channelMap: cm, bases };
+}
+
+/** 동기간 기간 표시 — 기준연도가 하나면 "2025년 5~12월", 여러 개면 연도별로 이어 붙임 */
+export function samePeriodLabelOf(rm: number, bases: CompareBase[], short = false): string {
+  const years = [...new Set(bases.map((b) => b.year))].sort((a, b) => b - a);
+  const yy = (y: number) => (short ? `${String(y % 100).padStart(2, '0')}년` : `${y}년`);
+  const one = (y: number) => {
+    const end = ((rm + 6) % 12) + 1;
+    return end >= rm ? `${yy(y)} ${rm}~${end}월` : `${yy(y)} ${rm}월~${yy(y + 1)} ${end}월`;
+  };
+  return years.map(one).join(' · ');
 }
 
 /** 저장된 대응SKU 이름 목록 (예전 단일 name 필드 호환) */
@@ -86,26 +180,29 @@ export function buildCompareData(
   mode: CompareMode = defaultCompareMode(sku),
 ): CompareData {
   const names = compareNamesOf(sku);
-  const found = names.map((n) => shipments.find((s) => s.name === n)).filter(Boolean) as SkuShipmentInfo[];
+  const raw = names.map((n) => shipments.find((s) => s.name === n)).filter(Boolean) as SkuShipmentInfo[];
   const rm = getReleaseMonth(sku.releaseDate);
   const ry = releaseYearOf(sku);
   const effMode: CompareMode = mode === 'samePeriod' && rm && ry ? 'samePeriod' : 'rolling12';
-  if (found.length === 0) {
-    return { names, mode: effMode, modeLabel: effMode === 'samePeriod' ? '동기간' : '직전 12개월/월평균', monthly: {}, monthlyActiveOnly: false, channelYM: null, channelDist: null };
+  if (raw.length === 0) {
+    return { names, mode: effMode, modeLabel: effMode === 'samePeriod' ? '동기간' : '직전 12개월/월평균', monthly: {}, monthlyActiveOnly: false, channelYM: null, channelDist: null, bases: [] };
   }
+  // 동기간이면 대응SKU별 기준연도 시즌을 출시연도−1 자리로 옮긴 실적으로 계산
+  const aligned = alignCompareSkus(sku.releaseDate, sku.comparisonSku.baseYears, raw, channelMap, effMode);
+  const found = aligned.shipments;
   const aggregated = aggregateByYearMonth(found);
-  const modeLabel = effMode === 'samePeriod' && rm && ry ? calcSamePeriod(aggregated, rm, ry).label : '직전 12개월/월평균';
+  const modeLabel = effMode === 'samePeriod' && rm && ry ? samePeriodLabelOf(rm, aligned.bases) : '직전 12개월/월평균';
   const monthly = calcMonthlyDisplayData(aggregated, effMode, sku.releaseDate, ry);
   let channelYM: ChannelByYearMonth | null = null;
   let channelDist: Record<string, number> | null = null;
-  if (channelMap) {
-    const agg = aggregateChannelByYearMonth(found.map((s) => s.name), channelMap);
+  if (aligned.channelMap) {
+    const agg = aggregateChannelByYearMonth(found.map((s) => s.name), aligned.channelMap);
     const qty = calcChannelPeriodQty(agg, effMode, rm, ry);
     channelYM = Object.keys(agg).length > 0 ? agg : null;
     channelDist = Object.keys(qty).length > 0 ? qty : null;
   }
   const active = compMonthlyActive(sku, channelYM, effMode, getSkuMonths(sku.releaseDate), ry ?? 2026);
-  return { names, mode: effMode, modeLabel, monthly: active ?? monthly, monthlyActiveOnly: !!active, channelYM, channelDist };
+  return { names, mode: effMode, modeLabel, monthly: active ?? monthly, monthlyActiveOnly: !!active, channelYM, channelDist, bases: aligned.bases };
 }
 
 /**
