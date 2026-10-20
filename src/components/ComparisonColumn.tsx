@@ -3,7 +3,7 @@ import { useRef, useEffect, useState, useCallback, type KeyboardEvent } from 're
 import type { SkuData } from '../types';
 import { getReleaseMonth, getSkuMonths } from '../types';
 import { GrowthIndicator } from './GrowthIndicator';
-import { calcMonthlyDisplayData } from '../utils/compareData';
+import { type BaseYearSource, type CompareBase, alignCompareSkus, calcMonthlyDisplayData, resolveBaseYear, samePeriodLabelOf, seasonYearsWithData } from '../utils/compareData';
 import { NumericInput } from './NumericInput';
 import { revenueMultiplier, calcDynamicMultiplier } from '../utils/calc';
 import {
@@ -75,6 +75,12 @@ export function ComparisonColumn({ sku, readOnly, onComparisonDataChange, onChan
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
+  // 동기간 기준연도 (대응SKU별 직접 지정 · 없으면 SKU명 _YY → 출시연도−1, 비면 자동 보정)
+  const baseYears = sku.comparisonSku.baseYears;
+  const baseYearsKey = JSON.stringify(baseYears ?? {});
+  const alignOf = (skus: SkuShipmentInfo[], mode: CompareMode, by = baseYears) =>
+    alignCompareSkus(sku.releaseDate, by, skus, channelMap, mode);
+
   // SKU 카드 변경 시 초기화 (의류·잡화는 동기간으로 리셋)
   useEffect(() => {
     setQuery('');
@@ -138,7 +144,7 @@ export function ComparisonColumn({ sku, readOnly, onComparisonDataChange, onChan
     const rm = getReleaseMonth(sku.releaseDate);
     const ry = sku.releaseDate ? parseInt(sku.releaseDate.split('-')[0], 10) : null;
     const skuNames = selectedSkus.map(s => s.name);
-    const aggregated = aggregateChannelByYearMonth(skuNames, channelMap);
+    const aggregated = aggregateChannelByYearMonth(skuNames, alignOf(selectedSkus, compareMode).channelMap ?? channelMap);
     const qty = calcChannelPeriodQty(aggregated, compareMode, rm, ry);
 
     // 채널별 실제 출고 월수 기준 월평균 (calcRolling12: last12.length, calcSamePeriod: monthsWithData)
@@ -173,7 +179,7 @@ export function ComparisonColumn({ sku, readOnly, onComparisonDataChange, onChan
     onChannelDistChange?.(dist);
     onChannelYMDataChange?.(Object.keys(aggregated).length > 0 ? aggregated : null);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedSkus, compareMode, channelMap]);
+  }, [selectedSkus, compareMode, channelMap, sku.releaseDate, baseYearsKey]);
 
   // 외부 클릭 시 드롭다운 닫기
   useEffect(() => {
@@ -197,13 +203,14 @@ export function ComparisonColumn({ sku, readOnly, onComparisonDataChange, onChan
   }, [allSkus]);
 
   // 집계 byYearMonth 계산 후 저장 + 콜백 호출
-  function applySelection(skus: SkuShipmentInfo[], mode: CompareMode) {
+  function applySelection(skus: SkuShipmentInfo[], mode: CompareMode, by = baseYears) {
     if (skus.length === 0) {
       updateSku(sku.id, {
         comparisonSku: {
           ...sku.comparisonSku,
           name: '',
           compareSkuNames: [],
+          baseYears: {},
           monthlyShipment: 0,
           annualShipment: 0,
         },
@@ -213,13 +220,15 @@ export function ComparisonColumn({ sku, readOnly, onComparisonDataChange, onChan
       return;
     }
 
-    const aggregated = aggregateByYearMonth(skus);
+    const aligned = alignOf(skus, mode, by);
+    const aggregated = aggregateByYearMonth(aligned.shipments);
     const rm = getReleaseMonth(sku.releaseDate);
     const ry = sku.releaseDate ? parseInt(sku.releaseDate.split('-')[0], 10) : null;
 
     let annual: number, monthly: number, label: string;
     if (mode === 'samePeriod' && rm && ry) {
-      ({ annual, monthly, label } = calcSamePeriod(aggregated, rm, ry));
+      ({ annual, monthly } = calcSamePeriod(aggregated, rm, ry));
+      label = samePeriodLabelOf(rm, aligned.bases);
     } else {
       ({ annual, monthly } = calcRolling12(aggregated));
       label = '직전 12개월/월평균';
@@ -231,6 +240,8 @@ export function ComparisonColumn({ sku, readOnly, onComparisonDataChange, onChan
         ...sku.comparisonSku,
         name: displayName,
         compareSkuNames: skus.map((s) => s.name),
+        // 빠진 대응SKU의 지정값은 정리
+        baseYears: Object.fromEntries(Object.entries(by ?? {}).filter(([n]) => skus.some((s) => s.name === n))),
         monthlyShipment: monthly,
         annualShipment: annual,
       },
@@ -260,30 +271,18 @@ export function ComparisonColumn({ sku, readOnly, onComparisonDataChange, onChan
 
   function handleModeToggle() {
     if (selectedSkus.length === 0 || readOnly) return;
-    const rm = getReleaseMonth(sku.releaseDate);
-    const ry = sku.releaseDate ? parseInt(sku.releaseDate.split('-')[0], 10) : null;
-    const aggregated = aggregateByYearMonth(selectedSkus);
+    const next: CompareMode = compareMode === 'rolling12' ? 'samePeriod' : 'rolling12';
+    if (next === 'samePeriod' && (!getReleaseMonth(sku.releaseDate) || !sku.releaseDate)) return;
+    setCompareMode(next);
+    applySelection(selectedSkus, next);
+  }
 
-    if (compareMode === 'rolling12') {
-      if (!rm || !ry) return;
-      const { annual, monthly, label } = calcSamePeriod(aggregated, rm, ry);
-      updateSku(sku.id, {
-        comparisonSku: { ...sku.comparisonSku, monthlyShipment: monthly, annualShipment: annual },
-      });
-      persistSku(sku.id);
-      setCompareMode('samePeriod');
-      const data = calcMonthlyDisplayData(aggregated, 'samePeriod', sku.releaseDate, ry);
-      onComparisonDataChange?.(data, 'samePeriod', label);
-    } else {
-      const { annual, monthly } = calcRolling12(aggregated);
-      updateSku(sku.id, {
-        comparisonSku: { ...sku.comparisonSku, monthlyShipment: monthly, annualShipment: annual },
-      });
-      persistSku(sku.id);
-      setCompareMode('rolling12');
-      const data = calcMonthlyDisplayData(aggregated, 'rolling12', sku.releaseDate, ry);
-      onComparisonDataChange?.(data, 'rolling12', '직전 12개월/월평균');
-    }
+  /** 대응SKU 하나의 동기간 기준연도 지정 (null = 자동) */
+  function setBaseYear(name: string, year: number | null) {
+    if (readOnly) return;
+    const next = { ...(baseYears ?? {}) };
+    if (year === null) delete next[name]; else next[name] = year;
+    applySelection(selectedSkus, compareMode, next);
   }
 
   function handleKeyDown(e: KeyboardEvent<HTMLInputElement>) {
@@ -293,13 +292,17 @@ export function ComparisonColumn({ sku, readOnly, onComparisonDataChange, onChan
   // 동기간 레이블
   const releaseMonth = getReleaseMonth(sku.releaseDate);
   const releaseYear = sku.releaseDate ? parseInt(sku.releaseDate.split('-')[0], 10) : null;
+  // 동기간 기준연도 (토글 전에도 기간 표시용으로 계산)
+  const sameBases = alignOf(selectedSkus, 'samePeriod').bases;
   const samePeriodLabel = releaseMonth && releaseYear
-    ? calcSamePeriod({}, releaseMonth, releaseYear).label
+    ? (sameBases.length > 0 ? samePeriodLabelOf(releaseMonth, sameBases) : calcSamePeriod({}, releaseMonth, releaseYear).label)
     : null;
+  const autoBases = sameBases.filter((b) => b.source === 'auto');
   const canSamePeriod = !!releaseMonth && selectedSkus.length > 0;
   // 기간 토글 버튼용 짧은 동기간 레이블 (예: 25년 3~10월, 25년 7월~26년 2월)
   const samePeriodShortLabel = (() => {
     if (!releaseMonth || !releaseYear) return null;
+    if (sameBases.length > 0) return new Set(sameBases.map((b) => b.year)).size > 1 ? '대응SKU별 기간' : samePeriodLabelOf(releaseMonth, sameBases, true);
     const endMonth = ((releaseMonth + 6) % 12) + 1;
     const yy = (y: number) => String(y % 100).padStart(2, '0');
     return endMonth >= releaseMonth
@@ -363,6 +366,16 @@ export function ComparisonColumn({ sku, readOnly, onComparisonDataChange, onChan
                 className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-indigo-100 text-indigo-700 border border-indigo-200"
               >
                 {s.name}
+                {compareMode === 'samePeriod' && releaseMonth && releaseYear && (
+                  <BaseYearPicker
+                    sku={s}
+                    base={sameBases.find((b) => b.name === s.name)}
+                    autoYear={resolveBaseYear(s, releaseMonth, releaseYear, undefined).year}
+                    years={seasonYearsWithData(s.byYearMonth, releaseMonth)}
+                    readOnly={readOnly}
+                    onChange={(y) => setBaseYear(s.name, y)}
+                  />
+                )}
                 {!readOnly && (
                   <button
                     type="button"
@@ -461,6 +474,11 @@ export function ComparisonColumn({ sku, readOnly, onComparisonDataChange, onChan
                 );
               })}
             </div>
+            {compareMode === 'samePeriod' && autoBases.map((b) => (
+              <p key={b.name} className="text-[10px] leading-tight text-amber-600">
+                {b.name} · {yy2(b.defaultYear)}년 실적 없음 · {yy2(b.year)}년 시즌으로 비교
+              </p>
+            ))}
           </div>
         )}
       </div>
@@ -712,7 +730,7 @@ function ChannelDistChart({
             </div>
             <p className="text-[10px] text-gray-400 text-right">
               {compareMode === 'samePeriod'
-                ? '월평균 · 작년 동기간 중 출고 있던 달 기준'
+                ? '월평균 · 동기간 중 출고 있던 달 기준'
                 : '월평균 · 최근 출고 12개월 기준 · 0건 달 제외'}
             </p>
           </div>
@@ -732,5 +750,55 @@ function ScoreCard({ label, value, sub, color = 'indigo' }: { label: string; val
       <div className={`text-sm font-bold break-all ${color === 'emerald' ? 'text-emerald-700' : 'text-indigo-700'}`}>{value}</div>
       <div className="text-xs text-gray-400 mt-0.5">{sub}</div>
     </div>
+  );
+}
+
+const yy2 = (y: number) => String(y % 100).padStart(2, '0');
+
+const BASE_SOURCE_TEXT: Record<BaseYearSource, string> = {
+  manual: '직접 지정',
+  suffix: 'SKU명 연도 기준',
+  auto: '출시연도−1 실적 없음 · 자동 보정',
+  default: '출시연도−1 기준',
+};
+
+/** 대응SKU 칩 안의 동기간 기준연도 — 평소엔 "25년"만 보이고, 누르면 연도 선택 (투명 select를 겹쳐 둠) */
+function BaseYearPicker({ sku, base, autoYear, years, readOnly, onChange }: {
+  sku: SkuShipmentInfo;
+  base: CompareBase | undefined;
+  autoYear: number;
+  years: number[];
+  readOnly?: boolean;
+  onChange: (year: number | null) => void;
+}) {
+  if (!base) return null;
+  const options = [...new Set([...years, base.year])].sort((a, b) => b - a);
+  const manual = base.source === 'manual';
+  return (
+    <span
+      className={`relative inline-flex items-center gap-0.5 pl-1.5 ml-0.5 border-l border-indigo-200 text-[10px] tabular-nums ${
+        manual ? 'font-bold text-indigo-700' : 'font-semibold text-indigo-400'
+      } ${readOnly ? '' : 'hover:text-indigo-700'}`}
+      title={`${sku.name} · 동기간 ${base.year}년 시즌 · ${BASE_SOURCE_TEXT[base.source]}`}
+    >
+      {base.source === 'auto' && <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />}
+      {yy2(base.year)}년
+      {!readOnly && (
+        <>
+          <svg className="w-2 h-2 opacity-60" viewBox="0 0 10 10" fill="none" aria-hidden="true">
+            <path d="M2 3.5l3 3 3-3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          <select
+            aria-label={`${sku.name} 동기간 기준연도`}
+            value={manual ? String(base.year) : ''}
+            onChange={(e) => onChange(e.target.value ? Number(e.target.value) : null)}
+            className="absolute inset-0 w-full opacity-0 cursor-pointer"
+          >
+            <option value="">자동 · {autoYear}년</option>
+            {options.map((y) => <option key={y} value={y}>{y}년 시즌</option>)}
+          </select>
+        </>
+      )}
+    </span>
   );
 }

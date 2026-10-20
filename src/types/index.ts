@@ -163,6 +163,7 @@ export interface SizeRatio {
 export interface ComparisonSku {
   name: string;              // 표시용 (단일이면 SKU명, 복수이면 "A, B, ...")
   compareSkuNames?: string[]; // 다중 선택된 개별 SKU명 목록 (재수화용)
+  baseYears?: Record<string, number>; // 대응SKU명 → 동기간 기준연도 직접 지정 (없으면 SKU명 _YY · 출시연도−1 자동)
   price: number;
   cost: number;
   monthlyShipment: number;
