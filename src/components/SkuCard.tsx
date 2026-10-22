@@ -18,6 +18,7 @@ import { NumericInput } from './NumericInput';
 import { useExchangeRates } from '../utils/useExchangeRates';
 import { usePermission } from '../contexts/PermissionsContext';
 import { canConfirmGroup, isAllChannelRole, ownsChannel, type QtyChannel } from '../utils/channelOwnership';
+import { copySkuLink } from '../utils/skuLink';
 import { calcVarCostResults, compMonthlyActive, fallbackWeightsOf, getCompQtyAdj } from '../utils/compareData';
 import { MarketingBriefModal } from './MarketingBriefModal';
 import { exportSimulationXlsx } from '../utils/exportXlsx';
@@ -186,6 +187,7 @@ export function SkuCard({ sku, embedded = false, autoInit = true }: Props) {
             {sku.skuName || '(SKU명 미입력)'}
           </button>
 
+          {!embedded && <CopySkuLinkButton skuId={sku.id} />}
         </div>
 
         {/* 2행: 배지 + 수치 요약 */}
@@ -250,6 +252,33 @@ export function SkuCard({ sku, embedded = false, autoInit = true }: Props) {
         </div>
       )}
     </div>
+  );
+}
+
+// ── SKU 직링크 복사 버튼 (#sku/<id>) ────────────────────────────────────
+function CopySkuLinkButton({ skuId }: { skuId: string }) {
+  const [state, setState] = useState<'idle' | 'done' | 'error'>('idle');
+  async function handleCopy() {
+    const ok = await copySkuLink(skuId);
+    setState(ok ? 'done' : 'error');
+    setTimeout(() => setState('idle'), 1500);
+  }
+  return (
+    <button
+      onClick={handleCopy}
+      className={`flex-shrink-0 flex items-center gap-1 text-[11px] px-2.5 py-0.5 rounded-full border transition-colors ${
+        state === 'done'
+          ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
+          : state === 'error'
+            ? 'border-red-300 bg-red-50 text-red-600'
+            : 'border-gray-200 bg-white text-gray-500 hover:text-indigo-700 hover:border-indigo-300'
+      }`}
+    >
+      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+      </svg>
+      {state === 'done' ? '복사됨' : state === 'error' ? '복사 실패' : '공유'}
+    </button>
   );
 }
 
