@@ -80,6 +80,8 @@ export function SkuOrderSection({
   onExcludeOpenCompleteChange = () => {},
   onSearchQueryChange = () => {},
   onNavigateToSku,
+  focusRequest,
+  onFocusHandled = () => {},
 }: {
   mode?: 'sku' | 'projection';
   subTab?: string;
@@ -94,6 +96,9 @@ export function SkuOrderSection({
   onExcludeOpenCompleteChange?: (v: boolean) => void;
   onSearchQueryChange?: (v: string) => void;
   onNavigateToSku?: (sku: SkuData) => void;
+  /** SKU로 이동 요청(직링크·LIST VIEW 이동) — 갤러리 보기면 해당 SKU 팝업을 연다. 목록 보기는 App이 펼침+스크롤 처리 */
+  focusRequest?: { id: string; seq: number } | null;
+  onFocusHandled?: () => void;
 }) {
   const skus = useVisibleSkus();
   const activeCategory = useStore((s) => s.activeCategory);
@@ -140,6 +145,13 @@ export function SkuOrderSection({
   }
 
   function closeModal() { setGallerySkuId(null); }
+
+  useEffect(() => {
+    if (!focusRequest) return;
+    if (mode === 'sku' && viewMode === 'gallery') setGallerySkuId(focusRequest.id);
+    onFocusHandled(); // 탭을 다시 열 때(재마운트) 같은 요청으로 팝업이 또 뜨지 않게 비움
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusRequest?.seq]);
 
   const hasListFilter =
     listCatFilter.size > 0 || listBrandFilter.size > 0 || listMonthFilter.size > 0 || excludeOpenComplete;

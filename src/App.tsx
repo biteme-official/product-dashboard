@@ -24,6 +24,7 @@ import { parseImportJson, type RawSkuInput } from './utils/importParser';
 import { BulkImportModal } from './components/BulkImportModal';
 import { usePermission } from './contexts/PermissionsContext';
 import { getPortalToken, verifyPortalToken, cleanPortalToken } from './utils/portalAuth';
+import { readSkuLinkId, clearSkuLink } from './utils/skuLink';
 
 type MainTab = 'pm' | 'projection' | 'md' | 'manual' | 'admin';
 
@@ -165,6 +166,45 @@ function App() {
     prevRoleRef.current = role;
   }, [role, setActiveMainTab, setProjectionSubTab]);
 
+  // SKU 직링크(#sku/<id>) — 로그인 + SKU 로드가 끝나면 SKU 리스트에서 해당 카드를 펼친다.
+  // 로그인 직후 List view 초기화 effect보다 뒤에 선언해야 같은 커밋에서 이 이동이 이긴다.
+  const allSkus = useStore((s) => s.skus);
+  const cpoProjects = useCpoSync((s) => s.cpoProjects);
+  const excludeOpenCompletePm = useStore((s) => s.excludeOpenCompletePm);
+  const setExcludeOpenCompletePm = useStore((s) => s.setExcludeOpenCompletePm);
+  const [skuLinkId, setSkuLinkId] = useState<string | null>(readSkuLinkId);
+  const [skuLinkNotice, setSkuLinkNotice] = useState<string | null>(null);
+  const [skuFocus, setSkuFocus] = useState<{ id: string; seq: number } | null>(null);
+
+  useEffect(() => {
+    const handleHashChange = () => {
+      const id = readSkuLinkId();
+      if (id) setSkuLinkId(id);
+    };
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
+
+  useEffect(() => {
+    if (!skuLinkId || !role || allSkus.length === 0) return;
+    setSkuLinkId(null);
+    clearSkuLink();
+    const target = skus.find((s) => s.id === skuLinkId);
+    if (!target) {
+      setSkuLinkNotice(
+        allSkus.some((s) => s.id === skuLinkId)
+          ? '숨김 SKU · CPO 취소/보류 또는 오픈일 미정'
+          : 'SKU 없음 · 삭제됐거나 휴지통에 있음',
+      );
+      setTimeout(() => setSkuLinkNotice(null), 5000);
+      return;
+    }
+    setSearchQuery('');
+    if (excludeOpenCompletePm && cpoProjects[target.id]?.status === '오픈/완료') setExcludeOpenCompletePm(false);
+    handleNavigateToSku(target);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [skuLinkId, role, allSkus.length]);
+
   function pushNavHistory() {
     const snapshot: NavSnapshot = {
       mainTab: activeMainTab,
@@ -211,10 +251,15 @@ function App() {
     pushNavHistory();
     setActiveMainTab('pm');
     setActiveCategory(sku.category);
+    setSkuFocus((prev) => ({ id: sku.id, seq: (prev?.seq ?? 0) + 1 }));
     setTimeout(() => {
       expandOnly(sku.id);
       setTimeout(() => {
-        document.getElementById(`sku-card-${sku.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        // 상단 고정 헤더(data-app-sticky)에 카드 머리가 가려지지 않게 그 높이만큼 띄워서 스크롤
+        const card = document.getElementById(`sku-card-${sku.id}`);
+        if (!card) return;
+        const headerH = document.querySelector('[data-app-sticky]')?.getBoundingClientRect().height ?? 0;
+        window.scrollTo({ top: card.getBoundingClientRect().top + window.scrollY - headerH - 12, behavior: 'smooth' });
       }, 50);
     }, 0);
   }
@@ -322,6 +367,11 @@ function App() {
   return (
     <div className="min-h-screen bg-gray-50">
       {showBulkImport && <BulkImportModal onClose={() => setShowBulkImport(false)} />}
+      {skuLinkNotice && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 bg-gray-900 text-white text-xs sm:text-sm px-4 py-2 rounded-lg shadow-lg">
+          {skuLinkNotice}
+        </div>
+      )}
       {skuSyncError && (
         <div className="sticky top-0 z-50 bg-red-600 text-white text-xs sm:text-sm px-4 py-2 flex items-center justify-center gap-3 flex-wrap">
           <span>서버와 실시간 연결이 끊겨 이 화면의 데이터가 최신이 아닐 수 있어요. 덮어쓰기를 막기 위해 저장을 멈췄습니다.</span>
@@ -547,6 +597,8 @@ function App() {
             mode="sku"
             searchQuery={searchQuery}
             onSearchQueryChange={setSearchQuery}
+            focusRequest={skuFocus}
+            onFocusHandled={() => setSkuFocus(null)}
           />
         ) : activeMainTab === 'projection' ? (
           <SkuOrderSection
