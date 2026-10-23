@@ -10,6 +10,7 @@ import { useAuth } from './auth';
 import { MAX_SIZES, SIZE_LABELS, MONTHS, CHANNELS, BRANDS, CATEGORIES, SKU_TYPES, DEFAULT_CHANNEL_RATIOS, DEFAULT_CHANNEL_COMMISSION, getDisabledChannels, getSkuMonths, getConfirmedChannels, isChannelToggleLocked, isSeasonOnly, STEP2_FORCE_RECALC_MARK, type Brand, type Channel, type OptOutChannel } from '../types';
 import type { CpoProject } from '../types/cpo';
 import { recalcQuantities, revenueMultiplier, calcDynamicMultiplier } from '../utils/calc';
+import { buildSizesFromLabels, cpoSizeLabels } from '../utils/sizeLabels';
 import { monthTotals, redistributeByWeights, setMonthTotal, type PlanScope } from '../utils/qtyPlan';
 import { mergeQtyEntries, mergeRecord, removedKeys } from '../utils/cellMerge';
 import { renameLegacyChannels } from '../utils/legacyChannel';
@@ -319,15 +320,10 @@ function buildSkuFromCpo(cpo: CpoProject): SkuData {
   const skuType = (SKU_TYPES as readonly string[]).includes(cpo.skuType) ? (cpo.skuType as import('../types').SkuType) : SKU_TYPES[2];
   const base = buildEmptySku(category);
 
-  const sizeCount = Math.min(Math.max(cpo.sizes?.length ?? 1, 1), MAX_SIZES);
-  const labels = SIZE_LABELS[sizeCount] ?? SIZE_LABELS[1];
-  const evenRatio = Math.round(100 / sizeCount);
-  const sizes = Array.from({ length: MAX_SIZES }, (_, i) => ({
-    label: i < sizeCount ? labels[i] : '-',
-    ratio: i < sizeCount ? evenRatio : 0,
-    quantity: 0,
-    isActive: i < sizeCount,
-  }));
+  // 사이즈 라벨은 CPO가 고른 그대로(M·L·XL 등) — 프리셋 S·M·L로 바꾸지 않는다(#44)
+  const labels = cpoSizeLabels(cpo.sizes, MAX_SIZES);
+  const sizeCount = labels.length;
+  const sizes = buildSizesFromLabels([], [], labels, new Map(), MAX_SIZES);
 
   const hasColors = (cpo.colors?.length ?? 0) > 0;
   const colors = (cpo.colors ?? []).map((c) => ({ id: c.id, name: c.name, quantity: 0 }));
@@ -346,6 +342,7 @@ function buildSkuFromCpo(cpo: CpoProject): SkuData {
     moq: cpo.moq || 0,
     sizeCount,
     sizes,
+    sizeLabelsFromCpo: true,
     hasColors,
     colors,
   };
@@ -599,6 +596,8 @@ interface StoreActions {
   updateFinalOrderQty: (id: string, qty: Record<string, number>) => void;
   setFinalOrderConfirmed: (id: string, confirmed: boolean, finalOrderQty?: Record<string, number>) => Promise<void>;
   persistSku: (id: string) => Promise<void>;
+  /** CPO 사이즈 라벨 변경으로 옮긴 수동 수량 키 저장 — 빠진 키는 deleteField로 지운다(merge 저장은 안 지움) */
+  persistSizeKeyRemap: (id: string, removed: { step2OptionQty: string[]; finalOrderQty: string[] }) => Promise<void>;
   /** 채널 목표량 페이지 일괄 작업 — 여러 SKU를 한 트랜잭션으로 저장(칸 단위 병합) + 활동 로그 한 줄씩 */
   applySkuBatch: (updates: { id: string; patch: Partial<SkuData> }[], logLabel: string) => Promise<void>;
   setChannelConfirmed: (id: string, field: 'step2PlatformConfirmed' | 'step2BrandConfirmed' | 'step2GlobalConfirmed', value: boolean) => Promise<void>;
@@ -1222,6 +1221,22 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
       console.error('[persistSku] Firestore 저장 실패:', id, err);
       throw err;
     }
+  },
+
+  persistSizeKeyRemap: async (id, removed) => {
+    const sku = get().skus.find((s) => s.id === id);
+    if (!sku || skuListenerDead) return;
+    // persistSku는 finalOrderQty를 쓰지 않고(확정 레이스 방지) step2OptionQty도 merge라 옛 라벨 키가 남는다 —
+    // 옮긴 두 맵을 통째로 쓰면서 옛 키만 명시적으로 지운다. 합계(__total__ 등)는 별도 최상위 필드라 건드리지 않음.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const payload: Record<string, any> = {};
+    const fsData = toFirestore(sku);
+    ([['step2OptionQty', removed.step2OptionQty], ['finalOrderQty', removed.finalOrderQty]] as const).forEach(([f, gone]) => {
+      if (gone.length === 0 && fsData[f] === undefined) return;
+      payload[f] = { ...(fsData[f] ?? {}), ...Object.fromEntries(gone.map((k) => [k, deleteField()])) };
+    });
+    if (Object.keys(payload).length === 0) return;
+    await trackSkuWrite(setDoc(doc(fsdb, SKUS_COL, id), stamped(payload), { merge: true }));
   },
 
   applySkuBatch: async (updates, logLabel) => {

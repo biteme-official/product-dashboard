@@ -5,6 +5,7 @@ import { useAuth } from '../store/auth';
 import { useCpoSync } from '../store/cpoSync';
 import { usePermission } from '../contexts/PermissionsContext';
 import type { SkuData } from '../types';
+import { MAX_SIZES } from '../types';
 import { buildSizesFromCount, recalcQuantities } from '../utils/calc';
 import { exportSkuOrderXlsx, copySkuOrderToClipboard } from '../utils/exportXlsx';
 import { NumericInput } from './NumericInput';
@@ -69,6 +70,8 @@ export function SizeDistColumn({ sku, readOnly }: Props) {
   // Product에서 직접 편집하게 두면 다음 동기화 때 되돌려쓰기(원상복구) 버그가 재현된다.
   // CPO 연동이 없는(Product 전용) SKU는 기존처럼 자유 편집.
   const cpoLinked = useCpoSync((s) => !!s.cpoProjects[sku.id]);
+  // CPO 사이즈가 Product 칸 수(MAX_SIZES)보다 많으면 앞에서부터만 반영됨 — 잘린 걸 모르고 넘어가지 않게 표시
+  const cpoSizeTotal = useCpoSync((s) => s.cpoProjects[sku.id]?.sizes?.length ?? 0);
 
   const activeSizes = sku.sizes.filter((s) => s.isActive);
   const sumRatios = activeSizes.reduce((sum, s) => sum + s.ratio, 0);
@@ -167,6 +170,9 @@ export function SizeDistColumn({ sku, readOnly }: Props) {
               <option key={n} value={n}>{n}개</option>
             ))}
           </select>
+          {cpoSizeTotal > MAX_SIZES && (
+            <p className="mt-1 text-[10px] text-amber-600">CPO 사이즈 {cpoSizeTotal}개 · 앞 {MAX_SIZES}개만 반영</p>
+          )}
         </div>
         <div>
           <label className="block text-xs text-gray-500 mb-1">MOQ</label>

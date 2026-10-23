@@ -1,14 +1,14 @@
 import { useEffect } from 'react';
 import { useStore } from '../store';
 import { useCpoSync } from '../store/cpoSync';
-import { buildSizesFromCount } from '../utils/calc';
+import { buildSizesFromLabels, cpoSizeLabels, mapSizeLabels, remapSizeKeys } from '../utils/sizeLabels';
 import { MAX_SIZES } from '../types';
 import type { ColorEntry } from '../types';
 import { useSyncCooldown } from './useSyncCooldown';
 
 /**
- * CPO의 컬러 목록(이름)과 사이즈 개수를 Product SKU에 단방향으로 반영한다.
- * 컬러명·사이즈 개수는 CPO가 정본 — Product 쪽에서는 더 이상 직접 편집하지 않고
+ * CPO의 컬러 목록(이름)과 사이즈(라벨·개수)를 Product SKU에 단방향으로 반영한다.
+ * 컬러명·사이즈 라벨은 CPO가 정본 — Product 쪽에서는 더 이상 직접 편집하지 않고
  * (SizeDistColumn UI에서 읽기전용 처리) 컬러별/사이즈별 수량·비율만 로컬에서 편집한다.
  *
  * 이 방향은 productSync 병합 경로(useCpoFieldSync)를 타지 않는 순수 읽기 동기화라
@@ -26,6 +26,7 @@ export function useCpoOptionSync(): void {
   const cpoProjects = useCpoSync((s) => s.cpoProjects);
   const updateSku = useStore((s) => s.updateSku);
   const persistSku = useStore((s) => s.persistSku);
+  const persistSizeKeyRemap = useStore((s) => s.persistSizeKeyRemap);
   const shouldAttempt = useSyncCooldown(5 * 60 * 1000); // SKU당 5분에 한 번만 저장 재시도
 
   useEffect(() => {
@@ -69,22 +70,34 @@ export function useCpoOptionSync(): void {
       const hasColors = cpoColors.length > 0;
       if (hasColors !== sku.hasColors) patch.hasColors = hasColors;
 
-      // ── 사이즈 개수: CPO sizes.length ──
-      // CPO는 사이즈를 자유 조합(XS 포함/비연속)으로 고를 수 있지만 실사용은 대부분
-      // S부터 연속인 프리셋이라, 개수만 반영하고 라벨 시퀀스는 기존 SIZE_LABELS를 그대로 쓴다.
-      const cpoSizeCount = Math.min(Math.max(cpo.sizes?.length ?? 1, 1), MAX_SIZES);
-      if (cpoSizeCount !== sku.sizeCount) {
-        patch.sizeCount = cpoSizeCount;
-        patch.sizes = buildSizesFromCount(sku.sizes, cpoSizeCount, sku.totalOrderQty);
+      // ── 사이즈: CPO가 고른 라벨 그대로(M·L·XL, XS 포함 등) ──
+      // 예전엔 개수만 받고 라벨은 S부터 연속 프리셋(SIZE_LABELS)을 붙여서 M·L·XL을 골라도 S·M·L로 보였다(#44).
+      // 라벨이 바뀌면 비율과 라벨로 저장된 수동 수량 키(step2OptionQty·finalOrderQty)도 같이 옮긴다 —
+      // 프리셋 라벨이던 SKU(sizeLabelsFromCpo 없음)는 칸 위치가 실제 CPO 사이즈였으므로 위치 기준,
+      // 이미 맞춘 SKU는 CPO에서 사이즈를 추가/삭제한 것이므로 이름 기준.
+      const cpoLabels = cpoSizeLabels(cpo.sizes, MAX_SIZES);
+      const localLabels = sku.sizes.slice(0, sku.sizeCount).map((s) => s.label);
+      const labelsChanged = cpoLabels.join('|') !== localLabels.join('|');
+      let removedKeys: { step2OptionQty: string[]; finalOrderQty: string[] } | null = null;
+      if (labelsChanged) {
+        const mapping = mapSizeLabels(localLabels, cpoLabels, !sku.sizeLabelsFromCpo);
+        patch.sizeCount = cpoLabels.length;
+        patch.sizes = buildSizesFromLabels(sku.sizes, localLabels, cpoLabels, mapping, MAX_SIZES);
+        const step2 = remapSizeKeys(sku.step2OptionQty, mapping);
+        const final = remapSizeKeys(sku.finalOrderQty, mapping);
+        if (step2.changed) patch.step2OptionQty = step2.next;
+        if (final.changed) patch.finalOrderQty = final.next;
+        if (step2.changed || final.changed) removedKeys = { step2OptionQty: step2.removed, finalOrderQty: final.removed };
       }
+      if (!sku.sizeLabelsFromCpo) patch.sizeLabelsFromCpo = true;
 
       if (Object.keys(patch).length === 0) return;
       if (!shouldAttempt(sku.id)) return; // 쿨다운 중 — 무한 재시도 방지
 
       updateSku(sku.id, patch);
-      persistSku(sku.id).catch((err) =>
-        console.error('[useCpoOptionSync] CPO 옵션 동기화 저장 실패', sku.id, err),
-      );
+      persistSku(sku.id)
+        .then(() => (removedKeys ? persistSizeKeyRemap(sku.id, removedKeys) : undefined))
+        .catch((err) => console.error('[useCpoOptionSync] CPO 옵션 동기화 저장 실패', sku.id, err));
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [skus, cpoProjects]);

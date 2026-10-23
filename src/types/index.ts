@@ -234,6 +234,7 @@ export interface SkuData {
   moq: number;
   targetSellThroughMonths: number;
   sizes: SizeRatio[];               // 길이 항상 8
+  sizeLabelsFromCpo?: boolean;      // 사이즈 라벨이 CPO 선택값으로 맞춰졌는지 — 없으면 예전 프리셋(S부터 연속) 라벨이라 첫 동기화 때 칸 위치 기준으로 옮김(#44)
   brand: Brand;                     // 브랜드
   hasColors: boolean;               // 컬러 옵션 사용 여부
   colors: ColorEntry[];             // 컬러별 수량 목록

@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "check:qty": "node scripts/qtyPlan.check.ts",
+    "check:sizes": "node scripts/sizeLabels.check.ts",
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
