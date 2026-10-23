@@ -56,10 +56,12 @@ export function buildSizesFromLabels(
  * 대응 없는 라벨의 키는 버리고, 컬러 키(`c|`)·합계(`__total__` 등)는 그대로 둔다.
  * removed: 원래 있었는데 결과에 없는 키 — merge 저장은 빠진 키를 지우지 않으므로 deleteField 대상.
  */
+export type SizeKeyRemap = { next: Record<string, number>; removed: string[]; changed: boolean };
+
 export function remapSizeKeys(
   rec: Record<string, number> | undefined,
   mapping: Map<string, string>,
-): { next: Record<string, number>; removed: string[]; changed: boolean } {
+): SizeKeyRemap {
   const src = rec ?? {};
   const next: Record<string, number> = {};
   for (const [k, v] of Object.entries(src)) {
