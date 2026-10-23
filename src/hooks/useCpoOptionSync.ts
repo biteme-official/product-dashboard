@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useStore } from '../store';
 import { useCpoSync } from '../store/cpoSync';
-import { buildSizesFromLabels, cpoSizeLabels, mapSizeLabels, remapSizeKeys } from '../utils/sizeLabels';
+import { buildSizesFromLabels, cpoSizeLabels, mapSizeLabels, remapSizeKeys, type SizeKeyRemap } from '../utils/sizeLabels';
 import { MAX_SIZES } from '../types';
 import type { ColorEntry } from '../types';
 import { useSyncCooldown } from './useSyncCooldown';
@@ -78,7 +78,7 @@ export function useCpoOptionSync(): void {
       const cpoLabels = cpoSizeLabels(cpo.sizes, MAX_SIZES);
       const localLabels = sku.sizes.slice(0, sku.sizeCount).map((s) => s.label);
       const labelsChanged = cpoLabels.join('|') !== localLabels.join('|');
-      let removedKeys: { step2OptionQty: string[]; finalOrderQty: string[] } | null = null;
+      let keyRemap: { step2OptionQty?: SizeKeyRemap; finalOrderQty?: SizeKeyRemap } | null = null;
       if (labelsChanged) {
         const mapping = mapSizeLabels(localLabels, cpoLabels, !sku.sizeLabelsFromCpo);
         patch.sizeCount = cpoLabels.length;
@@ -87,7 +87,9 @@ export function useCpoOptionSync(): void {
         const final = remapSizeKeys(sku.finalOrderQty, mapping);
         if (step2.changed) patch.step2OptionQty = step2.next;
         if (final.changed) patch.finalOrderQty = final.next;
-        if (step2.changed || final.changed) removedKeys = { step2OptionQty: step2.removed, finalOrderQty: final.removed };
+        if (step2.changed || final.changed) {
+          keyRemap = { ...(step2.changed ? { step2OptionQty: step2 } : {}), ...(final.changed ? { finalOrderQty: final } : {}) };
+        }
       }
       if (!sku.sizeLabelsFromCpo) patch.sizeLabelsFromCpo = true;
 
@@ -96,7 +98,7 @@ export function useCpoOptionSync(): void {
 
       updateSku(sku.id, patch);
       persistSku(sku.id)
-        .then(() => (removedKeys ? persistSizeKeyRemap(sku.id, removedKeys) : undefined))
+        .then(() => (keyRemap ? persistSizeKeyRemap(sku.id, keyRemap) : undefined))
         .catch((err) => console.error('[useCpoOptionSync] CPO 옵션 동기화 저장 실패', sku.id, err));
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps

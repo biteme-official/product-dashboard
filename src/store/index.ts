@@ -10,7 +10,7 @@ import { useAuth } from './auth';
 import { MAX_SIZES, SIZE_LABELS, MONTHS, CHANNELS, BRANDS, CATEGORIES, SKU_TYPES, DEFAULT_CHANNEL_RATIOS, DEFAULT_CHANNEL_COMMISSION, getDisabledChannels, getSkuMonths, getConfirmedChannels, isChannelToggleLocked, isSeasonOnly, STEP2_FORCE_RECALC_MARK, type Brand, type Channel, type OptOutChannel } from '../types';
 import type { CpoProject } from '../types/cpo';
 import { recalcQuantities, revenueMultiplier, calcDynamicMultiplier } from '../utils/calc';
-import { buildSizesFromLabels, cpoSizeLabels } from '../utils/sizeLabels';
+import { buildSizesFromLabels, cpoSizeLabels, type SizeKeyRemap } from '../utils/sizeLabels';
 import { monthTotals, redistributeByWeights, setMonthTotal, type PlanScope } from '../utils/qtyPlan';
 import { mergeQtyEntries, mergeRecord, removedKeys } from '../utils/cellMerge';
 import { renameLegacyChannels } from '../utils/legacyChannel';
@@ -597,7 +597,7 @@ interface StoreActions {
   setFinalOrderConfirmed: (id: string, confirmed: boolean, finalOrderQty?: Record<string, number>) => Promise<void>;
   persistSku: (id: string) => Promise<void>;
   /** CPO 사이즈 라벨 변경으로 옮긴 수동 수량 키 저장 — 빠진 키는 deleteField로 지운다(merge 저장은 안 지움) */
-  persistSizeKeyRemap: (id: string, removed: { step2OptionQty: string[]; finalOrderQty: string[] }) => Promise<void>;
+  persistSizeKeyRemap: (id: string, remap: { step2OptionQty?: SizeKeyRemap; finalOrderQty?: SizeKeyRemap }) => Promise<void>;
   /** 채널 목표량 페이지 일괄 작업 — 여러 SKU를 한 트랜잭션으로 저장(칸 단위 병합) + 활동 로그 한 줄씩 */
   applySkuBatch: (updates: { id: string; patch: Partial<SkuData> }[], logLabel: string) => Promise<void>;
   setChannelConfirmed: (id: string, field: 'step2PlatformConfirmed' | 'step2BrandConfirmed' | 'step2GlobalConfirmed', value: boolean) => Promise<void>;
@@ -1223,20 +1223,27 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
     }
   },
 
-  persistSizeKeyRemap: async (id, removed) => {
-    const sku = get().skus.find((s) => s.id === id);
-    if (!sku || skuListenerDead) return;
-    // persistSku는 finalOrderQty를 쓰지 않고(확정 레이스 방지) step2OptionQty도 merge라 옛 라벨 키가 남는다 —
-    // 옮긴 두 맵을 통째로 쓰면서 옛 키만 명시적으로 지운다. 합계(__total__ 등)는 별도 최상위 필드라 건드리지 않음.
+  persistSizeKeyRemap: async (id, remap) => {
+    if (skuListenerDead) return;
+    // 옮긴 맵은 호출부가 계산한 값을 그대로 받는다 — 로컬 state에서 다시 읽으면 앞선 persistSku 저장의
+    // onSnapshot이 finalOrderQty를 서버의 옛 값으로 되돌려 놓은 뒤라 옛 값 + 키 삭제만 저장되는 사고가 있었음(#46).
+    // 합계(__total__ 등)는 별도 최상위 필드라 맵에서 빼고 쓴다. merge 저장은 빠진 키를 안 지우므로 deleteField 명시.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const payload: Record<string, any> = {};
-    const fsData = toFirestore(sku);
-    ([['step2OptionQty', removed.step2OptionQty], ['finalOrderQty', removed.finalOrderQty]] as const).forEach(([f, gone]) => {
-      if (gone.length === 0 && fsData[f] === undefined) return;
-      payload[f] = { ...(fsData[f] ?? {}), ...Object.fromEntries(gone.map((k) => [k, deleteField()])) };
+    (['step2OptionQty', 'finalOrderQty'] as const).forEach((f) => {
+      const r = remap[f];
+      if (!r) return;
+      const values = Object.fromEntries(Object.entries(r.next).filter(([k]) => !k.startsWith('__')));
+      payload[f] = { ...values, ...Object.fromEntries(r.removed.map((k) => [k, deleteField()])) };
     });
     if (Object.keys(payload).length === 0) return;
     await trackSkuWrite(setDoc(doc(fsdb, SKUS_COL, id), stamped(payload), { merge: true }));
+    // 로컬도 옮긴 값으로 맞춤 — 다음 onSnapshot 전까지 화면이 옛 값으로 보이지 않게
+    set({ skus: get().skus.map((s) => (s.id === id ? {
+      ...s,
+      ...(remap.step2OptionQty ? { step2OptionQty: remap.step2OptionQty.next } : {}),
+      ...(remap.finalOrderQty ? { finalOrderQty: remap.finalOrderQty.next } : {}),
+    } : s)) });
   },
 
   applySkuBatch: async (updates, logLabel) => {
