@@ -29,6 +29,7 @@
 const PRODUCT = { apiKey: 'AIzaSyBHFoGOyILOzMaaH0AkFriZEe6p5sbWPMY', projectId: 'md-dashboard-6fd45' };
 const CPO = { apiKey: 'AIzaSyDojxF2ELIqa4DzuBdip2065xsbuFcgzQg', projectId: 'cpo-dashboard-34fd4' };
 const DASHBOARD_URL = 'https://product-dashboard-delta-taupe.vercel.app';
+const PRICING_URL = `${DASHBOARD_URL}/#projection/pricing`; // 프로젝션 › 프라이싱 직링크
 const TZ = 'Asia/Seoul';
 
 // 앱 LIST VIEW와 같은 순서
@@ -137,7 +138,7 @@ function buildDigest_(t, today) {
     chunk_(parts, 2900).forEach((text) => blocks.push({ type: 'section', text: { type: 'mrkdwn', text } }));
   });
   blocks.push({ type: 'divider' });
-  blocks.push({ type: 'section', text: { type: 'mrkdwn', text: `👉 *프로젝션 › 프라이싱*에서 확인 후 *[확정]* 부탁드려요 · <${DASHBOARD_URL}|대시보드 열기>` } });
+  blocks.push({ type: 'section', text: { type: 'mrkdwn', text: `👉 *프로젝션 › 프라이싱*에서 확인 후 *[확정]* 부탁드려요 · <${PRICING_URL}|프라이싱 바로가기>` } });
   if (blocks.length > 50) blocks.splice(48, blocks.length - 49, { type: 'context', elements: [{ type: 'mrkdwn', text: '… 목록이 길어 일부 생략 · 대시보드에서 확인' }] });
   return { text: `💰 가격 확정 요청 · 3주 내 오픈 예정 미확정 SKU ${t.skus.length}개 (오픈 ${range})`, blocks };
 }

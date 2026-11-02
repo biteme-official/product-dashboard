@@ -24,7 +24,7 @@ import { parseImportJson, type RawSkuInput } from './utils/importParser';
 import { BulkImportModal } from './components/BulkImportModal';
 import { usePermission } from './contexts/PermissionsContext';
 import { getPortalToken, verifyPortalToken, cleanPortalToken } from './utils/portalAuth';
-import { readSkuLinkId, clearSkuLink } from './utils/skuLink';
+import { readSkuLinkId, clearSkuLink, isPricingLink } from './utils/skuLink';
 
 type MainTab = 'pm' | 'projection' | 'md' | 'manual' | 'admin';
 
@@ -173,6 +173,7 @@ function App() {
   const excludeOpenCompletePm = useStore((s) => s.excludeOpenCompletePm);
   const setExcludeOpenCompletePm = useStore((s) => s.setExcludeOpenCompletePm);
   const [skuLinkId, setSkuLinkId] = useState<string | null>(readSkuLinkId);
+  const [pricingLinkPending, setPricingLinkPending] = useState(isPricingLink);
   const [skuLinkNotice, setSkuLinkNotice] = useState<string | null>(null);
   const [skuFocus, setSkuFocus] = useState<{ id: string; seq: number } | null>(null);
 
@@ -180,10 +181,20 @@ function App() {
     const handleHashChange = () => {
       const id = readSkuLinkId();
       if (id) setSkuLinkId(id);
+      if (isPricingLink()) setPricingLinkPending(true);
     };
     window.addEventListener('hashchange', handleHashChange);
     return () => window.removeEventListener('hashchange', handleHashChange);
   }, []);
+
+  // 프라이싱 직링크(#projection/pricing) — 로그인 직후 List view 초기화 effect보다 뒤에 선언해야 이 이동이 이긴다.
+  useEffect(() => {
+    if (!pricingLinkPending || !role) return;
+    setPricingLinkPending(false);
+    clearSkuLink();
+    setActiveMainTab('projection');
+    setProjectionSubTab('pricing-v2');
+  }, [pricingLinkPending, role, setActiveMainTab, setProjectionSubTab]);
 
   useEffect(() => {
     if (!skuLinkId || !role || allSkus.length === 0) return;
