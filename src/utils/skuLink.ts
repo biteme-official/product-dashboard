@@ -15,6 +15,13 @@ export function readSkuLinkId(): string | null {
   return id || null;
 }
 
+// 프로젝션 › 프라이싱 직링크 — 슬랙 가격 확정 요청 알림의 [프라이싱 바로가기]에서 사용 (apps-script/price-confirm-digest.gs와 같은 값)
+const PRICING_HASH = '#projection/pricing';
+
+export function isPricingLink(): boolean {
+  return window.location.hash === PRICING_HASH;
+}
+
 export function clearSkuLink(): void {
   history.replaceState(history.state, '', window.location.pathname + window.location.search);
 }
