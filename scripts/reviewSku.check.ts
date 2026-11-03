@@ -3,6 +3,10 @@
  */
 import assert from 'node:assert/strict';
 import { cellMoney, cmOf, skuMoney, varCostOf, yearMonthKey, VAR_COST_DEFAULT, type VarCostResults } from '../src/utils/reviewSku.ts';
+import { orderForCover, savePlanPatch, switchPlanPatch, withOrderQty } from '../src/utils/orderPlan.ts';
+import { finalOrderForConfirm, finalOrderModel } from '../src/utils/finalOrder.ts';
+import { isKnownStep1Opt, step1Pricer } from '../src/utils/step1Price.ts';
+import { DEFAULT_PRICING_POLICY } from '../src/utils/pricingV2.ts';
 import type { SkuData } from '../src/types/index.ts';
 
 let passed = 0;
@@ -78,4 +82,73 @@ test('해 넘어가는 달의 연월 키', () => {
   assert.equal(yearMonthKey({ releaseDate: '2026-11-02' }, 2), '2027-02');
 });
 test('CM% 반올림', () => { assert.equal(cmOf(1000, 333), 33.3); assert.equal(cmOf(0, 0), null); assert.equal(cmOf(10, null), null); });
+
+// ── 1안 · 2안 ──
+const sizes = [{ label: 'S', ratio: 40, quantity: 0, isActive: true }, { label: 'M', ratio: 60, quantity: 0, isActive: true }];
+const planSku = (p: Partial<SkuData> = {}) => sku({ sizes, moq: 100, hasColors: false, colors: [], pricingOpts: { '자사몰-11': '오픈특가' }, marketingMonthQty: { 11: 5 }, ...p });
+const apply = (s: SkuData, patch: Partial<SkuData>) => ({ ...s, ...patch });
+
+test('처음 2안: 현재 값 복사, 수량 그대로', () => {
+  const s = planSku();
+  const n = apply(s, switchPlanPatch(s));
+  assert.equal(n.orderPlans!.active, 2); assert.equal(n.orderPlans!.decided, true);
+  assert.equal(n.totalOrderQty, 300); assert.deepEqual(n.orderPlans!.other!.channelMonthQty, s.channelMonthQty);
+});
+test('2안 수정 후 왕복해도 양쪽 값 유지', () => {
+  const s = planSku();
+  let n = apply(s, switchPlanPatch(s));
+  n = apply(n, { ...withOrderQty(n, 500)!, channelMonthQty: n.channelMonthQty.map((e) => (e.channel === '자사몰' && e.month === 11 ? { ...e, qty: 999 } : e)), pricingOpts: { '자사몰-11': '할인 10%' } });
+  const back = apply(n, switchPlanPatch(n));
+  assert.equal(back.orderPlans!.active, 1); assert.equal(back.totalOrderQty, 300);
+  assert.equal(back.channelMonthQty.find((e) => e.channel === '자사몰' && e.month === 11)!.qty, 100);
+  assert.equal(back.pricingOpts['자사몰-11'], '오픈특가');
+  const again = apply(back, switchPlanPatch(back));
+  assert.equal(again.orderPlans!.active, 2); assert.equal(again.totalOrderQty, 500);
+  assert.equal(again.channelMonthQty.find((e) => e.channel === '자사몰' && e.month === 11)!.qty, 999);
+  assert.equal(again.pricingOpts['자사몰-11'], '할인 10%');
+  assert.equal(again.sizes[0].quantity, 200); // 사이즈 수량도 재계산
+});
+test('확정 채널 · 마케팅은 전환해도 지금 값 유지, 비운영 채널은 0', () => {
+  const s = planSku({ orderPlans: { active: 1, decided: true, other: {
+    totalOrderQty: 700,
+    channelMonthQty: [{ channel: '자사몰', month: 11, qty: 1 }, { channel: 'B2B', month: 11, qty: 2 }] as SkuData['channelMonthQty'],
+    marketingMonthQty: { 11: 77 }, pricingOpts: { '자사몰-11': '할인 5%', 'B2B-11': '할인 5%' },
+  } }, step2BrandConfirmed: true, step2PlatformConfirmed: true } as Partial<SkuData>);
+  const n = apply(s, switchPlanPatch(s));
+  const q = (c: string, m: number) => n.channelMonthQty.find((e) => e.channel === c && e.month === m)!.qty;
+  assert.equal(q('자사몰', 11), 100); // 플랫폼 확정
+  assert.equal(q('B2B', 11), 100); // 브랜드 확정
+  assert.deepEqual(n.marketingMonthQty, { 11: 5 }); // 플랫폼 확정 = 마케팅 잠금
+  assert.equal(n.pricingOpts['자사몰-11'], '오픈특가');
+  assert.equal(n.totalOrderQty, 700);
+});
+test('같은 안 클릭은 저장 표시만', () => {
+  const s = planSku();
+  assert.deepEqual(savePlanPatch(s), { orderPlans: { active: 1, other: null, decided: true } });
+});
+test('컬러 SKU 발주량 변경: 비율대로 나누고 합계 일치, archived 유지, 수량 없으면 불가', () => {
+  const colors = [{ id: 'a', name: 'A', quantity: 100 }, { id: 'b', name: 'B', quantity: 200 }, { id: 'x', name: 'X', quantity: 50, archived: true }];
+  const p = withOrderQty(planSku({ hasColors: true, colors }), 1000)!;
+  assert.deepEqual(p.colors!.map((c) => c.quantity), [333, 667, 50]);
+  assert.equal(p.totalOrderQty, 1000);
+  assert.equal(withOrderQty(planSku({ hasColors: true, colors: [{ id: 'a', name: 'A', quantity: 0 }] }), 10), null);
+});
+test('소진 목표: 누적, 10개 올림, MOQ 하한', () => {
+  assert.equal(orderForCover([123, 456], 1, 100), 460);
+  assert.equal(orderForCover([50], 0, 300), 300);
+});
+test('판매가 % 선택지: 10원 올림, 저장값 인식', () => {
+  const pr = step1Pricer(sku({ brand: '바잇미', price: 12900 } as Partial<SkuData>), DEFAULT_PRICING_POLICY, { usd: 1400, jpy: 9 });
+  assert.equal(pr('할인 5%', 12900), 12260); assert.equal(pr('할인 20%', 12900), 10320); assert.equal(pr('', 12900), 12900);
+  assert.ok(isKnownStep1Opt('할인 15%')); assert.ok(isKnownStep1Opt('')); assert.ok(isKnownStep1Opt('신상위크')); assert.ok(!isKnownStep1Opt('없는값'));
+});
+test('최종 발주량: 사이즈 비율 합계, 수기값 보존, 확정 시 STEP2 합계 기록', () => {
+  const s = planSku({ totalOrderQty: 1000 });
+  const m = finalOrderModel(s)!;
+  assert.deepEqual(m.rows.map((r) => r.qty), [400, 600]);
+  assert.deepEqual(finalOrderForConfirm(s, m), { 's|S': 400, 's|M': 600, __confirmedStep2Total__: 300 });
+  const manual = planSku({ totalOrderQty: 1000, finalOrderQty: { 's|S': 1, 's|M': 2 } });
+  assert.deepEqual(finalOrderForConfirm(manual, finalOrderModel(manual)!), { 's|S': 1, 's|M': 2, __confirmedStep2Total__: 300 });
+  assert.equal(finalOrderModel(planSku({ totalOrderQty: 0, channelMonthQty: [] })), null);
+});
 console.log(`reviewSku: ${passed}개 통과`);

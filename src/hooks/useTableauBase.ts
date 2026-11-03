@@ -24,7 +24,6 @@ export function useTableauBase(): TableauBase {
   });
   useEffect(() => {
     let alive = true;
-    setState((s) => ({ ...s, loading: true }));
     Promise.allSettled([fetchSkuShipments(), fetchChannelShipments(), fetchTeamCateData()]).then(([a, b, c]) => {
       if (!alive) return;
       setState({
@@ -41,6 +40,10 @@ export function useTableauBase(): TableauBase {
     });
     return () => { alive = false; };
   }, [tick]);
-  const retry = useCallback(() => { invalidateCache(); setTick((t) => t + 1); }, []);
+  const retry = useCallback(() => {
+    invalidateCache();
+    setState((s) => ({ ...s, loading: true }));
+    setTick((t) => t + 1);
+  }, []);
   return { ...state, retry };
 }

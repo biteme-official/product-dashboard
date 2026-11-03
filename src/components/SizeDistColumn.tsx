@@ -9,6 +9,8 @@ import { MAX_SIZES } from '../types';
 import { buildSizesFromCount, recalcQuantities } from '../utils/calc';
 import { exportSkuOrderXlsx, copySkuOrderToClipboard } from '../utils/exportXlsx';
 import { NumericInput } from './NumericInput';
+import { cKey, csKey, finalOrderForConfirm, finalOrderModel, sKey } from '../utils/finalOrder';
+import { dataIssues } from '../utils/skuReview';
 
 /** CPO 연동 뱃지 — 이름/개수가 CPO에서 관리되는 필드 옆에 붙는다 */
 function CpoSyncedBadge() {
@@ -361,7 +363,7 @@ export function SizeDistColumn({ sku, readOnly }: Props) {
       <Step2OrderTable sku={sku} sumRatios={sumRatios} />
 
       {/* ── PM 확인 최종 발주량 ── */}
-      <FinalOrderTable sku={sku} sumRatios={sumRatios} />
+      <FinalOrderTable sku={sku} />
     </div>
   );
 }
@@ -720,15 +722,12 @@ function formatConfirmedAt(iso: string): string {
   return `${mm}/${dd} ${hh}:${min}`;
 }
 
-function FinalOrderTable({ sku, sumRatios }: { sku: SkuData; sumRatios: number }) {
+function FinalOrderTable({ sku }: { sku: SkuData }) {
   const { setFinalOrderConfirmed } = useStore();
   const { role } = useAuth();
   const canEdit = usePermission(role).orderConfirm;
 
   const liveSku = useStore((s) => s.skus.find((x) => x.id === sku.id) ?? sku);
-  const liveChannelMonthQty = liveSku.channelMonthQty;
-  const liveStep2OptionQty = liveSku.step2OptionQty;
-  const liveFinalOrderQty = liveSku.finalOrderQty;
   const liveConfirmedAt = liveSku.finalOrderConfirmedAt;
 
   const [isEditing, setIsEditing] = useState(false);
@@ -736,48 +735,11 @@ function FinalOrderTable({ sku, sumRatios }: { sku: SkuData; sumRatios: number }
   const [copyState, setCopyState] = useState<'idle' | 'ok' | 'err'>('idle');
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const step2Total = liveChannelMonthQty.reduce((s, e) => s + e.qty, 0);
-  // 최종 발주량 기본값 기준 = 총 발주량 (STEP2 합계는 리오더 포함 판매 목표라 발주량과 다를 수 있음). 총 발주량이 없을 때만 STEP2 합계
-  const orderBase = sku.totalOrderQty > 0 ? sku.totalOrderQty : step2Total;
-  const activeSizes = sku.sizes.filter((s) => s.isActive && s.ratio > 0);
-  const activeColors = sku.hasColors ? sku.colors.filter((c) => !c.archived && (c.name || c.quantity > 0)) : [];
-  const colorTotal = activeColors.reduce((s, c) => s + c.quantity, 0);
-  const hasColors = activeColors.length > 0 && colorTotal > 0;
-  const hasSizes = activeSizes.length > 0 && sumRatios > 0;
-
-  if (orderBase === 0 || (!hasColors && !hasSizes)) return null;
-
-  const csKey = (cid: string, sl: string) => `cs|${cid}|${sl}`;
-  const cKey = (cid: string) => `c|${cid}`;
-  const sKey = (sl: string) => `s|${sl}`;
-
-  // Step2 fallback values
-  const stored2 = liveStep2OptionQty ?? {};
-  const isManual2 = Object.keys(stored2).some((k) => k !== '__total__');
-  const savedTotal2 = (stored2['__total__'] as number | undefined) ?? 0;
-  const scale2 = isManual2 && savedTotal2 > 0 && orderBase > 0 ? orderBase / savedTotal2 : 1;
-  const compCS = (cQty: number, sRatio: number) =>
-    sumRatios === 0 || colorTotal === 0 ? 0 : Math.round(orderBase * (cQty / colorTotal) * (sRatio / sumRatios));
-  const compC = (cQty: number) => colorTotal === 0 ? 0 : Math.round(orderBase * (cQty / colorTotal));
-  const compS = (sRatio: number) => sumRatios === 0 ? 0 : Math.round(orderBase * (sRatio / sumRatios));
-  const s2DispCS = (cid: string, cQty: number, sl: string, sRatio: number) =>
-    isManual2 && stored2[csKey(cid, sl)] !== undefined ? Math.round(stored2[csKey(cid, sl)] * scale2) : compCS(cQty, sRatio);
-  const s2DispC = (cid: string, cQty: number) =>
-    isManual2 && stored2[cKey(cid)] !== undefined ? Math.round(stored2[cKey(cid)] * scale2) : compC(cQty);
-  const s2DispS = (sl: string, sRatio: number) =>
-    isManual2 && stored2[sKey(sl)] !== undefined ? Math.round(stored2[sKey(sl)] * scale2) : compS(sRatio);
-
-  // Final stored values
-  const finalStored = liveFinalOrderQty ?? {};
-  // 메타 키(__total__, __confirmedStep2Total__)를 제외한 실제 breakdown 키가 있는지 확인
-  const META_KEYS = new Set(['__total__', '__confirmedStep2Total__']);
-  const isFinalManual = Object.keys(finalStored).some((k) => !META_KEYS.has(k));
-  const dispCS = (cid: string, cQty: number, sl: string, sRatio: number) =>
-    isFinalManual && finalStored[csKey(cid, sl)] !== undefined ? finalStored[csKey(cid, sl)] : s2DispCS(cid, cQty, sl, sRatio);
-  const dispC = (cid: string, cQty: number) =>
-    isFinalManual && finalStored[cKey(cid)] !== undefined ? finalStored[cKey(cid)] : s2DispC(cid, cQty);
-  const dispS = (sl: string, sRatio: number) =>
-    isFinalManual && finalStored[sKey(sl)] !== undefined ? finalStored[sKey(sl)] : s2DispS(sl, sRatio);
+  const model = finalOrderModel({ ...liveSku, totalOrderQty: sku.totalOrderQty, sizes: sku.sizes, colors: sku.colors, hasColors: sku.hasColors });
+  if (!model) return null;
+  const { step2Total, activeSizes, activeColors, hasColors, hasSizes, dispCS, dispC, dispS } = model;
+  // 원가 · 판매가 · 오픈일이 없거나 컬러 합계가 어긋나면 확정 불가 (발주량 검토 탭과 같은 기준)
+  const blocking = dataIssues(liveSku);
 
   function startEdit() {
     const draft: Record<string, number> = {};
@@ -795,28 +757,11 @@ function FinalOrderTable({ sku, sumRatios }: { sku: SkuData; sumRatios: number }
   }
 
   async function handleConfirm() {
-    let newFinalOrderQty: Record<string, number>;
-    if (isEditing) {
-      // 수기 편집 후 확정: draft 값 저장
-      newFinalOrderQty = { ...draftQtys, __confirmedStep2Total__: step2Total };
-      setIsEditing(false);
-    } else if (!isFinalManual) {
-      // 기존 breakdown 없음: 현재 표시값 스냅샷으로 고정
-      const snapshot: Record<string, number> = {};
-      if (hasColors && hasSizes) {
-        activeColors.forEach((c) => activeSizes.forEach((s) => {
-          snapshot[csKey(c.id, s.label)] = dispCS(c.id, c.quantity, s.label, s.ratio);
-        }));
-      } else if (hasColors) {
-        activeColors.forEach((c) => { snapshot[cKey(c.id)] = dispC(c.id, c.quantity); });
-      } else {
-        activeSizes.forEach((s) => { snapshot[sKey(s.label)] = dispS(s.label, s.ratio); });
-      }
-      newFinalOrderQty = { ...snapshot, __confirmedStep2Total__: step2Total };
-    } else {
-      // 기존 수기 breakdown 보존, __confirmedStep2Total__만 갱신
-      newFinalOrderQty = { ...(liveFinalOrderQty ?? {}), __confirmedStep2Total__: step2Total };
-    }
+    // 수기 편집 후 확정이면 draft 값, 아니면 현재 표시값 스냅샷(기존 수기 수량은 보존)
+    const newFinalOrderQty: Record<string, number> = isEditing
+      ? { ...draftQtys, __confirmedStep2Total__: step2Total }
+      : finalOrderForConfirm(liveSku, model!);
+    setIsEditing(false);
     // finalOrderQty를 setFinalOrderConfirmed에 직접 전달 → 단일 Firestore write로 원자적 저장
     // (updateFinalOrderQty separate call을 제거해 두 write 사이 race condition 방지)
     await setFinalOrderConfirmed(sku.id, true, newFinalOrderQty);
@@ -876,6 +821,8 @@ function FinalOrderTable({ sku, sumRatios }: { sku: SkuData; sumRatios: number }
     <div className="flex items-center justify-between mb-1">
       <div className="flex items-center gap-2 flex-wrap">
         <label className="text-xs font-semibold text-gray-700">PM 확인 최종 발주량</label>
+        {liveSku.orderPlans?.decided && <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700">발주량 검토 {liveSku.orderPlans.active}안</span>}
+        {!liveConfirmedAt && blocking.length > 0 && <span className="text-[11px] text-red-500">확정 불가 · {blocking.map((b) => b.what).join(' · ')}</span>}
         {liveConfirmedAt && (
           <span className="text-xs text-red-500 font-medium">
             [발주량 최종 확정 {formatConfirmedAt(liveConfirmedAt)}]
@@ -902,7 +849,9 @@ function FinalOrderTable({ sku, sumRatios }: { sku: SkuData; sumRatios: number }
                 </button>
                 <button
                   onClick={handleConfirm}
-                  className="text-xs px-2 py-0.5 rounded-full border border-rose-300 bg-rose-50 hover:bg-rose-100 text-rose-600 transition-colors"
+                  disabled={blocking.length > 0}
+                  title={blocking.map((b) => b.what).join(' · ') || undefined}
+                  className="text-xs px-2 py-0.5 rounded-full border border-rose-300 bg-rose-50 hover:bg-rose-100 text-rose-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   확정
                 </button>

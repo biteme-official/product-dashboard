@@ -5,9 +5,9 @@
  * 상시 최대는 프라이싱 탭에서 빈 값(일반 SKU)이어도 선택하면 브랜드 정책 할인율로 계산.
  */
 import type { SkuData } from '../types';
-import { floor10, liveFrom, preFrom, calcPricesV2, shownPricesV2, type PriceKey, type PriceSet, type PricingPolicy } from './pricingV2';
+import { ceil10, floor10, liveFrom, preFrom, calcPricesV2, shownPricesV2, type PriceKey, type PriceSet, type PricingPolicy } from './pricingV2';
 
-export interface Step1Option { id: string; label: string; key: PriceKey | 'season'; coreOnly?: boolean }
+export interface Step1Option { id: string; label: string; key: PriceKey | 'season' | 'pct'; coreOnly?: boolean; pct?: number }
 
 /** 선택지 id는 예전 값을 그대로 유지(저장 데이터 호환) · 선오픈 최저가 · 팝업/페어는 새로 추가 */
 export const STEP1_OPTIONS: Step1Option[] = [
@@ -17,6 +17,10 @@ export const STEP1_OPTIONS: Step1Option[] = [
   { id: '상시 최대할인율', label: '상시 최대', key: 'reg' },
   { id: '특가 최대할인율', label: '특가 최대', key: 'spec' },
   { id: '시즌오프(의류전용)', label: '시즌오프(의류)', key: 'season' },
+  { id: '할인 5%', label: '−5%', key: 'pct', pct: 5 },
+  { id: '할인 10%', label: '−10%', key: 'pct', pct: 10 },
+  { id: '할인 15%', label: '−15%', key: 'pct', pct: 15 },
+  { id: '할인 20%', label: '−20%', key: 'pct', pct: 20 },
   { id: '팝업/페어', label: '팝업/페어', key: 'popup' },
   { id: 'B2B 오픈 할인', label: 'B2B 오픈', key: 'b2bOpen' },
   { id: 'B2B 상시 운영', label: 'B2B 상시', key: 'b2b' },
@@ -32,6 +36,11 @@ export function normalizeStep1Opt(optId: string, core: boolean): string {
   if (LEGACY_IDS.has(optId)) return core ? '선오픈 최저가' : '라이브 할인';
   if (optId === '선오픈 최저가' && !core) return '라이브 할인';
   return optId;
+}
+
+/** 저장값이 지금 앱이 아는 선택지인지 (빈 값 = 채널가, 예전 선택지 포함) */
+export function isKnownStep1Opt(optId: string): boolean {
+  return !optId || BY_ID.has(optId) || LEGACY_IDS.has(optId);
 }
 
 /** SKU의 선택지 가격 계산기 — 같은 SKU의 여러 칸을 계산할 때 가격표를 한 번만 만듦 */
@@ -55,6 +64,7 @@ export function step1Pricer(sku: SkuData, policy: PricingPolicy, fx: { usd: numb
     if (!opt) return base;
     const brand = policy.brands[sku.brand] ?? policy.brands['바잇미'];
     if (opt.key === 'season') return floor10(base * (1 - brand.seasonOff / 100));
+    if (opt.key === 'pct') return ceil10(base * (1 - (opt.pct ?? 0) / 100));
     let set = setFor(base);
     // 확정 가격에 숫자가 아닌 값(NaN)이 저장돼 있으면 그 칸만 정책 계산값으로 대신함 (매출 합계가 NaN으로 깨지는 것 방지)
     if (Number.isNaN(set[opt.key])) {

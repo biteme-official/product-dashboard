@@ -544,7 +544,7 @@ interface StoreActions {
   /** CPO 사이즈 라벨 변경으로 옮긴 수동 수량 키 저장 — 빠진 키는 deleteField로 지운다(merge 저장은 안 지움) */
   persistSizeKeyRemap: (id: string, remap: { step2OptionQty?: SizeKeyRemap; finalOrderQty?: SizeKeyRemap }) => Promise<void>;
   /** 채널 목표량 페이지 일괄 작업 — 여러 SKU를 한 트랜잭션으로 저장(칸 단위 병합) + 활동 로그 한 줄씩 */
-  applySkuBatch: (updates: { id: string; patch: Partial<SkuData> }[], logLabel: string) => Promise<void>;
+  applySkuBatch: (updates: { id: string; patch: Partial<SkuData> }[], logLabel: string, logField?: string) => Promise<void>;
   setChannelConfirmed: (id: string, field: 'step2PlatformConfirmed' | 'step2BrandConfirmed' | 'step2GlobalConfirmed', value: boolean) => Promise<void>;
   setCoupangEnabled: (id: string, enabled: boolean) => Promise<void>;
   setSeasonOnly: (id: string, seasonOnly: boolean) => Promise<void>;
@@ -1090,7 +1090,7 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
     } : s)) });
   },
 
-  applySkuBatch: async (updates, logLabel) => {
+  applySkuBatch: async (updates, logLabel, logField = '채널 목표량 일괄') => {
     if (skuListenerDead) throw new Error('실시간 구독이 끊긴 탭입니다. 새로고침 후 다시 시도해주세요.');
     const byId = new Map(updates.map((u) => [u.id, u.patch]));
     const prevSkus = get().skus;
@@ -1098,7 +1098,7 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
       const patch = byId.get(s.id);
       if (!patch) return s;
       const updated: SkuData = { ...s, ...patch };
-      if (patch.channelMonthQty || patch.marketingMonthQty) updated.monthlySplit = recalcMonthlySplit(updated);
+      if (patch.channelMonthQty || patch.marketingMonthQty || patch.totalOrderQty !== undefined) updated.monthlySplit = recalcMonthlySplit(updated);
       return updated;
     });
     set({ skus: nextSkus });
@@ -1112,7 +1112,7 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
     }
     const role = useAuth.getState().role ?? 'unknown';
     changed.forEach((sku) => {
-      writeLog(sku.id, sku.skuName, role, [{ field: 'channelTargetBatch', label: '채널 목표량 일괄', from: '–', to: logLabel }]).catch(console.error);
+      writeLog(sku.id, sku.skuName, role, [{ field: 'channelTargetBatch', label: logField, from: '–', to: logLabel }]).catch(console.error);
     });
   },
 

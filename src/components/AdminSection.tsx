@@ -1,4 +1,5 @@
 import { PricingPolicyAdmin } from './PricingPolicyAdmin';
+import { OrderTargetAdmin } from './OrderTargetAdmin';
 import { useState, useRef, useEffect } from 'react';
 import { setPin, ALL_ROLES, type Role } from '../utils/pin';
 import { useStore } from '../store';
@@ -687,7 +688,7 @@ export function AdminSection() {
   const [saved, setSaved] = useState<Role | null>(null);
   const [activeTab, setActiveTab] = useState<'pin' | 'perm' | 'data' | 'sku' | 'memo'>('pin');
   // SKU 관리 하위 메뉴 — 할인 정책(신규) · 채널 관리 · 시즌 한정
-  const [skuMenu, setSkuMenu] = useState<'discount' | 'channel' | 'season'>('discount');
+  const [skuMenu, setSkuMenu] = useState<'discount' | 'channel' | 'season' | 'targets'>('discount');
 
   async function handleSave(role: Role, pin: string) {
     await setPin(role, pin);
@@ -788,7 +789,7 @@ export function AdminSection() {
         {activeTab === 'sku' && (
           <div className="space-y-3">
             <div className="flex gap-1 border-b border-gray-200">
-              {([['discount', '할인 정책'], ['channel', '채널 관리'], ['season', '시즌 한정']] as const).map(([k, l]) => (
+              {([['discount', '할인 정책'], ['channel', '채널 관리'], ['season', '시즌 한정'], ['targets', '월 목표']] as const).map(([k, l]) => (
                 <button key={k} onClick={() => setSkuMenu(k)}
                   className={`px-3 py-1.5 text-xs border-b-2 -mb-px ${skuMenu === k ? 'border-indigo-600 text-gray-900 font-semibold' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
                   {l}{k === 'discount' && <span className="ml-1 text-[9px] font-bold text-indigo-600">NEW</span>}
@@ -798,6 +799,7 @@ export function AdminSection() {
             {skuMenu === 'discount' && <PricingPolicyAdmin />}
             {skuMenu === 'channel' && <ChannelManageTab />}
             {skuMenu === 'season' && <SeasonOnlyTab />}
+            {skuMenu === 'targets' && <OrderTargetAdmin />}
           </div>
         )}
 
