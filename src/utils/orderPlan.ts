@@ -60,5 +60,10 @@ export function switchPlanPatch(sku: SkuData): Partial<SkuData> {
 
 /** 소진 목표 — 그 달(개월차)까지의 누적 판매 목표를 발주량으로, 10개 단위 올림, MOQ 미만이면 MOQ */
 export function orderForCover(cumulative: number[], monthIdx: number, moq: number): number {
-  return Math.max(moq, Math.ceil((cumulative[monthIdx] ?? 0) / 10) * 10);
+  return Math.max(moq, coverQty(cumulative, monthIdx));
+}
+
+/** 그 달까지의 누적 판매 목표를 10개 단위로 올린 수량 — MOQ 적용 전 */
+export function coverQty(cumulative: number[], monthIdx: number): number {
+  return Math.ceil((cumulative[monthIdx] ?? 0) / 10) * 10;
 }
