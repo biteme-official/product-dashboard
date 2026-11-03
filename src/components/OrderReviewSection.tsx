@@ -28,7 +28,7 @@ import { STEP1_OPTIONS } from '../utils/step1Price';
 import { basePriceOf, skuMoney, type MoneyBasis, type SkuMoney } from '../utils/reviewSku';
 import { cachedReview, globalIssues, type ReviewCtx, type ReviewIssue, type SkuReview } from '../utils/skuReview';
 import { finalOrderForConfirm, finalOrderModel } from '../utils/finalOrder';
-import { orderForCover, savePlanPatch, switchPlanPatch, withOrderQty } from '../utils/orderPlan';
+import { coverQty, orderForCover, savePlanPatch, switchPlanPatch, withOrderQty } from '../utils/orderPlan';
 import { CellInput } from './CellInput';
 
 const fmt = (n: number) => Math.round(n).toLocaleString();
@@ -186,7 +186,10 @@ function Detail({ s, r, env }: { s: SkuData; r: SkuReview; env: DetailEnv }) {
                 <select value="" disabled={!canOrder || m.planQty === 0} onChange={(e) => e.target.value !== '' && setOrder(s, orderForCover(m.coverage.cumulative, Number(e.target.value), s.moq))}
                   className="text-xs border border-gray-300 rounded px-1 py-0.5 bg-white disabled:opacity-50">
                   <option value="">선택</option>
-                  {months.map((mo, i) => <option key={mo} value={i}>{mo}월까지 · {fmt(orderForCover(m.coverage.cumulative, i, s.moq))}개</option>)}
+                  {months.map((mo, i) => {
+                    const need = coverQty(m.coverage.cumulative, i);
+                    return <option key={mo} value={i}>{mo}월까지 · {need < s.moq ? `${fmt(need)}개 → MOQ ${fmt(s.moq)}개` : `${fmt(need)}개`}</option>;
+                  })}
                 </select>
               </label>
               <label className="flex items-center gap-1.5">판매 목표 일괄
