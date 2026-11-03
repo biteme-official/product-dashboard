@@ -80,6 +80,7 @@ export function SkuOrderSection({
   onExcludeOpenCompleteChange = () => {},
   onSearchQueryChange = () => {},
   onNavigateToSku,
+  onOpenInReview,
   focusRequest,
   onFocusHandled = () => {},
 }: {
@@ -96,6 +97,7 @@ export function SkuOrderSection({
   onExcludeOpenCompleteChange?: (v: boolean) => void;
   onSearchQueryChange?: (v: string) => void;
   onNavigateToSku?: (sku: SkuData) => void;
+  onOpenInReview?: (sku: SkuData) => void;
   /** SKU로 이동 요청(직링크·LIST VIEW 이동) — 갤러리 보기면 해당 SKU 팝업을 연다. 목록 보기는 App이 펼침+스크롤 처리 */
   focusRequest?: { id: string; seq: number } | null;
   onFocusHandled?: () => void;
@@ -415,7 +417,7 @@ export function SkuOrderSection({
                 <div className="space-y-2">
                   {displaySkus.map((sku) => (
                     <div key={sku.id} id={`sku-card-${sku.id}`}>
-                      <SkuCard sku={searchQuery.trim() ? { ...sku, isExpanded: true } : sku} />
+                      <SkuCard sku={searchQuery.trim() ? { ...sku, isExpanded: true } : sku} onOpenInReview={onOpenInReview} />
                     </div>
                   ))}
                 </div>
@@ -454,7 +456,7 @@ export function SkuOrderSection({
               </button>
             </div>
             <div className="overflow-y-auto">
-              <SkuCard sku={{ ...gallerySelectedSku, isExpanded: true }} />
+              <SkuCard sku={{ ...gallerySelectedSku, isExpanded: true }} onOpenInReview={onOpenInReview} />
             </div>
           </div>
         </div>

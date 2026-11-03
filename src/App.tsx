@@ -218,6 +218,19 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [skuLinkId, role, allSkus.length]);
 
+  /** SKU 카드 › 발주량 검토에서 열기 — 필터를 풀고 그 SKU만 검색해 결정 화면으로 이동 */
+  function handleOpenInReview(sku: SkuData) {
+    pushNavHistory();
+    try { sessionStorage.setItem('ct:view', JSON.stringify('ws')); } catch { /* 무시 */ }
+    setListCatFilter(new Set());
+    setListBrandFilter(new Set());
+    setListMonthFilter(new Set());
+    setCtExcludeOpenComplete(false);
+    setSearchQuery(sku.skuName);
+    setActiveMainTab('projection');
+    setProjectionSubTab('channel-target');
+  }
+
   function pushNavHistory() {
     const snapshot: NavSnapshot = {
       mainTab: activeMainTab,
@@ -630,6 +643,7 @@ function App() {
             onExcludeOpenCompleteChange={isChannelTarget ? setCtExcludeOpenComplete : isPricingV2 ? setPvExcludeOpenComplete : setExcludeOpenComplete}
             onSearchQueryChange={setSearchQuery}
             onNavigateToSku={handleNavigateToSku}
+            onOpenInReview={handleOpenInReview}
           />
         ) : (
           <div className="px-4 py-4">

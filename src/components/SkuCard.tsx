@@ -11,8 +11,10 @@ import {
   fetchTeamCateData, classifyTableauError, TABLEAU_ERROR_MESSAGES,
   type TeamCateMap, type ChannelByYearMonth, type TableauErrorReason,
 } from '../services/tableau';
-import { SizeDistColumn } from './SizeDistColumn';
-import { ComparisonColumn } from './ComparisonColumn';
+import { OptionConfigColumn } from './OptionConfigColumn';
+import { MemoBox } from './MemoBox';
+import { useReviewCtx } from '../hooks/useReviewCtx';
+import { cachedReview } from '../utils/skuReview';
 import { NumericInput } from './NumericInput';
 import { useExchangeRates } from '../utils/useExchangeRates';
 import { usePermission } from '../contexts/PermissionsContext';
@@ -50,10 +52,8 @@ function formatWon(value: number): string {
 
 interface Props {
   sku: SkuData;
-  /** 채널 목표량 › SKU 작업대에 넣을 때 — 머리줄 토글 없이 항상 펼침 */
-  embedded?: boolean;
-  /** false면 STEP 1을 열어도 빈 표를 자동으로 채우지 않음(버튼으로만). 기본 true = 기존 카드 동작 */
-  autoInit?: boolean;
+  /** [발주량 검토에서 열기] */
+  onOpenInReview?: (sku: SkuData) => void;
 }
 
 /** 이번 발주량 대비 시즌 판매 목표 판정 칩 (STEP1·STEP2 공용) */
@@ -117,47 +117,13 @@ function CommitNumericInput({ value, onCommit, ...rest }: {
   );
 }
 
-export function SkuCard({ sku, embedded = false, autoInit = true }: Props) {
+export function SkuCard({ sku, onOpenInReview }: Props) {
   const toggleExpanded = useStore((s) => s.toggleExpanded);
   const updateSku = useStore((s) => s.updateSku);
   const persistSku = useStore((s) => s.persistSku);
   const { role } = useAuth();
   const perm = usePermission(role);
   const canEdit = perm.skuBasic;
-  const isFinalized = !!sku.finalOrderConfirmedAt;
-
-
-  // 대응SKU 월별 실적 (ComparisonColumn → MonthlyTable 브릿지)
-  const [compMonthlyData, setCompMonthlyData] = useState<Partial<Record<number, number>>>({});
-  const [compMode, setCompMode] = useState<'rolling12' | 'samePeriod'>('rolling12');
-  const [compModeLabel, setCompModeLabel] = useState('직전 12개월/월평균');
-  // 대응SKU 채널 분포 (Tableau 채널별 실적 → STEP2 기본값 산출에 사용)
-  const [compChannelDist, setCompChannelDist] = useState<Record<string, number> | null>(null);
-  // 대응SKU 채널×연월 원시 데이터 (STEP2 월별 비교행용)
-  const [compChannelYM, setCompChannelYM] = useState<ChannelByYearMonth | null>(null);
-
-  function handleComparisonDataChange(
-    data: Partial<Record<number, number>>,
-    mode: 'rolling12' | 'samePeriod',
-    label: string,
-  ) {
-    setCompMonthlyData(data);
-    setCompMode(mode);
-    setCompModeLabel(label);
-  }
-
-
-  // 판매가 시나리오 — 스토어 값을 그대로 쓴다. 예전엔 카드를 연 시점 값을 로컬 상태로 들고 있다가 다음 수정 때
-  // 통째로 저장해서, 그 사이 다른 화면(채널 목표량 페이지 · 다른 사람)이 바꾼 다른 채널 값을 되돌릴 수 있었다
-  const pricingOpts = sku.pricingOpts ?? {};
-  const [step3Totals, setStep3Totals] = useState<{ revenue: number; profit: number | null } | null>(null);
-
-  const setPricingOpts: Dispatch<SetStateAction<Record<string, string>>> = (updater) => {
-    const latest = useStore.getState().skus.find((s) => s.id === sku.id)?.pricingOpts ?? {};
-    const next = typeof updater === 'function' ? updater(latest) : updater;
-    updateSku(sku.id, { pricingOpts: next });
-    persistSku(sku.id);
-  };
 
   return (
     <div className="border border-gray-200 rounded-xl bg-white shadow-sm overflow-hidden">
@@ -184,7 +150,7 @@ export function SkuCard({ sku, embedded = false, autoInit = true }: Props) {
             {sku.skuName || '(SKU명 미입력)'}
           </button>
 
-          {!embedded && <CopySkuLinkButton skuId={sku.id} />}
+          <CopySkuLinkButton skuId={sku.id} />
         </div>
 
         {/* 2행: 배지 + 수치 요약 */}
@@ -215,39 +181,62 @@ export function SkuCard({ sku, embedded = false, autoInit = true }: Props) {
       </div>
 
       {/* 상세 입력 영역 (펼침) */}
-      {(embedded || sku.isExpanded) && (
-        <div className="p-4 bg-white">
-          <div className="grid gap-4 grid-cols-1 md:grid-cols-[1fr_1.8fr_1.4fr]">
-            {/* 열 1: 기본정보 */}
+      {sku.isExpanded && (
+        <div className="p-4 bg-white space-y-4">
+          <OrderResultPanel sku={sku} onOpenInReview={onOpenInReview} />
+          <div className="grid gap-4 grid-cols-1 md:grid-cols-3">
             <BasicInfoColumn sku={sku} readOnly={!canEdit} />
-            {/* 열 2: 사이즈 분배 */}
-            <SizeDistColumn sku={sku} readOnly={!canEdit || isFinalized} />
-            {/* 열 3: 기존 SKU 비교 */}
-            <ComparisonColumn
-              sku={sku}
-              readOnly={!canEdit}
-              onComparisonDataChange={handleComparisonDataChange}
-              onChannelDistChange={setCompChannelDist}
-              onChannelYMDataChange={setCompChannelYM}
-              step3Revenue={step3Totals?.revenue}
-              step3Profit={step3Totals?.profit}
-            />
+            <OptionConfigColumn sku={sku} readOnly={!canEdit || !!sku.finalOrderConfirmedAt} />
+            <MemoBox skuId={sku.id} memo={sku.memo} readOnly={!canEdit}
+              onSave={(html) => { if (canEdit) { updateSku(sku.id, { memo: html }); void persistSku(sku.id); } }} />
           </div>
-          <MonthlyTable
-            sku={sku}
-            readOnly={!canEdit}
-            compMonthlyData={compMonthlyData}
-            compModeLabel={compModeLabel}
-            compMode={compMode}
-            compChannelDist={compChannelDist}
-            compChannelYM={compChannelYM}
-            pricingOpts={pricingOpts}
-            setPricingOpts={setPricingOpts}
-            onStep3TotalsChange={setStep3Totals}
-            autoInit={autoInit}
-          />
         </div>
       )}
+    </div>
+  );
+}
+
+/** SKU 카드 › 발주 결과 — 발주량 검토에서 정한 값을 보기만 한다. 금액은 판매 목표 전체 기준(채널별 요약과 같음) */
+function OrderResultPanel({ sku, onOpenInReview }: { sku: SkuData; onOpenInReview?: (sku: SkuData) => void }) {
+  const { ctx } = useReviewCtx();
+  const m = cachedReview(sku, ctx, 'season').money;
+  const skuMonths = getSkuMonths(sku.releaseDate);
+  const releaseYear = sku.releaseDate ? parseInt(sku.releaseDate.split('-')[0], 10) : 2026;
+  const qty = sku.totalOrderQty;
+  const coverIdx = qty > 0 ? m.coverage.cumulative.findIndex((c) => c >= qty) : -1;
+  const active = sku.orderPlans?.active ?? 1;
+  const state = sku.finalOrderConfirmedAt
+    ? { text: '발주 확정', cls: 'bg-gray-200 text-gray-700' }
+    : sku.orderPlans?.decided ? { text: `${active}안 저장`, cls: 'bg-emerald-100 text-emerald-700' } : { text: '검토 전', cls: 'bg-amber-100 text-amber-800' };
+  const changed = !!sku.finalOrderConfirmedAt && sku.finalOrderConfirmedOrderQty !== undefined && sku.finalOrderConfirmedOrderQty !== qty;
+  const profitText = m.profit === null ? '–' : formatWon(m.profit);
+  return (
+    <div className="border-2 border-indigo-200 rounded-lg p-3 space-y-2.5">
+      <div className="flex flex-wrap items-center gap-2">
+        <b className="text-sm text-gray-900">발주 결과</b>
+        <span className={`px-1.5 rounded-full text-[11px] font-semibold ${state.cls}`}>{state.text}</span>
+        <span className="text-[11px] text-gray-500">보기 전용</span>
+        {changed && <span className="text-[11px] font-medium text-amber-600">⚠ 발주량 변경됨 · 확정 {sku.finalOrderConfirmedOrderQty!.toLocaleString()}개 → 현재 {qty.toLocaleString()}개</span>}
+        <span className="flex-1" />
+        {onOpenInReview && <button onClick={() => onOpenInReview(sku)} className="text-xs px-3 py-1 rounded bg-indigo-600 text-white font-semibold hover:bg-indigo-700">발주량 검토에서 열기 →</button>}
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 tabular-nums">
+        <div><div className="text-[11px] text-gray-500">{sku.orderPlans?.decided ? `${active}안 ` : ''}발주량 · MOQ {sku.moq.toLocaleString()}</div><b className="text-base font-extrabold">{qty.toLocaleString()}개</b></div>
+        <div><div className="text-[11px] text-gray-500">소진월 · 판정</div><div className="flex flex-wrap items-center gap-1.5"><b className="text-base font-extrabold">{coverIdx < 0 ? '미소진' : `${m.months[coverIdx].month}월`}</b><CoverageChip sku={sku} skuMonths={skuMonths} /></div></div>
+        <div><div className="text-[11px] text-gray-500">예상 순매출</div><b className="text-base font-extrabold">{formatWon(m.revenue)}</b></div>
+        <div><div className="text-[11px] text-gray-500">예상 공헌이익{m.cm !== null ? ` · CM ${m.cm}%` : ''}</div><b className="text-base font-extrabold">{profitText}</b></div>
+      </div>
+      <ChannelMonthTable sku={sku} readOnly monthlySplit={sku.monthlySplit} skuMonths={skuMonths} releaseYear={releaseYear} />
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs tabular-nums min-w-[560px]">
+          <thead><tr className="border-b border-gray-200 text-gray-500"><th className="text-left px-2 py-1 font-semibold">예상 금액 · 판매 목표 전체 기준</th>{m.months.map((x) => <th key={x.month} className="text-right px-2 py-1 font-semibold">{x.month}월</th>)}<th className="text-right px-2 py-1 font-semibold">합계</th></tr></thead>
+          <tbody>
+            <tr className="border-b border-gray-100"><td className="px-2 py-1 whitespace-nowrap">순매출</td>{m.months.map((x) => <td key={x.month} className="px-2 py-1 text-right">{x.revenue ? formatWon(x.revenue) : '–'}</td>)}<td className="px-2 py-1 text-right font-semibold">{formatWon(m.revenue)}</td></tr>
+            <tr><td className="px-2 py-1 whitespace-nowrap">공헌이익</td>{m.months.map((x) => <td key={x.month} className="px-2 py-1 text-right">{x.profit === null || !x.revenue ? '–' : formatWon(x.profit)}</td>)}<td className="px-2 py-1 text-right font-semibold">{profitText}</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p className="text-[11px] text-gray-400">채널을 펼치면 옵션별 수량 · 수정은 발주량 검토에서</p>
     </div>
   );
 }
@@ -953,8 +942,10 @@ function MonthlyTable({
   // STEP2 탭 진입 시: 비어 있으면 최초 세팅, 관리 탭 재계산 표식이 있으면 월 합계 유지한 채 대응SKU 비중으로 다시 나눔.
   // 대응SKU를 바꿨다고 자동으로 덮어쓰지 않는다 — [대응SKU 비중으로 다시 나누기]로만 반영.
   useEffect(() => {
-    if (activeTab !== 'pricing' || !autoInit) return;
+    if (activeTab !== 'pricing') return;
     const latest = latestSku();
+    // 발주량 검토: 빈 표를 자동으로 채우지 않고, 관리 탭 재계산 표식만 처리
+    if (!autoInit && !(latest.channelQtyDerivedFromCompareSkus ?? []).includes(STEP2_FORCE_RECALC_MARK)) return;
     const names = latest.comparisonSku.compareSkuNames ?? [];
     // 대응SKU가 있는데 채널 비중을 아직 못 받았으면 기다린다 (기본 비중으로 먼저 채우지 않게)
     if (names.length > 0 && !compChannelDist) return;
