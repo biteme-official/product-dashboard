@@ -6,7 +6,6 @@ import { useCpoSync } from '../store/cpoSync';
 import { cpoPricingDeepLink, CPO_STATUS_STYLES } from '../types/cpo';
 import { SkuCard } from './SkuCard';
 import { ChannelTargetSection } from './ChannelTargetSection';
-import { OrderReviewSection } from './OrderReviewSection';
 import { PricingV2Section } from './PricingV2Section';
 import { NumericInput } from './NumericInput';
 import { exportBulkOrderXlsx } from '../utils/exportXlsx';
@@ -79,8 +78,6 @@ export function SkuOrderSection({
   onListBrandFilterChange = () => {},
   onListMonthFilterChange = () => {},
   onExcludeOpenCompleteChange = () => {},
-  orExcludeConfirmed = false,
-  onOrExcludeConfirmedChange = () => {},
   onSearchQueryChange = () => {},
   onNavigateToSku,
   focusRequest,
@@ -97,8 +94,6 @@ export function SkuOrderSection({
   onListBrandFilterChange?: (v: Set<string>) => void;
   onListMonthFilterChange?: (v: Set<string>) => void;
   onExcludeOpenCompleteChange?: (v: boolean) => void;
-  orExcludeConfirmed?: boolean;
-  onOrExcludeConfirmedChange?: (v: boolean) => void;
   onSearchQueryChange?: (v: string) => void;
   onNavigateToSku?: (sku: SkuData) => void;
   /** SKU로 이동 요청(직링크·LIST VIEW 이동) — 갤러리 보기면 해당 SKU 팝업을 연다. 목록 보기는 App이 펼침+스크롤 처리 */
@@ -389,15 +384,7 @@ export function SkuOrderSection({
             </div>
           ) : subTab === 'channel-target' ? (
             <div className="flex-1 min-h-0">
-              <ChannelTargetSection skus={displaySkus} />
-            </div>
-          ) : subTab === 'order-review' ? (
-            <div className="flex-1 min-h-0">
-              <OrderReviewSection excludeConfirmed={orExcludeConfirmed} onExcludeConfirmedChange={onOrExcludeConfirmedChange}
-                skus={displaySkus}
-                targetComparable={listMonthFilter.size === 0 && listBrandFilter.size === 0 && !searchQuery}
-                onNavigateToSku={onNavigateToSku}
-              />
+              <ChannelTargetSection skus={displaySkus} targetComparable={listMonthFilter.size === 0 && listBrandFilter.size === 0 && !searchQuery} onNavigateToSku={onNavigateToSku} />
             </div>
           ) : null}
         </div>

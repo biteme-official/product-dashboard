@@ -231,11 +231,12 @@ async function writeSkusMerged(
           const fields = GUARDED_FIELDS.filter((f) => f in out);
           const clash = conflictingFields(toFirestore(base), toFirestore(applyMigration({ ...snaps[i].data(), id: p.sku.id })), fields);
           if (clash.length) throw new SkuConflictError(p.sku.skuName, clash);
-          if ('finalOrderQty' in out) {
+          for (const f of ['finalOrderQty', 'step2OptionQty'] as const) {
+            if (!(f in out)) continue;
             // merge 저장은 빠진 키를 지우지 않으므로 수기값을 지운 옵션은 명시적으로 삭제
-            const gone = removedKeys(base.finalOrderQty as Record<string, unknown> | undefined, p.sku.finalOrderQty as Record<string, unknown> | undefined)
+            const gone = removedKeys(base[f] as Record<string, unknown> | undefined, p.sku[f] as Record<string, unknown> | undefined)
               .filter((k) => !k.startsWith('__'));
-            if (gone.length) out.finalOrderQty = { ...out.finalOrderQty, ...Object.fromEntries(gone.map((k) => [k, deleteField()])) };
+            if (gone.length) out[f] = { ...out[f], ...Object.fromEntries(gone.map((k) => [k, deleteField()])) };
           }
         }
         // 서버 문서에 예전 채널명이 남아 있으면 같은 칸으로 맞춘 뒤 병합

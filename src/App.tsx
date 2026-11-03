@@ -56,7 +56,7 @@ const MAIN_TAB_LABELS: Record<MainTab, string> = {
 
 function getNavLabel(snap: NavSnapshot): string {
   if (snap.mainTab === 'projection') {
-    return snap.projectionSubTab === 'list-view' ? 'LIST VIEW' : snap.projectionSubTab === 'channel-target' ? '채널 목표량' : snap.projectionSubTab === 'pricing-v2' ? '프라이싱' : snap.projectionSubTab === 'order-review' ? '발주량 검토' : '채널별 오픈일정';
+    return snap.projectionSubTab === 'list-view' ? 'LIST VIEW' : snap.projectionSubTab === 'channel-target' ? '발주량 검토' : snap.projectionSubTab === 'pricing-v2' ? '프라이싱' : snap.projectionSubTab === 'order-review' ? '발주량 검토' : '채널별 오픈일정';
   }
   return MAIN_TAB_LABELS[snap.mainTab];
 }
@@ -149,10 +149,8 @@ function App() {
   // 프라이싱도 [오픈/완료 제외] 기본 켜짐 — 채널 목표량과 같은 방식, 세션 상태는 별도
   const [pvExcludeOpenComplete, setPvExcludeOpenComplete] = useSessionState('app:pvExcludeOpenComplete', true);
   const isPricingV2 = projectionSubTab === 'pricing-v2';
-  // 발주량 검토도 [오픈/완료 제외] 기본 켜짐
-  const [orExcludeOpenComplete, setOrExcludeOpenComplete] = useSessionState('app:orExcludeOpenComplete', true);
-  const [orExcludeConfirmed, setOrExcludeConfirmed] = useSessionState('app:orExcludeConfirmed', false);
-  const isOrderReview = projectionSubTab === 'order-review';
+  // 예전 발주량 검토 탭을 열어둔 세션은 합쳐진 탭으로 옮긴다
+  useEffect(() => { if (projectionSubTab === 'order-review') setProjectionSubTab('channel-target'); }, [projectionSubTab, setProjectionSubTab]);
   const [searchQuery, setSearchQuery] = useState('');
 
   // 채널별 요약 탭 필터 상태 (프로젝션 필터와 동일한 패턴으로 리프트)
@@ -574,10 +572,8 @@ function App() {
             {[
               { key: 'list-view', label: 'LIST VIEW' },
               { key: 'channel-schedule', label: '채널별 오픈일정' },
-              { key: 'channel-target', label: '채널 목표량' },
+              { key: 'channel-target', label: '발주량 검토' },
               { key: 'pricing-v2', label: '프라이싱' },
-              // 파일럿 동안 MASTER만 — 검증 후 역할 확대 (쓰기 권한은 화면 안에서 역할별로 이미 나눠져 있음)
-              ...(role === 'master' ? [{ key: 'order-review', label: '발주량 검토' }] : []),
             ].map(({ key, label }) => (
               <Fragment key={key}>
                 <button
@@ -626,14 +622,12 @@ function App() {
             listCatFilter={listCatFilter}
             listBrandFilter={listBrandFilter}
             listMonthFilter={listMonthFilter}
-            excludeOpenComplete={isChannelTarget ? ctExcludeOpenComplete : isPricingV2 ? pvExcludeOpenComplete : isOrderReview ? orExcludeOpenComplete : excludeOpenComplete}
+            excludeOpenComplete={isChannelTarget ? ctExcludeOpenComplete : isPricingV2 ? pvExcludeOpenComplete : excludeOpenComplete}
             searchQuery={searchQuery}
             onListCatFilterChange={setListCatFilter}
             onListBrandFilterChange={setListBrandFilter}
             onListMonthFilterChange={setListMonthFilter}
-            onExcludeOpenCompleteChange={isChannelTarget ? setCtExcludeOpenComplete : isPricingV2 ? setPvExcludeOpenComplete : isOrderReview ? setOrExcludeOpenComplete : setExcludeOpenComplete}
-            orExcludeConfirmed={orExcludeConfirmed}
-            onOrExcludeConfirmedChange={setOrExcludeConfirmed}
+            onExcludeOpenCompleteChange={isChannelTarget ? setCtExcludeOpenComplete : isPricingV2 ? setPvExcludeOpenComplete : setExcludeOpenComplete}
             onSearchQueryChange={setSearchQuery}
             onNavigateToSku={handleNavigateToSku}
           />

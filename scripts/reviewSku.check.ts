@@ -3,7 +3,7 @@
  */
 import assert from 'node:assert/strict';
 import { cellMoney, cmOf, skuMoney, varCostOf, yearMonthKey, VAR_COST_DEFAULT, type VarCostResults } from '../src/utils/reviewSku.ts';
-import { planSnapshot, savePlanPatch, switchPlanPatch, withOptionQty, withOrderQty, withOrderQtyScaled } from '../src/utils/orderPlan.ts';
+import { planSnapshot, savePlanPatch, switchPlanPatch, withColorQty, withOptionQty, withOrderQty, withOrderQtyScaled, withSizeRatio } from '../src/utils/orderPlan.ts';
 import { finalOrderForConfirm, finalOrderModel } from '../src/utils/finalOrder.ts';
 import { isKnownStep1Opt, step1Pricer } from '../src/utils/step1Price.ts';
 import { DEFAULT_PRICING_POLICY } from '../src/utils/pricingV2.ts';
@@ -189,5 +189,21 @@ test('안 전환: 옵션 수기값도 안마다 따로 보관', () => {
   const toTwo = switchPlanPatch({ ...s, orderPlans: { active: 1, decided: true, other: { ...planSnapshot(s), totalOrderQty: 800, optionQty: [{ key: 's|S', qty: 200 }, { key: 's|M', qty: 600 }] } } });
   assert.deepEqual(toTwo.finalOrderQty, { 's|S': 200, 's|M': 600 });
   assert.deepEqual(toTwo.orderPlans!.other!.optionQty, [{ key: 's|S', qty: 300 }, { key: 's|M', qty: 700 }]);
+});
+test('컬러 수량 수정: 합계가 발주량, 판매 목표 같은 비율, 수기값 해제', () => {
+  const s = sku({ totalOrderQty: 1000, hasColors: true, colors: [{ id: 'a', name: 'A', quantity: 600 }, { id: 'b', name: 'B', quantity: 400 }], finalOrderQty: { 'c|a': 600, 'c|b': 400 } } as unknown as Partial<SkuData>, { 자사몰: [1000, 0, 0, 0, 0, 0, 0, 0] });
+  const p = withColorQty(s, 'a', 400)!;
+  assert.equal(p.totalOrderQty, 800);
+  assert.deepEqual(p.colors!.map((c) => c.quantity), [400, 400]);
+  assert.equal(qtyOf_(p, '자사몰', 11), 800);
+  assert.deepEqual(p.finalOrderQty, {});
+});
+test('사이즈 비중 수정: 발주량 · 판매 목표 유지, 수기값 해제', () => {
+  const s = planSku({ totalOrderQty: 1000, finalOrderQty: { 's|S': 400, 's|M': 600 } });
+  const p = withSizeRatio(s, 'S', 50);
+  assert.equal(p.totalOrderQty, undefined);
+  assert.equal(p.channelMonthQty, undefined);
+  assert.equal(p.sizes!.find((z) => z.label === 'S')!.ratio, 50);
+  assert.deepEqual(p.finalOrderQty, {});
 });
 console.log(`reviewSku: ${passed}개 통과`);
