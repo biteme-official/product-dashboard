@@ -2,7 +2,7 @@
  * 프로젝션 › 발주량 검토 › SKU별 결정 · 전체 합계 — SKU별로 1안 · 2안을 정하고, 고른 값의 월 · 카테고리 합계를 본다.
  * 화면을 여는 것만으로는 쓰기가 없다(채널 표는 autoInit 끔, ComparisonColumn 미마운트). 저장은 applySkuBatch, 확정은 setFinalOrderConfirmed.
  */
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import {
   Bar, CartesianGrid, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts';
@@ -13,10 +13,9 @@ import {
 import { planScopeOf, SkuConflictError, useSkuSyncStatus, useStore } from '../store';
 import { useAuth } from '../store/auth';
 import { usePermission } from '../contexts/PermissionsContext';
-import { usePricingPolicy } from '../hooks/usePricingPolicy';
-import { useTableauBase, type TableauBase } from '../hooks/useTableauBase';
+import { useReviewCtx } from '../hooks/useReviewCtx';
+import type { TableauBase } from '../hooks/useTableauBase';
 import { useOrderTargets } from '../hooks/useOrderTargets';
-import { useExchangeRates } from '../utils/useExchangeRates';
 import { isAllChannelRole, ownsChannel } from '../utils/channelOwnership';
 import type { Role } from '../utils/pin';
 import { searchSkus, type SkuShipmentInfo } from '../services/tableau';
@@ -27,7 +26,7 @@ import { scaleOpenChannelsTo, setMonthTotal } from '../utils/qtyPlan';
 import { exportSkuOrderXlsx } from '../utils/exportXlsx';
 import { STEP1_OPTIONS } from '../utils/step1Price';
 import { basePriceOf, skuMoney, type MoneyBasis, type SkuMoney } from '../utils/reviewSku';
-import { cachedReview, globalIssues, type ReviewCtx, type ReviewIssue, type SkuReview } from '../utils/skuReview';
+import { cachedReview, globalIssues, type ReviewIssue, type SkuReview } from '../utils/skuReview';
 import { finalOrderForConfirm, finalOrderModel } from '../utils/finalOrder';
 import { savePlanPatch, switchPlanPatch, withColorQty, withOptionQty, withOrderQtyScaled, withSizeRatio } from '../utils/orderPlan';
 import { CellInput } from './CellInput';
@@ -602,9 +601,7 @@ export function OrderReviewSection({ skus: filteredSkus, view, targetComparable:
 }) {
   const { role } = useAuth();
   const perm = usePermission(role);
-  const tableau = useTableauBase();
-  const { policy, isDefault: policyIsDefault } = usePricingPolicy();
-  const { usdKrw, jpyKrw, isLive } = useExchangeRates();
+  const { ctx, tableau } = useReviewCtx();
   const targets = useOrderTargets();
   const listenerError = useSkuSyncStatus((s) => s.error);
   const applySkuBatch = useStore((s) => s.applySkuBatch);
@@ -624,11 +621,6 @@ export function OrderReviewSection({ skus: filteredSkus, view, targetComparable:
   const [busy, setBusy] = useState(false);
   const [focus, setFocus] = useState<string | null>(null);
   const [visited, setVisited] = useState<string[]>([]);
-
-  const ctx = useMemo<ReviewCtx>(() => ({
-    policy, policyIsDefault, fx: { usd: usdKrw, jpy: jpyKrw, live: isLive },
-    shipments: tableau.shipments, channelMap: tableau.channelMap, teamCate: tableau.teamCate, loading: tableau.loading, errors: tableau.errors,
-  }), [policy, policyIsDefault, usdKrw, jpyKrw, isLive, tableau.shipments, tableau.channelMap, tableau.teamCate, tableau.loading, tableau.errors]);
 
   const reviewOf = (s: SkuData) => cachedReview(s, ctx, basis);
   const rows = skus.map((s) => ({ s, r: reviewOf(s) }));
@@ -731,30 +723,28 @@ export function OrderReviewSection({ skus: filteredSkus, view, targetComparable:
 
   const decided = skus.filter((s) => s.orderPlans?.decided || s.finalOrderConfirmedAt).length;
   const confirmed = skus.filter((s) => s.finalOrderConfirmedAt).length;
-  const statusBar = allIssues.length > 0 || tableau.loading ? (
-    <div className={`border rounded-lg px-3 py-1.5 text-xs ${errorCount ? 'bg-red-50 text-red-700 border-red-200' : warnCount ? 'bg-amber-50 text-amber-800 border-amber-200' : 'bg-gray-50 text-gray-600 border-gray-200'}`}>
-      <div className="flex flex-wrap items-center gap-2">
-        <b>{tableau.loading ? '계산 상태 · 태블로 불러오는 중' : `계산 상태 · 오류 ${errorCount} · 경고 ${warnCount}`}</b>
-        <span className="flex-1" />
-        {(tableau.errors.teamCate || tableau.errors.shipments || tableau.errors.channel) && <button onClick={tableau.retry} className="underline">다시 시도</button>}
-        {allIssues.length > 0 && <button onClick={() => setStatusOpen((v) => !v)} className="px-2 py-0.5 rounded border border-current">{statusOpen ? '접기' : '내용 보기'}</button>}
-      </div>
-      {statusOpen && allIssues.length > 0 && (
-        <div className="overflow-x-auto mt-2 bg-white text-gray-800 rounded border border-gray-200 max-h-60 overflow-y-auto">
-          <table className="w-full text-xs">
-            <thead><tr className="text-left text-gray-500 border-b border-gray-200">{['구분', '대상', '문제', '영향', '조치'].map((h) => <th key={h} className="px-2 py-1 font-semibold whitespace-nowrap">{h}</th>)}</tr></thead>
-            <tbody>
-              {allIssues.map((i, k) => (
-                <tr key={k} className="border-b border-gray-100 last:border-0">
-                  <td className="px-2 py-1"><span className={`px-1.5 rounded-full font-semibold text-[11px] whitespace-nowrap ${i.level === 'error' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-800'}`}>{i.level === 'error' ? '오류' : '경고'}</span></td>
-                  <td className="px-2 py-1 whitespace-nowrap">{i.sku ? <button className="font-semibold hover:underline" onClick={() => goTo(i.sku!.id)}>{i.sku.skuName}</button> : '전체'}</td>
-                  <td className="px-2 py-1">{i.what}</td><td className="px-2 py-1 text-gray-600">{i.effect}</td><td className="px-2 py-1 text-gray-600">{i.fix}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+  // 태블로를 불러오는 동안은 오류로 보이지 않게 회색
+  const statusChip = tableau.loading ? (
+    <span className="px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 text-[11px] font-semibold whitespace-nowrap">태블로 불러오는 중</span>
+  ) : allIssues.length > 0 ? (
+    <button onClick={() => setStatusOpen((v) => !v)} className={`px-2 py-0.5 rounded-full text-[11px] font-semibold whitespace-nowrap ${errorCount ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-800'}`}>
+      오류 {errorCount} · 경고 {warnCount} {statusOpen ? '▴' : '▾'}
+    </button>
+  ) : null;
+  const statusTable = statusOpen && !tableau.loading && allIssues.length > 0 ? (
+    <div className="overflow-x-auto bg-white text-gray-800 rounded border border-gray-200 max-h-60 overflow-y-auto">
+      <table className="w-full text-xs">
+        <thead><tr className="text-left text-gray-500 border-b border-gray-200">{['구분', '대상', '문제', '영향', '조치'].map((h) => <th key={h} className="px-2 py-1 font-semibold whitespace-nowrap">{h}</th>)}</tr></thead>
+        <tbody>
+          {allIssues.map((i, k) => (
+            <tr key={k} className="border-b border-gray-100 last:border-0">
+              <td className="px-2 py-1"><span className={`px-1.5 rounded-full font-semibold text-[11px] whitespace-nowrap ${i.level === 'error' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-800'}`}>{i.level === 'error' ? '오류' : '경고'}</span></td>
+              <td className="px-2 py-1 whitespace-nowrap">{i.sku ? <button className="font-semibold hover:underline" onClick={() => goTo(i.sku!.id)}>{i.sku.skuName}</button> : '전체'}</td>
+              <td className="px-2 py-1">{i.what}</td><td className="px-2 py-1 text-gray-600">{i.effect}</td><td className="px-2 py-1 text-gray-600">{i.fix}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   ) : null;
 
@@ -769,12 +759,16 @@ export function OrderReviewSection({ skus: filteredSkus, view, targetComparable:
           : metricCell('순매출 · 공헌이익', `${won(totals.revenue)} · ${profitText}`)}
         {metricCell('위험 SKU', fmt(totals.risk))}
       </div>
-      <p className="text-[11px] text-gray-500 flex flex-wrap items-center gap-1">
-        {totals.skipped > 0 && <span className="px-1.5 rounded-full bg-red-100 text-red-700 font-semibold">불완전 · 공헌이익 제외 {totals.skipped}개</span>}
-        <span>각 SKU에서 고른 안 기준{basis === 'order' ? ' · 초도 발주량까지만 판매로 계산' : ' · 리오더 포함 판매 목표 전체로 계산'}</span>
+      <div className="text-[11px] text-gray-500 flex flex-wrap items-center gap-x-2 gap-y-1">
+        <span>금액 기준</span>
+        <Chip on={basis === 'order'} onClick={() => setBasis('order')}>초도 발주량만</Chip>
+        <Chip on={basis === 'season'} onClick={() => setBasis('season')}>시즌 목표 · 리오더 포함</Chip>
+        {statusChip}
+        {(tableau.errors.teamCate || tableau.errors.shipments || tableau.errors.channel) && <button onClick={tableau.retry} className="underline">다시 시도</button>}
+        {totals.skipped > 0 && !tableau.loading && <span className="px-1.5 rounded-full bg-red-100 text-red-700 font-semibold">공헌이익 제외 {totals.skipped}개</span>}
         <span className="flex-1" />
         <button onClick={() => setKpiAll((v) => !v)} className="underline text-indigo-700">{kpiAll ? '접기' : '지표 9개 전부 보기'}</button>
-      </p>
+      </div>
     </div>
   );
 
@@ -883,15 +877,9 @@ export function OrderReviewSection({ skus: filteredSkus, view, targetComparable:
 
   return (
     <div className="h-full min-h-0 flex flex-col gap-2">
-      <div className="shrink-0 flex flex-wrap items-center gap-x-3 gap-y-1">
-        <div className="flex items-center gap-1"><span className="text-[11px] text-gray-500">금액 기준</span>
-          <Chip on={basis === 'order'} onClick={() => setBasis('order')}>초도 발주량만</Chip>
-          <Chip on={basis === 'season'} onClick={() => setBasis('season')}>시즌 목표 · 리오더 포함</Chip>
-        </div>
-      </div>
       <div className="shrink-0 space-y-2">
-        {statusBar}
         {summary}
+        {statusTable}
         {message && <div className="text-xs bg-red-50 border border-red-200 text-red-700 rounded px-3 py-1.5 flex justify-between gap-2"><span>{message}</span><button onClick={() => setMessage(null)} className="underline">닫기</button></div>}
       </div>
       {view === 'decide' ? decideView : <div className="flex-1 min-h-0 overflow-auto space-y-3 pr-1 pb-4">{matrix}{chart}</div>}
