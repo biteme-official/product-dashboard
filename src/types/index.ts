@@ -208,6 +208,8 @@ export interface OrderPlanSnapshot {
   channelMonthQty: ChannelMonthQtyEntry[];
   marketingMonthQty: { [month: number]: number };
   pricingOpts: Record<string, string>;
+  /** 이 안의 옵션 수기 수량 — 저장 시 병합으로 옛 키가 남지 않도록 맵 대신 배열로 보관 */
+  optionQty?: { key: string; qty: number }[];
 }
 
 export interface OrderPlans {

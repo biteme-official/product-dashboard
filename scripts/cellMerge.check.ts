@@ -1,5 +1,5 @@
 // 칸 단위 병합 검증: node scripts/cellMerge.check.ts
-import { mergeQtyEntries, mergeRecord } from '../src/utils/cellMerge.ts';
+import { conflictingFields, mergeQtyEntries, mergeRecord } from '../src/utils/cellMerge.ts';
 let fail = 0;
 const eq = (name: string, a: unknown, b: unknown) => {
   const ok = JSON.stringify(a) === JSON.stringify(b);
@@ -17,5 +17,9 @@ eq('base에 없던 칸 추가', mergeQtyEntries([], [E('일본', 11, 5)], [E('�
 eq('판매가 시나리오 병합', mergeRecord({ '자사몰-10': '판매가', '스스-10': '판매가' }, { '자사몰-10': '오픈특가', '스스-10': '판매가' }, { '자사몰-10': '판매가', '스스-10': '신상위크' }), { '자사몰-10': '오픈특가', '스스-10': '신상위크' });
 eq('마케팅 숫자 키', mergeRecord<number>({ '10': 5 }, { '10': 5, '11': 3 }, { '10': 8 }), { '10': 8, '11': 3 });
 eq('지운 키는 서버에서도 지움', mergeRecord({ '자사몰-1': '오픈특가', '스스-1': '판매가' }, { '스스-1': '판매가' }, { '자사몰-1': '오픈특가', '스스-1': '신상위크' }), { '스스-1': '신상위크' });
+eq('발주량을 다른 사람이 먼저 변경하면 충돌', conflictingFields({ totalOrderQty: 1000 }, { totalOrderQty: 900 }, ['totalOrderQty']), ['totalOrderQty']);
+eq('기준값과 서버가 같으면 충돌 없음 · 키 순서 무관', conflictingFields({ orderPlans: { active: 1, decided: true } }, { orderPlans: { decided: true, active: 1 } }, ['orderPlans']), []);
+eq('없는 필드와 null은 같은 값', conflictingFields({ orderPlans: undefined }, { orderPlans: null }, ['orderPlans']), []);
+eq('확인 대상이 아닌 필드는 무시', conflictingFields({ memo: 'a' }, { memo: 'b' }, []), []);
 if (fail) { console.error(`${fail}건 실패`); process.exit(1); }
 console.log('전부 통과');

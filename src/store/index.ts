@@ -12,7 +12,7 @@ import type { CpoProject } from '../types/cpo';
 import { recalcQuantities } from '../utils/calc';
 import { buildSizesFromLabels, cpoSizeLabels, type SizeKeyRemap } from '../utils/sizeLabels';
 import { monthTotals, redistributeByWeights, setMonthTotal, type PlanScope } from '../utils/qtyPlan';
-import { mergeQtyEntries, mergeRecord, removedKeys } from '../utils/cellMerge';
+import { conflictingFields, mergeQtyEntries, mergeRecord, removedKeys } from '../utils/cellMerge';
 import { renameLegacyChannels } from '../utils/legacyChannel';
 import { writeProductSyncFields, buildChannelScheduleMirror, writeChannelScheduleMirror } from '../lib/cpoFirebase';
 import { useCpoSync, markLocalFieldEdit, hasPendingLocalFieldEdit, SYNCED_FIELDS } from './cpoSync';
@@ -184,17 +184,33 @@ function mergeCellField(field: CellMergeField, base: SkuData, local: SkuData, se
  * 여러 SKU의 바뀐 필드를 한 트랜잭션으로 저장 — 칸 단위 필드는 서버 최신값에 병합, 나머지 필드는 그대로.
  * 전부 저장되거나 전부 안 된다. 병합 결과를 반환(로컬 상태를 서버와 맞출 때 사용).
  */
+/** 다른 사람이 먼저 바꾼 발주량 · 옵션 · 안 보관함을 덮어쓰려 할 때 — 저장하지 않고 최신값 확인을 안내 */
+export class SkuConflictError extends Error {
+  skuName: string;
+  fields: string[];
+  constructor(skuName: string, fields: string[]) {
+    super(`${skuName} · 다른 사용자가 먼저 수정`);
+    this.name = 'SkuConflictError';
+    this.skuName = skuName;
+    this.fields = fields;
+  }
+}
+/** 칸 병합이 안 되는 필드 — 함께 고치면 한쪽이 통째로 사라지므로 저장 전에 충돌을 확인 */
+const GUARDED_FIELDS = ['totalOrderQty', 'colors', 'sizes', 'orderPlans', 'finalOrderQty'] as const;
+
+let guardedQueue: Promise<unknown> = Promise.resolve();
+
 async function writeSkusMerged(
-  items: { sku: SkuData; opts?: { omit?: string[]; force?: string[] } }[],
+  items: { sku: SkuData; opts?: { omit?: string[]; force?: string[]; guard?: boolean } }[],
 ): Promise<Map<string, Partial<SkuData>>> {
   const result = new Map<string, Partial<SkuData>>();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   // 기준값(base)은 patch를 계산하는 이 순간에 함께 고정한다 — 트랜잭션 안에서 savedSkuState를 다시 읽으면
   // 그 사이 도착한 다른 사람의 값이 base가 되어, 옛 값을 든 이 탭이 "내가 바꿨다"고 오판해 덮어쓴다(테스트에서 재현)
-  const plans = items.map(({ sku, opts }) => ({ sku, base: savedSkuState[sku.id], patch: changedFirestoreFields(sku, opts) as Record<string, any> }))
+  const plans = items.map(({ sku, opts }) => ({ sku, guard: !!opts?.guard, base: savedSkuState[sku.id], patch: changedFirestoreFields(sku, opts) as Record<string, any> }))
     .filter((p) => Object.keys(p.patch).length > 0);
   if (plans.length === 0) return result;
-  const needsMerge = plans.some((p) => CELL_MERGE_FIELDS.some((f) => f in p.patch) && p.base);
+  const needsMerge = plans.some((p) => (p.guard || CELL_MERGE_FIELDS.some((f) => f in p.patch)) && p.base);
   if (!needsMerge) {
     const batch = writeBatch(fsdb);
     plans.forEach((p) => batch.set(doc(fsdb, SKUS_COL, p.sku.id), stamped(p.patch), { merge: true }));
@@ -208,6 +224,18 @@ async function writeSkusMerged(
       const base = p.base;
       const out = { ...p.patch };
       if (base && snaps[i].exists()) {
+        if (p.guard) {
+          // 이 탭의 기준값과 같은 형태로 비교 — 서버 문서는 기본값이 빠져 있을 수 있어 같은 변환을 거친다
+          const fields = GUARDED_FIELDS.filter((f) => f in out);
+          const clash = conflictingFields(toFirestore(base), toFirestore(applyMigration({ ...snaps[i].data(), id: p.sku.id })), fields);
+          if (clash.length) throw new SkuConflictError(p.sku.skuName, clash);
+          if ('finalOrderQty' in out) {
+            // merge 저장은 빠진 키를 지우지 않으므로 수기값을 지운 옵션은 명시적으로 삭제
+            const gone = removedKeys(base.finalOrderQty as Record<string, unknown> | undefined, p.sku.finalOrderQty as Record<string, unknown> | undefined)
+              .filter((k) => !k.startsWith('__'));
+            if (gone.length) out.finalOrderQty = { ...out.finalOrderQty, ...Object.fromEntries(gone.map((k) => [k, deleteField()])) };
+          }
+        }
         // 서버 문서에 예전 채널명이 남아 있으면 같은 칸으로 맞춘 뒤 병합
         const server = renameLegacyChannels(snaps[i].data());
         const merged: Partial<SkuData> = {};
@@ -544,7 +572,8 @@ interface StoreActions {
   /** CPO 사이즈 라벨 변경으로 옮긴 수동 수량 키 저장 — 빠진 키는 deleteField로 지운다(merge 저장은 안 지움) */
   persistSizeKeyRemap: (id: string, remap: { step2OptionQty?: SizeKeyRemap; finalOrderQty?: SizeKeyRemap }) => Promise<void>;
   /** 채널 목표량 페이지 일괄 작업 — 여러 SKU를 한 트랜잭션으로 저장(칸 단위 병합) + 활동 로그 한 줄씩 */
-  applySkuBatch: (updates: { id: string; patch: Partial<SkuData> }[], logLabel: string, logField?: string) => Promise<void>;
+  /** guard: 발주량 · 옵션 · 안 보관함을 다른 사람이 먼저 바꿨으면 저장하지 않고 SkuConflictError */
+  applySkuBatch: (updates: { id: string; patch: Partial<SkuData> }[], logLabel: string, logField?: string, opts?: { guard?: boolean }) => Promise<void>;
   setChannelConfirmed: (id: string, field: 'step2PlatformConfirmed' | 'step2BrandConfirmed' | 'step2GlobalConfirmed', value: boolean) => Promise<void>;
   setCoupangEnabled: (id: string, enabled: boolean) => Promise<void>;
   setSeasonOnly: (id: string, seasonOnly: boolean) => Promise<void>;
@@ -1090,7 +1119,7 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
     } : s)) });
   },
 
-  applySkuBatch: async (updates, logLabel, logField = '채널 목표량 일괄') => {
+  applySkuBatch: async (updates, logLabel, logField = '채널 목표량 일괄', batchOpts) => {
     if (skuListenerDead) throw new Error('실시간 구독이 끊긴 탭입니다. 새로고침 후 다시 시도해주세요.');
     const byId = new Map(updates.map((u) => [u.id, u.patch]));
     const prevSkus = get().skus;
@@ -1103,8 +1132,23 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
     });
     set({ skus: nextSkus });
     const changed = nextSkus.filter((s) => byId.has(s.id));
+    const write = () => writeSkusMerged(changed.map((sku) => ({
+      sku,
+      opts: {
+        guard: batchOpts?.guard,
+        omit: ['finalOrderConfirmedAt', 'finalOrderStep2Total', ...('finalOrderQty' in (byId.get(sku.id) ?? {}) ? [] : ['finalOrderQty'])],
+      },
+    })));
     try {
-      await writeSkusMerged(changed.map((sku) => ({ sku, opts: { omit: ['finalOrderConfirmedAt', 'finalOrderQty', 'finalOrderStep2Total'] } })));
+      if (batchOpts?.guard) {
+        // 저장이 겹치면 앞선 저장을 다른 사람의 수정으로 오판하므로 차례대로 저장하고, 끝나면 기준값을 바로 갱신
+        const run = guardedQueue.then(write);
+        guardedQueue = run.then(() => undefined, () => undefined);
+        const merged = await run;
+        changed.forEach((sku) => { savedSkuState[sku.id] = { ...sku, ...merged.get(sku.id) }; });
+      } else {
+        await write();
+      }
     } catch (err) {
       // 전부 저장되지 않았으니 화면도 적용 전으로 되돌린다
       set({ skus: get().skus.map((s) => (byId.has(s.id) ? (prevSkus.find((p) => p.id === s.id) ?? s) : s)) });

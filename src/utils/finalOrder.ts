@@ -3,6 +3,7 @@
  * 표시 우선순위: 저장된 최종 수량 > STEP2 옵션 수량(총 발주량 비례) > 컬러 수량 · 사이즈 비율 계산.
  */
 import type { ColorEntry, SizeRatio, SkuData } from '../types';
+import { allocate } from './qtyPlan';
 
 const META_KEYS = new Set(['__total__', '__confirmedStep2Total__']);
 export const csKey = (cid: string, sl: string) => `cs|${cid}|${sl}`;
@@ -46,8 +47,17 @@ export function finalOrderModel(sku: SkuData): FinalOrderModel | null {
 
   const finalStored = sku.finalOrderQty ?? {};
   const isFinalManual = Object.keys(finalStored).some((k) => !META_KEYS.has(k));
-  const final = (key: string, fallback: number) =>
-    isFinalManual && finalStored[key] !== undefined ? finalStored[key] : fallback;
+  // 확정 전에는 옵션 합계 = 발주량 — 수기 비율을 유지해 맞춘다. 확정된 수량은 기록이므로 그대로 표시
+  const manualKeys = Object.keys(finalStored).filter((k) => !META_KEYS.has(k));
+  const manualSum = manualKeys.reduce((a, k) => a + (finalStored[k] ?? 0), 0);
+  const fitted = new Map<string, number>();
+  if (!sku.finalOrderConfirmedAt && manualSum > 0 && manualSum !== orderBase) {
+    allocate(orderBase, manualKeys.map((k) => finalStored[k] ?? 0)).forEach((q, i) => fitted.set(manualKeys[i], q));
+  }
+  const final = (key: string, fallback: number) => {
+    if (!isFinalManual || finalStored[key] === undefined) return fallback;
+    return fitted.get(key) ?? finalStored[key];
+  };
 
   const dispCS = (cid: string, cQty: number, sl: string, sRatio: number) => {
     const k = csKey(cid, sl);
@@ -65,8 +75,8 @@ export function finalOrderModel(sku: SkuData): FinalOrderModel | null {
   return { step2Total, orderBase, activeSizes, activeColors, hasColors, hasSizes, isFinalManual, dispCS, dispC, dispS, rows };
 }
 
-/** 수기 수정 없이 확정할 때 저장할 값 — 기존 수기 수량은 보존하고 확정 시점 STEP2 합계를 함께 기록 */
-export function finalOrderForConfirm(sku: SkuData, model: FinalOrderModel): Record<string, number> {
-  const base = model.isFinalManual ? (sku.finalOrderQty ?? {}) : Object.fromEntries(model.rows.map((r) => [r.key, r.qty]));
+/** 수기 수정 없이 확정할 때 저장할 값 — 화면에 보이는 옵션 수량(옵션 합계 = 발주량)과 확정 시점 STEP2 합계를 함께 기록 */
+export function finalOrderForConfirm(model: FinalOrderModel): Record<string, number> {
+  const base = Object.fromEntries(model.rows.map((r) => [r.key, r.qty]));
   return { ...base, __confirmedStep2Total__: model.step2Total };
 }

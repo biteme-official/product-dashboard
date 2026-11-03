@@ -3,7 +3,7 @@
  * 앱의 수량 필드(totalOrderQty · channelMonthQty 등)가 언제나 지금 고른 안이고, 고르지 않은 안 하나만 orderPlans.other에 보관한다.
  * 안을 바꾸면 현재 값을 보관하고 보관된 값을 불러온다 — 별도 시나리오 계산 없이 모든 화면이 같은 값을 본다.
  */
-import { getConfirmedChannels, getDisabledChannels, isMarketingLocked, type OrderPlanSnapshot, type SkuData } from '../types';
+import { getConfirmedChannels, getDisabledChannels, isMarketingLocked, type ChannelMonthQtyEntry, type OrderPlanSnapshot, type SkuData } from '../types';
 import { allocate } from './qtyPlan';
 import { recalcQuantities } from './calc';
 
@@ -12,7 +12,15 @@ export const planSnapshot = (sku: SkuData): OrderPlanSnapshot => ({
   channelMonthQty: sku.channelMonthQty,
   marketingMonthQty: sku.marketingMonthQty ?? {},
   pricingOpts: sku.pricingOpts ?? {},
+  optionQty: optionEntries(sku),
 });
+
+/** 옵션 수기 수량(메타 키 제외) */
+function optionEntries(sku: SkuData): { key: string; qty: number }[] {
+  return Object.entries(sku.finalOrderQty ?? {})
+    .filter(([k]) => !k.startsWith('__'))
+    .map(([key, qty]) => ({ key, qty }));
+}
 
 /** 발주량 변경 — 컬러 SKU는 컬러 수량을 비율대로 조정(합계가 곧 발주량), 사이즈 수량도 재계산. 컬러 수량이 없으면 null */
 export function withOrderQty(sku: SkuData, qty: number): Partial<SkuData> | null {
@@ -24,6 +32,67 @@ export function withOrderQty(sku: SkuData, qty: number): Partial<SkuData> | null
   const out = allocate(next, active.map((c) => c.quantity));
   let i = 0;
   patch.colors = sku.colors.map((c) => (c.archived ? c : { ...c, quantity: out[i++] }));
+  return patch;
+}
+
+/**
+ * 발주량 변경 + 판매 목표 연동 — 기존 입력 수량의 월별 · 채널별 비중을 유지한 채 같은 비율로 조정.
+ * 확정 채널 · 비운영 채널 · 확정 그룹의 마케팅은 그대로. 판매 목표가 비어 있거나 이전 발주량이 0이면 발주량만 변경.
+ * 한 번의 저장으로 함께 쓰도록 patch 하나로 돌려준다.
+ */
+export function withOrderQtyScaled(sku: SkuData, qty: number): Partial<SkuData> | null {
+  const patch = withOrderQty(sku, qty);
+  if (!patch) return null;
+  const next = patch.totalOrderQty ?? 0;
+  const old = sku.totalOrderQty;
+  if (old <= 0 || next === old) return patch;
+  const k = next / old;
+  const fixed = new Set<string>([...getConfirmedChannels(sku), ...getDisabledChannels(sku)]);
+  const byMonth = new Map<number, ChannelMonthQtyEntry[]>();
+  sku.channelMonthQty.forEach((e) => {
+    if (fixed.has(e.channel)) return;
+    byMonth.set(e.month, [...(byMonth.get(e.month) ?? []), e]);
+  });
+  const scaled = new Map<string, number>();
+  byMonth.forEach((cells, month) => {
+    const cur = cells.map((c) => c.qty);
+    const total = cur.reduce((a, b) => a + b, 0);
+    if (total <= 0) return;
+    allocate(Math.round(total * k), cur).forEach((q, i) => scaled.set(`${cells[i].channel}|${month}`, q));
+  });
+  if (scaled.size > 0) {
+    patch.channelMonthQty = sku.channelMonthQty.map((e) => {
+      const q = scaled.get(`${e.channel}|${e.month}`);
+      return q === undefined ? e : { ...e, qty: q };
+    });
+  }
+  const mkt = sku.marketingMonthQty ?? {};
+  if (!isMarketingLocked(sku) && Object.values(mkt).some((v) => v > 0)) {
+    patch.marketingMonthQty = Object.fromEntries(Object.entries(mkt).map(([m, v]) => [m, Math.round(v * k)]));
+  }
+  return patch;
+}
+
+/**
+ * 옵션 수기 수정 — 옵션 합계가 곧 발주량이고, 합계가 바뀌면 판매 목표도 같은 비율로 조정.
+ * key는 finalOrder의 csKey · cKey · sKey 형식. 컬러 수량도 수기 합계로 맞춘다.
+ */
+export function withOptionQty(sku: SkuData, rows: { key: string; qty: number }[]): Partial<SkuData> | null {
+  const clean = rows.map((r) => ({ key: r.key, qty: Math.max(0, Math.round(r.qty)) }));
+  const total = clean.reduce((a, r) => a + r.qty, 0);
+  const patch = sku.hasColors && sku.colors.every((c) => c.archived || c.quantity <= 0)
+    ? { totalOrderQty: total, sizes: recalcQuantities(sku.sizes, total) } as Partial<SkuData>
+    : withOrderQtyScaled(sku, total);
+  if (!patch) return null;
+  patch.finalOrderQty = Object.fromEntries(clean.map((r) => [r.key, r.qty]));
+  if (sku.hasColors) {
+    const byColor = new Map<string, number>();
+    clean.forEach(({ key, qty }) => {
+      const [kind, cid] = key.split('|');
+      if (kind === 'cs' || kind === 'c') byColor.set(cid, (byColor.get(cid) ?? 0) + qty);
+    });
+    if (byColor.size > 0) patch.colors = sku.colors.map((c) => (byColor.has(c.id) ? { ...c, quantity: byColor.get(c.id)! } : c));
+  }
   return patch;
 }
 
@@ -54,16 +123,7 @@ export function switchPlanPatch(sku: SkuData): Partial<SkuData> {
     channelMonthQty,
     marketingMonthQty: isMarketingLocked(sku) ? saved.marketingMonthQty : target.marketingMonthQty,
     pricingOpts: { ...target.pricingOpts, ...Object.fromEntries(lockedOpts) },
+    finalOrderQty: Object.fromEntries((target.optionQty ?? []).map((o) => [o.key, o.qty])),
     orderPlans: { active: cur === 1 ? 2 : 1, other: saved, decided: true },
   };
-}
-
-/** 소진 목표 — 그 달(개월차)까지의 누적 판매 목표를 발주량으로, 10개 단위 올림, MOQ 미만이면 MOQ */
-export function orderForCover(cumulative: number[], monthIdx: number, moq: number): number {
-  return Math.max(moq, coverQty(cumulative, monthIdx));
-}
-
-/** 그 달까지의 누적 판매 목표를 10개 단위로 올린 수량 — MOQ 적용 전 */
-export function coverQty(cumulative: number[], monthIdx: number): number {
-  return Math.ceil((cumulative[monthIdx] ?? 0) / 10) * 10;
 }
