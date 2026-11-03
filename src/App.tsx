@@ -623,6 +623,7 @@ function App() {
         ) : activeMainTab === 'pm' ? (
           <SkuOrderSection
             mode="sku"
+            onOpenInReview={handleOpenInReview}
             searchQuery={searchQuery}
             onSearchQueryChange={setSearchQuery}
             focusRequest={skuFocus}
