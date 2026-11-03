@@ -79,6 +79,8 @@ export function SkuOrderSection({
   onListBrandFilterChange = () => {},
   onListMonthFilterChange = () => {},
   onExcludeOpenCompleteChange = () => {},
+  orExcludeConfirmed = false,
+  onOrExcludeConfirmedChange = () => {},
   onSearchQueryChange = () => {},
   onNavigateToSku,
   focusRequest,
@@ -95,6 +97,8 @@ export function SkuOrderSection({
   onListBrandFilterChange?: (v: Set<string>) => void;
   onListMonthFilterChange?: (v: Set<string>) => void;
   onExcludeOpenCompleteChange?: (v: boolean) => void;
+  orExcludeConfirmed?: boolean;
+  onOrExcludeConfirmedChange?: (v: boolean) => void;
   onSearchQueryChange?: (v: string) => void;
   onNavigateToSku?: (sku: SkuData) => void;
   /** SKU로 이동 요청(직링크·LIST VIEW 이동) — 갤러리 보기면 해당 SKU 팝업을 연다. 목록 보기는 App이 펼침+스크롤 처리 */
@@ -389,7 +393,7 @@ export function SkuOrderSection({
             </div>
           ) : subTab === 'order-review' ? (
             <div className="flex-1 min-h-0">
-              <OrderReviewSection
+              <OrderReviewSection excludeConfirmed={orExcludeConfirmed} onExcludeConfirmedChange={onOrExcludeConfirmedChange}
                 skus={displaySkus}
                 targetComparable={listMonthFilter.size === 0 && listBrandFilter.size === 0 && !searchQuery}
                 onNavigateToSku={onNavigateToSku}

@@ -113,7 +113,7 @@ interface DetailEnv {
   onNavigateToSku?: (sku: SkuData) => void;
   save: (s: SkuData, patch: Partial<SkuData>, label: string) => Promise<void>;
   setOrder: (s: SkuData, qty: number) => void;
-  setMonthPlan: (s: SkuData, r: SkuReview, totalsByMonth: Map<Month, number>, label: string) => void;
+  setMonthPlan: (s: SkuData, r: SkuReview, totalsByMonth: Map<Month, number>, label: string, fromCompare?: boolean) => void;
   saveCompare: (s: SkuData, names: string[], mode: CompareMode, baseYears: Record<string, number> | undefined) => void;
   confirm: (s: SkuData, on: boolean) => Promise<void>;
 }
@@ -124,10 +124,13 @@ function Detail({ s, r, env }: { s: SkuData; r: SkuReview; env: DetailEnv }) {
     const active = s.orderPlans?.active ?? 1;
     const months = getSkuMonths(s.releaseDate);
     const finalized = !!s.finalOrderConfirmedAt;
-    const canOrder = perm.skuBasic && !finalized && !writeBlocked && !busy;
+    // 칸 입력은 저장 중에도 유지 — busy로 잠그면 칸이 다시 그려져 다음 칸 클릭이 사라짐
+    const orderEditable = perm.skuBasic && !finalized && !writeBlocked;
+    const canOrder = orderEditable && !busy;
     const lockedChannels = getConfirmedChannels(s);
     const allLocked = m.channels.every((c) => lockedChannels.includes(c.channel));
-    const canPlan = perm.step1 && !finalized && !allLocked && !writeBlocked && !busy;
+    const planEditable = perm.step1 && !finalized && !allLocked && !writeBlocked;
+    const canPlan = planEditable && !busy;
     const hasError = r.issues.some((i) => i.level === 'error') || global.some((i) => i.level === 'error');
     const model = finalOrderModel(s);
     const confirmReason = !perm.orderConfirm ? '발주 확정 권한 없음' : tableau.loading ? '태블로 불러오는 중' : hasError ? '오류 해결 후 확정 가능' : !model ? '옵션이나 수량 없음' : '';
@@ -178,7 +181,7 @@ function Detail({ s, r, env }: { s: SkuData; r: SkuReview; env: DetailEnv }) {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 items-start">
           <Box title={`${active}안 발주`} right={stateChip(s)}>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-gray-600">
-              <label className="flex items-center gap-1.5">발주량 <span className="w-20 inline-block"><CellInput value={s.totalOrderQty} disabled={!canOrder} onCommit={(n) => setOrder(s, n)} /></span></label>
+              <label className="flex items-center gap-1.5">발주량 <span className="w-20 inline-block"><CellInput value={s.totalOrderQty} disabled={!orderEditable} onCommit={(n) => setOrder(s, n)} /></span></label>
               <label className="flex items-center gap-1.5">소진 목표로 계산
                 <select value="" disabled={!canOrder || m.planQty === 0} onChange={(e) => e.target.value !== '' && setOrder(s, orderForCover(m.coverage.cumulative, Number(e.target.value), s.moq))}
                   className="text-xs border border-gray-300 rounded px-1 py-0.5 bg-white disabled:opacity-50">
@@ -247,11 +250,11 @@ function Detail({ s, r, env }: { s: SkuData; r: SkuReview; env: DetailEnv }) {
             <p className="text-[11px] text-gray-500 mt-2">
               {r.compare.modeLabel} · 변동비는 카테고리×채널 팀카테 기준, 대응SKU는 기간만 결정
             </p>
-            {canPlan && names.length > 0 && Object.keys(r.compare.monthly).length > 0 && (
+            {planEditable && names.length > 0 && Object.keys(r.compare.monthly).length > 0 && (
               <p className="text-[11px] mt-1.5">
                 {compareChanged && <span className="px-1.5 mr-1 rounded-full bg-amber-100 text-amber-800 font-semibold">대응SKU 변경됨 · 월 계획 유지</span>}
-                <button onClick={() => setMonthPlan(s, r, new Map(months.filter((mo) => monthComp(mo) !== null).map((mo) => [mo, Math.round(monthComp(mo)!)])), '대응SKU 실적으로 월 계획 채우기')}
-                  className="px-2 py-0.5 rounded border border-gray-300 bg-white text-gray-700 hover:bg-gray-50">대응SKU 실적으로 월 계획 채우기</button>
+                <button disabled={!canPlan} onClick={() => setMonthPlan(s, r, new Map(months.filter((mo) => monthComp(mo) !== null).map((mo) => [mo, Math.round(monthComp(mo)!)])), '대응SKU 실적으로 월 계획 채우기', true)}
+                  className="px-2 py-0.5 rounded border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50">대응SKU 실적으로 월 계획 채우기</button>
               </p>
             )}
           </Box>
@@ -266,7 +269,7 @@ function Detail({ s, r, env }: { s: SkuData; r: SkuReview; env: DetailEnv }) {
                   ? <td colSpan={9} className="px-2 py-1 text-gray-400">{tableau.errors.shipments ? '실적 불러오기 실패' : tableau.loading ? '불러오는 중' : '대응SKU 없음'}</td>
                   : <>{months.map((mo) => <td key={mo} className="px-2 py-1 text-right text-gray-500">{monthComp(mo) === null ? '–' : fmt(monthComp(mo)!)}</td>)}<td className="px-2 py-1 text-right text-gray-500">{fmt(compTotal)}</td></>}</tr>
                 <tr className="border-b border-gray-100"><td className="px-2 py-1 whitespace-nowrap font-semibold">판매 목표</td>{m.months.map((x) => (
-                  <td key={x.month} className="px-1 py-1 min-w-[68px]"><CellInput value={x.plan} disabled={!canPlan} onCommit={(n) => setMonthPlan(s, r, new Map([[x.month, n]]), `${x.month}월 판매 목표`)} /></td>
+                  <td key={x.month} className="px-1 py-1 min-w-[68px]"><CellInput value={x.plan} disabled={!planEditable} onCommit={(n) => setMonthPlan(s, r, new Map([[x.month, n]]), `${x.month}월 판매 목표`)} /></td>
                 ))}<td className="px-2 py-1 text-right font-bold">{fmt(m.planQty)}</td></tr>
                 {compTotal !== null && <tr className="border-b border-gray-100"><td className="px-2 py-1 whitespace-nowrap">증감 vs 대응SKU</td>{m.months.map((x) => <td key={x.month} className="px-2 py-1 text-right">{growth(x.plan, monthComp(x.month))}</td>)}<td className="px-2 py-1 text-right">{growth(m.planQty, compTotal)}</td></tr>}
                 <tr><td className="px-2 py-1 whitespace-nowrap">누적 vs 발주 {fmt(s.totalOrderQty)}</td>{m.coverage.cumulative.map((c, i) => <td key={i} className={`px-2 py-1 text-right ${c > s.totalOrderQty ? 'text-red-500' : ''}`}>{fmt(c)}</td>)}<td className="px-2 py-1 text-right"><span className={`px-1.5 rounded-full text-[11px] font-semibold whitespace-nowrap ${v.cls}`}>{v.text}</span></td></tr>
@@ -380,8 +383,10 @@ function Detail({ s, r, env }: { s: SkuData; r: SkuReview; env: DetailEnv }) {
     );
   }
 
-export function OrderReviewSection({ skus, targetComparable, onNavigateToSku }: {
+export function OrderReviewSection({ skus: filteredSkus, targetComparable: filterComparable, excludeConfirmed, onExcludeConfirmedChange, onNavigateToSku }: {
   skus: SkuData[];
+  excludeConfirmed: boolean;
+  onExcludeConfirmedChange: (v: boolean) => void;
   /** 월 · 브랜드 · 검색 필터가 없을 때만 카테고리 목표와 비교 가능 */
   targetComparable: boolean;
   onNavigateToSku?: (sku: SkuData) => void;
@@ -395,6 +400,9 @@ export function OrderReviewSection({ skus, targetComparable, onNavigateToSku }: 
   const listenerError = useSkuSyncStatus((s) => s.error);
   const applySkuBatch = useStore((s) => s.applySkuBatch);
   const setFinalOrderConfirmed = useStore((s) => s.setFinalOrderConfirmed);
+
+  const skus = excludeConfirmed ? filteredSkus.filter((s) => !s.finalOrderConfirmedAt) : filteredSkus;
+  const targetComparable = filterComparable && !excludeConfirmed;
 
   const [basis, setBasis] = useState<MoneyBasis>('order');
   const [view, setView] = useState<'sku' | 'total'>('sku');
@@ -438,11 +446,12 @@ export function OrderReviewSection({ skus, targetComparable, onNavigateToSku }: 
       ? { channelMonthQty: entries, step2InitBaselineQty: entries, channelQtyDerivedFromCompareSkus: compareNamesOf(s) }
       : { channelMonthQty: entries };
 
-  function setMonthPlan(s: SkuData, r: SkuReview, totalsByMonth: Map<Month, number>, label: string) {
+  function setMonthPlan(s: SkuData, r: SkuReview, totalsByMonth: Map<Month, number>, label: string, fromCompare = false) {
     const scope = planScopeOf(s, fallbackWeightsOf(s, r.compare.channelDist));
     let entries = s.channelMonthQty;
     totalsByMonth.forEach((target, m) => { entries = setMonthTotal(entries, scope, m, target).entries as SkuData['channelMonthQty']; });
-    void save(s, gridPatch(s, entries), label);
+    // 대응SKU 실적으로 채웠으면 지금 대응SKU 기준 표로 기록 (변경 배지 해제)
+    void save(s, { ...gridPatch(s, entries), ...(fromCompare ? { channelQtyDerivedFromCompareSkus: compareNamesOf(s) } : {}) }, label);
   }
 
   function setOrder(s: SkuData, qty: number) {
@@ -529,7 +538,7 @@ export function OrderReviewSection({ skus, targetComparable, onNavigateToSku }: 
       </div>
       <p className="text-[11px] text-gray-500">
         {totals.skipped > 0 && <span className="px-1.5 mr-1 rounded-full bg-red-100 text-red-700 font-semibold">불완전</span>}
-        {totals.skipped > 0 && `공헌이익 제외 ${totals.skipped}개 · `}각 SKU에서 고른 안 기준{basis === 'order' ? ' · 이번 발주량까지만 판매로 계산' : ' · 리오더 포함 판매 목표 전체로 계산'}
+        {totals.skipped > 0 && `공헌이익 제외 ${totals.skipped}개 · `}각 SKU에서 고른 안 기준{basis === 'order' ? ' · 초도 발주량까지만 판매로 계산' : ' · 리오더 포함 판매 목표 전체로 계산'}
       </p>
     </div>
   );
@@ -656,7 +665,7 @@ export function OrderReviewSection({ skus, targetComparable, onNavigateToSku }: 
       <div className="flex gap-1"><Chip on={metric === 'rev'} onClick={() => setMetric('rev')}>순매출</Chip><Chip on={metric === 'pro'} onClick={() => setMetric('pro')}>공헌이익</Chip></div>
     }>
       <p className="text-[11px] text-gray-500 mb-1">
-        {targetComparable ? (chartData.hasTarget ? '점선 = 월 목표 (관리 › SKU 관리 › 월 목표)' : '월 목표 없음 · 관리 › SKU 관리 › 월 목표에서 입력') : '월 목표는 오픈월 · 브랜드 · 검색 필터가 없을 때만 표시'}
+        {targetComparable ? (chartData.hasTarget ? '점선 = 월 목표 (관리 › SKU 관리 › 월 목표)' : '월 목표 없음 · 관리 › SKU 관리 › 월 목표에서 입력') : '월 목표는 오픈월 · 브랜드 · 검색 · 발주 확정 제외 필터가 없을 때만 표시'}
       </p>
       {noProfit ? (
         <div className="text-xs bg-red-50 border border-red-200 text-red-700 rounded px-3 py-2">변동비 데이터를 못 불러와 공헌이익 차트를 그리지 않습니다.</div>
@@ -681,9 +690,10 @@ export function OrderReviewSection({ skus, targetComparable, onNavigateToSku }: 
     <div className="h-full overflow-auto space-y-3 pr-1 pb-6">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
         <div className="flex items-center gap-1"><span className="text-[11px] text-gray-500">금액 기준</span>
-          <Chip on={basis === 'order'} onClick={() => setBasis('order')}>이번 발주분</Chip>
+          <Chip on={basis === 'order'} onClick={() => setBasis('order')}>초도 발주량만</Chip>
           <Chip on={basis === 'season'} onClick={() => setBasis('season')}>시즌 목표 · 리오더 포함</Chip>
         </div>
+        <Chip on={excludeConfirmed} onClick={() => onExcludeConfirmedChange(!excludeConfirmed)}>발주 확정 제외</Chip>
         <span className="flex-1" />
         <Chip on={view === 'sku'} onClick={() => setView('sku')}>① SKU별 결정</Chip>
         <Chip on={view === 'total'} onClick={() => setView('total')}>② 월·카테고리 합계</Chip>

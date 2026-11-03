@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
+import { Fragment, useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useStore, useSkuSyncStatus } from './store';
 import { useAuth } from './store/auth';
 import { useCpoSync } from './store/cpoSync';
@@ -151,6 +151,7 @@ function App() {
   const isPricingV2 = projectionSubTab === 'pricing-v2';
   // 발주량 검토도 [오픈/완료 제외] 기본 켜짐
   const [orExcludeOpenComplete, setOrExcludeOpenComplete] = useSessionState('app:orExcludeOpenComplete', true);
+  const [orExcludeConfirmed, setOrExcludeConfirmed] = useSessionState('app:orExcludeConfirmed', false);
   const isOrderReview = projectionSubTab === 'order-review';
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -578,17 +579,19 @@ function App() {
               // 파일럿 동안 MASTER만 — 검증 후 역할 확대 (쓰기 권한은 화면 안에서 역할별로 이미 나눠져 있음)
               ...(role === 'master' ? [{ key: 'order-review', label: '발주량 검토' }] : []),
             ].map(({ key, label }) => (
-              <button
-                key={key}
-                onClick={() => { pushNavHistory(); setProjectionSubTab(key); }}
-                className={`px-3 py-1 rounded-full text-[13px] font-medium transition-all flex-shrink-0 ${
-                  projectionSubTab === key
-                    ? 'bg-indigo-600 text-white shadow-sm'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                }`}
-              >
-                {label}
-              </button>
+              <Fragment key={key}>
+                <button
+                  onClick={() => { pushNavHistory(); setProjectionSubTab(key); }}
+                  className={`px-3 py-1 rounded-full text-[13px] font-medium transition-all flex-shrink-0 ${
+                    projectionSubTab === key
+                      ? 'bg-indigo-600 text-white shadow-sm'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  {label}
+                </button>
+                {key === 'list-view' && <span aria-hidden className="w-px self-stretch my-1 mx-1 bg-gray-300 flex-shrink-0" />}
+              </Fragment>
             ))}
           </div>
         )}
@@ -629,6 +632,8 @@ function App() {
             onListBrandFilterChange={setListBrandFilter}
             onListMonthFilterChange={setListMonthFilter}
             onExcludeOpenCompleteChange={isChannelTarget ? setCtExcludeOpenComplete : isPricingV2 ? setPvExcludeOpenComplete : isOrderReview ? setOrExcludeOpenComplete : setExcludeOpenComplete}
+            orExcludeConfirmed={orExcludeConfirmed}
+            onOrExcludeConfirmedChange={setOrExcludeConfirmed}
             onSearchQueryChange={setSearchQuery}
             onNavigateToSku={handleNavigateToSku}
           />
