@@ -19,7 +19,7 @@ interface Props {
  * - 포커스 해제 시 천단위 콤마 표시 (예: 1,500,000)
  * - 포커스 시 순수 숫자 편집 모드
  * - 마우스 스크롤로 값이 바뀌지 않음 (type="text" 사용)
- * - allowDecimal=true 시 소수 허용 (targetSellThroughMonths 등)
+ * - allowDecimal=true 시 소수 허용
  */
 export function NumericInput({
   value,

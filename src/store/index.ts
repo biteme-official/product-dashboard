@@ -5,11 +5,11 @@ import {
   addDoc, Timestamp, deleteField, query, orderBy, limit, serverTimestamp, runTransaction,
 } from 'firebase/firestore';
 import { fsdb } from '../lib/firebase';
-import type { AppState, Category, Month, SkuData, MonthlySplit, ColorEntry, ChannelMonthEntry, ChannelMonthQtyEntry, ChannelPricing, TrashItem, ActivityLog, LogChange, ChannelOpenScheduleEntry } from '../types';
+import type { AppState, Category, Month, SkuData, MonthlySplit, ColorEntry, ChannelMonthQtyEntry, ChannelPricing, TrashItem, ActivityLog, LogChange, ChannelOpenScheduleEntry } from '../types';
 import { useAuth } from './auth';
 import { MAX_SIZES, SIZE_LABELS, MONTHS, CHANNELS, BRANDS, CATEGORIES, SKU_TYPES, DEFAULT_CHANNEL_RATIOS, DEFAULT_CHANNEL_COMMISSION, getDisabledChannels, getSkuMonths, getConfirmedChannels, isChannelToggleLocked, isSeasonOnly, STEP2_FORCE_RECALC_MARK, type Brand, type Channel, type OptOutChannel } from '../types';
 import type { CpoProject } from '../types/cpo';
-import { recalcQuantities, revenueMultiplier, calcDynamicMultiplier } from '../utils/calc';
+import { recalcQuantities } from '../utils/calc';
 import { buildSizesFromLabels, cpoSizeLabels, type SizeKeyRemap } from '../utils/sizeLabels';
 import { monthTotals, redistributeByWeights, setMonthTotal, type PlanScope } from '../utils/qtyPlan';
 import { mergeQtyEntries, mergeRecord, removedKeys } from '../utils/cellMerge';
@@ -263,7 +263,6 @@ function buildEmptySku(category: Category): SkuData {
     totalOrderQty: 0,
     sizeCount: 1,
     moq: 0,
-    targetSellThroughMonths: 1,
     sizes: Array.from({ length: MAX_SIZES }, (_, i) => ({
       label: i === 0 ? SIZE_LABELS[1][0] : '-',
       ratio: i === 0 ? 100 : 0,
@@ -274,9 +273,6 @@ function buildEmptySku(category: Category): SkuData {
     colors: [],
     brand: BRANDS[0],
     channelRatios: CHANNELS.map((channel) => ({ channel, ratio: DEFAULT_CHANNEL_RATIOS[channel] })),
-    channelMonthlySplit: CHANNELS.flatMap((channel) =>
-      MONTHS.map((month) => ({ channel, month, ratio: 0 })),
-    ),
     channelMonthQty: CHANNELS.flatMap((channel) =>
       MONTHS.map((month) => ({ channel, month, qty: 0 })),
     ),
@@ -285,10 +281,9 @@ function buildEmptySku(category: Category): SkuData {
     })),
     memo: '',
     pricingOpts: {},
-    pricingUsdRate: 1400,
     comparisonSku: { name: '', price: 0, cost: 0, monthlyShipment: 0, annualShipment: 0 },
     monthlySplit: MONTHS.map((month) => ({
-      month, ratio: 0, quantity: 0, revenue: 0, contributionProfit: 0,
+      month, ratio: 0, quantity: 0,
     })),
     // NOTE: 위 MONTHS 기반 초기값은 releaseDate 없을 때의 기본값.
     // addSku 시 releaseDate가 있으면 applyMigration에서 올바른 월로 자동 보정됨.
@@ -298,7 +293,6 @@ function buildEmptySku(category: Category): SkuData {
     specialMaxRate: 20,
     regularMaxRate: 15,
     seasonOffRate: 25,
-    hiddenPricingScenarios: [],
     pricingMemo: '',
     pricingPromoOpenSpecial: true,
     pricingPromoNewWeek: false,
@@ -383,16 +377,13 @@ function redistributeDisabled(before: SkuData, after: SkuData): ChannelMonthQtyE
 function recalcMonthlySplit(sku: SkuData): MonthlySplit[] {
   const scope = planScopeOf(sku);
   const totals = monthTotals(sku.channelMonthQty, scope);
-  const multiplier = calcDynamicMultiplier(sku.channelRatios) ?? revenueMultiplier(sku.category);
   // 출시월 기준 8개월 + 기존에 저장돼 있던 월(윈도우 밖은 0) — MONTHS(7~2월 고정)는 윈도우와 다를 수 있다
   const months = [...scope.months, ...sku.monthlySplit.map((ms) => ms.month).filter((m) => !scope.months.includes(m))];
   return months.map((month) => {
     const idx = scope.months.indexOf(month);
     const quantity = idx >= 0 ? totals[idx] : 0;
     const ratio = sku.totalOrderQty > 0 ? Math.round((quantity / sku.totalOrderQty) * 1000) / 10 : 0;
-    const revenue = Math.round(quantity * sku.price / 1.1 * multiplier);
-    const contributionProfit = Math.round(revenue * sku.contributionMarginRate / 100);
-    return { month, ratio, quantity, revenue, contributionProfit };
+    return { month, ratio, quantity };
   });
 }
 
@@ -427,24 +418,6 @@ function migrateChannelRatios(raw: any[]): import('../types').ChannelRatio[] {
   return result as import('../types').ChannelRatio[];
 }
 
-/** channelMonthlySplit이 모두 0인지 확인 (MD뷰 편집 전 상태) */
-function isCMSEmpty(cms: ChannelMonthEntry[]): boolean {
-  return !cms || cms.every((e) => e.ratio === 0);
-}
-
-/** PM 탭의 monthlySplit × channelRatios로부터 channelMonthlySplit 파생 */
-function deriveChannelMonthlySplit(sku: { channelRatios: any[]; monthlySplit: any[]; releaseDate?: string }): ChannelMonthEntry[] {
-  const skuMonths = getSkuMonths(sku.releaseDate);
-  return CHANNELS.flatMap((channel) =>
-    skuMonths.map((month) => {
-      const chRatio = sku.channelRatios.find((r: any) => r.channel === channel)?.ratio ?? 0;
-      const mRatio = sku.monthlySplit.find((m: any) => m.month === month)?.ratio ?? 0;
-      const ratio = Math.round(chRatio * mRatio) / 100;
-      return { channel, month, ratio };
-    }),
-  );
-}
-
 function applyMigration(rawDoc: any): SkuData {
   // 예전 채널명('사입및페어')은 읽을 때 지금 이름('팝업/페어')으로 변환
   const raw = renameLegacyChannels(rawDoc);
@@ -464,11 +437,9 @@ function applyMigration(rawDoc: any): SkuData {
     } as ChannelPricing)),
     ...raw,
     pricingOpts: raw.pricingOpts ?? {},
-    pricingUsdRate: raw.pricingUsdRate ?? 1400,
     specialMaxRate: raw.specialMaxRate ?? 20,
     regularMaxRate: raw.regularMaxRate ?? 15,
     seasonOffRate: raw.seasonOffRate ?? 25,
-    hiddenPricingScenarios: raw.hiddenPricingScenarios ?? [],
     pricingMemo: raw.pricingMemo ?? '',
     pricingPromoOpenSpecial: raw.pricingPromoOpenSpecial ?? true,
     pricingPromoNewWeek: raw.pricingPromoNewWeek ?? false,
@@ -523,32 +494,12 @@ function applyMigration(rawDoc: any): SkuData {
   const missing = skuMonths.filter((m) => !existingMonths.has(m));
   if (missing.length > 0) {
     const newEntries = missing.map((month) => ({
-      month, ratio: 0, quantity: 0, revenue: 0, contributionProfit: 0,
+      month, ratio: 0, quantity: 0,
     }));
     base.monthlySplit = [
       ...base.monthlySplit,
       ...newEntries,
     ].sort((a, b) => skuMonths.indexOf(a.month) - skuMonths.indexOf(b.month));
-  }
-  // channelMonthlySplit 보정 및 PM 데이터 파생
-  if (!Array.isArray(base.channelMonthlySplit) || base.channelMonthlySplit.length === 0) {
-    // Firestore에 없거나 비어있음 → PM 데이터(monthlySplit × channelRatios)로 초기화
-    base.channelMonthlySplit = deriveChannelMonthlySplit(base);
-  } else {
-    // 부분 누락 항목 채움
-    const existing = new Set(
-      base.channelMonthlySplit.map((e: ChannelMonthEntry) => `${e.channel}|${e.month}`),
-    );
-    const toAdd = CHANNELS.flatMap((channel) =>
-      skuMonths.filter((month) => !existing.has(`${channel}|${month}`)).map((month) => ({
-        channel, month, ratio: 0,
-      })),
-    );
-    if (toAdd.length > 0) base.channelMonthlySplit = [...base.channelMonthlySplit, ...toAdd];
-    // MD뷰에서 아직 편집하지 않은 경우(모두 0) → PM 데이터로 재파생
-    if (isCMSEmpty(base.channelMonthlySplit)) {
-      base.channelMonthlySplit = deriveChannelMonthlySplit(base);
-    }
   }
   // 새로 생긴 채널(예: 사입)의 채널×월 칸이 없으면 0으로 채움 — 수량 수정 · 다시 나누기는 있는 칸만 고치므로 칸이 없으면 입력이 사라짐
   if (Array.isArray(base.channelMonthQty) && base.channelMonthQty.length > 0) {
@@ -583,12 +534,6 @@ interface StoreActions {
   updateChannelMonthQty: (id: string, channel: Channel, month: Month, qty: number) => void;
   batchInitChannelMonthQty: (id: string, entries: ChannelMonthQtyEntry[]) => void;
   setStep2InitBaseline: (id: string, entries: ChannelMonthQtyEntry[]) => void;
-  updateChannelPricing: (id: string, channel: Channel, patch: { price?: number; commissionRate?: number }) => void;
-  updateChannelRatio: (id: string, channel: string, ratio: number) => void;
-  resetChannelRatios: (id: string) => void;
-  updateChannelMonthRatio: (id: string, channel: Channel, month: Month, ratio: number) => void;
-  resetChannelMonthlySplit: (id: string) => Promise<void>;
-  applyChannelRatiosToFiltered: (sourceSkuId: string) => Promise<void>;
   importSkus: (skus: SkuData[]) => Promise<void>;
   replaceAllSkus: (skus: Omit<SkuData, '_initialSnapshot' | 'isExpanded'>[]) => Promise<void>;
   updateMarketingMonthQty: (id: string, month: Month, qty: number) => Promise<void>;
@@ -884,10 +829,7 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
       if (qtyAffected || 'sizes' in patch) {
         updated.sizes = recalcQuantities(updated.sizes, updated.totalOrderQty);
       }
-      const monthlyAffected =
-        qtyAffected || 'sizes' in patch || 'price' in patch ||
-        'contributionMarginRate' in patch || 'releaseDate' in patch || 'channelRatios' in patch;
-      if (monthlyAffected) {
+      if (qtyAffected || 'releaseDate' in patch) {
         updated.monthlySplit = recalcMonthlySplit(updated);
       }
       return updated;
@@ -934,19 +876,6 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
     set({ skus: skus.map((s) => (s.id === id ? { ...s, step2InitBaselineQty: safe } : s)) });
   },
 
-  updateChannelPricing: (id, channel, patch) => {
-    const skus = get().skus;
-    const sku = skus.find((s) => s.id === id);
-    if (!sku) return;
-    const updated: SkuData = {
-      ...sku,
-      channelPricing: sku.channelPricing.map((cp) =>
-        cp.channel === channel ? { ...cp, ...patch } : cp,
-      ),
-    };
-    set({ skus: skus.map((s) => (s.id === id ? updated : s)) });
-  },
-
   updateMonthlySplit: (id, month, ratio, fallbackWeights) => {
     // 월 비중(총 발주량 대비 %) → 그 달 월 합계 = 총 발주량 × 비중.
     // 그 달 채널 구성비 유지, 확정 채널·마케팅 고정 (수량이 없던 달은 fallbackWeights로 채움)
@@ -958,91 +887,6 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
     const updated: SkuData = { ...sku, channelMonthQty: entries };
     updated.monthlySplit = recalcMonthlySplit(updated);
     set({ skus: skus.map((s) => (s.id === id ? updated : s)) });
-  },
-
-  resetChannelRatios: (id) => {
-    set({
-      skus: get().skus.map((s) => {
-        if (s.id !== id) return s;
-        const updatedChannelRatios = CHANNELS.map((channel) => ({
-          channel,
-          ratio: DEFAULT_CHANNEL_RATIOS[channel],
-        }));
-        const updated = { ...s, channelRatios: updatedChannelRatios };
-        const withMonthly = { ...updated, monthlySplit: recalcMonthlySplit(updated) };
-        if (isCMSEmpty(s.channelMonthlySplit)) {
-          return { ...withMonthly, channelMonthlySplit: deriveChannelMonthlySplit(withMonthly) };
-        }
-        return withMonthly;
-      }),
-    });
-  },
-
-  updateChannelRatio: (id, channel, ratio) => {
-    set({
-      skus: get().skus.map((s) => {
-        if (s.id !== id) return s;
-        const updatedChannelRatios = s.channelRatios.map((cr) =>
-          cr.channel === channel ? { ...cr, ratio } : cr,
-        );
-        const updated = { ...s, channelRatios: updatedChannelRatios };
-        const withMonthly = { ...updated, monthlySplit: recalcMonthlySplit(updated) };
-        if (isCMSEmpty(s.channelMonthlySplit)) {
-          return { ...withMonthly, channelMonthlySplit: deriveChannelMonthlySplit(withMonthly) };
-        }
-        return withMonthly;
-      }),
-    });
-  },
-
-  resetChannelMonthlySplit: async (id) => {
-    const sku = get().skus.find((s) => s.id === id);
-    if (!sku) return;
-    const derived = deriveChannelMonthlySplit(sku);
-    const updated = { ...sku, channelMonthlySplit: derived };
-    set({ skus: get().skus.map((s) => (s.id === id ? updated : s)) });
-    await writeSkuChanges(updated);
-  },
-
-  updateChannelMonthRatio: (id, channel, month, ratio) => {
-    set({
-      skus: get().skus.map((s) => {
-        if (s.id !== id) return s;
-        const exists = s.channelMonthlySplit.find(
-          (e) => e.channel === channel && e.month === month,
-        );
-        const updated = exists
-          ? s.channelMonthlySplit.map((e) =>
-              e.channel === channel && e.month === month ? { ...e, ratio } : e,
-            )
-          : [...s.channelMonthlySplit, { channel, month, ratio }];
-        return { ...s, channelMonthlySplit: updated };
-      }),
-    });
-  },
-
-  applyChannelRatiosToFiltered: async (sourceSkuId) => {
-    const { skus, activeCategory, activeBrand } = get();
-    const source = skus.find((s) => s.id === sourceSkuId);
-    if (!source) return;
-    const nextSkus = skus.map((s) => {
-      if (s.id === sourceSkuId) return s;
-      if (s.category !== activeCategory) return s;
-      if (activeBrand !== '전체' && s.brand !== activeBrand) return s;
-      const updated = { ...s, channelRatios: source.channelRatios.map((cr) => ({ ...cr })) };
-      return { ...updated, monthlySplit: recalcMonthlySplit(updated) };
-    });
-    set({ skus: nextSkus });
-    const toSave = nextSkus.filter(
-      (s) => s.id !== sourceSkuId &&
-        s.category === activeCategory &&
-        (activeBrand === '전체' || s.brand === activeBrand),
-    );
-    if (toSave.length > 0) {
-      const batch = writeBatch(fsdb);
-      toSave.forEach((sku) => batch.set(doc(fsdb, SKUS_COL, sku.id), stamped(changedFirestoreFields(sku)), { merge: true }));
-      await trackSkuWrite(batch.commit());
-    }
   },
 
   importSkus: async (imported) => {

@@ -16,7 +16,6 @@ export interface RawSkuInput {
   sizeCount?: number;
   sizeRatios?: number[];
   moq?: number;
-  targetSellThroughMonths?: number;
   hasColors?: boolean;
   colors?: { name: string; quantity: number }[];
   monthlySplit?: Record<string, number>;   // "7": 30, "10": 40 ...
@@ -69,9 +68,7 @@ function parseOne(raw: RawSkuInput): SkuData {
   const monthlySplit = getSkuMonths(raw.releaseDate).map((month) => {
     const ratio = msInput[String(month)] ?? 0;
     const quantity = Math.round(totalOrderQty * ratio / 100);
-    const revenue = quantity * price;
-    const contributionProfit = Math.round(revenue * cmRate / 100);
-    return { month, ratio, quantity, revenue, contributionProfit };
+    return { month, ratio, quantity };
   });
 
   // channelRatios
@@ -103,7 +100,6 @@ function parseOne(raw: RawSkuInput): SkuData {
     totalOrderQty,
     sizeCount,
     moq: raw.moq ?? 0,
-    targetSellThroughMonths: raw.targetSellThroughMonths ?? 1,
     sizes,
     hasColors,
     colors,

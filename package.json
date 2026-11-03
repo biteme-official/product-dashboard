@@ -14,7 +14,6 @@
     "check:pricing": "rolldown scripts/pricingV2.check.ts --format esm --platform node --file node_modules/.cache/pricingV2.check.mjs && node node_modules/.cache/pricingV2.check.mjs"
   },
   "dependencies": {
-    "dexie": "^4.4.3",
     "firebase": "^12.14.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",

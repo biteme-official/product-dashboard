@@ -100,14 +100,10 @@ export function parseCsvBulk(text: string): ParsedRow[] {
       totalOrderQty: 0,
       sizeCount,
       moq,
-      targetSellThroughMonths: 1,
       sizes,
       hasColors: false,
       colors: [],
       channelRatios: CHANNELS.map((ch) => ({ channel: ch, ratio: DEFAULT_CHANNEL_RATIOS[ch] })),
-      channelMonthlySplit: CHANNELS.flatMap((ch) =>
-        getSkuMonths(rawDate).map((m) => ({ channel: ch, month: m, ratio: 0 })),
-      ),
       channelMonthQty: CHANNELS.flatMap((ch) =>
         getSkuMonths(rawDate).map((m) => ({ channel: ch, month: m, qty: 0 })),
       ),
@@ -116,10 +112,9 @@ export function parseCsvBulk(text: string): ParsedRow[] {
       })),
       memo: '',
       pricingOpts: {},
-      pricingUsdRate: 1400,
       comparisonSku: { name: '', price: 0, cost: 0, monthlyShipment: 0, annualShipment: 0 },
       monthlySplit: getSkuMonths(rawDate).map((m) => ({
-        month: m as Month, ratio: 0, quantity: 0, revenue: 0, contributionProfit: 0,
+        month: m as Month, ratio: 0, quantity: 0,
       })),
       step2PlatformConfirmed: false,
       step2BrandConfirmed: false,
