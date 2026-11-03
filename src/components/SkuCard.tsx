@@ -23,6 +23,7 @@ import { MarketingBriefModal } from './MarketingBriefModal';
 import { exportSimulationXlsx } from '../utils/exportXlsx';
 import { PRICING_SCENARIOS, PRICING_DEFAULT_OPT } from '../utils/pricingScenarios';
 import { STEP1_OPTIONS, normalizeStep1Opt, step1Pricer } from '../utils/step1Price';
+import { cellMoney, cmOf, varCostOf } from '../utils/reviewSku';
 import { usePricingPolicy } from '../hooks/usePricingPolicy';
 import { CalendarPopup } from './CalendarPopup';
 
@@ -149,7 +150,7 @@ export function SkuCard({ sku, embedded = false, autoInit = true }: Props) {
   // 판매가 시나리오 — 스토어 값을 그대로 쓴다. 예전엔 카드를 연 시점 값을 로컬 상태로 들고 있다가 다음 수정 때
   // 통째로 저장해서, 그 사이 다른 화면(채널 목표량 페이지 · 다른 사람)이 바꾼 다른 채널 값을 되돌릴 수 있었다
   const pricingOpts = sku.pricingOpts ?? {};
-  const [step3Totals, setStep3Totals] = useState<{ revenue: number; profit: number } | null>(null);
+  const [step3Totals, setStep3Totals] = useState<{ revenue: number; profit: number | null } | null>(null);
 
   const setPricingOpts: Dispatch<SetStateAction<Record<string, string>>> = (updater) => {
     const latest = useStore.getState().skus.find((s) => s.id === sku.id)?.pricingOpts ?? {};
@@ -823,7 +824,7 @@ function MonthlyTable({
   compChannelYM: ChannelByYearMonth | null;
   pricingOpts: Record<string, string>;
   setPricingOpts: Dispatch<SetStateAction<Record<string, string>>>;
-  onStep3TotalsChange: (totals: { revenue: number; profit: number } | null) => void;
+  onStep3TotalsChange: (totals: { revenue: number; profit: number | null } | null) => void;
   autoInit?: boolean;
 }) {
   const [activeTab, setActiveTab] = useState<'channel' | 'pricing'>('pricing');
@@ -1166,6 +1167,8 @@ function MonthlyTable({
             </div>
             <div className="flex items-center gap-1.5">
               <button
+                disabled={!teamCateMap}
+                title={teamCateMap ? undefined : '변동비 데이터를 불러온 뒤 내보낼 수 있어요'}
                 onClick={() => exportSimulationXlsx({
                   sku,
                   pricingOpts,
@@ -1176,7 +1179,7 @@ function MonthlyTable({
                   usdKrw: mtUsdKrw,
                   jpyKrw: mtJpyKrw,
                 })}
-                className="text-[11px] px-2.5 py-1 rounded-lg border border-teal-300 bg-teal-50 hover:bg-teal-100 text-teal-700 transition-colors whitespace-nowrap"
+                className="text-[11px] px-2.5 py-1 rounded-lg border border-teal-300 bg-teal-50 hover:bg-teal-100 text-teal-700 transition-colors whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 ↓ 시뮬레이션 엑셀
               </button>
@@ -1480,7 +1483,7 @@ function MonthlyTable({
           setPricingOpts={setPricingOpts}
           onTotalsChange={onStep3TotalsChange}
           onBeforeEdit={captureStep2Backup}
-          varCostByChannel={varCostByChannel}
+          varCostReady={teamCateMap !== null}
           varCostResults={varCostResults}
           teamCateError={teamCateError}
           compChannelYM={compChannelYM}
@@ -1829,7 +1832,7 @@ function PricingChannelTable({
   pricingOpts, setPricingOpts,
   onTotalsChange,
   onBeforeEdit,
-  varCostByChannel = {},
+  varCostReady = false,
   varCostResults = {},
   teamCateError = null,
   compChannelYM,
@@ -1847,10 +1850,10 @@ function PricingChannelTable({
   readOnly: boolean;
   pricingOpts: Record<string, string>;
   setPricingOpts: Dispatch<SetStateAction<Record<string, string>>>;
-  onTotalsChange?: (totals: { revenue: number; profit: number }) => void;
+  onTotalsChange?: (totals: { revenue: number; profit: number | null }) => void;
   onBeforeEdit?: () => void;
   teamCateError?: TableauErrorReason | null;
-  varCostByChannel?: Record<string, number>;
+  varCostReady?: boolean;
   varCostResults?: Record<string, { ratio: number; isFallback: boolean }>;
   compChannelYM?: ChannelByYearMonth | null;
   compMode?: 'rolling12' | 'samePeriod';
@@ -1937,6 +1940,8 @@ function PricingChannelTable({
 
   const getMonthQty = (channel: Channel, month: Month) =>
     sku.channelMonthQty.find((e) => e.channel === channel && e.month === month)?.qty ?? 0;
+  // 변동비를 못 불러왔으면 null → 공헌이익을 대체값으로 계산하지 않고 비운다
+  const channelVarRatio = (channel: Channel) => varCostOf(varCostReady ? varCostResults : null, channel).ratio;
 
   const getChannelQty = (channel: Channel) =>
     skuMonths.reduce((sum, m) => sum + getMonthQty(channel, m), 0);
@@ -1951,20 +1956,20 @@ function PricingChannelTable({
     const effectivePrice = cp.price > 0 ? cp.price : sku.price;
     const qty = getChannelQty(channel);
     // 실매출단가 = 월별 (수량 × 시나리오가격) 합계 / 총수량 (수수료 미반영)
-    const netPrice = qty > 0
-      ? Math.round(
-          skuMonths.reduce((s, m) => {
-            const mQty = getMonthQty(channel, m);
-            const opt = getPricingOpt(channel, m);
-            return s + calcScenarioPrice(opt, effectivePrice) * mQty;
-          }, 0) / qty,
-        )
-      : effectivePrice;
-    const revenue = Math.round(netPrice / 1.1 * qty);
-    // 공헌이익 = 순매출 − 원가 − 변동비(Tableau 역산, fallback 25%)
-    const varRatio = varCostByChannel[channel] ?? 0.25;
-    const profit = Math.round(revenue * (1 - varRatio) - sku.cost * qty);
-    const cm = revenue > 0 ? Math.round((profit / revenue) * 1000) / 10 : null;
+    const vr = channelVarRatio(channel);
+    let revenue = 0;
+    let profit: number | null = 0;
+    let gross = 0;
+    skuMonths.forEach((m) => {
+      const price = calcScenarioPrice(getPricingOpt(channel, m), effectivePrice);
+      const mQty = getMonthQty(channel, m);
+      const cell = cellMoney(price, mQty, sku.cost, vr);
+      gross += price * mQty;
+      revenue += cell.revenue;
+      profit = profit === null || cell.profit === null ? null : profit + cell.profit;
+    });
+    const netPrice = qty > 0 ? Math.round(gross / qty) : effectivePrice;
+    const cm = cmOf(revenue, profit);
     return { effectivePrice, netPrice, qty, revenue, profit, cm };
   };
 
@@ -1980,14 +1985,14 @@ function PricingChannelTable({
   const totals = allChannelRows.reduce(
     (acc, ch) => {
       const r = calcRow(ch);
-      return { qty: acc.qty + r.qty, revenue: acc.revenue + r.revenue, profit: acc.profit + r.profit };
+      return { qty: acc.qty + r.qty, revenue: acc.revenue + r.revenue, profit: acc.profit === null || r.profit === null ? null : acc.profit + r.profit };
     },
-    { qty: 0, revenue: 0, profit: 0 },
+    { qty: 0, revenue: 0, profit: 0 as number | null },
   );
   // 마케팅은 매출 0 처리, 공헌이익에서만 원가×수량 차감
   const adjustedRevenue = totals.revenue;
-  const adjustedProfit = totals.profit - marketingCost;
-  const totalCm = adjustedRevenue > 0 ? Math.round((adjustedProfit / adjustedRevenue) * 1000) / 10 : null;
+  const adjustedProfit = totals.profit === null ? null : totals.profit - marketingCost;
+  const totalCm = cmOf(adjustedRevenue, adjustedProfit);
 
   useEffect(() => {
     onTotalsChange?.({ revenue: adjustedRevenue, profit: adjustedProfit });
@@ -2081,20 +2086,19 @@ function PricingChannelTable({
               </td>
               {/* 공헌이익 */}
               <td className={`px-2 py-1.5 text-right tabular-nums text-[11px] truncate ${isExpanded ? 'font-bold' : 'font-medium'} text-emerald-700`}>
-                {profit > 0 ? formatWon(profit) : profit < 0 ? <span className="text-red-500">{formatWon(Math.abs(profit))}</span> : <span className="text-gray-300">–</span>}
+                {profit === null || profit === 0 ? <span className="text-gray-300">–</span> : profit > 0 ? formatWon(profit) : <span className="text-red-500">{formatWon(Math.abs(profit))}</span>}
               </td>
               {/* 변동비율 */}
               <td className="px-2 py-1.5 text-center tabular-nums text-[11px] truncate">
                 {(() => {
                   const r = varCostResults[channel];
+                  if (!varCostReady) {
+                    return teamCateError
+                      ? <span className="text-red-500 font-semibold" title={`Tableau 팀카테 데이터 로드 실패 — ${TABLEAU_ERROR_MESSAGES[teamCateError]}`}>로드 실패</span>
+                      : <span className="text-gray-300">–</span>;
+                  }
                   if (!r) {
-                    return teamCateError ? (
-                      <span className="text-red-400 font-semibold" title={`Tableau 팀카테 데이터 로드 실패 — ${TABLEAU_ERROR_MESSAGES[teamCateError]}`}>
-                        25.0%!
-                      </span>
-                    ) : (
-                      <span className="text-gray-400 font-semibold" title="카테고리·채널 매핑 없음 또는 데이터 없음 — 기본값 25% 적용">25.0%</span>
-                    );
+                    return <span className="text-amber-600 font-semibold" title="이 카테고리·채널의 팀카테 데이터 없음 — 25%로 대체 계산">25.0% 대체</span>;
                   }
                   const pct = (r.ratio * 100).toFixed(1);
                   return r.isFallback
@@ -2353,76 +2357,26 @@ function PricingChannelTable({
                               })}
                               <td className="px-3 py-2 text-right tabular-nums text-[11px] font-bold text-blue-700 border-l-2 border-blue-300 bg-blue-100/70 whitespace-nowrap">
                                 {(() => {
-                                  const t = FY26.reduce((s, m) => {
-                                    const base = cp.price > 0 ? cp.price : sku.price;
-                                    const sp = calcScenarioPrice(getPricingOpt(channel, m), base);
-                                    return s + Math.round(sp / 1.1 * getMonthQty(channel, m));
+                                  const vr = channelVarRatio(channel);
+                                  const base = cp.price > 0 ? cp.price : sku.price;
+                                  const t = FY26.reduce<number | null>((s, m) => {
+                                    const p = cellMoney(calcScenarioPrice(getPricingOpt(channel, m), base), getMonthQty(channel, m), sku.cost, vr).profit;
+                                    return s === null || p === null ? null : s + p;
                                   }, 0);
-                                  return t > 0 ? formatWon(t) : <span className="text-blue-200">–</span>;
-                                })()}
-                              </td>
-                              {hasYear2Step2 && (
-                                <td className="px-3 py-2 text-right tabular-nums text-[11px] font-bold text-blue-600 border-l border-blue-200 bg-blue-100/70 whitespace-nowrap">
-                                  {(() => {
-                                    const t = FY27.reduce((s, m) => {
-                                      const base = cp.price > 0 ? cp.price : sku.price;
-                                      const sp = calcScenarioPrice(getPricingOpt(channel, m), base);
-                                      return s + Math.round(sp / 1.1 * getMonthQty(channel, m));
-                                    }, 0);
-                                    return t > 0 ? formatWon(t) : <span className="text-blue-200">–</span>;
-                                  })()}
-                                </td>
-                              )}
-                            </tr>
-                            {/* 예상 공헌이익 행 */}
-                            <tr className="bg-emerald-50/50">
-                              <td className={`${labelCell} border-r-emerald-200`}>
-                                <span className="text-[11px] font-bold text-emerald-700">예상 공헌이익</span>
-                              </td>
-                              {skuMonths.map((m) => {
-                                const optId = getPricingOpt(channel, m);
-                                const basePrice = cp.price > 0 ? cp.price : sku.price;
-                                const scenarioKrwPrice = calcScenarioPrice(optId, basePrice);
-                                const monthQty = getMonthQty(channel, m);
-                                const netRevenue = Math.round(scenarioKrwPrice / 1.1 * monthQty);
-                                const varRatio = varCostByChannel[channel] ?? 0.25;
-                                const monthContrib = Math.round(netRevenue * (1 - varRatio) - sku.cost * monthQty);
-                                return (
-                                  <td key={m} className={`px-2 py-2 text-right tabular-nums text-[11px] font-semibold ${yearBorderInner(m)} ${isNextYrStep2(m) ? 'bg-emerald-50/30' : ''}`}>
-                                    {monthQty > 0
-                                      ? monthContrib >= 0
-                                        ? <span className="text-emerald-700">{formatWon(monthContrib)}</span>
-                                        : <span className="text-red-500">-{formatWon(Math.abs(monthContrib))}</span>
-                                      : <span className="text-gray-300">–</span>}
-                                  </td>
-                                );
-                              })}
-                              <td className={`${totalCell} border-l-2 border-gray-300`}>
-                                {(() => {
-                                  const t = FY26.reduce((s, m) => {
-                                    const base = cp.price > 0 ? cp.price : sku.price;
-                                    const sp = calcScenarioPrice(getPricingOpt(channel, m), base);
-                                    const mQty = getMonthQty(channel, m);
-                                    const rev = Math.round(sp / 1.1 * mQty);
-                                    const vr = varCostByChannel[channel] ?? 0.25;
-                                    return s + Math.round(rev * (1 - vr) - sku.cost * mQty);
-                                  }, 0);
-                                  if (FY26.every((m) => getMonthQty(channel, m) === 0)) return <span className="text-gray-300">–</span>;
+                                  if (t === null || FY26.every((m) => getMonthQty(channel, m) === 0)) return <span className="text-gray-300">–</span>;
                                   return t >= 0 ? <span className="text-emerald-700">{formatWon(t)}</span> : <span className="text-red-500">-{formatWon(Math.abs(t))}</span>;
                                 })()}
                               </td>
                               {hasYear2Step2 && (
                                 <td className={`${totalCell}`}>
                                   {(() => {
-                                    const t = FY27.reduce((s, m) => {
-                                      const base = cp.price > 0 ? cp.price : sku.price;
-                                      const sp = calcScenarioPrice(getPricingOpt(channel, m), base);
-                                      const mQty = getMonthQty(channel, m);
-                                      const rev = Math.round(sp / 1.1 * mQty);
-                                      const vr = varCostByChannel[channel] ?? 0.25;
-                                      return s + Math.round(rev * (1 - vr) - sku.cost * mQty);
+                                    const vr = channelVarRatio(channel);
+                                    const base = cp.price > 0 ? cp.price : sku.price;
+                                    const t = FY27.reduce<number | null>((s, m) => {
+                                      const p = cellMoney(calcScenarioPrice(getPricingOpt(channel, m), base), getMonthQty(channel, m), sku.cost, vr).profit;
+                                      return s === null || p === null ? null : s + p;
                                     }, 0);
-                                    if (FY27.every((m) => getMonthQty(channel, m) === 0)) return <span className="text-gray-300">–</span>;
+                                    if (t === null || FY27.every((m) => getMonthQty(channel, m) === 0)) return <span className="text-gray-300">–</span>;
                                     return t >= 0 ? <span className="text-emerald-600">{formatWon(t)}</span> : <span className="text-red-500">-{formatWon(Math.abs(t))}</span>;
                                   })()}
                                 </td>
@@ -2674,11 +2628,11 @@ function PricingChannelTable({
               {totals.revenue > 0 ? formatWon(totals.revenue) : '–'}
             </td>
             <td className="px-2 py-2 text-right font-semibold tabular-nums text-[11px] whitespace-nowrap">
-              {adjustedProfit > 0
-                ? <span className="text-emerald-700">{formatWon(adjustedProfit)}</span>
-                : adjustedProfit < 0
-                  ? <span className="text-red-500">-{formatWon(Math.abs(adjustedProfit))}</span>
-                  : '–'}
+              {adjustedProfit === null || adjustedProfit === 0
+                ? '–'
+                : adjustedProfit > 0
+                  ? <span className="text-emerald-700">{formatWon(adjustedProfit)}</span>
+                  : <span className="text-red-500">-{formatWon(Math.abs(adjustedProfit))}</span>}
             </td>
             <td className="px-2 py-2 text-center text-gray-300 text-[11px]">–</td>
             <td className="px-2 py-2 text-right whitespace-nowrap">
@@ -2689,7 +2643,7 @@ function PricingChannelTable({
           </tr>
           <tr className="border-t border-gray-100">
             <td colSpan={8} className="px-3 py-1.5 text-[10px] text-gray-400">
-              실매출단가 = ∑(월수량×시나리오가격) ÷ 총수량 &nbsp;·&nbsp; 공헌이익 = 순매출 − 변동비 − 원가×수량 &nbsp;*변동비는 해당 카테고리의 대응SKU 동기간 평균 변동비 비중으로 계산됩니다. 대응SKU 없을 시 25%로 임의계산됩니다.
+              실매출단가 = ∑(월수량×시나리오가격) ÷ 총수량 &nbsp;·&nbsp; 공헌이익 = 순매출 − 변동비 − 원가×수량 &nbsp;*변동비 = 같은 카테고리×채널의 팀카테 실적 역산 · 대응SKU는 기간만 결정(없으면 최근 12개월) · 해당 데이터 없는 채널만 25% 대체 · 로드 실패 시 공헌이익 비움
             </td>
           </tr>
         </tfoot>

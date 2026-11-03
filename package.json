@@ -6,6 +6,7 @@
   "scripts": {
     "check:qty": "node scripts/qtyPlan.check.ts",
     "check:sizes": "node scripts/sizeLabels.check.ts",
+    "check:review": "rolldown scripts/reviewSku.check.ts --format esm --platform node --file node_modules/.cache/reviewSku.check.mjs && node node_modules/.cache/reviewSku.check.mjs",
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",

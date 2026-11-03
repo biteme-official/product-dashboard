@@ -7,7 +7,8 @@ import { isSkuActiveForYearMonth } from '../types';
 import {
   calcChannelsMonthMetrics, calcSkuAllChannelTotals, addMetrics,
   formatWon, cmBadgeCls, ZERO_METRICS,
-  type VarCostRatioMap,
+  metricsCm,
+  type VarCostBySku,
 } from '../utils/mdSummaryCalc';
 
 type MonthChartPoint = { label: string; revenue: number; profit: number };
@@ -91,15 +92,13 @@ function ChannelMonthlyChart({ data }: { data: MonthChartPoint[] }) {
 }
 
 export function MdChannelDetail({ skus, channels, months, varCostMap, usdKrw, jpyKrw }: {
-  skus: SkuData[]; channels: Channel[]; months: YearMonth[]; varCostMap: VarCostRatioMap; usdKrw: number; jpyKrw: number;
+  skus: SkuData[]; channels: Channel[]; months: YearMonth[]; varCostMap: VarCostBySku; usdKrw: number; jpyKrw: number;
 }) {
   const channelTotal = skus.reduce(
     (acc, sku) => addMetrics(acc, calcSkuAllChannelTotals(sku, months, varCostMap, usdKrw, jpyKrw, channels)),
     ZERO_METRICS,
   );
-  const cm = channelTotal.revenue > 0
-    ? Math.round((channelTotal.profit / channelTotal.revenue) * 1000) / 10
-    : null;
+  const cm = metricsCm(channelTotal);
 
   // 월별 합계 (YearMonth 단위, 선택된 채널들 합산)
   const monthTotals = months.map((ym) => {
