@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import {
   CHANNELS, CHANNEL_CONFIRM_GROUP, getDisabledChannels, getSkuMonths, isMarketingLocked,
   isSeasonOnly, type Channel, type ChannelConfirmField, type ChannelMonthQtyEntry, type Month, type SkuData,
@@ -18,11 +18,12 @@ import { useExchangeRates } from '../utils/useExchangeRates';
 import { useTableauBase } from '../hooks/useTableauBase';
 import { TABLEAU_ERROR_MESSAGES } from '../services/tableau';
 import { cellMoney, varCostOf as varRatioOf } from '../utils/reviewSku';
-import { SkuCard, CoverageChip } from './SkuCard';
+import { CoverageChip } from './SkuCard';
+import { OrderReviewSection } from './OrderReviewSection';
 import { CellInput } from './CellInput';
 
 // ── 공용 ────────────────────────────────────────────────────────────────
-type View = 'ws' | 'ch' | 'plan';
+type View = 'ws' | 'ch' | 'plan' | 'total';
 const QTY_CHANNELS: QtyChannel[] = [...CHANNELS, '마케팅'];
 const GROUP_LABEL: Record<ChannelConfirmField, string> = {
   step2PlatformConfirmed: '플랫폼', step2BrandConfirmed: '브랜드', step2GlobalConfirmed: '글로벌',
@@ -69,7 +70,12 @@ function readSession<T>(key: string, fallback: T): T {
 }
 function writeSession(key: string, v: unknown) { try { sessionStorage.setItem(key, JSON.stringify(v)); } catch { /* 무시 */ } }
 
-export function ChannelTargetSection({ skus }: { skus: SkuData[] }) {
+export function ChannelTargetSection({ skus, targetComparable, onNavigateToSku }: {
+  skus: SkuData[];
+  /** 월 · 브랜드 · 검색 필터가 없을 때만 카테고리 월 목표와 비교 가능 */
+  targetComparable: boolean;
+  onNavigateToSku?: (sku: SkuData) => void;
+}) {
   const { role } = useAuth();
   const perm = usePermission(role);
   const allRole = isAllChannelRole(role);
@@ -92,8 +98,6 @@ export function ChannelTargetSection({ skus }: { skus: SkuData[] }) {
   const [onlyOpen, setOnlyOpen] = useState(false);
   const [channel, setChannel] = useState<QtyChannel>(() => (ownedChannels(role)[0] ?? '자사몰'));
   const [show, setShow] = useState({ base: true, price: true, money: true });
-  const [focus, setFocus] = useState<string | null>(null);
-  const [visited, setVisited] = useState<string[]>([]);
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [bulk, setBulk] = useState<BulkState | null>(null);
   const [toast, setToast] = useState<{ text: string; undo?: Snapshot[] } | null>(null);
@@ -122,26 +126,6 @@ export function ChannelTargetSection({ skus }: { skus: SkuData[] }) {
     list.forEach((s) => { out[s.id] = buildCompareData(s, base.shipments, base.channelMap); });
     return out;
   }, [list, base.loading, base.shipments, base.channelMap]);
-
-  const focusSku = list.find((s) => s.id === focus) ?? list[0] ?? null;
-  // 최근 연 SKU 카드(최대 6개)는 숨긴 채 유지 — 넘겨도 펼친 채널 · 되돌리기 기록이 그대로
-  const shownCards = focusSku && !visited.includes(focusSku.id) ? [...visited.slice(-5), focusSku.id] : visited;
-  const goTo = (id: string) => { setVisited(shownCards); setFocus(id); };
-
-  // ↑ ↓ 로 SKU카드별 이동 (입력 중이면 무시)
-  useEffect(() => {
-    if (view !== 'ws') return;
-    const onKey = (e: globalThis.KeyboardEvent) => {
-      const t = e.target as HTMLElement | null;
-      if (t && t.closest('input,select,textarea,[contenteditable="true"]')) return;
-      if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
-      const i = list.findIndex((s) => s.id === focusSku?.id);
-      const j = e.key === 'ArrowDown' ? i + 1 : i - 1;
-      if (j >= 0 && j < list.length) { e.preventDefault(); goTo(list[j].id); }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [view, list, focusSku?.id, shownCards]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── 저장 헬퍼 ──
   const latest = (id: string) => useStore.getState().skus.find((s) => s.id === id);
@@ -668,47 +652,8 @@ export function ChannelTargetSection({ skus }: { skus: SkuData[] }) {
   let fixedTop: ReactNode = null;
   if (list.length === 0) {
     body = <div className="p-8 text-center text-sm text-gray-400">조건에 맞는 SKU가 없습니다.</div>;
-  } else if (view === 'ws') {
-    const idx = focusSku ? list.indexOf(focusSku) : -1;
-    body = (
-      <div className="grid gap-3 h-full min-h-0 md:grid-cols-[240px_minmax(0,1fr)]">
-        <div className="flex flex-col gap-1 min-h-0 overflow-auto pr-1">
-          {groups.map((g) => (
-            <div key={g.k} className="flex flex-col gap-1">
-              <div className="text-[11px] font-semibold text-gray-500 px-1 pt-1">{g.label}</div>
-              {g.arr.map((s) => (
-                <button key={s.id} onClick={() => goTo(s.id)}
-                  className={`text-left rounded-lg border px-2.5 py-1.5 flex flex-col gap-0.5 ${s.id === focusSku?.id ? 'border-indigo-500 bg-indigo-50/60 shadow-[inset_3px_0_0_#6366f1]' : 'border-gray-200 bg-white hover:border-indigo-300'}`}>
-                  <span className="text-xs font-semibold text-gray-800 truncate">{s.skuName || '(SKU명 미입력)'}</span>
-                  <span className="text-[10px] text-gray-500">{isEmptyGrid(s) ? '미입력' : `판매 목표 ${fmt(s.monthlySplit.reduce((a, x) => a + x.quantity, 0))} / 발주 ${fmt(s.totalOrderQty)}`}</span>
-                  {confirmDots(s)}
-                </button>
-              ))}
-            </div>
-          ))}
-        </div>
-        <div className="min-w-0 min-h-0 flex flex-col gap-2">
-          {focusSku && (
-            <div className="shrink-0 flex flex-wrap items-center gap-2">
-              <button disabled={idx <= 0} onClick={() => goTo(list[idx - 1].id)} className="text-xs px-2.5 py-1 rounded-lg border border-gray-200 bg-white disabled:opacity-40">↑ 이전</button>
-              <button disabled={idx >= list.length - 1} onClick={() => goTo(list[idx + 1].id)} className="text-xs px-2.5 py-1 rounded-lg border border-gray-200 bg-white disabled:opacity-40">↓ 다음</button>
-              <span className="text-[11px] text-gray-400">{idx + 1} / {list.length} · ↑ ↓ 키로 이동 · 최근 연 SKU는 펼친 채널 · 되돌리기 기록 유지 · 빈 SKU는 [대응SKU 기준 채우기]로만 채움</span>
-            </div>
-          )}
-          <div className="flex-1 min-h-0 overflow-auto">
-            {shownCards.map((id) => {
-              const s = skus.find((x) => x.id === id);
-              if (!s) return null;
-              return (
-                <div key={id} hidden={id !== focusSku?.id}>
-                  <SkuCard sku={s} embedded autoInit={false} />
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-    );
+  } else if (view === 'ws' || view === 'total') {
+    body = <OrderReviewSection skus={list} view={view === 'ws' ? 'decide' : 'total'} targetComparable={targetComparable && !onlyEmpty && !onlyOpen} onNavigateToSku={onNavigateToSku} />;
   } else if (view === 'ch') {
     fixedTop = (
       <div className="flex flex-col gap-2">
@@ -850,7 +795,7 @@ export function ChannelTargetSection({ skus }: { skus: SkuData[] }) {
       <div className="shrink-0 flex flex-col gap-2">
       <div className="flex flex-wrap items-center gap-2">
         <div className="inline-flex rounded-lg border border-gray-300 overflow-hidden text-xs">
-          {([['ws', 'SKU카드별'], ['plan', '월별 비중설정'], ['ch', '채널별 설정']] as const).map(([k, l]) => (
+          {([['ws', 'SKU별 결정'], ['ch', '채널별 설정'], ['plan', '월별 비중설정'], ['total', '전체 합계']] as const).map(([k, l]) => (
             <button key={k} onClick={() => setView(k)} className={`px-3 py-1.5 ${view === k ? 'bg-gray-800 text-white font-semibold' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>{l}</button>
           ))}
         </div>
@@ -871,7 +816,7 @@ export function ChannelTargetSection({ skus }: { skus: SkuData[] }) {
       )}
       {fixedTop}
       </div>
-      <div className={`flex-1 min-h-0 ${view === 'ws' && list.length > 0 ? '' : 'overflow-auto'}`}>{body}</div>
+      <div className={`flex-1 min-h-0 ${(view === 'ws' || view === 'total') && list.length > 0 ? '' : 'overflow-auto'}`}>{body}</div>
     </div>
   );
 }

@@ -96,6 +96,20 @@ export function withOptionQty(sku: SkuData, rows: { key: string; qty: number }[]
   return patch;
 }
 
+/** 컬러 수량 수정 — 컬러 합계가 곧 발주량. 옵션 수기값은 비우고 비율대로 다시 계산 */
+export function withColorQty(sku: SkuData, colorId: string, qty: number): Partial<SkuData> | null {
+  const colors = sku.colors.map((c) => (c.id === colorId ? { ...c, quantity: Math.max(0, Math.round(qty)) } : c));
+  const total = colors.filter((c) => !c.archived).reduce((a, c) => a + c.quantity, 0);
+  const patch = withOrderQtyScaled({ ...sku, colors }, total) ?? { totalOrderQty: total, sizes: recalcQuantities(sku.sizes, total) };
+  return { ...patch, colors, finalOrderQty: {}, step2OptionQty: {} };
+}
+
+/** 사이즈 비중 수정 — 발주량 · 판매 목표는 그대로, 옵션 수기값은 비우고 비율대로 다시 계산 */
+export function withSizeRatio(sku: SkuData, label: string, ratio: number): Partial<SkuData> {
+  const sizes = sku.sizes.map((z) => (z.label === label ? { ...z, ratio: Math.max(0, ratio) } : z));
+  return { sizes: recalcQuantities(sizes, sku.totalOrderQty), finalOrderQty: {}, step2OptionQty: {} };
+}
+
 /** 지금 안을 현재 상태로 저장(같은 안 클릭) */
 export function savePlanPatch(sku: SkuData): Partial<SkuData> {
   return { orderPlans: { active: sku.orderPlans?.active ?? 1, other: sku.orderPlans?.other ?? null, decided: true } };

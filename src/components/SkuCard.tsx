@@ -18,7 +18,7 @@ import { useExchangeRates } from '../utils/useExchangeRates';
 import { usePermission } from '../contexts/PermissionsContext';
 import { canConfirmGroup, isAllChannelRole, ownsChannel, type QtyChannel } from '../utils/channelOwnership';
 import { copySkuLink } from '../utils/skuLink';
-import { calcVarCostResults, compMonthlyActive, fallbackWeightsOf, getCompQtyAdj } from '../utils/compareData';
+import { calcVarCostResults, compMonthlyActive, fallbackWeightsOf, getCompQtyAdj, type CompareData } from '../utils/compareData';
 import { MarketingBriefModal } from './MarketingBriefModal';
 import { exportSimulationXlsx } from '../utils/exportXlsx';
 import { PRICING_SCENARIOS, PRICING_DEFAULT_OPT } from '../utils/pricingScenarios';
@@ -251,6 +251,35 @@ export function SkuCard({ sku, embedded = false, autoInit = true }: Props) {
     </div>
   );
 }
+
+/** 발주량 검토 › 채널 수량 — 카드의 채널 표를 그대로 쓴다(월 계획 · STEP 탭 없음, 열어도 자동 저장 없음) */
+export function ChannelQtyPanel({ sku, compare }: { sku: SkuData; compare: CompareData }) {
+  const updateSku = useStore((s) => s.updateSku);
+  const persistSku = useStore((s) => s.persistSku);
+  const setPricingOpts: Dispatch<SetStateAction<Record<string, string>>> = (updater) => {
+    const latest = useStore.getState().skus.find((s) => s.id === sku.id)?.pricingOpts ?? {};
+    const next = typeof updater === 'function' ? updater(latest) : updater;
+    updateSku(sku.id, { pricingOpts: next });
+    persistSku(sku.id);
+  };
+  return (
+    <MonthlyTable
+      channelOnly
+      sku={sku}
+      readOnly={false}
+      compMonthlyData={compare.monthly}
+      compModeLabel={compare.modeLabel}
+      compMode={compare.mode}
+      compChannelDist={compare.channelDist}
+      compChannelYM={compare.channelYM}
+      pricingOpts={sku.pricingOpts ?? {}}
+      setPricingOpts={setPricingOpts}
+      onStep3TotalsChange={noopTotals}
+      autoInit={false}
+    />
+  );
+}
+const noopTotals = () => {};
 
 // ── SKU 직링크 복사 버튼 (#sku/<id>) ────────────────────────────────────
 function CopySkuLinkButton({ skuId }: { skuId: string }) {
@@ -814,6 +843,7 @@ function MonthlyTable({
   setPricingOpts,
   onStep3TotalsChange,
   autoInit = true,
+  channelOnly = false,
 }: {
   sku: SkuData;
   readOnly: boolean;
@@ -826,7 +856,10 @@ function MonthlyTable({
   setPricingOpts: Dispatch<SetStateAction<Record<string, string>>>;
   onStep3TotalsChange: (totals: { revenue: number; profit: number | null } | null) => void;
   autoInit?: boolean;
+  /** 발주량 검토 탭 — 채널별 목표량 표만 표시, 안내 문구는 접음 */
+  channelOnly?: boolean;
 }) {
+  const [notesOpen, setNotesOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'channel' | 'pricing'>('pricing');
   type Step2Snapshot = { channelMonthQty: SkuData['channelMonthQty']; pricingOpts: Record<string, string> };
   const [step2UndoStack, setStep2UndoStack] = useState<Step2Snapshot[]>([]);
@@ -1023,9 +1056,9 @@ function MonthlyTable({
     .reduce((sum, ms) => sum + ms.ratio, 0);
 
   return (
-    <div className="mt-4 pt-4 border-t border-gray-100">
+    <div className={channelOnly ? '' : 'mt-4 pt-4 border-t border-gray-100'}>
       {/* 탭 버튼 */}
-      <div className="flex gap-2 mb-3 items-end">
+      <div className={channelOnly ? 'hidden' : 'flex gap-2 mb-3 items-end'}>
         {([
           { key: 'pricing', step: 'STEP 1', label: '월 계획 · 채널별 목표량', sub: 'PM 월 비중 · MD 채널별 수량 · 프라이싱' },
           { key: 'channel', step: 'STEP 2', label: '채널별 수량 확인', sub: 'MD  월별/옵션별 최종 수량' },
@@ -1052,7 +1085,8 @@ function MonthlyTable({
       {/* 탭별 안내 문구 */}
       {activeTab === 'pricing' && (
         <div className="flex items-start justify-between mb-2">
-          <div className="flex flex-col gap-0.5 text-[11px] text-gray-400">
+          {channelOnly && <button type="button" onClick={() => setNotesOpen((v) => !v)} className="text-[11px] underline text-indigo-700 flex-shrink-0">계산 안내 {notesOpen ? '▴' : '▾'}</button>}
+          <div className={`flex-col gap-0.5 text-[11px] text-gray-400 ${channelOnly && !notesOpen ? 'hidden' : 'flex'}`}>
             <p>초기값: 월 계획 × 대응SKU 채널 비중 · 칸 직접 수정 시 월 비중·채널 비중 자동 재계산</p>
             <p>채널 비중: [채널 비중 수정] → 여러 채널 입력 → 저장 · 월 합계 유지 · 미수정 채널이 나머지 비중 배분 · 확정 채널 제외</p>
             <p className="text-amber-600">대응SKU 변경 시 표 자동 변경 없음 · [대응SKU 비중으로 다시 나누기] 시 수기 수정값 재계산</p>
@@ -1086,7 +1120,7 @@ function MonthlyTable({
             })()}
           </div>
           <div className="flex flex-col items-end gap-1 flex-shrink-0 ml-3">
-            <CoverageChip sku={sku} skuMonths={skuMonths} />
+            {!channelOnly && <CoverageChip sku={sku} skuMonths={skuMonths} />}
             {shareEdit !== null && (
               <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg border border-indigo-300 bg-indigo-50 text-[11px]">
                 <span className="text-indigo-800">
@@ -1131,7 +1165,7 @@ function MonthlyTable({
                   </button>
                 </>
               )}
-              {isSeasonOnly(sku) && !step2ReadOnly && allChannelRole && (() => {
+              {!channelOnly && isSeasonOnly(sku) && !step2ReadOnly && allChannelRole && (() => {
                 const planTotal = skuMonths.reduce((a, m) => a + (sku.monthlySplit.find((x) => x.month === m)?.quantity ?? 0), 0);
                 if (planTotal === 0 || sku.totalOrderQty === 0 || planTotal === sku.totalOrderQty) return null;
                 return (
@@ -1214,6 +1248,7 @@ function MonthlyTable({
 
       {activeTab === 'pricing' ? (
         <>
+          {!channelOnly && <>
           {/* 월 계획 (PM) */}
           <div className="flex items-baseline gap-2 mb-1">
             <span className="text-[11px] font-bold text-gray-600">월 계획</span>
@@ -1471,6 +1506,7 @@ function MonthlyTable({
           </tbody>
         </table>
       </div>
+          </>}
           {/* 채널별 목표량 (MD) */}
           <div className="flex items-baseline gap-2 mt-4 mb-1">
             <span className="text-[11px] font-bold text-gray-600">채널별 목표량</span>
