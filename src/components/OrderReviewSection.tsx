@@ -10,7 +10,7 @@ import {
   B2C_CHANNELS, CATEGORIES, CHANNEL_CONFIRM_GROUP, getConfirmedChannels, getSkuMonths,
   type Channel, type Month, type SkuData,
 } from '../types';
-import { planScopeOf, useSkuSyncStatus, useStore } from '../store';
+import { planScopeOf, SkuConflictError, useSkuSyncStatus, useStore } from '../store';
 import { useAuth } from '../store/auth';
 import { usePermission } from '../contexts/PermissionsContext';
 import { usePricingPolicy } from '../hooks/usePricingPolicy';
@@ -28,7 +28,7 @@ import { STEP1_OPTIONS } from '../utils/step1Price';
 import { basePriceOf, skuMoney, type MoneyBasis, type SkuMoney } from '../utils/reviewSku';
 import { cachedReview, globalIssues, type ReviewCtx, type ReviewIssue, type SkuReview } from '../utils/skuReview';
 import { finalOrderForConfirm, finalOrderModel } from '../utils/finalOrder';
-import { coverQty, orderForCover, savePlanPatch, switchPlanPatch, withOrderQty } from '../utils/orderPlan';
+import { savePlanPatch, switchPlanPatch, withOrderQtyScaled } from '../utils/orderPlan';
 import { CellInput } from './CellInput';
 
 const fmt = (n: number) => Math.round(n).toLocaleString();
@@ -126,7 +126,6 @@ function Detail({ s, r, env }: { s: SkuData; r: SkuReview; env: DetailEnv }) {
     const finalized = !!s.finalOrderConfirmedAt;
     // 칸 입력은 저장 중에도 유지 — busy로 잠그면 칸이 다시 그려져 다음 칸 클릭이 사라짐
     const orderEditable = perm.skuBasic && !finalized && !writeBlocked;
-    const canOrder = orderEditable && !busy;
     const lockedChannels = getConfirmedChannels(s);
     const allLocked = m.channels.every((c) => lockedChannels.includes(c.channel));
     const planEditable = perm.step1 && !finalized && !allLocked && !writeBlocked;
@@ -182,16 +181,6 @@ function Detail({ s, r, env }: { s: SkuData; r: SkuReview; env: DetailEnv }) {
           <Box title={`${active}안 발주`} right={stateChip(s)}>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-gray-600">
               <label className="flex items-center gap-1.5">발주량 <span className="w-20 inline-block"><CellInput value={s.totalOrderQty} disabled={!orderEditable} onCommit={(n) => setOrder(s, n)} /></span></label>
-              <label className="flex items-center gap-1.5">소진 목표로 계산
-                <select value="" disabled={!canOrder || m.planQty === 0} onChange={(e) => e.target.value !== '' && setOrder(s, orderForCover(m.coverage.cumulative, Number(e.target.value), s.moq))}
-                  className="text-xs border border-gray-300 rounded px-1 py-0.5 bg-white disabled:opacity-50">
-                  <option value="">선택</option>
-                  {months.map((mo, i) => {
-                    const need = coverQty(m.coverage.cumulative, i);
-                    return <option key={mo} value={i}>{mo}월까지 · {need < s.moq ? `${fmt(need)}개 → MOQ ${fmt(s.moq)}개` : `${fmt(need)}개`}</option>;
-                  })}
-                </select>
-              </label>
               <label className="flex items-center gap-1.5">판매 목표 일괄
                 <select value="" disabled={!canPlan || m.planQty === 0} onChange={(e) => {
                   if (!e.target.value) return;
@@ -434,10 +423,12 @@ export function OrderReviewSection({ skus: filteredSkus, targetComparable: filte
     setMessage(null);
     setBusy(true);
     try {
-      await applySkuBatch([{ id: s.id, patch }], label, '발주량 검토');
+      await applySkuBatch([{ id: s.id, patch }], label, '발주량 검토', { guard: true });
     } catch (err) {
       console.error('[발주량 검토] 저장 실패', err);
-      setMessage(`${s.skuName} 저장 실패 · 변경 취소됨 · 새로고침 후 다시 시도`);
+      setMessage(err instanceof SkuConflictError
+        ? `${s.skuName} · 다른 사용자가 먼저 수정 · 내 변경 취소됨 · 최신값 확인 후 다시 입력`
+        : `${s.skuName} 저장 실패 · 변경 취소됨 · 새로고침 후 다시 시도`);
     } finally {
       setBusy(false);
     }
@@ -458,7 +449,7 @@ export function OrderReviewSection({ skus: filteredSkus, targetComparable: filte
   }
 
   function setOrder(s: SkuData, qty: number) {
-    const patch = withOrderQty(s, qty);
+    const patch = withOrderQtyScaled(s, qty);
     if (!patch) { setMessage(`${s.skuName} · 컬러 수량이 없어 발주량을 바꿀 수 없어요. 카드에서 컬러 수량 먼저 입력`); return; }
     void save(s, patch, `발주량 ${fmt(s.totalOrderQty)} → ${fmt(qty)}`);
   }
@@ -480,7 +471,7 @@ export function OrderReviewSection({ skus: filteredSkus, targetComparable: filte
       if (!on) { await setFinalOrderConfirmed(s.id, false); return; }
       const model = finalOrderModel(s);
       if (!model) { setMessage(`${s.skuName} · 옵션이나 수량이 없어 확정할 수 없어요`); return; }
-      await setFinalOrderConfirmed(s.id, true, finalOrderForConfirm(s, model));
+      await setFinalOrderConfirmed(s.id, true, finalOrderForConfirm(model));
     } catch (err) {
       console.error('[발주량 검토] 확정 실패', err);
       setMessage(`${s.skuName} 확정 실패 · 새로고침 후 다시 시도`);

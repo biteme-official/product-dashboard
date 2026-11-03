@@ -12,6 +12,18 @@ function stable(v: unknown): string {
   return `{${Object.keys(obj).sort().map((k) => `${JSON.stringify(k)}:${stable(obj[k])}`).join(',')}}`;
 }
 
+/**
+ * 칸 병합이 안 되는 필드(발주량 · 옵션 · 안 보관함)를 다른 사람이 먼저 바꿨는지 확인.
+ * 이 탭이 받은 값(base)과 서버 값이 다르면 그 필드 이름을 돌려준다.
+ */
+export function conflictingFields(
+  base: Record<string, unknown>,
+  server: Record<string, unknown>,
+  fields: readonly string[],
+): string[] {
+  return fields.filter((f) => stable(base[f] ?? null) !== stable(server[f] ?? null));
+}
+
 export function mergeQtyEntries<E extends { channel: string; month: number; qty: number }>(
   base: E[] | undefined,
   local: E[],

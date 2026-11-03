@@ -760,7 +760,7 @@ function FinalOrderTable({ sku }: { sku: SkuData }) {
     // 수기 편집 후 확정이면 draft 값, 아니면 현재 표시값 스냅샷(기존 수기 수량은 보존)
     const newFinalOrderQty: Record<string, number> = isEditing
       ? { ...draftQtys, __confirmedStep2Total__: step2Total }
-      : finalOrderForConfirm(liveSku, model!);
+      : finalOrderForConfirm(model!);
     setIsEditing(false);
     // finalOrderQty를 setFinalOrderConfirmed에 직접 전달 → 단일 Firestore write로 원자적 저장
     // (updateFinalOrderQty separate call을 제거해 두 write 사이 race condition 방지)
