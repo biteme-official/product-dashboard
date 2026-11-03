@@ -3,10 +3,10 @@
  * (postSlack_ · isFirstBusinessDayOfWeek_ · todayKst_ · addDays_ · dowOf_ · md_ · esc_ · groupBy_ · chunk_ 는 price-confirm-digest.gs 함수를 같이 씀)
  *
  * 매주 첫 영업일 11시(KST, 보통 월요일 · 월요일이 공휴일이면 화요일 등 — 주말·공휴일엔 안 보냄) — 탭별로 채널에 보냄
- *   3.발주입고로그        → #상품기획팀
- *   3-1.발주입고로그_패션 → #fashion
+ *   3.발주입고로그        → #상품기획팀 · 이번주 · -2주
+ *   3-1.발주입고로그_패션 → #fashion · 이번주 · -1주 · -3주
  *
- * 대상: L열 예상입고일이 이번주 · 1주 뒤 · 3주 뒤 주간(월~일)인 행 · Q열 입고확인 Y 제외
+ * 대상: L열 예상입고일이 탭별로 정한 주간(월~일)인 행 · Q열 입고확인 Y 제외
  * 표시: 입고일 + 발주처로 묶어 한 줄 — 첫 상품명(시트 순서) 외 N건(행 단위) · K열 입고수량 합계
  *
  * 처음 한 번: previewInbound → sendInboundTest → setupInboundTrigger
@@ -15,14 +15,16 @@
 
 const INBOUND_SHEET_ID = '1SEePR_iLNhUy1ghRskkx6FTpEvJuRzUf-i3jku9RWio';
 const INBOUND_TABS = [
-  { key: 'MAIN', sheet: '3.발주입고로그', gid: '1400585731', channel: 'C02CJNZQUJE' }, // #상품기획팀
-  { key: 'FASHION', sheet: '3-1.발주입고로그_패션', gid: '477136169', channel: 'C04H7GW1QBE' }, // #fashion
+  { key: 'MAIN', sheet: '3.발주입고로그', gid: '1400585731', channel: 'C02CJNZQUJE', weeks: [0, 2] }, // #상품기획팀
+  { key: 'FASHION', sheet: '3-1.발주입고로그_패션', gid: '477136169', channel: 'C04H7GW1QBE', weeks: [0, 1, 3] }, // #fashion
 ];
-const INBOUND_WEEKS = [
-  { offset: 0, label: '🔴 이번주' },
-  { offset: 1, label: '🟡 -1주' },
-  { offset: 3, label: '🟢 -3주' },
-];
+// 입고까지 남은 주 수 → 표시 (탭별 weeks에 쓰는 값)
+const INBOUND_WEEK_LABELS = {
+  0: ['🔴', '이번주'],
+  1: ['🟡', '-1주'],
+  2: ['🟡', '-2주'],
+  3: ['🟢', '-3주'],
+};
 // 시트 열(1부터) · 헤더 글자로 열이 밀리지 않았는지 확인함 — 안 맞으면 발송하지 않고 오류 DM
 const INBOUND_COLS = {
   vendor: [3, '발주처'],
@@ -91,8 +93,8 @@ function setupInboundTrigger() {
 function collectInbound_(tab, today) {
   const rows = readInboundRows_(tab);
   const monday = addDays_(today, 1 - dowOf_(today));
-  return INBOUND_WEEKS.map((w) => {
-    const from = addDays_(monday, w.offset * 7);
+  return tab.weeks.map((offset) => {
+    const from = addDays_(monday, offset * 7);
     const to = addDays_(from, 6);
     const inWeek = rows
       .filter((r) => r.date >= from && r.date <= to)
@@ -104,7 +106,8 @@ function collectInbound_(tab, today) {
       count: list.length,
       qty: list.reduce((sum, r) => sum + r.qty, 0),
     }));
-    return { offset: w.offset, label: w.label, from, to, total: groups.reduce((sum, g) => sum + g.qty, 0), groups };
+    const [icon, name] = INBOUND_WEEK_LABELS[offset];
+    return { name, label: `${icon} ${name}`, from, to, total: groups.reduce((sum, g) => sum + g.qty, 0), groups };
   });
 }
 
@@ -157,7 +160,7 @@ function buildInbound_(tab, weeks, today) {
   const total = weeks.reduce((sum, w) => sum + w.total, 0);
   const title = `📦 입고 예정 알림 · ${md_(monday)} 주간`;
   if (weeks.every((w) => w.groups.length === 0)) {
-    const text = `${title} · 이번주 · -1주 · -3주 입고 예정 없음`;
+    const text = `${title} · ${weeks.map((w) => w.name).join(' · ')} 입고 예정 없음`;
     return { text, blocks: [{ type: 'section', text: { type: 'mrkdwn', text: `${text}\n*${link}*` } }] };
   }
   const now = Utilities.formatDate(new Date(), TZ, 'HH:mm');
