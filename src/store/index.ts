@@ -129,6 +129,8 @@ async function trackSkuWrite<T>(p: Promise<T>): Promise<T> {
   try {
     return await p;
   } catch (err) {
+    // 충돌은 네트워크 문제가 아니라 화면에서 따로 안내한다
+    if (err instanceof SkuConflictError) throw err;
     const code = (err as { code?: string })?.code ?? '';
     useSkuSyncStatus.setState({
       saveError: code === 'permission-denied'
@@ -1150,8 +1152,13 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
         await write();
       }
     } catch (err) {
-      // 전부 저장되지 않았으니 화면도 적용 전으로 되돌린다
-      set({ skus: get().skus.map((s) => (byId.has(s.id) ? (prevSkus.find((p) => p.id === s.id) ?? s) : s)) });
+      // 전부 저장되지 않았으니 화면도 되돌린다. 충돌이면 상대의 값이 이미 도착했을 수 있으므로
+      // 적용 전 값이 아니라 서버 최신값으로 — 옛 값으로 되돌리면 다음 저장이 상대의 수정을 덮어쓴다
+      set({ skus: get().skus.map((s) => {
+        if (!byId.has(s.id)) return s;
+        const latest = err instanceof SkuConflictError ? savedSkuState[s.id] : undefined;
+        return latest ? { ...latest, isExpanded: s.isExpanded } : (prevSkus.find((p) => p.id === s.id) ?? s);
+      }) });
       throw err;
     }
     const role = useAuth.getState().role ?? 'unknown';
