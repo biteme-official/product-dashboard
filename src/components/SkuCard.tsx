@@ -6,7 +6,6 @@ import { allocate, applyChannelShares, coverage, redistributeByWeights, resolveC
 import { useAuth } from '../store/auth';
 import { useCpoSync } from '../store/cpoSync';
 import { getConfirmedPricingScenario, cpoPricingDeepLink, cpoProjectDeepLink, CPO_STATUS_STYLES, resolveManagerNames } from '../types/cpo';
-import { revenueMultiplier, calcDynamicMultiplier } from '../utils/calc';
 import { useState, useRef, useEffect, useMemo, type Dispatch, type SetStateAction, type ChangeEvent } from 'react';
 import {
   fetchTeamCateData, classifyTableauError, TABLEAU_ERROR_MESSAGES,
@@ -158,9 +157,6 @@ export function SkuCard({ sku, embedded = false, autoInit = true }: Props) {
     updateSku(sku.id, { pricingOpts: next });
     persistSku(sku.id);
   };
-
-  const multiplier = calcDynamicMultiplier(sku.channelRatios) ?? revenueMultiplier(sku.category);
-  void multiplier; // 하위 컴포넌트(ComparisonColumn)에서 사용
 
   return (
     <div className="border border-gray-200 rounded-xl bg-white shadow-sm overflow-hidden">

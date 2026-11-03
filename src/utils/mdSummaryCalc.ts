@@ -1,4 +1,4 @@
-import { CATEGORIES, CHANNELS, getReleaseMonth, getSkuMonths, isSkuActiveForYearMonth } from '../types';
+import { CATEGORIES, CHANNELS, isSkuActiveForYearMonth } from '../types';
 import type { SkuData, Channel, Month, YearMonth } from '../types';
 import { calcVariableCostRatio, type TeamCateMap } from '../services/tableau';
 import { PRICING_DEFAULT_OPT } from './pricingScenarios';
@@ -37,15 +37,6 @@ export function buildVarCostRatioMap(teamCateMap: TeamCateMap | null): VarCostRa
     }
   }
   return map;
-}
-
-/**
- * SKU의 특정 월이 활성(표시)인지 확인.
- * 출시월 기준 8개월 윈도우(getSkuMonths) 내에 있으면 active.
- * 추후 전월(pre-release) 입력 허용 시에는 이 함수 대신 isSkuActiveForYearMonth 사용.
- */
-export function isMonthActive(sku: SkuData, month: Month): boolean {
-  return getSkuMonths(sku.releaseDate).includes(month);
 }
 
 export function calcChannelMonthMetrics(
@@ -124,16 +115,4 @@ export function cmBadgeCls(cm: number | null): string {
   if (cm >= 40) return 'bg-emerald-100 text-emerald-700';
   if (cm >= 30) return 'bg-yellow-100 text-yellow-700';
   return 'bg-red-100 text-red-600';
-}
-
-// --- 하위 호환: 구 MONTHS 기반 집계 (ChannelSimSection 등 비요약탭용) ---
-export function calcSkuChannelTotalsLegacy(sku: SkuData, channel: Channel): MonthMetrics {
-  const releaseYear = sku.releaseDate ? parseInt(sku.releaseDate.split('-')[0], 10) : 2026;
-  const rm = getReleaseMonth(sku.releaseDate) ?? 7;
-  const skuMonths = getSkuMonths(sku.releaseDate);
-  const legacyMonths: YearMonth[] = skuMonths.map((m) => ({
-    year: m < rm ? releaseYear + 1 : releaseYear,
-    month: m,
-  }));
-  return calcSkuChannelTotals(sku, channel, legacyMonths);
 }

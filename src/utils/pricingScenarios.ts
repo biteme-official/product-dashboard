@@ -92,6 +92,3 @@ export const PRICING_DEFAULT_OPT: Partial<Record<Channel, string>> = {
   '일본':    '일본 공급가',
 };
 
-export const SPECIAL_MAX_RATE_OPTIONS = [20, 15, 10] as const;
-export const REGULAR_MAX_RATE_OPTIONS = [15, 10, 5] as const;
-export const SEASON_OFF_RATE_OPTIONS = [25, 30] as const;

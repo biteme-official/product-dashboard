@@ -126,14 +126,6 @@ export function isNextYearMonth(month: Month, releaseDate: string | undefined | 
   return month < rm;
 }
 
-/**
- * 시뮬레이션 기준 월 순서 값 (7월=7, 12월=12, 익년1월=13, 익년2월=14)
- * 출시월 이전/이후 판별에 사용
- */
-export function simPosition(month: number): number {
-  return month >= 7 ? month : month + 12;
-}
-
 export const SIZE_LABELS: Record<number, string[]> = {
   1: ['OS'],
   2: ['S', 'M'],
@@ -168,12 +160,6 @@ export interface ComparisonSku {
   cost: number;
   monthlyShipment: number;
   annualShipment: number;
-}
-
-export interface ChannelMonthEntry {
-  channel: Channel;
-  month: Month;
-  ratio: number; // 해당 채널×월에 총 발주량 대비 출고 비중(%)
 }
 
 export interface ChannelMonthQtyEntry {
@@ -213,8 +199,6 @@ export interface MonthlySplit {
   month: Month;
   ratio: number;
   quantity: number;
-  revenue: number;
-  contributionProfit: number;
 }
 
 export interface SkuData {
@@ -232,20 +216,17 @@ export interface SkuData {
   totalOrderQty: number;
   sizeCount: number;
   moq: number;
-  targetSellThroughMonths: number;
   sizes: SizeRatio[];               // 길이 항상 8
   sizeLabelsFromCpo?: boolean;      // 사이즈 라벨이 CPO 선택값으로 맞춰졌는지 — 없으면 예전 프리셋(S부터 연속) 라벨이라 첫 동기화 때 칸 위치 기준으로 옮김(#44)
   brand: Brand;                     // 브랜드
   hasColors: boolean;               // 컬러 옵션 사용 여부
   colors: ColorEntry[];             // 컬러별 수량 목록
   channelRatios: ChannelRatio[];    // 채널별 판매 비중 (PM 탭용)
-  channelMonthlySplit: ChannelMonthEntry[]; // 채널×월 직접 비중 (MD 탭용)
   channelMonthQty: ChannelMonthQtyEntry[]; // 채널×월 직접 수량 (Product Dashboard용)
   channelPricing: ChannelPricing[];        // 채널별 판매가·수수료 (프라이싱 탭용)
   memo: string;                     // 자유 메모 (HTML)
   imageUrl?: string;                // Firebase Storage 이미지 URL
   pricingOpts: Record<string, string>; // STEP3 채널×월 판매가 시나리오 (key: "채널-월")
-  pricingUsdRate: number;              // STEP3 USD 환율
   comparisonSku: ComparisonSku;
   monthlySplit: MonthlySplit[];     // 출시월 기준 8개월분 (getSkuMonths 윈도우)
   step2OptionQty?: Record<string, number>;
@@ -255,7 +236,6 @@ export interface SkuData {
   specialMaxRate?: 20 | 15 | 10;                    // 특가 최대할인율(%), 기본 20 (master만 변경 가능)
   regularMaxRate?: 15 | 10 | 5;                     // 상시 최대할인율(%), 기본 15 (master만 변경 가능)
   seasonOffRate?: 25 | 30;                          // 시즌오프(의류전용) 할인율(%), 기본 25 (master만 변경 가능)
-  hiddenPricingScenarios?: string[]; // 프라이싱 모달에서 숨긴 시나리오 행 id 목록 (참고용 표시 숨김 — 계산·STEP2 옵션에는 영향 없음, master/PM/플랫폼MD/브랜드MD만 변경 가능)
   pricingMemo?: string;                             // 프라이싱 모달 B2C 시나리오 메모 (master/platform_md/brand_md만 변경 가능)
   pricingPromoOpenSpecial?: boolean;                // 프라이싱 모달 B2C 오픈특가 프로모션 on/off, 기본 true
   pricingPromoNewWeek?: boolean;                    // 프라이싱 모달 B2C 신상위크 프로모션 on/off, 기본 false

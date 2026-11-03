@@ -4,12 +4,6 @@ import { fsdb } from '../lib/firebase';
 export type Role = 'master' | 'pm' | 'viewer' | 'platform_md' | 'brand_md' | 'global';
 
 export const ALL_ROLES: readonly Role[] = ['master', 'pm', 'viewer', 'platform_md', 'brand_md', 'global'] as const;
-export const MD_ROLES: readonly Role[] = ['platform_md', 'brand_md', 'global'] as const;
-
-/** platform_md / brand_md / global 여부 확인 */
-export const isMdRole = (role: Role | null | undefined): boolean =>
-  !!(role && (MD_ROLES as readonly string[]).includes(role));
-
 /** 프라이싱 표(할인율·자동/수동 시나리오·메모)와 가격확정 해제를 편집할 수 있는 역할 */
 export const PRICING_EDIT_ROLES: readonly Role[] = ['master', 'pm', 'platform_md', 'brand_md'] as const;
 

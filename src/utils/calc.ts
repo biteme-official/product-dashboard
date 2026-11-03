@@ -1,4 +1,4 @@
-import type { SizeRatio, Category, Channel, ChannelRatio } from '../types';
+import type { SizeRatio, Category, ChannelRatio } from '../types';
 import { SIZE_LABELS, MAX_SIZES, B2C_CHANNELS } from '../types';
 
 const CHANNEL_B2C_RATIO: Record<Category, number> = {
@@ -11,11 +11,6 @@ const CHANNEL_B2C_RATIO: Record<Category, number> = {
 
 export const B2C_RATE = 0.75; // B2C 실질 판매가 = 판매가 × 75%
 export const B2B_RATE = 0.55; // B2B 실질 판매가 = 판매가 × 55%
-
-/** 채널이 B2C이면 0.75, B2B이면 0.55 반환 */
-export function getChannelRate(channel: Channel): number {
-  return B2C_CHANNELS.includes(channel) ? B2C_RATE : B2B_RATE;
-}
 
 /**
  * SKU의 channelRatios 기반 동적 multiplier.
@@ -59,17 +54,4 @@ export function recalcQuantities(sizes: SizeRatio[], totalOrderQty: number): Siz
     quantity:
       s.isActive && sumRatios > 0 ? Math.round((totalOrderQty * s.ratio) / sumRatios) : 0,
   }));
-}
-
-export function calcGrowthRate(newVal: number, oldVal: number): number | null {
-  if (!oldVal || oldVal === 0) return null;
-  return ((newVal - oldVal) / oldVal) * 100;
-}
-
-export function formatKRW(value: number): string {
-  return `₩${Math.round(value).toLocaleString()}`;
-}
-
-export function formatNumber(value: number): string {
-  return value.toLocaleString();
 }
