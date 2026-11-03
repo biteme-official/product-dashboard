@@ -693,6 +693,7 @@ export function OrderReviewSection({ skus: filteredSkus, targetComparable: filte
           <Chip on={basis === 'order'} onClick={() => setBasis('order')}>초도 발주량만</Chip>
           <Chip on={basis === 'season'} onClick={() => setBasis('season')}>시즌 목표 · 리오더 포함</Chip>
         </div>
+        <span aria-hidden className="w-px h-4 bg-gray-300" />
         <Chip on={excludeConfirmed} onClick={() => onExcludeConfirmedChange(!excludeConfirmed)}>발주 확정 제외</Chip>
         <span className="flex-1" />
         <Chip on={view === 'sku'} onClick={() => setView('sku')}>① SKU별 결정</Chip>
