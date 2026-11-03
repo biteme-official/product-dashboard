@@ -7,7 +7,7 @@ export function CellInput({ value, onCommit, disabled, suffix, className = '' }:
   value: number; onCommit: (v: number) => void; disabled?: boolean; suffix?: string; className?: string;
 }) {
   const [draft, setDraft] = useState<string | null>(null);
-  if (disabled) return <span className={`tabular-nums text-gray-500 ${className}`}>{fmt(value)}{suffix}</span>;
+  if (disabled) return <span className={`block w-full text-right tabular-nums text-gray-500 px-1 py-0.5 ${className}`}>{suffix ? `${value}${suffix}` : fmt(value)}</span>;
   if (draft === null) {
     return (
       <button type="button" onClick={() => setDraft(String(value))}
@@ -22,7 +22,7 @@ export function CellInput({ value, onCommit, disabled, suffix, className = '' }:
     if (Number.isFinite(n) && n !== value) onCommit(n);
   };
   return (
-    <input autoFocus value={draft} size={1} inputMode="decimal" onChange={(e) => setDraft(e.target.value)} onBlur={commit}
+    <input autoFocus value={draft} size={1} inputMode="decimal" onFocus={(e) => e.target.select()} onChange={(e) => setDraft(e.target.value)} onBlur={commit}
       onKeyDown={(e: KeyboardEvent<HTMLInputElement>) => {
         if (e.nativeEvent.isComposing || e.keyCode === 229) return;
         if (e.key === 'Enter') commit();
