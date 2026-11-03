@@ -8,10 +8,10 @@ import { MdSummaryOverview } from './MdSummaryOverview';
 import { MdChannelDetail } from './MdChannelDetail';
 import { SkuFilterBar } from './SkuFilterBar';
 import {
-  fetchTeamCateData, classifyTableauError, TABLEAU_ERROR_MESSAGES,
-  type TeamCateMap, type TableauErrorReason,
+  TABLEAU_ERROR_MESSAGES,
 } from '../services/tableau';
-import { buildVarCostRatioMap } from '../utils/mdSummaryCalc';
+import { buildVarCostBySku } from '../utils/mdSummaryCalc';
+import { useTableauBase } from '../hooks/useTableauBase';
 import { useExchangeRates } from '../utils/useExchangeRates';
 
 interface Props {
@@ -132,18 +132,15 @@ export function MdSummarySection({
   const skus = useVisibleSkus();
   const cpoProjects = useCpoSync((s) => s.cpoProjects);
 
-  // 팀카테 변동비 데이터 로드 (STEP2/SkuCard와 동일한 Tableau 역산 기준 사용)
-  const [teamCateMap, setTeamCateMap] = useState<TeamCateMap | null>(null);
-  const [teamCateError, setTeamCateError] = useState<TableauErrorReason | null>(null);
-  const [teamCateLoading, setTeamCateLoading] = useState(true);
-  useEffect(() => {
-    setTeamCateLoading(true);
-    fetchTeamCateData()
-      .then((m) => { setTeamCateMap(m); setTeamCateError(null); })
-      .catch((err) => { console.error('[팀카테 변동비 로드 실패]', err); setTeamCateError(classifyTableauError(err)); })
-      .finally(() => setTeamCateLoading(false));
-  }, []);
-  const varCostMap = useMemo(() => buildVarCostRatioMap(teamCateMap), [teamCateMap]);
+  // 변동비 — SKU 카드와 같은 기준(대응SKU 기간 · 팀카테 역산). 못 불러오면 공헌이익을 계산하지 않는다
+  const tableau = useTableauBase();
+  const varCostMap = useMemo(
+    () => buildVarCostBySku(skus, tableau.teamCate, tableau.shipments, tableau.channelMap),
+    [skus, tableau.teamCate, tableau.shipments, tableau.channelMap],
+  );
+  const teamCateError = tableau.errors.teamCate;
+  const teamCateLoading = tableau.loading;
+  const noCostCount = skus.filter((s) => !s.cost).length;
   // 시나리오 가격 계산용 실시간 환율 (STEP2/SkuCard와 동일 소스)
   const { usdKrw, jpyKrw } = useExchangeRates();
 
@@ -272,7 +269,8 @@ export function MdSummarySection({
     <div className="space-y-3">
       {teamCateError ? (
         <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-xs text-red-600">
-          <span>⚠ Tableau 팀카테 변동비 데이터 로드 실패 — {TABLEAU_ERROR_MESSAGES[teamCateError]}. 모든 SKU에 기본값 25%가 임시 적용됩니다.</span>
+          <span>⚠ Tableau 팀카테 변동비 데이터 로드 실패 — {TABLEAU_ERROR_MESSAGES[teamCateError]} · 공헌이익 계산 중단</span>
+          <button onClick={tableau.retry} className="underline">다시 시도</button>
         </div>
       ) : !teamCateLoading && (
         <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 text-xs text-blue-600 w-fit">
@@ -280,7 +278,7 @@ export function MdSummarySection({
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
             <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500" />
           </span>
-          <span>Tableau 변동비 비중 연동중</span>
+          <span>Tableau 변동비 비중 연동중{noCostCount > 0 ? ` · 원가 없는 SKU ${noCostCount}개 공헌이익 제외` : ''}</span>
         </div>
       )}
 

@@ -15,10 +15,9 @@ import { PRICING_DEFAULT_OPT } from '../utils/pricingScenarios';
 import { STEP1_OPTIONS, normalizeStep1Opt, step1Pricer } from '../utils/step1Price';
 import { usePricingPolicy } from '../hooks/usePricingPolicy';
 import { useExchangeRates } from '../utils/useExchangeRates';
-import {
-  fetchChannelShipments, fetchSkuShipments, fetchTeamCateData,
-  type ChannelDataMap, type SkuShipmentInfo, type TeamCateMap,
-} from '../services/tableau';
+import { useTableauBase } from '../hooks/useTableauBase';
+import { TABLEAU_ERROR_MESSAGES } from '../services/tableau';
+import { cellMoney, varCostOf as varRatioOf } from '../utils/reviewSku';
 import { SkuCard, CoverageChip } from './SkuCard';
 
 // ── 공용 ────────────────────────────────────────────────────────────────
@@ -54,27 +53,6 @@ const fmtDate = (d: string) => {
   const dt = new Date(`${d}T00:00:00`);
   return `${dt.getMonth() + 1}/${dt.getDate()}(${'일월화수목금토'[dt.getDay()]}) 오픈`;
 };
-
-/** 태블로 기본 데이터(대응SKU 실적 · 채널별 출고 · 팀카테 변동비) — 서비스에서 55분 캐시 */
-function useTableauBase() {
-  const [shipments, setShipments] = useState<SkuShipmentInfo[]>([]);
-  const [channelMap, setChannelMap] = useState<ChannelDataMap | null>(null);
-  const [teamCate, setTeamCate] = useState<TeamCateMap | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
-  useEffect(() => {
-    let alive = true;
-    Promise.allSettled([fetchSkuShipments(), fetchChannelShipments(), fetchTeamCateData()]).then(([a, b, c]) => {
-      if (!alive) return;
-      if (a.status === 'fulfilled') setShipments(a.value); else setError(true);
-      if (b.status === 'fulfilled') setChannelMap(b.value);
-      if (c.status === 'fulfilled') setTeamCate(c.value);
-      setLoading(false);
-    });
-    return () => { alive = false; };
-  }, []);
-  return { shipments, channelMap, teamCate, loading, error };
-}
 
 /** Enter 저장 · Esc 취소 · 바깥 클릭 저장 · 한글 조합 중 Enter 무시 */
 function CellInput({ value, onCommit, disabled, suffix, className = '' }: {
@@ -487,9 +465,10 @@ export function ChannelTargetSection({ skus }: { skus: SkuData[] }) {
     const comp = (m: Month) => (cd ? getCompQtyAdj(s, cd.channelYM, cd.mode, ch, m, months, ry) : null);
     const compSum = (ms: Month[]) => (cd?.channelYM ? ms.reduce((a, m) => a + (comp(m) ?? 0), 0) : null);
     const baseQty = (m: Month) => s.step2InitBaselineQty?.find((e) => e.channel === ch && e.month === m)?.qty ?? null;
-    const vc = varCostOf(s)[ch]?.ratio ?? 0.25;
-    const rev = (m: Month) => Math.round((scenarioPrice(s, ch, m).price / 1.1) * qtyOf(s, ch, m));
-    const pro = (m: Month) => Math.round(rev(m) * (1 - vc) - s.cost * qtyOf(s, ch, m));
+    const vc = varRatioOf(base.teamCate ? varCostOf(s) : null, ch).ratio;
+    const money = (m: Month) => cellMoney(scenarioPrice(s, ch, m).price, qtyOf(s, ch, m), s.cost, vc);
+    const rev = (m: Month) => money(m).revenue;
+    const pro = (m: Month) => money(m).profit;
     return (
       <>
         {shareRows}
@@ -540,8 +519,8 @@ export function ChannelTargetSection({ skus }: { skus: SkuData[] }) {
           <>
             <Row label={<span className="font-bold text-blue-700">예상 순매출</span>} months={months} total={(ms) => ms.reduce((a, m) => a + rev(m), 0)} fmtTotal={won}
               cell={(m) => <span className="text-blue-700">{rev(m) ? won(rev(m)) : '–'}</span>} />
-            <Row label={<span className="font-bold text-emerald-700">예상 공헌이익</span>} months={months} total={(ms) => ms.reduce((a, m) => a + pro(m), 0)} fmtTotal={won}
-              cell={(m) => <span className="text-emerald-700">{qtyOf(s, ch, m) ? won(pro(m)) : '–'}</span>} />
+            <Row label={<span className="font-bold text-emerald-700">예상 공헌이익</span>} months={months} total={(ms) => ms.reduce<number | null>((a, m) => { const p = pro(m); return a === null || p === null ? null : a + p; }, 0)} fmtTotal={(v) => (v === null ? '–' : won(v))}
+              cell={(m) => { const p = pro(m); return <span className="text-emerald-700">{qtyOf(s, ch, m) && p !== null ? won(p) : '–'}</span>; }} />
           </>
         )}
       </>
@@ -909,7 +888,8 @@ export function ChannelTargetSection({ skus }: { skus: SkuData[] }) {
         <label className="flex items-center gap-1 text-[11px] text-gray-500"><input type="checkbox" checked={onlyEmpty} onChange={(e) => setOnlyEmpty(e.target.checked)} />미입력만</label>
         {myGroups.length > 0 && <label className="flex items-center gap-1 text-[11px] text-gray-500"><input type="checkbox" checked={onlyOpen} onChange={(e) => setOnlyOpen(e.target.checked)} />내 그룹 미확정만</label>}
       </div>
-      {base.error && <div className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">태블로 대응SKU 실적을 불러오지 못했어요. 대응SKU 행은 비어 보이고, 대응SKU 기준 일괄 작업은 제외돼요.</div>}
+      {base.errors.shipments && <div className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">태블로 대응SKU 실적을 불러오지 못했어요({TABLEAU_ERROR_MESSAGES[base.errors.shipments]}). 대응SKU 행은 비어 보이고, 대응SKU 기준 일괄 작업은 제외돼요.</div>}
+      {base.errors.teamCate && <div className="text-[11px] text-red-700 bg-red-50 border border-red-200 rounded px-2 py-1">변동비 데이터 로드 실패({TABLEAU_ERROR_MESSAGES[base.errors.teamCate]}) · 공헌이익 계산 중단 <button onClick={base.retry} className="underline ml-1">다시 시도</button></div>}
       {toast && (
         <div className="flex flex-wrap items-center gap-2 text-xs rounded-lg border border-emerald-300 bg-emerald-50 text-emerald-800 px-3 py-1.5">
           <span>{toast.text}</span>

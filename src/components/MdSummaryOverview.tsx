@@ -8,7 +8,8 @@ import {
   calcChannelMonthMetrics, addMetrics,
   formatWon, cmBadgeCls, ZERO_METRICS,
   calcSkuAllChannelTotals,
-  type VarCostRatioMap,
+  calcSkuMonthMarketing, metricsCm,
+  type VarCostBySku,
 } from '../utils/mdSummaryCalc';
 
 const CHANNEL_COLORS: Record<string, string> = {
@@ -25,7 +26,7 @@ type MonthChartPoint = {
 };
 
 function buildMonthlyChartData(
-  skus: SkuData[], months: YearMonth[], varCostMap: VarCostRatioMap, usdKrw: number, jpyKrw: number,
+  skus: SkuData[], months: YearMonth[], varCostMap: VarCostBySku, usdKrw: number, jpyKrw: number,
 ): MonthChartPoint[] {
   return months.map((ym, idx) => {
     const showYear = idx === 0 || months[idx - 1].year !== ym.year;
@@ -46,6 +47,8 @@ function buildMonthlyChartData(
       totalRevenue += metrics.revenue;
       totalProfit += metrics.profit;
     }
+    // 카드 합계와 같게 마케팅 원가 차감
+    totalProfit += skus.reduce((a, sku) => a + calcSkuMonthMarketing(sku, ym, varCostMap), 0);
 
     return { label, revenue: totalRevenue, profit: totalProfit, channels };
   });
@@ -95,7 +98,7 @@ function ChartTooltip({ active, payload, data }: {
 }
 
 function MonthlyChart({ skus, months, varCostMap, usdKrw, jpyKrw }: {
-  skus: SkuData[]; months: YearMonth[]; varCostMap: VarCostRatioMap; usdKrw: number; jpyKrw: number;
+  skus: SkuData[]; months: YearMonth[]; varCostMap: VarCostBySku; usdKrw: number; jpyKrw: number;
 }) {
   const data = buildMonthlyChartData(skus, months, varCostMap, usdKrw, jpyKrw);
   if (data.every((d) => d.revenue === 0)) return null;
@@ -169,12 +172,10 @@ function KpiCard({ label, value, sub, warn }: { label: string; value: string; su
 }
 
 export function MdSummaryOverview({ skus, months, varCostMap, usdKrw, jpyKrw }: {
-  skus: SkuData[]; months: YearMonth[]; varCostMap: VarCostRatioMap; usdKrw: number; jpyKrw: number;
+  skus: SkuData[]; months: YearMonth[]; varCostMap: VarCostBySku; usdKrw: number; jpyKrw: number;
 }) {
   const allTotals = skus.reduce((acc, sku) => addMetrics(acc, calcSkuAllChannelTotals(sku, months, varCostMap, usdKrw, jpyKrw)), ZERO_METRICS);
-  const totalCm = allTotals.revenue > 0
-    ? Math.round((allTotals.profit / allTotals.revenue) * 1000) / 10
-    : null;
+  const totalCm = metricsCm(allTotals);
   const step2UnsetCount = skus.filter((s) => s.channelMonthQty.every((e) => e.qty === 0)).length;
 
   const skuRows = skus
@@ -189,7 +190,7 @@ export function MdSummaryOverview({ skus, months, varCostMap, usdKrw, jpyKrw }: 
     const bs = skus.filter((s) => s.brand === brand);
     if (bs.length === 0) return null;
     const t = bs.reduce((acc, sku) => addMetrics(acc, calcSkuAllChannelTotals(sku, months, varCostMap, usdKrw, jpyKrw)), ZERO_METRICS);
-    const cm = t.revenue > 0 ? Math.round((t.profit / t.revenue) * 1000) / 10 : null;
+    const cm = metricsCm(t);
     return { brand, count: bs.length, ...t, cm };
   }).filter(Boolean) as { brand: string; count: number; qty: number; revenue: number; profit: number; cm: number | null }[];
 

@@ -5,10 +5,10 @@
 import {
   adjustDistForDisabled, getDisabledChannels, getReleaseMonth, getSkuMonths, isNextYearMonth,
   B2C_CHANNELS, B2B_CHANNELS, CHANNELS,
-  type Channel, type Month, type SkuData,
+  type Channel, type ComparisonSku, type Month, type SkuData,
 } from '../types';
 import {
-  aggregateByYearMonth, aggregateChannelByYearMonth, calcChannelPeriodQty, calcRolling12,
+  aggregateByYearMonth, aggregateChannelByYearMonth, calcChannelPeriodQty, calcRolling12, calcSamePeriod,
   calcVariableCostRatio,
   type ChannelByYearMonth, type ChannelDataMap, type SkuShipmentInfo, type TeamCateMap,
 } from '../services/tableau';
@@ -22,8 +22,8 @@ export const DEFAULT_CHANNEL_RATIO_PCT: Record<Channel, number> = {
 };
 
 /** 의류·잡화는 동기간, 나머지는 직전 12개월 (카드 기본값과 같음) */
-export function defaultCompareMode(sku: Pick<SkuData, 'category'>): CompareMode {
-  return sku.category === '의류' || sku.category === '잡화' ? 'samePeriod' : 'rolling12';
+export function defaultCompareMode(sku: Pick<SkuData, 'category' | 'comparisonSku'>): CompareMode {
+  return sku.comparisonSku?.compareMode ?? (sku.category === '의류' || sku.category === '잡화' ? 'samePeriod' : 'rolling12');
 }
 
 const releaseYearOf = (sku: Pick<SkuData, 'releaseDate'>): number | null =>
@@ -203,6 +203,32 @@ export function buildCompareData(
   }
   const active = compMonthlyActive(sku, channelYM, effMode, getSkuMonths(sku.releaseDate), ry ?? 2026);
   return { names, mode: effMode, modeLabel, monthly: active ?? monthly, monthlyActiveOnly: !!active, channelYM, channelDist, bases: aligned.bases };
+}
+
+/** 대응SKU 선택을 저장할 값 — 카드와 발주량 검토가 같이 쓴다 */
+export function comparisonSkuOf(
+  sku: SkuData, selected: SkuShipmentInfo[], mode: CompareMode, baseYears: Record<string, number> | undefined, channelMap: ChannelDataMap | null,
+): ComparisonSku {
+  // 직접 고른 적이 없고 기본 기간이면 저장하지 않는다 (카드를 여는 것만으로 쓰기가 생기지 않게)
+  const modeField = sku.comparisonSku.compareMode !== undefined || mode !== defaultCompareMode(sku) ? { compareMode: mode } : {};
+  if (selected.length === 0) {
+    return { ...sku.comparisonSku, name: '', compareSkuNames: [], baseYears: {}, ...modeField, monthlyShipment: 0, annualShipment: 0 };
+  }
+  const aligned = alignCompareSkus(sku.releaseDate, baseYears, selected, channelMap, mode);
+  const aggregated = aggregateByYearMonth(aligned.shipments);
+  const rm = getReleaseMonth(sku.releaseDate);
+  const ry = releaseYearOf(sku);
+  const { annual, monthly } = mode === 'samePeriod' && rm && ry ? calcSamePeriod(aggregated, rm, ry) : calcRolling12(aggregated);
+  return {
+    ...sku.comparisonSku,
+    name: selected.length === 1 ? selected[0].name : `${selected.length}개 SKU 합산`,
+    compareSkuNames: selected.map((s) => s.name),
+    // 빠진 대응SKU의 지정값은 정리
+    baseYears: Object.fromEntries(Object.entries(baseYears ?? {}).filter(([n]) => selected.some((s) => s.name === n))),
+    ...modeField,
+    monthlyShipment: monthly,
+    annualShipment: annual,
+  };
 }
 
 /**

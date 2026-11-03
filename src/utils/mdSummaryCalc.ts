@@ -1,104 +1,102 @@
-import { CATEGORIES, CHANNELS, isSkuActiveForYearMonth } from '../types';
+import { CHANNELS, isSkuActiveForYearMonth } from '../types';
 import type { SkuData, Channel, Month, YearMonth } from '../types';
-import { calcVariableCostRatio, type TeamCateMap } from '../services/tableau';
-import { PRICING_DEFAULT_OPT } from './pricingScenarios';
+import type { ChannelDataMap, SkuShipmentInfo, TeamCateMap } from '../services/tableau';
+import { buildCompareData, calcVarCostResults } from './compareData';
+import { basePriceOf, cellMoney, priceOptOf, qtyOf, varCostOf, type VarCostResults } from './reviewSku';
 import { step1Pricer } from './step1Price';
 import { getPricingPolicy } from '../hooks/usePricingPolicy';
 
-export type MonthMetrics = { qty: number; revenue: number; profit: number };
-export const ZERO_METRICS: MonthMetrics = { qty: 0, revenue: 0, profit: 0 };
+export type MonthMetrics = { qty: number; revenue: number; profit: number; profitRevenue: number };
+export const ZERO_METRICS: MonthMetrics = { qty: 0, revenue: 0, profit: 0, profitRevenue: 0 };
 
-/**
- * 판매가 선택지 단가 — SKU 카드 · 채널 목표량과 같은 step1Pricer (프라이싱 탭 가격 · 할인 정책) 사용.
- * 정책은 앱 전체 구독값(getPricingPolicy). 환율 미지정 시 기본값(1,400 · 9.0).
- */
-export function calcScenarioPrice(sku: SkuData, optId: string, base: number, usdRate = 1400, jpyRate = 9.0): number {
+/** 판매가 선택지 단가 — 정책은 앱 전체 구독값. 환율 미지정 시 기본값(1,400 · 9.0). */
+function calcScenarioPrice(sku: SkuData, optId: string, base: number, usdRate = 1400, jpyRate = 9.0): number {
   return step1Pricer(sku, getPricingPolicy(), { usd: usdRate, jpy: jpyRate })(optId, base);
 }
 
-/**
- * 카테고리×채널별 변동비율 맵 (STEP2/SkuCard와 동일한 Tableau 팀카테 역산 기준).
- * key: `${category}|${channel}`. 이 뷰는 SKU별 대응SKU 비교기간 선택을 알 수 없으므로
- * STEP2 기본 모드인 rolling12(직전 12개월, 데이터셋 최신 기준)로 고정 계산한다.
- */
-export type VarCostRatioMap = Record<string, number>;
+/** SKU별 변동비 — null이면 못 불러온 상태(공헌이익을 계산하지 않음). SKU 카드와 같은 기간을 쓴다 */
+export type VarCostBySku = Record<string, VarCostResults> | null;
 
-export function varCostKey(category: string, channel: string): string {
-  return `${category}|${channel}`;
-}
-
-export function buildVarCostRatioMap(teamCateMap: TeamCateMap | null): VarCostRatioMap {
-  const map: VarCostRatioMap = {};
-  if (!teamCateMap) return map;
-  for (const category of CATEGORIES) {
-    for (const channel of CHANNELS) {
-      const r = calcVariableCostRatio(teamCateMap, category, channel, 'rolling12', null, null);
-      if (r) map[varCostKey(category, channel)] = r.ratio;
-    }
-  }
-  return map;
+export function buildVarCostBySku(
+  skus: SkuData[], teamCate: TeamCateMap | null, shipments: SkuShipmentInfo[], channelMap: ChannelDataMap | null,
+): VarCostBySku {
+  if (!teamCate) return null;
+  return Object.fromEntries(skus.map((s) => {
+    const cd = buildCompareData(s, shipments, channelMap);
+    return [s.id, calcVarCostResults(teamCate, s, cd.mode, cd.channelYM)];
+  }));
 }
 
 export function calcChannelMonthMetrics(
-  sku: SkuData, channel: Channel, month: Month, varCostMap: VarCostRatioMap = {},
+  sku: SkuData, channel: Channel, month: Month, varCost: VarCostBySku,
   usdRate?: number, jpyRate?: number,
 ): MonthMetrics {
-  const qty = sku.channelMonthQty.find((e) => e.channel === channel && e.month === month)?.qty ?? 0;
+  const qty = qtyOf(sku, channel, month);
   if (qty === 0) return ZERO_METRICS;
-  const cp = sku.channelPricing?.find((p) => p.channel === channel);
-  const effectivePrice = cp && cp.price > 0 ? cp.price : sku.price;
-  const optId = sku.pricingOpts?.[`${channel}-${month}`] ?? PRICING_DEFAULT_OPT[channel] ?? '';
-  const scenarioPrice = calcScenarioPrice(sku, optId, effectivePrice, usdRate, jpyRate);
-  const revenue = Math.round((scenarioPrice / 1.1) * qty);
-  // 공헌이익 = 순매출 − 원가 − 변동비(Tableau 팀카테 역산, fallback 25%) — STEP2/SkuCard와 동일 공식
-  const varRatio = varCostMap[varCostKey(sku.category, channel)] ?? 0.25;
-  const profit = Math.round(revenue * (1 - varRatio) - sku.cost * qty);
-  return { qty, revenue, profit };
+  const price = calcScenarioPrice(sku, priceOptOf(sku, channel, month), basePriceOf(sku, channel), usdRate, jpyRate);
+  const { revenue, profit } = cellMoney(price, qty, sku.cost, varCostOf(varCost ? (varCost[sku.id] ?? {}) : null, channel).ratio);
+  return { qty, revenue, profit: profit ?? 0, profitRevenue: profit === null ? 0 : revenue };
+}
+
+/** 그 달 마케팅 수량의 원가 — 매출 없이 공헌이익에서만 차감 (원가 · 변동비가 있어 공헌이익을 계산한 경우만) */
+function marketingMetrics(sku: SkuData, ym: YearMonth, varCost: VarCostBySku): MonthMetrics {
+  if (!varCost || !sku.cost || !isSkuActiveForYearMonth(sku, ym)) return ZERO_METRICS;
+  return { ...ZERO_METRICS, profit: -sku.cost * (sku.marketingMonthQty?.[ym.month] ?? 0) };
 }
 
 /**
  * SKU × 채널 × YearMonth 목록 합산.
  * YearMonth 단위로 체크하므로 같은 월 번호라도 연도가 다르면 별도 집계됨.
  */
-export function calcSkuChannelTotals(
-  sku: SkuData, channel: Channel, months: YearMonth[], varCostMap: VarCostRatioMap = {},
+function calcSkuChannelTotals(
+  sku: SkuData, channel: Channel, months: YearMonth[], varCost: VarCostBySku,
   usdRate?: number, jpyRate?: number,
 ): MonthMetrics {
   return months.reduce((acc, ym) => {
     if (!isSkuActiveForYearMonth(sku, ym)) return acc;
-    return addMetrics(acc, calcChannelMonthMetrics(sku, channel, ym.month, varCostMap, usdRate, jpyRate));
+    return addMetrics(acc, calcChannelMonthMetrics(sku, channel, ym.month, varCost, usdRate, jpyRate));
   }, ZERO_METRICS);
 }
 
 /**
- * channels 생략 시 전체 채널(CHANNELS) 합산 — "전체 요약" 뷰에서 그대로 사용.
- * channels를 넘기면 그 부분집합만 합산 — 채널 다중선택 뷰(MdChannelDetail)에서 재사용.
+ * channels 생략 시 전체 채널 합산 + 마케팅 원가 차감 — "전체 요약" 뷰(카드 합계와 같은 값).
+ * channels를 넘기면 그 부분집합만 합산 — 채널 다중선택 뷰(마케팅은 채널이 아니라 제외).
  */
 export function calcSkuAllChannelTotals(
-  sku: SkuData, months: YearMonth[], varCostMap: VarCostRatioMap = {},
-  usdRate?: number, jpyRate?: number, channels: readonly Channel[] = CHANNELS,
+  sku: SkuData, months: YearMonth[], varCost: VarCostBySku,
+  usdRate?: number, jpyRate?: number, channels?: readonly Channel[],
 ): MonthMetrics & { cm: number | null } {
-  const totals = [...channels].reduce(
-    (acc, ch) => addMetrics(acc, calcSkuChannelTotals(sku, ch, months, varCostMap, usdRate, jpyRate)),
+  let totals = [...(channels ?? CHANNELS)].reduce(
+    (acc, ch) => addMetrics(acc, calcSkuChannelTotals(sku, ch, months, varCost, usdRate, jpyRate)),
     ZERO_METRICS,
   );
-  const cm = totals.revenue > 0 ? Math.round((totals.profit / totals.revenue) * 1000) / 10 : null;
-  return { ...totals, cm };
+  if (!channels) totals = months.reduce((acc, ym) => addMetrics(acc, marketingMetrics(sku, ym, varCost)), totals);
+  return { ...totals, cm: metricsCm(totals) };
+}
+
+/** 한 달의 전체 채널 합계 + 마케팅 차감 — 전체 요약 월별 차트용 */
+export function calcSkuMonthMarketing(sku: SkuData, ym: YearMonth, varCost: VarCostBySku): number {
+  return marketingMetrics(sku, ym, varCost).profit;
 }
 
 /** 여러 채널의 특정 월 지표 합산 — calcChannelMonthMetrics의 다중 채널 버전 */
 export function calcChannelsMonthMetrics(
-  sku: SkuData, channels: readonly Channel[], month: Month, varCostMap: VarCostRatioMap = {},
+  sku: SkuData, channels: readonly Channel[], month: Month, varCost: VarCostBySku,
   usdRate?: number, jpyRate?: number,
 ): MonthMetrics {
   return channels.reduce(
-    (acc, ch) => addMetrics(acc, calcChannelMonthMetrics(sku, ch, month, varCostMap, usdRate, jpyRate)),
+    (acc, ch) => addMetrics(acc, calcChannelMonthMetrics(sku, ch, month, varCost, usdRate, jpyRate)),
     ZERO_METRICS,
   );
 }
 
 export function addMetrics(a: MonthMetrics, b: MonthMetrics): MonthMetrics {
-  return { qty: a.qty + b.qty, revenue: a.revenue + b.revenue, profit: a.profit + b.profit };
+  return { qty: a.qty + b.qty, revenue: a.revenue + b.revenue, profit: a.profit + b.profit, profitRevenue: a.profitRevenue + b.profitRevenue };
+}
+
+/** 공헌이익을 계산한 SKU의 매출 기준 CM% — 원가 없는 SKU 매출이 분모에 섞이지 않게 */
+export function metricsCm(m: MonthMetrics): number | null {
+  return m.profitRevenue > 0 ? Math.round((m.profit / m.profitRevenue) * 1000) / 10 : null;
 }
 
 export function formatWon(n: number): string {

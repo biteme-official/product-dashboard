@@ -5,6 +5,7 @@ import { step1Pricer } from './step1Price';
 import { PRICING_DEFAULT_OPT } from './pricingScenarios';
 import { compDistForShare } from './compareData';
 import { getPricingPolicy } from '../hooks/usePricingPolicy';
+import { VAR_COST_DEFAULT } from './reviewSku';
 
 function todayYymmdd(): string {
   const d = new Date();
@@ -329,7 +330,7 @@ export function exportSimulationXlsx(params: SimExportParams): void {
   // ── Section 4-B: 변동비율 참조 ────────────────────────────────────────
   sv(R_VAR_TITLE, 0, '[ 채널별 변동비율 - Tableau 기준, 없을 시 25% ]');
   ALL_CH.forEach((ch, i) => sv(R_VAR_CH_HDR, i, ch));
-  ALL_CH.forEach((ch, i) => spct(R_VAR_DATA, i, varCostByChannel[ch] ?? 0.25));
+  ALL_CH.forEach((ch, i) => spct(R_VAR_DATA, i, varCostByChannel[ch] ?? VAR_COST_DEFAULT));
 
   // ── Section 5: 채널별 목표량 설정 ──────────────────────────────────────
   sv(R_S5_TITLE, 0, '▶ 채널별 목표량 설정 (수량 수정 시 순매출·공헌이익 자동계산)');

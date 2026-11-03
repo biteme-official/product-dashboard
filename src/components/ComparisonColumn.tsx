@@ -3,9 +3,10 @@ import { useRef, useEffect, useState, useCallback, type KeyboardEvent } from 're
 import type { SkuData } from '../types';
 import { getReleaseMonth, getSkuMonths } from '../types';
 import { GrowthIndicator } from './GrowthIndicator';
-import { type BaseYearSource, type CompareBase, alignCompareSkus, calcMonthlyDisplayData, resolveBaseYear, samePeriodLabelOf, seasonYearsWithData } from '../utils/compareData';
+import { type BaseYearSource, type CompareBase, alignCompareSkus, calcMonthlyDisplayData, comparisonSkuOf, defaultCompareMode, resolveBaseYear, samePeriodLabelOf, seasonYearsWithData } from '../utils/compareData';
 import { NumericInput } from './NumericInput';
 import { revenueMultiplier, calcDynamicMultiplier } from '../utils/calc';
+import { cmOf } from '../utils/reviewSku';
 import {
   fetchSkuShipments,
   fetchChannelShipments,
@@ -37,7 +38,7 @@ interface Props {
   onChannelDistChange?: (dist: Record<string, number> | null) => void;
   onChannelYMDataChange?: (data: ChannelByYearMonth | null) => void;
   step3Revenue?: number;
-  step3Profit?: number;
+  step3Profit?: number | null;
 }
 
 export function ComparisonColumn({ sku, readOnly, onComparisonDataChange, onChannelDistChange, onChannelYMDataChange, step3Revenue, step3Profit }: Props) {
@@ -60,13 +61,11 @@ export function ComparisonColumn({ sku, readOnly, onComparisonDataChange, onChan
   const [totalMonthly, setTotalMonthly] = useState<number | null>(null);
 
   // 의류·잡화는 동기간이 기본값
-  const defaultMode: CompareMode = (sku.category === '의류' || sku.category === '잡화') ? 'samePeriod' : 'rolling12';
+  const defaultMode: CompareMode = defaultCompareMode(sku);
 
   // 선택된 대응 SKU 목록 (복수)
   const [selectedSkus, setSelectedSkus] = useState<SkuShipmentInfo[]>([]);
-  const [compareMode, setCompareMode] = useState<CompareMode>(() =>
-    (sku.category === '의류' || sku.category === '잡화') ? 'samePeriod' : 'rolling12'
-  );
+  const [compareMode, setCompareMode] = useState<CompareMode>(defaultMode);
 
   // 검색 UI
   const [query, setQuery] = useState('');
@@ -204,52 +203,18 @@ export function ComparisonColumn({ sku, readOnly, onComparisonDataChange, onChan
 
   // 집계 byYearMonth 계산 후 저장 + 콜백 호출
   function applySelection(skus: SkuShipmentInfo[], mode: CompareMode, by = baseYears) {
+    updateSku(sku.id, { comparisonSku: comparisonSkuOf(sku, skus, mode, by, channelMap) });
+    persistSku(sku.id);
     if (skus.length === 0) {
-      updateSku(sku.id, {
-        comparisonSku: {
-          ...sku.comparisonSku,
-          name: '',
-          compareSkuNames: [],
-          baseYears: {},
-          monthlyShipment: 0,
-          annualShipment: 0,
-        },
-      });
-      persistSku(sku.id);
       onComparisonDataChange?.({}, mode, mode === 'rolling12' ? '직전 12개월/월평균' : '');
       return;
     }
-
     const aligned = alignOf(skus, mode, by);
     const aggregated = aggregateByYearMonth(aligned.shipments);
     const rm = getReleaseMonth(sku.releaseDate);
     const ry = sku.releaseDate ? parseInt(sku.releaseDate.split('-')[0], 10) : null;
-
-    let annual: number, monthly: number, label: string;
-    if (mode === 'samePeriod' && rm && ry) {
-      ({ annual, monthly } = calcSamePeriod(aggregated, rm, ry));
-      label = samePeriodLabelOf(rm, aligned.bases);
-    } else {
-      ({ annual, monthly } = calcRolling12(aggregated));
-      label = '직전 12개월/월평균';
-    }
-
-    const displayName = skus.length === 1 ? skus[0].name : `${skus.length}개 SKU 합산`;
-    updateSku(sku.id, {
-      comparisonSku: {
-        ...sku.comparisonSku,
-        name: displayName,
-        compareSkuNames: skus.map((s) => s.name),
-        // 빠진 대응SKU의 지정값은 정리
-        baseYears: Object.fromEntries(Object.entries(by ?? {}).filter(([n]) => skus.some((s) => s.name === n))),
-        monthlyShipment: monthly,
-        annualShipment: annual,
-      },
-    });
-    persistSku(sku.id);
-
-    const data = calcMonthlyDisplayData(aggregated, mode, sku.releaseDate, ry);
-    onComparisonDataChange?.(data, mode, label);
+    const label = mode === 'samePeriod' && rm && ry ? samePeriodLabelOf(rm, aligned.bases) : '직전 12개월/월평균';
+    onComparisonDataChange?.(calcMonthlyDisplayData(aggregated, mode, sku.releaseDate, ry), mode, label);
   }
 
   function toggleSku(s: SkuShipmentInfo) {
@@ -566,9 +531,9 @@ export function ComparisonColumn({ sku, readOnly, onComparisonDataChange, onChan
         const baseProfit = Math.round(baseRev * sku.contributionMarginRate / 100);
         const hasStep3 = step3Revenue !== undefined && step3Revenue > 0;
         const displayRev = hasStep3 ? step3Revenue! : baseRev;
-        const displayProfit = hasStep3 ? (step3Profit ?? baseProfit) : baseProfit;
-        const cmRate = hasStep3 && displayRev > 0
-          ? Math.round((displayProfit / displayRev) * 1000) / 10
+        const displayProfit = hasStep3 ? (step3Profit ?? null) : baseProfit;
+        const cmRate = hasStep3
+          ? cmOf(displayRev, displayProfit)
           : sku.contributionMarginRate;
         const hasValue = hasStep3 || (sku.totalOrderQty > 0 && sku.price > 0);
         return (
@@ -576,13 +541,13 @@ export function ComparisonColumn({ sku, readOnly, onComparisonDataChange, onChan
             <div className="grid grid-cols-2 gap-2">
               <ScoreCard
                 label="예상 순매출"
-                value={hasValue ? `₩${displayRev.toLocaleString()}` : '–'}
+                value={hasValue ? `₩${Math.round(displayRev).toLocaleString()}` : '–'}
                 sub={hasStep3 ? '목표량 기준' : ''}
               />
               <ScoreCard
                 label="공헌이익"
-                value={hasValue ? `₩${displayProfit.toLocaleString()}` : '–'}
-                sub={`이익률 ${cmRate}%`}
+                value={hasValue && displayProfit !== null ? `₩${Math.round(displayProfit).toLocaleString()}` : '–'}
+                sub={cmRate === null ? '계산 불가 · 변동비 또는 원가 확인' : `이익률 ${cmRate}%`}
                 color="emerald"
               />
             </div>
