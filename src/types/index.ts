@@ -120,6 +120,12 @@ export function getSkuMonths(releaseDate: string | undefined | null): Month[] {
   return result;
 }
 
+/** 비운영 채널에 남아 있는 수량 합계 (0이어야 정상) */
+export function disabledChannelQty(sku: { channelMonthQty: ChannelMonthQtyEntry[]; coupangEnabled?: boolean; disabledChannels?: OptOutChannel[] }): number {
+  const off = getDisabledChannels(sku) as readonly string[];
+  return sku.channelMonthQty.reduce((a, e) => a + (off.includes(e.channel) ? e.qty : 0), 0);
+}
+
 /** 해당 월이 출시연도 기준 익년인지 여부 (출시월보다 숫자가 작으면 익년으로 wrap된 것) */
 export function isNextYearMonth(month: Month, releaseDate: string | undefined | null): boolean {
   const rm = getReleaseMonth(releaseDate ?? '') ?? 7;
@@ -196,6 +202,23 @@ export const DEFAULT_CHANNEL_COMMISSION: Record<Channel, number> = {
   '일본': 0,
 };
 
+/** 발주량 검토에서 보관하는 안 하나 (수량 · 판매가만, 옵션 비율과 대응SKU는 안과 무관) */
+export interface OrderPlanSnapshot {
+  totalOrderQty: number;
+  channelMonthQty: ChannelMonthQtyEntry[];
+  marketingMonthQty: { [month: number]: number };
+  pricingOpts: Record<string, string>;
+}
+
+export interface OrderPlans {
+  /** 지금 수량 필드에 들어 있는 안 */
+  active: 1 | 2;
+  /** 고르지 않은 안 (아직 없으면 null) */
+  other: OrderPlanSnapshot | null;
+  /** 1안·2안 버튼을 한 번이라도 눌러 저장했는지 */
+  decided: boolean;
+}
+
 export interface MonthlySplit {
   month: Month;
   ratio: number;
@@ -263,6 +286,7 @@ export interface SkuData {
   disabledChannels?: OptOutChannel[]; // 이 SKU에서 운영하지 않는 채널 (관리자 탭에서 설정, 기본 빈 배열 = 전부 활성)
   /** 채널을 끌 때 백업해둔 채널×월 목표량 — 다시 켤 때 복원용. 복원/소진 후엔 빈 배열(merge 저장이라 키 삭제 대신 비움) */
   disabledChannelBackup?: Partial<Record<OptOutChannel, ChannelMonthQtyEntry[]>>;
+  orderPlans?: OrderPlans; // 발주량 검토 1안 · 2안
   finalOrderQty?: Record<string, number>;
   finalOrderConfirmedAt?: string | null;
   finalOrderConfirmedOrderQty?: number;      // 발주 확정 시점의 총 발주량 — '발주량 변경됨' 경고 기준

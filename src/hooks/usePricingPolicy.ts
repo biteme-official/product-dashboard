@@ -25,7 +25,7 @@ function withDefaults(raw: Partial<PricingPolicy> | undefined): PricingPolicy {
 
 // ── 앱 전체가 정책 문서 하나를 같이 구독 (SKU 카드 수백 개가 각자 구독하지 않게) ──
 // 계산 유틸(채널별 요약 · 엑셀 등)은 getPricingPolicy()로 현재값을 바로 읽음
-let state: { policy: PricingPolicy; loaded: boolean } = { policy: DEFAULT_PRICING_POLICY, loaded: false };
+let state: { policy: PricingPolicy; loaded: boolean; isDefault: boolean } = { policy: DEFAULT_PRICING_POLICY, loaded: false, isDefault: false };
 const listeners = new Set<() => void>();
 let unsub: (() => void) | null = null;
 
@@ -34,7 +34,7 @@ function subscribe(cb: () => void) {
   if (!unsub) {
     unsub = onSnapshot(
       POLICY_DOC,
-      (snap) => { state = { policy: withDefaults(snap.exists() ? (snap.data() as Partial<PricingPolicy>) : undefined), loaded: true }; listeners.forEach((l) => l()); },
+      (snap) => { state = { policy: withDefaults(snap.exists() ? (snap.data() as Partial<PricingPolicy>) : undefined), loaded: true, isDefault: !snap.exists() }; listeners.forEach((l) => l()); },
       (err) => { console.error('[pricingPolicy] 구독 실패', err); state = { ...state, loaded: true }; listeners.forEach((l) => l()); },
     );
   }
@@ -48,7 +48,7 @@ export function getPricingPolicy(): PricingPolicy {
   return state.policy;
 }
 
-export function usePricingPolicy(): { policy: PricingPolicy; loaded: boolean } {
+export function usePricingPolicy(): { policy: PricingPolicy; loaded: boolean; isDefault: boolean } {
   return useSyncExternalStore(subscribe, () => state);
 }
 
