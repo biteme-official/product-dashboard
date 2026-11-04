@@ -3,6 +3,8 @@ import { BRANDS, CATEGORIES, type Brand, type Category } from '../types';
 import { usePricingPolicy } from '../hooks/usePricingPolicy';
 import { useExchangeRates } from '../utils/useExchangeRates';
 import { calcPricesV2, ROUND_LABEL, type PriceKey } from '../utils/pricingV2';
+import { ManualCardChapter, ManualReviewChapter } from './ManualReviewChapters';
+import { MANUAL_REVIEW_CSS } from './manualReviewCss';
 
 /**
  * 메뉴얼 탭 — CPO 대시보드 매뉴얼과 같은 구성(역할별 바로가기 · 고정 섹션 탭 · 카드 · 단계 흐름 · 예시 그림).
@@ -15,9 +17,7 @@ const SECTIONS = [
   { id: 'roles', label: '🔑 역할 · 권한' },
   { id: 'cpo', label: '🔗 CPO 연동' },
   { id: 'card', label: '🪪 SKU 카드' },
-  { id: 'step1', label: '1️⃣ 월 계획' },
-  { id: 'target', label: '2️⃣ 채널별 목표량' },
-  { id: 'step2', label: '3️⃣ STEP 2' },
+  { id: 'review', label: '⚖️ 발주량 검토' },
   { id: 'projection', label: '📋 프로젝션' },
   { id: 'pricing', label: '💰 프라이싱' },
   { id: 'formula', label: '🧮 계산 수식' },
@@ -78,7 +78,7 @@ export function ManualTab() {
 
   return (
     <div className="pman">
-      <style>{MANUAL_CSS}</style>
+      <style>{MANUAL_CSS + MANUAL_REVIEW_CSS}</style>
 
       {/* ── 머리말 ── */}
       <header className="hero">
@@ -90,7 +90,7 @@ export function ManualTab() {
           <div className="flow-hero" aria-label="SKU 한 개가 거치는 순서">
             {[
               ['CPO 기획', 'SKU 카드 자동 생성', 'vw', 'CPO 대시보드'],
-              ['월 계획', '달마다 몇 개 팔지', 'pm', 'PM'],
+              ['발주량 · 월별 목표량', '몇 개 만들고 달마다 몇 개 팔지', 'pm', 'PM'],
               ['채널별 목표량', '어디서 몇 개 팔지', 'bmd', 'MD · 글로벌'],
               ['채널 · 오픈일정 확정', '담당 그룹별 잠금', 'bmd', 'MD · 글로벌'],
               ['프라이싱 확정', '상황별 가격 잠금', 'pmd', 'MD · PM'],
@@ -106,13 +106,13 @@ export function ManualTab() {
           <div className="role-grid" aria-label="역할별 바로가기">
             <div className="role-card">
               <div><span className="rb pm">PM · CPO</span></div>
-              <ul><li>SKU 기본 정보 · 월 비중 입력</li><li>전 채널 목표량 · 비중 조정</li><li>프라이싱 수정 · 확정</li><li>최종 발주 확정</li></ul>
-              <div className="go"><Jump to="step1">월 계획</Jump><Jump to="pricing">프라이싱</Jump><Jump to="admin">발주 확정</Jump></div>
+              <ul><li>SKU 기본 정보 · 발주량 · 월별 목표량</li><li>전 채널 목표량 · 비중 조정</li><li>프라이싱 수정 · 확정</li><li>최종 발주 확정</li></ul>
+              <div className="go"><Jump to="review">발주량 검토</Jump><Jump to="pricing">프라이싱</Jump><Jump to="admin">발주 확정</Jump></div>
             </div>
             <div className="role-card">
               <div className="rbs"><span className="rb pmd">플랫폼MD</span><span className="rb bmd">브랜드MD</span><span className="rb gl">글로벌</span></div>
               <ul><li>담당 채널 목표량 입력 · 확정</li><li>채널별 오픈일정 입력 · 확정</li><li>프라이싱 수정 · 확정 (글로벌 제외)</li></ul>
-              <div className="go"><Jump to="target">채널별 목표량</Jump><Jump to="projection">오픈일정</Jump><Jump to="pricing">프라이싱</Jump></div>
+              <div className="go"><Jump to="review">발주량 검토</Jump><Jump to="projection">오픈일정</Jump><Jump to="pricing">프라이싱</Jump></div>
             </div>
             <div className="role-card">
               <div className="rbs"><span className="rb vw">VIEWER</span><span className="rb master">MASTER</span></div>
@@ -138,12 +138,12 @@ export function ManualTab() {
         <Section id="start" eyebrow="Orientation" color="var(--accent)" title="🚪 시작하기" lede="상단 메인 탭 5개 · 로그인하면 항상 프로젝션 › LIST VIEW부터 시작.">
           <Card title="🗺️ 메뉴 지도">
             <Tbl minW={560} cols={['k', '', 'e']} head={['탭', '여기서 하는 일', '누가 주로']} rows={[
-              ['프로젝션', 'LIST VIEW · 채널별 오픈일정 · 채널 목표량 · 프라이싱 (서브탭 4개)', '전원'],
+              ['프로젝션', 'LIST VIEW · 채널별 오픈일정 · 발주량 검토 · 프라이싱 (서브탭 4개)', '전원'],
               ['└ LIST VIEW', '전체 SKU 표 · 확정 현황 한눈에', '전원'],
               ['└ 채널별 오픈일정', '채널마다 오픈 날짜 · 선오픈 표시', 'MD · 글로벌'],
-              ['└ 채널 목표량', '여러 SKU의 STEP 1을 한 화면에서 · 일괄 작업', 'PM · MD'],
+              ['└ 발주량 검토', '안 비교 · 월별 목표량 · 채널별 목표량 · 옵션별 검토 · 발주 확정 · 일괄 작업', 'PM · MD'],
               ['└ 프라이싱', '상황별 가격 비교 · 수정 · 확정', 'PM · MD'],
-              ['SKU 리스트', 'SKU 카드 목록 · 카드 ↔ 표 보기 전환', 'PM · MD'],
+              ['SKU 리스트', 'SKU 카드 목록 · 기본 정보 수정 · 발주 결과 확인', 'PM · MD'],
               ['채널별 요약', '전체 SKU 채널별 수량 · 매출 · 이익 집계', 'MD · 전략'],
               ['메뉴얼', '지금 이 페이지', '전원'],
               ['관리', 'PIN · 권한 · SKU 관리(할인 정책 · 채널 관리 · 시즌 한정) · 데이터 정리 · 메모', 'MASTER'],
@@ -155,6 +155,10 @@ export function ManualTab() {
               ['대응 SKU', '새 SKU와 비슷한 기존 판매 SKU', '“이거랑 비슷하게 팔리겠지” 기준 상품'],
               ['발주량 · MOQ', '제조사 주문 수량 · 최소 주문 수량', '만드는 수량 · 최소 이만큼은 만들어야 함'],
               ['판매 목표', '출시월부터 8개월간 채널×월 목표량 합계', '팔 계획 · 리오더까지 넣으면 발주량보다 클 수 있음'],
+              ['1안 · 2안', 'SKU마다 비교하는 발주 안 두 개 · 하나를 골라 저장', '수량 · 판매가를 바꿔 나란히 비교'],
+              ['금액 기준', '초도 발주량만 ↔ 시즌 목표 · 리오더 포함', '이번 발주분만 볼지 · 리오더까지 볼지'],
+              ['소진월', '누적 판매 목표가 발주량에 닿는 달', '발주량이 다 팔리는 달'],
+              ['옵션별 최종 발주량', '컬러 · 사이즈별 실제 발주 수량', '총 발주량 × 옵션 비중 · 수기 수정 가능'],
               ['리오더 / 시즌 한정', '첫 발주 후 추가 발주 / 리오더 없는 상품 (관리 탭에서 지정)', '다시 만들 수 있나 없나'],
               ['채널', 'B2C 자사몰 · 스스 · 위탁 · 팝업/페어 / B2B 쿠팡 · B2B · 사입 · 글로벌 · 일본 (+ 마케팅)', '파는 곳'],
               ['순매출', '부가세 뺀 매출', '가격 ÷ 1.1 × 수량'],
@@ -181,7 +185,8 @@ export function ManualTab() {
                 <tbody>
                   {([
                     ['SKU 기본 정보', 'y', 'y', '', '', '', ''],
-                    ['월 계획 (월 비중)', 'y', 'y', '', '', '', ''],
+                    ['월별 목표량 (월 계획 권한)', 'y', 'y', '', '', '', ''],
+                    ['안 전환 · 저장', 'y', 'y', '', '', '', ''],
                     ['채널별 목표량', '전체', '전체', '자사몰 · 마케팅', '스스 · 위탁 · 팝업/페어 · B2B · 쿠팡 · 사입', '글로벌 · 일본', ''],
                     ['채널 확정 · 오픈일정 확정', '전체', '전체', '플랫폼 그룹', '브랜드 그룹', '글로벌 그룹', ''],
                     ['프라이싱 수정 · 확정', 'y', 'y', 'y', 'y', '', ''],
@@ -243,7 +248,7 @@ export function ManualTab() {
               ['판매가 · 원가 · 정가', <Pill c="amber">🔒 CPO 전용</Pill>, '회색 읽기전용 · 미확정이면 “CPO 미확정”'],
               ['입고 · 촬영예정일', <Pill c="amber">🔒 CPO 전용</Pill>, '날짜칸 잠금'],
               ['컬러 · 사이즈 옵션 · 썸네일', <Pill c="amber">🔒 CPO 전용</Pill>, 'CPO 등록 내용 그대로'],
-              ['그 외 (발주량 · MOQ · STEP 1·2 · 프라이싱)', <Pill c="ok">✏️ 여기서 수정</Pill>, 'CPO와 무관'],
+              ['그 외 (발주량 · MOQ · 월별 목표량 · 채널별 목표량 · 옵션별 검토 · 프라이싱)', <Pill c="ok">✏️ 여기서 수정</Pill>, 'CPO와 무관'],
             ]} />
             <p className="sub">* 카드 상단에 CPO 진행상태 배지 + 기획 담당자 이름 (읽기 전용) · CPO 미연동(예전) SKU는 잠금 없이 전부 직접 입력</p>
           </Card>
@@ -257,162 +262,10 @@ export function ManualTab() {
         </Section>
 
         {/* ═════════ SKU 카드 ═════════ */}
-        <Section id="card" eyebrow="Anatomy" color="var(--sky)" title="🪪 SKU 카드" lede="SKU 하나의 모든 계획이 들어 있는 카드 · SKU 리스트 탭 · 채널 목표량 탭에서 열림.">
-          <Card title="🧩 카드 구성 (위 → 아래)">
-            <Steps items={[
-              ['기본 정보', 'SKU명 · 브랜드 · 카테고리 · 제품 유형 · 출시일 · 원가 · 판매가 · 총 발주량 · MOQ · 사이즈 · 컬러 수 · 🔒 가격 확정됨 배지'],
-              ['대응 SKU 패널', '비교할 기존 SKU 검색 · Tableau 실적 자동 로드 · 비교 기간 선택'],
-              ['STEP 탭', 'STEP 1 = 월 계획(위) + 채널별 목표량(아래) 한 화면 · STEP 2 = 채널별 수량 확인'],
-              ['프라이싱 안내', '가격 보기 · 확정은 프로젝션 › 프라이싱 탭으로 이동'],
-            ]} />
-          </Card>
-          <Card title="🔍 대응 SKU 패널">
-            <ul>
-              <li><b>여러 개 선택 가능</b> — 출고량 합산해서 기준으로 사용</li>
-              <li><b>월평균 · 연간 출고량</b> — 선택 기간 기준 자동</li>
-              <li><b>채널별 출고 비중</b> — 차트 · 채널별 목표량 첫 배분에 사용</li>
-              <li><b>증감률 비교</b> — 대응SKU vs 우리 계획 · 월 출고량 = 판매 목표 ÷ 수량 있는 달 수 · 판매가 = 기본정보 판매가</li>
-            </ul>
-            <PeriodTimeline />
-            <p className="sub">* 비교 기간 선택 = 변동비율 계산 기간도 같이 바뀜</p>
-          </Card>
-        </Section>
+        <ManualCardChapter />
 
-        {/* ═════════ STEP 1 월 계획 ═════════ */}
-        <Section id="step1" eyebrow="STEP 1 · ① PM" color="var(--violet)" title="1️⃣ 월 계획과 발주량 커버">
-          <Easy>수량의 원본은 <b>채널 × 월 표 하나</b> · PM은 <b>세로 합계(월)</b>, MD는 <b>가로 합계(채널)</b>를 만지는 손잡이 · 어디를 고쳐도 같은 표라 숫자가 안 어긋남.</Easy>
-          <Card title={<>🧱 표 하나, 손잡이 둘 <Sample /></>}>
-            <div className="viz" style={{ overflowX: 'auto' }}>
-              <table className="matrix">
-                <thead><tr><th /><th>10월</th><th>11월</th><th>12월</th><th>…</th><th className="sum">채널 합계 → MD</th></tr></thead>
-                <tbody>
-                  <tr><td className="rh">자사몰</td><td>60</td><td>40</td><td>30</td><td>…</td><td className="sum">200</td></tr>
-                  <tr><td className="rh">스스</td><td>90</td><td>60</td><td>45</td><td>…</td><td className="sum">300</td></tr>
-                  <tr><td className="rh">B2B</td><td className="cf">45 🔒</td><td className="cf">30 🔒</td><td className="cf">22 🔒</td><td>…</td><td className="sum">150</td></tr>
-                  <tr><td className="rh">…</td><td>…</td><td>…</td><td>…</td><td>…</td><td className="sum">…</td></tr>
-                  <tr><td className="rh" style={{ color: 'var(--accent)' }}>월 합계 → PM</td><td className="sum">300</td><td className="sum">200</td><td className="sum">150</td><td className="sum">…</td><td className="sum">1,000</td></tr>
-                </tbody>
-              </table>
-              <p className="viz-cap">초록 🔒 = 확정된 채널 · 월 비중 · 채널 비중을 바꿔도 그대로 · 나머지 채널만 움직임</p>
-            </div>
-          </Card>
-          <Card title={<>📋 월 계획 표 읽는 법 <span className="sub">출시월부터 8개월</span></>}>
-            <Tbl minW={600} cols={['k', '', 'e']} head={['행', '뜻', '쉽게']} rows={[
-              ['총 발주량', '발주량&사이즈분배에서 입력 · 월 비중의 기준선', '없으면 월 비중 입력 잠김'],
-              ['대응SKU 실적', '대응SKU 월별 출고량 · 운영 채널 합(비운영 채널 제외) · 채널 데이터 없으면 SKU 토탈(비운영 채널 포함)', '참고용'],
-              ['수량', '그 달 채널 합계 + 마케팅', '읽기 전용 · 표에서 자동'],
-              ['비중 (입력)', '총 발주량 대비 그 달 판매 목표 %', '합계 100% 넘어도 OK · 160% = 발주량의 1.6배 판매 계획'],
-              ['누적', '월별 누적 판매 목표', '발주량 넘는 달부터 주황 · “리오더 시작”(시즌 한정은 “품절 예상”)'],
-              ['증감율', '대응SKU 실적 대비 월별 · 연도별', '참고용'],
-            ]} />
-          </Card>
-          <Card title="🔁 월 비중을 고치면">
-            <Steps items={[
-              ['월 비중 입력', '예: 10월 30% → 40% · 칸 벗어나거나 Enter 시 반영'],
-              ['그 달 수량 변경', '총 발주량 × 비중 = 1,000 × 40% = 400'],
-              ['채널로 나눔', '그 달 채널 구성비 그대로 · 확정 채널 · 마케팅은 제외'],
-            ]} />
-            <p className="sub">* 다른 달은 영향 없음 · 비어 있던 달은 대응SKU 채널 비중(없으면 기본 채널비중)으로 채움 · 운영 채널 전부 확정 → 월 비중 입력 잠김</p>
-          </Card>
-          <Card title={<>🩷 발주량 커버 안내 <Sample /> <span className="sub">화면 오른쪽 위 분홍 형광펜</span></>}>
-            <CoverChart />
-            <Tbl minW={600} cols={['k', '', '']} head={['판매 목표 vs 발주량', '리오더 가능 (기본)', '시즌 한정']} rows={[
-              ['목표 > 발주량', '발주량으로 N월까지 커버 · N월부터 리오더 약 N개', '품절 위험 · N월 조기 품절 예상 · N개 부족'],
-              ['목표 = 발주량', '판매 목표 = 발주량', '판매 목표 = 발주량'],
-              ['목표 < 발주량', '잔여 재고 · 시즌 후 약 N개 · 다음 시즌 이월', '과재고 위험 · 시즌 후 잔여 약 N개'],
-            ]} />
-            <p className="sub">
-              * 시즌 한정 SKU만 [판매 목표를 발주량에 맞추기] 표시 — 월 · 채널 모양 유지 · 크기만 맞춤 (확정 채널 제외)<br />
-              * 예전 “MOQ 미달!” 배지 · [비례반영] 버튼은 없어짐
-            </p>
-          </Card>
-          <Callout tone="warn" icon="⚠️" title="시즌 한정 ≠ SKU 구분 “시즈널”">
-            <ul>
-              <li>리오더 여부 = <b>관리 › SKU 관리 › 시즌 한정</b>에서 SKU별 지정</li>
-              <li>SKU 구분(시즈널 · 스테디 · 미해당)은 분류 표시용</li>
-              <li>시즌 한정 지정한 적 없는 SKU → <b>카테고리 의류</b> · SKU 구분 시즈널이면 시즌 한정으로 봄 (관리 탭에서 해제 가능)</li>
-            </ul>
-          </Callout>
-        </Section>
-
-        {/* ═════════ 채널별 목표량 ═════════ */}
-        <Section id="target" eyebrow="STEP 1 · ② MD" color="var(--violet)" title="2️⃣ 채널별 목표량" lede="월 계획 바로 아래 표 · 채널 · 월별 수량과 판매가 시나리오 설정 · 예상 순매출 · 공헌이익 실시간.">
-          <Card title={<>🌱 처음 채워지는 방식 <span className="sub">표가 비어 있을 때 한 번</span></>}>
-            <Steps items={[
-              ['월 계획', '월 비중 입력값 · 없으면 총 발주량을 8개월 균등'],
-              ['채널 비중', '대응SKU 채널별 출고 비중 · 없으면 아래 기본 채널비중'],
-              ['채널 × 월 목표량', '매달 월 수량을 채널 비중대로 나눔'],
-            ]} />
-            <DefaultMix />
-            <ul>
-              <li>쿠팡 비활성 SKU · 글로벌/일본 OFF SKU → 배분에서 빠지고 그 비중은 나머지 채널로</li>
-              <li>대응SKU 채널 데이터를 아직 못 받았으면 자동 세팅 대기 → [대응SKU 비중으로 다시 나누기]로 채우기</li>
-              <li>대응SKU 비중 · 증감 · 대응 대비 %도 같은 기준 — 비운영 채널 제외 · 글로벌/일본 한쪽만 OFF면 해외 실적 전부 남은 쪽으로 · 대응SKU 채널별 월평균 출고 차트만 비운영 채널 포함 원본(참고용)</li>
-            </ul>
-          </Card>
-          <Card title="🎛️ 수량 조정 방법">
-            <Tbl minW={680} cols={['k', '', 'e', 'e nw']} head={['방법', '하는 법', '결과', '권한']} rows={[
-              ['칸 직접 수정', '채널 펼침 → 월별 수량 입력', '그 칸만 · 월 비중 · 채널 비중 자동 재계산', '담당 채널'],
-              ['채널 비중 수정', '[채널 비중 수정] → 여러 채널 % 입력 → [저장]', '월 합계 유지 · 안 고친 채널이 남은 % 나눠 가짐 · 수정+확정 합계 100% 초과 시 저장 불가', 'MASTER · PM'],
-              ['대응SKU 비중으로 다시 나누기', '버튼 클릭', '월 합계 유지 · 대응SKU 비중으로 다시 · 손으로 고친 값도 재계산', 'MASTER · PM'],
-              ['판매 목표를 발주량에 맞추기', '시즌 한정 SKU만', '모양 유지 · 크기만 총 발주량에', 'MASTER · PM'],
-              ['되돌리기', '조정 직후 버튼', '직전 상태로 · 카드 닫으면 불가', '—'],
-            ]} />
-            <Callout tone="note" icon="💡" title="대응SKU를 바꿔도 표는 그대로">“대응SKU 변경됨” 안내만 표시 · 새 비중 쓰려면 [대응SKU 비중으로 다시 나누기]</Callout>
-          </Card>
-          <Card title="📊 채널 표 읽는 법">
-            <div className="grid2">
-              <Mini title="접힌 상태 (채널 요약)">
-                <ul>
-                  <li>비중 — 전체 대비 그 채널 %</li>
-                  <li>총수량 — 월 합산 · 기준 대비 Δ</li>
-                  <li>실매출단가 — 수량 가중평균 가격</li>
-                  <li>순매출 · 공헌이익 · 변동비율(~ = 근사값)</li>
-                  <li>CM% — <span className="cr-g">≥40%</span> · <span className="cr-y">≥30%</span> · <span className="cr-r">&lt;30%</span></li>
-                </ul>
-              </Mini>
-              <Mini title="펼친 상태 (채널 상세)">
-                <ul>
-                  <li>대응SKU 비교(회색) — 참고용 · 비운영 채널 – · 해외 한쪽 OFF면 남은 쪽에 합산</li>
-                  <li>목표 수량 입력 — 옆에 대응SKU 대비 증감율</li>
-                  <li>판매가 설정 — 월별 시나리오 · [일괄반영]</li>
-                  <li>실 판매가 — 글로벌 · 일본은 외화 함께</li>
-                  <li><span style={{ color: 'var(--sky)' }}>예상 순매출</span> · <span style={{ color: 'var(--ok)' }}>예상 공헌이익</span> · 연도별 합계</li>
-                </ul>
-              </Mini>
-            </div>
-            <p className="sub">* 변동비율 데이터 없으면 25% · 채널 수수료율 입력값은 참고용(계산 미반영)</p>
-          </Card>
-          <Card title="🔐 채널 확정 — 그룹 3개">
-            <Tbl minW={520} cols={['k', '', 'e']} head={['확정 그룹', '대상 채널', '누가']} rows={[
-              [<span className="rb pmd">플랫폼 확정</span>, '자사몰 · 마케팅', '플랫폼MD · MASTER · PM'],
-              [<span className="rb bmd">브랜드 확정</span>, '스스 · 위탁 · 팝업/페어 · B2B · 쿠팡 · 사입', '브랜드MD · MASTER · PM'],
-              [<span className="rb gl">글로벌 확정</span>, '글로벌 · 일본', '글로벌 · MASTER · PM'],
-            ]} />
-            <p className="sub">* 확정 = 그 그룹 수량 잠금 · 월 비중 · 채널 비중 · 다시 나누기에서 빠지고 나머지만 조정 · 전부 확정되면 비중 입력 잠김</p>
-          </Card>
-          <Card title={<>🎁 마케팅 채널 <span className="sub">B2C 아래 별도 · 협찬 · 샘플용</span></>}>
-            <ul>
-              <li>판매 아님 → 매출 0 · <b>원가 × 수량만큼 비용</b> (빨간 예상 비용)</li>
-              <li>합계 행 공헌이익 = B2C+B2B 공헌이익 − 원가 × 마케팅 수량</li>
-              <li>합계 CM% = 위 공헌이익 ÷ B2C+B2B 순매출</li>
-              <li>카드 상단 스코어카드도 공헌이익만 마케팅 비용 차감</li>
-            </ul>
-          </Card>
-        </Section>
-
-        {/* ═════════ STEP 2 ═════════ */}
-        <Section id="step2" eyebrow="STEP 2 · 확인용" color="var(--violet)" title="3️⃣ STEP 2 — 채널별 수량 확인">
-          <Easy>STEP 1에서 정한 수량을 <b>옵션(컬러 · 사이즈)별로 쪼개 보는 화면</b> · 입력 없음 · 재무 계산 없음.</Easy>
-          <Card>
-            <Tbl minW={520} cols={['k', '']} head={['항목', '내용']} rows={[
-              ['채널별 수량', 'B2C → 마케팅 → B2B 순'],
-              ['마케팅 행 (분홍)', 'STEP 1 마케팅 수량 그대로 · 비중은 전체 합계 기준'],
-              ['옵션별 수량', <>채널 월 수량 × 컬러 비중 × 사이즈 비중 <span className="sub">예: 100개 × 블랙 60% × M 50% = 30개</span></>],
-              ['연도별 소계 · 전체 합계', '출시연도 · 익년 각각 · 8개월 전체 (마케팅 포함)'],
-            ]} />
-          </Card>
-        </Section>
+        {/* ═════════ 발주량 검토 ═════════ */}
+        <ManualReviewChapter period={<PeriodTimeline />} mix={<DefaultMix />} />
 
         {/* ═════════ 프로젝션 ═════════ */}
         <Section id="projection" eyebrow="Many SKUs at once" color="var(--sky)" title="📋 프로젝션 화면" lede="여러 SKU를 한 번에 보는 서브탭 4개 · 위 필터(카테고리 · 브랜드 · 오픈월 · 오픈/완료 제외 · 검색)는 공통.">
@@ -434,19 +287,8 @@ export function ManualTab() {
               <li>편집: 채널별 목표량 권한 · 확정: 오픈일정 확정 권한 · 확정 후 전원 잠금</li>
             </ul>
           </Card>
-          <Card title={<>🎯 채널 목표량 <span className="sub">SKU 카드 STEP 1을 여러 SKU에 걸쳐 · 오픈일로 묶음 · 오픈/완료 제외 기본 ON</span></>}>
-            <Tbl minW={640} cols={['k', 'e', '']} head={['보기', '이럴 때', '내용']} rows={[
-              ['SKU카드별', '한 SKU씩 꼼꼼히', '왼쪽 목록 + 오른쪽 카드 · ↑↓ 키 · [이전 · 다음] · 빈 SKU는 [대응SKU 기준 채우기]로만 채움'],
-              ['채널별 설정', '한 채널을 SKU마다 비교', '채널 하나 골라 상세를 쌓아 보기 · 맨 위 전 채널 합계(마케팅 제외) · 이 채널 비중(정수 % · 아래 대응SKU 비중 · 비운영 제외) → 대응SKU · 수량 · 증감 · 판매가 · 순매출 · 공헌이익 · 헤더 칩 “채널 수량 / 전체 · %” · 담당 채널만 수정'],
-              ['월별 비중설정', '월 계획을 SKU마다', '월 계획 표를 쌓아 보기 · 월 계획 권한'],
-            ]} />
-            <div className="grid2">
-              <Mini title="⚡ 일괄 작업">
-                <span>SKU 체크 → 대응SKU 대비 % · 다른 SKU 월별 수량 복사(첫 달끼리 맞춤) · 일괄 증감 % · 판매가 시나리오 일괄반영 · 대응SKU 기준 채우기 · 월 비중 복사 · 그룹 확정</span>
-                <span>미리보기 → 적용 → 되돌리기 · 확정 · 비운영 · 권한 없는 채널 자동 제외 · 활동 로그</span>
-              </Mini>
-              <Mini title="👥 동시 수정 안전">저장 시 서버 최신값 위에 <b>내가 바꾼 칸만</b> 얹음 · 같은 SKU 다른 채널을 동시에 고쳐도 안 덮음 · 같은 칸은 나중 저장 우선</Mini>
-            </div>
+          <Card title={<>⚖️ 발주량 검토 <span className="sub">SKU별 결정 · 채널별 설정 · 월별 비중설정 · 전체 합계 → 앞 장에서 자세히</span></>}>
+            <div><Jump to="review">발주량 검토 보러가기 →</Jump></div>
           </Card>
           <Card title={<>💰 프라이싱 <span className="sub">→ 다음 장에서 자세히</span></>}>
             <div><Jump to="pricing">프라이싱 보러가기 →</Jump></div>
@@ -458,7 +300,7 @@ export function ManualTab() {
 
         {/* ═════════ 계산 수식 ═════════ */}
         <Section id="formula" eyebrow="Math" color="var(--teal)" title="🧮 핵심 계산 수식">
-          <Easy>매출 · 이익이 뜨는 화면은 전부 이 공식 하나 · 채널별 목표량 · SKU 카드 · 채널별 요약 모두 동일.</Easy>
+          <Easy>매출 · 이익이 뜨는 화면은 전부 이 공식 하나 · 발주량 검토 · SKU 카드 · 채널별 요약 모두 동일 · 금액 기준이 초도 발주량만이면 발주량까지만 계산.</Easy>
           <Card title={<>💧 판매가가 공헌이익이 되기까지 <Sample /></>}>
             <Waterfall />
           </Card>
@@ -469,7 +311,7 @@ export function ManualTab() {
               ['변동비율', '(순매출 − 원가 − 공헌이익) ÷ 순매출', 'Tableau 팀카테 실적에서 거꾸로 계산 · 없으면 25%'],
               ['공헌이익', '순매출 × (1 − 변동비율) − 원가 × 수량', '비용 · 원가 다 빼고 남는 돈'],
               ['CM%', '공헌이익 ÷ 순매출 × 100', <><span className="cr-g">≥40%</span> · <span className="cr-y">≥30%</span> · <span className="cr-r">&lt;30%</span></>],
-              ['옵션별 수량', '채널 월 수량 × 컬러 비중 × 사이즈 비중', 'STEP 2 분배'],
+              ['옵션별 수량', '채널 월 수량 × 컬러 비중 × 사이즈 비중', '채널 표 펼침 · 옵션별 검토'],
             ]} />
           </Card>
         </Section>
@@ -538,7 +380,7 @@ export function ManualTab() {
             <Steps items={[
               [<>채널별 목표량 확정 <span className="rb bmd">MD · 글로벌</span></>, '플랫폼 · 브랜드 · 글로벌 그룹별 · 확정 후 그 그룹 수량 잠금'],
               [<>채널별 오픈일정 확정 <span className="rb bmd">오픈일정 확정 권한</span></>, '프로젝션 › 채널별 오픈일정 · 확정 후 날짜 잠금'],
-              [<>최종 발주 확정 <span className="rb pm">PM · MASTER</span></>, '옵션별 최종 발주량 · 기본값 = 총 발주량 × 옵션 비율 · 확정 후 총 발주량이 바뀌면 “발주량 변경됨” 경고 (판매 목표 변경은 경고 없음)'],
+              [<>최종 발주 확정 <span className="rb pm">PM · MASTER</span></>, '발주량 검토 아래 줄 [발주 확정] · 옵션별 최종 발주량 기록 · 기본값 = 총 발주량 × 옵션 비율 · 안 저장과 별도 · 확정 후 총 발주량이 바뀌면 “발주량 변경됨” 경고 (판매 목표 변경은 경고 없음)'],
             ]} />
             <p className="sub">* 확정 이력(일시 · 역할)은 MASTER가 조회 · PM이 일부 화면에서 “CPO”로 보여도 같은 역할</p>
           </Card>
@@ -812,8 +654,8 @@ function PricingSection() {
         <p className="sub">* 정책 변경 → 미확정 SKU에만 바로 반영 · 확정 SKU는 확정 가격 유지</p>
       </Card>
 
-      <Card title={<>🧾 STEP 1 판매가 선택지 <span className="sub">채널별 목표량 · 매출 계산 · 엑셀</span></>}>
-        <Easy>STEP 1에서 고르는 판매가 = <b>프라이싱 탭 가격 그대로</b> · 미확정 SKU = 할인 정책 계산값(수동값 포함) · 확정 SKU = 확정 가격.</Easy>
+      <Card title={<>🧾 발주량 검토 판매가 선택지 <span className="sub">채널별 목표량 · 매출 계산 · 엑셀</span></>}>
+        <Easy>발주량 검토에서 고르는 판매가 = <b>프라이싱 탭 가격 그대로</b> · 미확정 SKU = 할인 정책 계산값(수동값 포함) · 확정 SKU = 확정 가격.</Easy>
         <Tbl minW={600} cols={['k', '', 'e']} head={['선택지', '가격', '비고']} rows={[
           ['선오픈 최저가', '프라이싱 탭 선오픈 최저가', '주력 SKU만 · 일반 SKU는 라이브로'],
           ['라이브', '프라이싱 탭 라이브', '오픈라이브 OFF여도 계산'],
@@ -856,31 +698,6 @@ function PeriodTimeline() {
       <p className="viz-cap">{mode === 'r'
         ? '직전 12개월 = 데이터가 있는 가장 최근 달(2026년 6월)부터 거꾸로 12개월 → 2025년 7월 ~ 2026년 6월'
         : '동기간 = 출시월(9월)부터 8개월의 1년 전 → 2025년 9월 ~ 2026년 4월'}</p>
-    </div>
-  );
-}
-
-function CoverChart() {
-  const labels = ['10월', '11월', '12월', '1월', '2월', '3월', '4월', '5월'];
-  const pct = [30, 20, 15, 15, 10, 10, 10, 10];
-  const order = 1000;
-  const max = 1200;
-  const H = 120;
-  let acc = 0;
-  const cols = pct.map((p) => (acc += (order * p) / 100));
-  return (
-    <div className="viz">
-      <div className="cover">
-        {cols.map((v, i) => (
-          <div key={labels[i]} className="col">
-            <span className="v">{fmt(v)}</span>
-            <div className={`b ${v > order ? 'over' : ''}`} style={{ height: (v / max) * H }} />
-            <span className="m">{labels[i]}</span>
-          </div>
-        ))}
-        <div className="line" style={{ bottom: (order / max) * H + 21 }}><span>발주량 1,000</span></div>
-      </div>
-      <p className="viz-cap">발주량 1,000 · 월 비중 30/20/15/15/10/10/10/10 (합계 120%) → <b>3월까지 커버 · 4월부터 리오더 약 200개</b></p>
     </div>
   );
 }

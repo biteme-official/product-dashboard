@@ -310,7 +310,7 @@ function OptionResultTable({ sku }: { sku: SkuData }) {
   );
 }
 
-/** 발주량 검토 › 채널 수량 — 카드의 채널 표를 그대로 쓴다(월 계획 · STEP 탭 없음, 열어도 자동 저장 없음) */
+/** 발주량 검토 › 채널별 목표량 — 카드의 채널 표를 그대로 쓴다(월 계획 · STEP 탭 없음, 열어도 자동 저장 없음) */
 export function ChannelQtyPanel({ sku, compare }: { sku: SkuData; compare: CompareData }) {
   const updateSku = useStore((s) => s.updateSku);
   const persistSku = useStore((s) => s.persistSku);
