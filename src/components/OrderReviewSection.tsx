@@ -145,9 +145,6 @@ interface DetailEnv {
   writeBlocked: boolean;
   busy: boolean;
   basis: MoneyBasis;
-  prev: SkuData | null;
-  next: SkuData | null;
-  onPick: (id: string) => void;
   onNavigateToSku?: (sku: SkuData) => void;
   save: (s: SkuData, patch: Partial<SkuData>, label: string) => Promise<void>;
   setOrder: (s: SkuData, qty: number) => void;
@@ -260,7 +257,7 @@ function OptionPanel({ s, env, editable }: { s: SkuData; env: DetailEnv; editabl
 }
 
 function Detail({ s, r, env }: { s: SkuData; r: SkuReview; env: DetailEnv }) {
-    const { role, perm, tableau, global, writeBlocked, busy, basis, prev, next, onPick, onNavigateToSku, save, setOrder, pickPlan, canSwitch, setMonthPlan, saveCompare, confirm } = env;
+    const { role, perm, tableau, global, writeBlocked, busy, basis, onNavigateToSku, save, setOrder, pickPlan, canSwitch, setMonthPlan, saveCompare, confirm } = env;
     const m = r.money;
     const active = s.orderPlans?.active ?? 1;
     const months = getSkuMonths(s.releaseDate);
@@ -380,9 +377,7 @@ function Detail({ s, r, env }: { s: SkuData; r: SkuReview; env: DetailEnv }) {
           {stateChip(s)}
           <span className="text-[11px] text-gray-500 tabular-nums">{s.category} · {s.releaseDate ? `${s.releaseDate.slice(5).replace('-', '/')} 오픈` : '오픈일 미정'} · 판매가 {s.price ? fmt(s.price) : '없음'} · 원가 {s.cost ? fmt(s.cost) : '없음'} · MOQ {fmt(s.moq)}{isSeasonOnly(s) ? ' · 시즌 한정' : ''}</span>
           <span className="flex-1" />
-          <button disabled={!prev} onClick={() => prev && onPick(prev.id)} className="text-xs px-2 py-0.5 rounded border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-40">↑ 이전</button>
-          <button disabled={!next} onClick={() => next && onPick(next.id)} className="text-xs px-2 py-0.5 rounded border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-40">↓ 다음</button>
-          {onNavigateToSku && <button onClick={() => onNavigateToSku(s)} className="text-xs underline text-indigo-700">SKU 정보 수정</button>}
+          {onNavigateToSku && <button onClick={() => onNavigateToSku(s)} className="text-xs px-2 py-0.5 rounded border border-gray-300 bg-white text-gray-700 hover:bg-gray-50">SKU카드 →</button>}
         </div>
         {(r.issues.length > 0 || qtyChanged) && (
           <div className="flex flex-wrap gap-1.5">
@@ -707,7 +702,7 @@ export function OrderReviewSection({ skus: filteredSkus, view, targetComparable:
   );
   const canSwitch = (s: SkuData) => isAllChannelRole(role) && !s.finalOrderConfirmedAt && !writeBlocked && !busy;
 
-  // 왼쪽 목록 · 이전 · 다음 · ↑ ↓ 이동
+  // 왼쪽 목록 · ↑ ↓ 이동
   const list = skus.filter((s) => status === 'all' || statusOf(s) === status);
   const focusSku = list.find((s) => s.id === focus) ?? list[0] ?? null;
   const focusIdx = focusSku ? list.indexOf(focusSku) : -1;
@@ -727,7 +722,7 @@ export function OrderReviewSection({ skus: filteredSkus, view, targetComparable:
     return () => window.removeEventListener('keydown', onKey);
   });
 
-  const env: DetailEnv = { role, perm, tableau, global, writeBlocked, busy, basis, prev: list[focusIdx - 1] ?? null, next: list[focusIdx + 1] ?? null, onPick: goTo, onNavigateToSku, save, setOrder, pickPlan, canSwitch, setMonthPlan, saveCompare, confirm };
+  const env: DetailEnv = { role, perm, tableau, global, writeBlocked, busy, basis, onNavigateToSku, save, setOrder, pickPlan, canSwitch, setMonthPlan, saveCompare, confirm };
 
   const decided = skus.filter((s) => s.orderPlans?.decided || s.finalOrderConfirmedAt).length;
   const confirmed = skus.filter((s) => s.finalOrderConfirmedAt).length;
