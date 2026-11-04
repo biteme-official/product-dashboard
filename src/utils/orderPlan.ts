@@ -7,6 +7,14 @@ import { getConfirmedChannels, getDisabledChannels, isMarketingLocked, type Chan
 import { allocate } from './qtyPlan';
 import { recalcQuantities } from './calc';
 
+/** 발주량을 대응SKU 월별 실적 비중으로 나눈 월별 판매 목표 — 실적이 없는 달은 0, 실적 합이 0이면 null */
+export function monthTargetsByCompareShare<M extends number>(orderQty: number, months: M[], compare: (m: M) => number | null): Map<M, number> | null {
+  const weights = months.map((m) => Math.max(0, compare(m) ?? 0));
+  if (orderQty <= 0 || weights.every((w) => w === 0)) return null;
+  const targets = allocate(orderQty, weights);
+  return new Map(months.map((m, i) => [m, targets[i]]));
+}
+
 export const planSnapshot = (sku: SkuData): OrderPlanSnapshot => ({
   totalOrderQty: sku.totalOrderQty,
   channelMonthQty: sku.channelMonthQty,

@@ -921,7 +921,7 @@ function ChannelQtyTable({
   }
 
   // 관리 탭 재계산 표식이 있을 때만 월 합계 유지한 채 대응SKU 비중으로 다시 나눔 (빈 표는 자동으로 채우지 않음).
-  // 대응SKU를 바꿨다고 자동으로 덮어쓰지 않는다 — [대응SKU 비중으로 다시 나누기]로만 반영.
+  // 대응SKU를 바꿨다고 자동으로 덮어쓰지 않는다 — [대응SKU 채널비중 반영]로만 반영.
   useEffect(() => {
     const latest = latestSku();
     if (!(latest.channelQtyDerivedFromCompareSkus ?? []).includes(STEP2_FORCE_RECALC_MARK)) return;
@@ -986,7 +986,7 @@ function ChannelQtyTable({
           <div className={`flex-col gap-0.5 text-[11px] text-gray-400 ${notesOpen ? 'flex' : 'hidden'}`}>
             <p>초기값: 월 계획 × 대응SKU 채널 비중 · 칸 직접 수정 시 월 비중·채널 비중 자동 재계산</p>
             <p>채널 비중: [채널 비중 수정] → 여러 채널 입력 → 저장 · 월 합계 유지 · 미수정 채널이 나머지 비중 배분 · 확정 채널 제외</p>
-            <p className="text-amber-600">대응SKU 변경 시 표 자동 변경 없음 · [대응SKU 비중으로 다시 나누기] 시 수기 수정값 재계산</p>
+            <p className="text-amber-600">대응SKU 변경 시 표 자동 변경 없음 · [대응SKU 채널비중 반영] 시 수기 수정값 재계산</p>
             <p>
               {sku.coupangEnabled
                 ? '쿠팡: 관리자 설정으로 활성화 · 대응SKU 실적·비중 포함'
@@ -1080,7 +1080,7 @@ function ChannelQtyTable({
                   compareChanged ? 'border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100' : 'border-gray-200 bg-gray-50 hover:bg-gray-100 text-gray-500'
                 }`}
               >
-                {gridEmpty ? '대응SKU 기준 채우기' : '대응SKU 비중으로 다시 나누기'}
+                {gridEmpty ? '대응SKU 기준 채우기' : '대응SKU 채널비중 반영'}
               </button>
             </div>
             <div className="flex items-center gap-1.5">

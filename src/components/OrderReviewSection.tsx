@@ -28,7 +28,7 @@ import { STEP1_OPTIONS } from '../utils/step1Price';
 import { basePriceOf, skuMoney, type MoneyBasis, type SkuMoney } from '../utils/reviewSku';
 import { cachedReview, globalIssues, type ReviewIssue, type SkuReview } from '../utils/skuReview';
 import { finalOrderForConfirm, finalOrderModel } from '../utils/finalOrder';
-import { savePlanPatch, switchPlanPatch, withColorQty, withOptionQty, withOrderQtyScaled, withSizeRatio } from '../utils/orderPlan';
+import { monthTargetsByCompareShare, savePlanPatch, switchPlanPatch, withColorQty, withOptionQty, withOrderQtyScaled, withSizeRatio } from '../utils/orderPlan';
 import { CellInput } from './CellInput';
 import { ChannelQtyPanel } from './SkuCard';
 
@@ -436,8 +436,16 @@ function Detail({ s, r, env }: { s: SkuData; r: SkuReview; env: DetailEnv }) {
                 </label>
                 {names.length > 0 && Object.keys(r.compare.monthly).length > 0 && planEditable && (
                   <>
-                    <button disabled={!canPlan} onClick={() => setMonthPlan(s, r, new Map(months.filter((mo) => monthComp(mo) !== null).map((mo) => [mo, Math.round(monthComp(mo)!)])), '대응SKU 실적으로 월 계획 채우기', true)}
-                      className="px-2 py-0.5 rounded border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50">대응SKU 실적으로 채우기</button>
+                    <button disabled={!canPlan} onClick={() => setMonthPlan(s, r, new Map(months.filter((mo) => monthComp(mo) !== null).map((mo) => [mo, Math.round(monthComp(mo)!)])), '대응SKU 동일수량 반영', true)}
+                      className="px-2 py-0.5 rounded border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50">대응SKU 동일수량 반영</button>
+                    {(() => {
+                      const targets = monthTargetsByCompareShare(s.totalOrderQty, months, monthComp);
+                      return (
+                        <button disabled={!canPlan || !targets} title={targets ? `${active}안 발주량 ${fmt(s.totalOrderQty)}개를 대응SKU 월별 실적 비중으로 분배` : '발주량 입력 후 사용 가능'}
+                          onClick={() => targets && setMonthPlan(s, r, targets, '대응SKU 월별비중 반영', true)}
+                          className="px-2 py-0.5 rounded border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50">대응SKU 월별비중 반영</button>
+                      );
+                    })()}
                     {compareChanged && <span className="px-1.5 rounded-full bg-amber-100 text-amber-800 text-[11px] font-semibold">대응SKU 변경됨 · 월 계획 유지</span>}
                   </>
                 )}
@@ -656,7 +664,7 @@ export function OrderReviewSection({ skus: filteredSkus, view, targetComparable:
     const scope = planScopeOf(s, fallbackWeightsOf(s, r.compare.channelDist));
     let entries = s.channelMonthQty;
     totalsByMonth.forEach((target, m) => { entries = setMonthTotal(entries, scope, m, target).entries as SkuData['channelMonthQty']; });
-    // 대응SKU 실적으로 채웠으면 지금 대응SKU 기준 표로 기록 (변경 배지 해제)
+    // 대응SKU 실적 · 비중으로 채웠으면 지금 대응SKU 기준 표로 기록 (변경 배지 해제)
     void save(s, { ...gridPatch(s, entries), ...(fromCompare ? { channelQtyDerivedFromCompareSkus: compareNamesOf(s) } : {}) }, label);
   }
 
@@ -802,7 +810,7 @@ export function OrderReviewSection({ skus: filteredSkus, view, targetComparable:
                     <span className={`px-1.5 rounded-full text-[10px] font-semibold ${v.cls}`}>{v.text}</span>
                     {stateChip(s)}
                     {err > 0 && <span className="px-1.5 rounded-full bg-red-100 text-red-700 text-[10px] font-semibold">오류 {err}</span>}
-                    {warn > 0 && <span className="px-1.5 rounded-full bg-amber-100 text-amber-800 text-[10px] font-semibold">경고 {warn}</span>}
+                    {warn > 0 && !s.finalOrderConfirmedAt && <span className="px-1.5 rounded-full bg-amber-100 text-amber-800 text-[10px] font-semibold">경고 {warn}</span>}
                   </span>
                 </button>
               );
