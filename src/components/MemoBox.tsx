@@ -18,7 +18,7 @@ export function MemoBox({ skuId, memo, readOnly, onSave }: {
   }
 
   return (
-    <div className="space-y-1.5">
+    <div className="min-w-0 flex flex-col gap-1 lg:flex-1">
       <div className="flex items-center justify-between">
         <label className="text-xs text-gray-500">메모</label>
         {!readOnly && (
@@ -29,18 +29,21 @@ export function MemoBox({ skuId, memo, readOnly, onSave }: {
           >B</button>
         )}
       </div>
+      {/* 칸 높이는 옵션 구성 · 기본 정보가 정하고, 긴 메모는 칸 안에서 스크롤 */}
+      <div className="relative flex-1 min-h-[72px]">
       <div
         ref={editorRef}
         contentEditable={!readOnly}
         suppressContentEditableWarning
         onBlur={readOnly ? undefined : () => onSave(editorRef.current?.innerHTML ?? '')}
         onKeyDown={readOnly ? undefined : handleKeyDown}
-        className={`w-full min-h-[90px] px-3 py-2.5 text-sm text-gray-700 leading-relaxed border border-gray-200 rounded-lg resize-none overflow-y-auto break-words ${
+        className={`absolute inset-0 px-2.5 py-2 text-xs text-gray-700 leading-relaxed border border-gray-200 rounded-lg overflow-y-auto break-words ${
           readOnly ? 'bg-gray-50 cursor-not-allowed' : 'focus:outline-none focus:ring-2 focus:ring-indigo-400'
         }`}
         style={{ wordBreak: 'break-word' }}
         data-placeholder="메모를 입력하세요..."
       />
+      </div>
       <style>{`[contenteditable]:empty:before{content:attr(data-placeholder);color:#d1d5db;pointer-events:none}`}</style>
     </div>
   );

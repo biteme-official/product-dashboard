@@ -36,8 +36,8 @@ export function OptionConfigColumn({ sku, readOnly }: { sku: SkuData; readOnly?:
   }
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between gap-2">
+    <div className="min-w-0 space-y-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">옵션 구성</h3>
         <div className="flex items-center gap-1.5">
           {cpoLinked && <CpoSyncedBadge />}
@@ -50,19 +50,19 @@ export function OptionConfigColumn({ sku, readOnly }: { sku: SkuData; readOnly?:
 
       <div className="grid grid-cols-2 gap-2">
         <div>
-          <label className="block text-xs text-gray-500 mb-1">사이즈 개수</label>
+          <label className="block text-[11px] text-gray-500 mb-0.5">사이즈 개수</label>
           <select value={sku.sizeCount}
             onChange={(e) => { const n = Number(e.target.value); updateSku(sku.id, { sizeCount: n, sizes: buildSizesFromCount(sku.sizes, n, sku.totalOrderQty) }); }}
             onBlur={handleBlur} disabled={readOnly || cpoLinked}
-            className="w-full px-2 py-2 text-xs border border-gray-200 rounded-lg disabled:bg-gray-50 disabled:text-gray-500">
+            className="w-full h-[30px] px-1.5 text-xs border border-gray-200 rounded-md disabled:bg-gray-50 disabled:text-gray-500">
             {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => <option key={n} value={n}>{n}개</option>)}
           </select>
           {cpoSizeTotal > MAX_SIZES && <p className="mt-1 text-[10px] text-amber-600">CPO 사이즈 {cpoSizeTotal}개 · 앞 {MAX_SIZES}개만 반영</p>}
         </div>
         <div>
-          <label className="block text-xs text-gray-500 mb-1">MOQ</label>
+          <label className="block text-[11px] text-gray-500 mb-0.5">MOQ</label>
           <NumericInput value={sku.moq} onChange={(v) => updateSku(sku.id, { moq: v })} onBlur={handleBlur} disabled={readOnly} placeholder="0"
-            className="w-full px-2 py-2 text-xs border border-gray-200 rounded-lg disabled:bg-gray-50 disabled:text-gray-500" />
+            className="w-full h-[30px] px-2 text-xs border border-gray-200 rounded-md disabled:bg-gray-50 disabled:text-gray-500" />
         </div>
       </div>
 
@@ -73,26 +73,28 @@ export function OptionConfigColumn({ sku, readOnly }: { sku: SkuData; readOnly?:
       )}
 
       {sku.hasColors && (
-        <div className="space-y-1">
-          <label className="block text-xs text-gray-500">컬러명</label>
-          {sku.colors.map((color) => (
-            <div key={color.id} className={`flex items-center gap-1.5 ${color.archived ? 'opacity-50' : ''}`}>
-              <input type="text" value={color.archived ? `${color.name} (삭제됨)` : color.name}
-                onChange={(e) => updateSku(sku.id, { colors: sku.colors.map((c) => (c.id === color.id ? { ...c, name: e.target.value } : c)) })}
-                onBlur={handleBlur} disabled={readOnly || cpoLinked} placeholder="컬러명"
-                className="flex-1 min-w-0 px-2 py-1.5 text-xs border border-gray-200 rounded-lg disabled:bg-gray-50 disabled:text-gray-500" />
-              {/* CPO 연동 SKU는 컬러 추가/삭제를 CPO에서만 함 — archived 항목만 정리 차원에서 영구삭제 허용 */}
-              {!readOnly && (!cpoLinked || color.archived) && (
-                <button title={color.archived ? '영구 삭제' : undefined}
-                  onClick={() => { updateSku(sku.id, { colors: sku.colors.filter((c) => c.id !== color.id) }); void persistSku(sku.id); }}
-                  className="text-lg leading-none text-gray-300 hover:text-red-400 flex-shrink-0">×</button>
-              )}
-            </div>
-          ))}
-          {!readOnly && !cpoLinked && (
-            <button onClick={() => { updateSku(sku.id, { colors: [...sku.colors, { id: uuidv4(), name: '', quantity: 0 }] }); void persistSku(sku.id); }}
-              className="w-full py-1.5 text-xs border border-dashed border-indigo-200 text-indigo-500 rounded-lg hover:bg-indigo-50">+ 컬러 추가</button>
-          )}
+        <div>
+          <label className="block text-[11px] text-gray-500 mb-0.5">컬러명</label>
+          <div className="grid grid-cols-3 gap-1">
+            {sku.colors.map((color) => (
+              <div key={color.id} className={`flex items-center gap-0.5 min-w-0 ${color.archived ? 'opacity-50' : ''}`}>
+                <input type="text" value={color.archived ? `${color.name} (삭제됨)` : color.name} title={color.name}
+                  onChange={(e) => updateSku(sku.id, { colors: sku.colors.map((c) => (c.id === color.id ? { ...c, name: e.target.value } : c)) })}
+                  onBlur={handleBlur} disabled={readOnly || cpoLinked} placeholder="컬러명"
+                  className="flex-1 min-w-0 w-full h-[26px] px-1.5 text-[11px] border border-gray-200 rounded-md disabled:bg-gray-50 disabled:text-gray-500" />
+                {/* CPO 연동 SKU는 컬러 추가/삭제를 CPO에서만 함 — archived 항목만 정리 차원에서 영구삭제 허용 */}
+                {!readOnly && (!cpoLinked || color.archived) && (
+                  <button title={color.archived ? '영구 삭제' : undefined}
+                    onClick={() => { updateSku(sku.id, { colors: sku.colors.filter((c) => c.id !== color.id) }); void persistSku(sku.id); }}
+                    className="text-sm leading-none text-gray-300 hover:text-red-400 flex-shrink-0">×</button>
+                )}
+              </div>
+            ))}
+            {!readOnly && !cpoLinked && (
+              <button onClick={() => { updateSku(sku.id, { colors: [...sku.colors, { id: uuidv4(), name: '', quantity: 0 }] }); void persistSku(sku.id); }}
+                className="h-[26px] text-[11px] border border-dashed border-indigo-200 text-indigo-500 rounded-md hover:bg-indigo-50 whitespace-nowrap">+ 컬러</button>
+            )}
+          </div>
         </div>
       )}
       <p className="text-[11px] text-gray-400">수량 · 비중은 발주량 검토에서 입력</p>
