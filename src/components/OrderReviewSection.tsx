@@ -196,7 +196,7 @@ function OptionPanel({ s, env, editable }: { s: SkuData; env: DetailEnv; editabl
 
   return (
     <div className="space-y-2">
-      <Hint strong="옵션 합계 = 발주량" rest="수량을 고치면 발주량과 판매 계획도 함께 변경" />
+      <Hint strong="옵션 합계 = 발주량" rest="수량을 고치면 발주량과 월별 목표량도 함께 변경" />
       <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)] gap-3">
         <div className="space-y-2 min-w-0">
           {colors.length > 0 && (
@@ -399,7 +399,7 @@ function Detail({ s, r, env }: { s: SkuData; r: SkuReview; env: DetailEnv }) {
         </div>
 
         <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_250px] gap-2.5 items-start">
-          <Box title={`📈 ${active}안 판매 계획`} right={
+          <Box title={`📈 ${active}안 월별 목표량`} right={
             <div className="flex gap-3 text-[11px] text-gray-500"><span className="inline-flex items-center gap-1"><i className="w-2.5 h-2.5 rounded-sm bg-gray-300" />대응SKU 실적</span><span className="inline-flex items-center gap-1"><i className="w-2.5 h-2.5 rounded-sm bg-indigo-600" />판매 목표</span></div>
           }>
             <div className="space-y-2">
@@ -514,13 +514,13 @@ function Detail({ s, r, env }: { s: SkuData; r: SkuReview; env: DetailEnv }) {
 
         <div className="bg-white rounded border border-gray-200 p-3 space-y-2.5 min-w-0">
           <div className="flex gap-1 border-b border-gray-200 overflow-x-auto" role="tablist">
-            {([['channel', '📦 채널 수량'], ['option', '🧩 옵션 수량'], ['price', '💰 판매가 · 수익']] as const).map(([k, l]) => (
+            {([['channel', '📦 채널별 목표량'], ['option', '🧩 옵션별 검토'], ['price', '💰 판매가 · 수익']] as const).map(([k, l]) => (
               <button key={k} role="tab" aria-selected={tab === k} onClick={() => setTab(k)} className={`px-3 py-1.5 text-xs font-bold whitespace-nowrap border-b-2 ${tab === k ? 'border-indigo-600 text-indigo-800' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>{l}</button>
             ))}
           </div>
           {/* 채널 표는 펼침 · 되돌리기 기록이 사라지지 않도록 탭을 바꿔도 유지 */}
           <div hidden={tab !== 'channel'} className="space-y-2">
-            <Hint strong="여기를 고쳐도 발주량은 그대로" rest="판매 계획에 바로 반영" />
+            <Hint strong="여기를 고쳐도 발주량은 그대로" rest="월별 목표량에 바로 반영" />
             <ShareBar items={m.channels.filter((c) => c.planQty > 0).map((c) => ({ label: c.channel, value: c.planQty }))} />
             <ChannelQtyPanel sku={s} compare={r.compare} />
           </div>
@@ -570,7 +570,7 @@ function Detail({ s, r, env }: { s: SkuData; r: SkuReview; env: DetailEnv }) {
                   </tbody>
                 </table>
               </div>
-              <p className="text-[11px] text-gray-500">할인가 = 판매가 × (1 − 할인율), 10원 올림 · 월별로 다른 가격은 채널 수량 펼침에서 설정{s.isPriceConfirmed ? ' · 가격 확정 SKU라 잠김(프라이싱에서 해제)' : ''}</p>
+              <p className="text-[11px] text-gray-500">할인가 = 판매가 × (1 − 할인율), 10원 올림 · 월별로 다른 가격은 채널별 목표량 펼침에서 설정{s.isPriceConfirmed ? ' · 가격 확정 SKU라 잠김(프라이싱에서 해제)' : ''}</p>
             </div>
           )}
         </div>
@@ -662,7 +662,7 @@ export function OrderReviewSection({ skus: filteredSkus, view, targetComparable:
 
   function setOrder(s: SkuData, qty: number) {
     const patch = withOrderQtyScaled(s, qty);
-    if (!patch) { setMessage(`${s.skuName} · 컬러 수량 없음 · 옵션 수량에서 컬러 수량 먼저 입력`); return; }
+    if (!patch) { setMessage(`${s.skuName} · 컬러 수량 없음 · 옵션별 검토에서 컬러 수량 먼저 입력`); return; }
     void save(s, patch, `발주량 ${fmt(s.totalOrderQty)} → ${fmt(qty)}`);
   }
 
