@@ -727,7 +727,9 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
     if (!sku) return;
     const now = new Date();
     const expiresAt = new Date(now.getTime() + TRASH_DAYS * 24 * 60 * 60 * 1000);
-    await addDoc(collection(fsdb, TRASH_COL), {
+    // 열린 탭마다 같은 삭제를 처리하므로 SKU당 문서 하나로 고정 — 먼저 기록한 탭의 내용을 유지
+    const trashRef = doc(fsdb, TRASH_COL, `sku-${id}`);
+    const trashEntry = {
       skuId: id,
       skuName: sku.skuName || '(SKU명 미입력)',
       category: sku.category,
@@ -736,6 +738,10 @@ export const useStore = create<AppState & StoreActions>((set, get) => ({
       deletedBy,
       expiresAt: Timestamp.fromDate(expiresAt),
       skuData: toFirestore(sku),
+    };
+    await runTransaction(fsdb, async (tx) => {
+      const existing = await tx.get(trashRef);
+      if (!existing.exists()) tx.set(trashRef, trashEntry);
     });
     await deleteDoc(doc(fsdb, SKUS_COL, id));
     set({ skus: get().skus.filter((s) => s.id !== id) });
