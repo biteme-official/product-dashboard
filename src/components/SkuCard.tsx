@@ -26,6 +26,7 @@ import { exportSimulationXlsx } from '../utils/exportXlsx';
 import { PRICING_SCENARIOS, PRICING_DEFAULT_OPT } from '../utils/pricingScenarios';
 import { STEP1_OPTIONS, normalizeStep1Opt, step1Pricer } from '../utils/step1Price';
 import { cellMoney, cmOf, varCostOf } from '../utils/reviewSku';
+import { finalOrderModel } from '../utils/finalOrder';
 import { usePricingPolicy } from '../hooks/usePricingPolicy';
 import { CalendarPopup } from './CalendarPopup';
 
@@ -57,7 +58,7 @@ interface Props {
 }
 
 /** 이번 발주량 대비 시즌 판매 목표 판정 칩 (STEP1·STEP2 공용) */
-export function CoverageChip({ sku, skuMonths }: { sku: SkuData; skuMonths: Month[] }) {
+export function CoverageChip({ sku, skuMonths, wrap }: { sku: SkuData; skuMonths: Month[]; wrap?: boolean }) {
   const seasonOnly = isSeasonOnly(sku);
   const cov = coverage(skuMonths.map((m) => sku.monthlySplit.find((x) => x.month === m)?.quantity ?? 0), sku.totalOrderQty, seasonOnly);
   if (cov.status === 'empty') return null;
@@ -85,7 +86,7 @@ export function CoverageChip({ sku, skuMonths }: { sku: SkuData; skuMonths: Mont
       text = `과재고 위험 · 시즌 후 잔여 약 ${n}개`;
   }
   return (
-    <span className="inline-flex items-center gap-1 text-xs font-bold px-1.5 py-0.5 bg-pink-100 text-red-600 whitespace-nowrap">
+    <span className={`inline-flex items-center gap-1 text-xs font-bold px-1.5 py-0.5 bg-pink-100 text-red-600 ${wrap ? '' : 'whitespace-nowrap'}`}>
       {seasonOnly && <span className="font-bold">시즌 한정 ·</span>}
       {text}
     </span>
@@ -183,13 +184,16 @@ export function SkuCard({ sku, onOpenInReview }: Props) {
       {/* 상세 입력 영역 (펼침) */}
       {sku.isExpanded && (
         <div className="p-4 bg-white space-y-4">
-          <OrderResultPanel sku={sku} onOpenInReview={onOpenInReview} />
-          <div className="grid gap-4 grid-cols-1 md:grid-cols-3">
+          {/* 기본 정보 영역: 썸네일 · 기본 정보 · 옵션 구성과 메모 — 썸네일과 옵션 칸 폭은 카드 폭을 따라 함께 움직임 */}
+          <div className="grid gap-4 grid-cols-1 md:grid-cols-[148px_minmax(0,1fr)] lg:grid-cols-[clamp(148px,18%,220px)_minmax(0,1fr)_clamp(280px,26%,320px)] pb-4 border-b border-gray-200">
             <BasicInfoColumn sku={sku} readOnly={!canEdit} />
-            <OptionConfigColumn sku={sku} readOnly={!canEdit || !!sku.finalOrderConfirmedAt} />
-            <MemoBox skuId={sku.id} memo={sku.memo} readOnly={!canEdit}
-              onSave={(html) => { if (canEdit) { updateSku(sku.id, { memo: html }); void persistSku(sku.id); } }} />
+            <div className="md:col-span-2 lg:col-span-1 min-w-0 grid gap-4 grid-cols-1 md:grid-cols-2 lg:flex lg:flex-col lg:gap-3">
+              <OptionConfigColumn sku={sku} readOnly={!canEdit || !!sku.finalOrderConfirmedAt} />
+              <MemoBox skuId={sku.id} memo={sku.memo} readOnly={!canEdit}
+                onSave={(html) => { if (canEdit) { updateSku(sku.id, { memo: html }); void persistSku(sku.id); } }} />
+            </div>
           </div>
+          <OrderResultPanel sku={sku} onOpenInReview={onOpenInReview} />
         </div>
       )}
     </div>
@@ -220,11 +224,14 @@ function OrderResultPanel({ sku, onOpenInReview }: { sku: SkuData; onOpenInRevie
         <span className="flex-1" />
         {onOpenInReview && <button onClick={() => onOpenInReview(sku)} className="text-xs px-3 py-1 rounded bg-indigo-600 text-white font-semibold hover:bg-indigo-700">발주량 검토에서 열기 →</button>}
       </div>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 tabular-nums">
-        <div><div className="text-[11px] text-gray-500">{sku.orderPlans?.decided ? `${active}안 ` : ''}발주량 · MOQ {sku.moq.toLocaleString()}</div><b className="text-base font-extrabold">{qty.toLocaleString()}개</b></div>
-        <div><div className="text-[11px] text-gray-500">소진월 · 판정</div><div className="flex flex-wrap items-center gap-1.5"><b className="text-base font-extrabold">{coverIdx < 0 ? '미소진' : `${m.months[coverIdx].month}월`}</b><CoverageChip sku={sku} skuMonths={skuMonths} /></div></div>
-        <div><div className="text-[11px] text-gray-500">예상 순매출</div><b className="text-base font-extrabold">{formatWon(m.revenue)}</b></div>
-        <div><div className="text-[11px] text-gray-500">예상 공헌이익{m.cm !== null ? ` · CM ${m.cm}%` : ''}</div><b className="text-base font-extrabold">{profitText}</b></div>
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] gap-x-5 gap-y-3 items-start">
+        <div className="grid grid-cols-2 gap-3 tabular-nums">
+          <div><div className="text-[11px] text-gray-500">{sku.orderPlans?.decided ? `${active}안 ` : ''}발주량 · MOQ {sku.moq.toLocaleString()}</div><b className="text-base font-extrabold">{qty.toLocaleString()}개</b></div>
+          <div><div className="text-[11px] text-gray-500">소진월 · 판정</div><div className="flex flex-wrap items-center gap-1.5"><b className="text-base font-extrabold">{coverIdx < 0 ? '미소진' : `${m.months[coverIdx].month}월`}</b><CoverageChip sku={sku} skuMonths={skuMonths} wrap /></div></div>
+          <div><div className="text-[11px] text-gray-500">예상 순매출</div><b className="text-base font-extrabold">{formatWon(m.revenue)}</b></div>
+          <div><div className="text-[11px] text-gray-500">예상 공헌이익{m.cm !== null ? ` · CM ${m.cm}%` : ''}</div><b className="text-base font-extrabold">{profitText}</b></div>
+        </div>
+        <OptionResultTable sku={sku} />
       </div>
       <ChannelMonthTable sku={sku} readOnly monthlySplit={sku.monthlySplit} skuMonths={skuMonths} releaseYear={releaseYear} />
       <div className="overflow-x-auto">
@@ -237,6 +244,68 @@ function OrderResultPanel({ sku, onOpenInReview }: { sku: SkuData; onOpenInRevie
         </table>
       </div>
       <p className="text-[11px] text-gray-400">채널을 펼치면 옵션별 수량 · 수정은 발주량 검토에서</p>
+    </div>
+  );
+}
+
+/** SKU 카드 › 옵션별 최종 발주량 — 발주량 검토의 옵션 표와 같은 계산값을 보기만 한다 */
+function OptionResultTable({ sku }: { sku: SkuData }) {
+  const model = finalOrderModel(sku);
+  const head = (
+    <div className="flex flex-wrap items-center gap-1.5 mb-1 text-xs">
+      <b>옵션별 최종 발주량{sku.orderPlans?.decided ? ` · ${sku.orderPlans.active ?? 1}안` : ''}</b>
+      <span className="text-[11px] text-gray-500">{sku.finalOrderConfirmedAt ? '발주 확정 수량' : '발주량 검토 결과'}</span>
+    </div>
+  );
+  if (!model) return <div className="min-w-0">{head}<p className="text-[11px] text-gray-400">옵션별 수량 없음 · 발주량 검토에서 입력</p></div>;
+  const { activeSizes: az, activeColors: ac, hasColors, hasSizes, dispCS, dispC, dispS } = model;
+  const th = 'px-2 py-1 text-right font-semibold whitespace-nowrap';
+  const td = 'px-2 py-1 text-right';
+  const lead = 'px-2 py-1 text-left whitespace-nowrap';
+  const pct = (v: number, base: number) => (base > 0 ? `${Math.round((v / base) * 100)}%` : '–');
+  const n = (v: number) => v.toLocaleString();
+  let table;
+  if (hasColors && hasSizes) {
+    const rows = ac.map((c) => az.map((z) => dispCS(c.id, c.quantity, z.label, z.ratio)));
+    const rowTotals = rows.map((r) => r.reduce((a, b) => a + b, 0));
+    const colTotals = az.map((_, i) => rows.reduce((a, r) => a + r[i], 0));
+    const total = rowTotals.reduce((a, b) => a + b, 0);
+    table = (
+      <>
+        <thead><tr className="bg-gray-50 text-gray-500"><th className={`${lead} font-semibold`}>컬러 \ 사이즈</th>{az.map((z) => <th key={z.label} className={th}>{z.label}</th>)}<th className={th}>합계</th><th className={th}>비중</th></tr></thead>
+        <tbody>
+          {ac.map((c, i) => (
+            <tr key={c.id} className="border-t border-gray-100">
+              <td className={lead}>{c.name || '이름 없음'}</td>
+              {rows[i].map((v, j) => <td key={az[j].label} className={td}>{n(v)}</td>)}
+              <td className={`${td} font-semibold bg-gray-50`}>{n(rowTotals[i])}</td>
+              <td className={`${td} text-gray-500`}>{pct(rowTotals[i], total)}</td>
+            </tr>
+          ))}
+          <tr className="border-t-2 border-gray-200 bg-gray-50 font-semibold"><td className={lead}>합계</td>{colTotals.map((v, j) => <td key={az[j].label} className={td}>{n(v)}</td>)}<td className={td}>{n(total)}</td><td className={td}>{total > 0 ? '100%' : '–'}</td></tr>
+          <tr className="border-t border-gray-100 bg-gray-50 text-gray-500"><td className={lead}>비중</td>{colTotals.map((v, j) => <td key={az[j].label} className={td}>{pct(v, total)}</td>)}<td className={td}>{total > 0 ? '100%' : '–'}</td><td /></tr>
+        </tbody>
+      </>
+    );
+  } else {
+    const items = hasColors
+      ? ac.map((c) => ({ key: c.id, label: c.name || '이름 없음', qty: dispC(c.id, c.quantity) }))
+      : az.map((z) => ({ key: z.label, label: z.label, qty: dispS(z.label, z.ratio) }));
+    const total = items.reduce((a, x) => a + x.qty, 0);
+    table = (
+      <>
+        <thead><tr className="bg-gray-50 text-gray-500"><th className={`${lead} font-semibold`}>{hasColors ? '컬러' : '사이즈'}</th>{items.map((x) => <th key={x.key} className={th}>{x.label}</th>)}<th className={th}>합계</th></tr></thead>
+        <tbody>
+          <tr className="border-t border-gray-100"><td className={lead}>수량</td>{items.map((x) => <td key={x.key} className={td}>{n(x.qty)}</td>)}<td className={`${td} font-semibold bg-gray-50`}>{n(total)}</td></tr>
+          <tr className="border-t border-gray-100 bg-gray-50 text-gray-500"><td className={lead}>비중</td>{items.map((x) => <td key={x.key} className={td}>{pct(x.qty, total)}</td>)}<td className={td}>{total > 0 ? '100%' : '–'}</td></tr>
+        </tbody>
+      </>
+    );
+  }
+  return (
+    <div className="min-w-0">
+      {head}
+      <div className="rounded-lg border border-gray-200 overflow-x-auto"><table className="w-full text-[11px] tabular-nums">{table}</table></div>
     </div>
   );
 }
@@ -350,7 +419,7 @@ function ThumbnailSection({ skuId, imageUrl, readOnly }: { skuId: string; imageU
 
   if (uploading) {
     return (
-      <div className="mb-3 w-full aspect-square rounded-xl border border-gray-200 bg-gray-50 flex items-center justify-center">
+      <div className="w-full aspect-square rounded-xl border border-gray-200 bg-gray-50 flex items-center justify-center">
         <span className="text-xs text-gray-400">업로드 중...</span>
       </div>
     );
@@ -358,7 +427,7 @@ function ThumbnailSection({ skuId, imageUrl, readOnly }: { skuId: string; imageU
 
   if (saveError) {
     return (
-      <div className="mb-3 w-full aspect-square rounded-xl border border-red-200 bg-red-50 flex flex-col items-center justify-center gap-2 px-3 text-center">
+      <div className="w-full aspect-square rounded-xl border border-red-200 bg-red-50 flex flex-col items-center justify-center gap-2 px-3 text-center">
         <span className="text-xs text-red-500 font-medium">저장 실패</span>
         <span className="text-[10px] text-red-400">이미지가 너무 크거나 네트워크 오류입니다.</span>
         <button
@@ -373,10 +442,10 @@ function ThumbnailSection({ skuId, imageUrl, readOnly }: { skuId: string; imageU
 
   if (imageUrl) {
     return (
-      <div className="relative group rounded-xl overflow-hidden border border-gray-200 mb-3 bg-gray-50">
+      <div className="relative group rounded-xl overflow-hidden border border-gray-200 bg-gray-50">
         <img src={imageUrl} alt="SKU 썸네일" className="w-full aspect-square object-cover" />
         {!readOnly && (
-          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/45 transition-all flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100">
+          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/45 transition-all flex flex-wrap content-center items-center justify-center gap-2 opacity-0 group-hover:opacity-100">
             <button onClick={() => fileRef.current?.click()} className="px-3 py-1.5 bg-white/90 text-gray-800 text-xs rounded-lg font-medium hover:bg-white shadow-sm">교체</button>
             <button onClick={handleRemove} className="px-3 py-1.5 bg-red-500/90 text-white text-xs rounded-lg font-medium hover:bg-red-500 shadow-sm">삭제</button>
           </div>
@@ -388,14 +457,14 @@ function ThumbnailSection({ skuId, imageUrl, readOnly }: { skuId: string; imageU
 
   if (readOnly) {
     return (
-      <div className="mb-3 w-full aspect-square rounded-xl border border-gray-100 bg-gray-50 flex items-center justify-center">
+      <div className="w-full aspect-square rounded-xl border border-gray-100 bg-gray-50 flex items-center justify-center">
         <span className="text-xs text-gray-300">이미지 없음</span>
       </div>
     );
   }
 
   return (
-    <div className="mb-3">
+    <div>
       <button
         onClick={() => fileRef.current?.click()}
         className="w-full aspect-square border-2 border-dashed border-gray-200 rounded-xl flex flex-col items-center justify-center gap-2 text-gray-400 hover:border-indigo-300 hover:text-indigo-400 transition-colors bg-gray-50/50"
@@ -479,7 +548,7 @@ function DateField({ value, onChange, onBlur, disabled }: {
 
   return (
     <>
-      <div className={`flex items-center w-full border rounded-lg text-sm transition-colors ${
+      <div className={`flex items-center w-full h-[30px] border rounded-md text-xs transition-colors ${
         disabled ? 'border-gray-200 bg-gray-50' : 'border-gray-200 focus-within:ring-2 focus-within:ring-indigo-400 focus-within:border-indigo-400'
       }`}>
         {editing ? (
@@ -491,14 +560,14 @@ function DateField({ value, onChange, onBlur, disabled }: {
             onKeyDown={(e) => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') { setEditing(false); } }}
             placeholder="yy.M.D"
             autoFocus
-            className="flex-1 px-3 py-2 bg-transparent outline-none text-gray-700 min-w-0"
+            className="flex-1 px-2 bg-transparent outline-none text-gray-700 min-w-0 w-full"
           />
         ) : (
           <button
             type="button"
             onClick={() => { if (!disabled) { setText(fmt(value)); setEditing(true); } }}
             disabled={disabled}
-            className={`flex-1 px-3 py-2 text-left bg-transparent outline-none min-w-0 ${value ? 'text-gray-700' : 'text-gray-300'} ${disabled ? 'cursor-not-allowed' : 'cursor-text'}`}
+            className={`flex-1 px-2 text-left bg-transparent outline-none min-w-0 ${value ? 'text-gray-700' : 'text-gray-300'} ${disabled ? 'cursor-not-allowed' : 'cursor-text'}`}
           >
             {fmt(value) || '—'}
           </button>
@@ -509,7 +578,7 @@ function DateField({ value, onChange, onBlur, disabled }: {
             type="button"
             onClick={openCal}
             tabIndex={-1}
-            className="px-2 py-2 text-gray-400 hover:text-indigo-500 transition-colors flex-shrink-0"
+            className="px-1.5 text-gray-400 hover:text-indigo-500 transition-colors flex-shrink-0"
             title="캘린더에서 선택"
           >
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -546,8 +615,10 @@ function BasicInfoColumn({ sku, readOnly }: { sku: SkuData; readOnly?: boolean }
   const cpoStatusStyle = cpoProject ? CPO_STATUS_STYLES[cpoProject.status] : null;
   const managerNames = cpoProject ? resolveManagerNames(cpoProject.planningManagerIds, cpoUsers) : [];
 
-  const inputCls = `w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed`;
-  const selectCls = `w-full px-2 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed`;
+  const inputCls = `w-full h-[30px] px-2 text-xs border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-400 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed`;
+  const selectCls = `w-full h-[30px] px-1.5 text-xs border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed`;
+  const labelCls = 'block text-[11px] text-gray-500 mb-0.5';
+  const staticCls = 'w-full h-[30px] px-2 flex items-center text-xs border border-gray-100 rounded-md bg-gray-50 text-gray-700 tabular-nums';
 
   function handleChange(patch: Partial<SkuData>) {
     if (readOnly) return;
@@ -559,69 +630,36 @@ function BasicInfoColumn({ sku, readOnly }: { sku: SkuData; readOnly?: boolean }
     persistSku(sku.id);
   }
 
+  const discount = sku.regularPrice > 0 && sku.price > 0
+    ? `${Math.round((1 - sku.price / sku.regularPrice) * 100)}%`
+    : <span className="text-gray-300">—</span>;
+
   return (
-    <div className="space-y-3">
-      <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">기본 정보</h3>
-
-      {/* CPO 진행상태 · 기획 담당자 — 읽기전용, CPO 대시보드가 원본 */}
-      {cpoProject && (
-        <div className="flex items-center justify-between gap-2 flex-wrap">
-          <span
-            className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold border whitespace-nowrap ${cpoStatusStyle?.bg ?? 'bg-gray-100'} ${cpoStatusStyle?.text ?? 'text-gray-600'} ${cpoStatusStyle?.border ?? 'border-gray-200'}`}
-          >
-            {cpoProject.status}
-          </span>
-          <span className="text-[11px] text-gray-500 truncate">
-            기획 담당자: {managerNames.length > 0 ? managerNames.join(', ') : '–'}
-          </span>
-        </div>
-      )}
-
-      {/* 썸네일 — SKU명 위에 배치 */}
-      <ThumbnailSection skuId={sku.id} imageUrl={sku.imageUrl} readOnly={readOnly} />
-
-      <div>
-        <label className="block text-xs text-gray-500 mb-1">SKU명</label>
-        <input
-          type="text"
-          value={sku.skuName}
-          onChange={(e) => handleChange({ skuName: e.target.value })}
-          onBlur={handleBlur}
-          disabled={readOnly || !!cpoProject}
-          placeholder="SKU명 입력"
-          className={inputCls}
-        />
+    <>
+      {/* 썸네일 · 기획 바로가기 */}
+      <div className="min-w-0 grid grid-cols-[88px_minmax(0,1fr)] md:grid-cols-1 gap-2 items-start">
+        <ThumbnailSection skuId={sku.id} imageUrl={sku.imageUrl} readOnly={readOnly} />
         {cpoProject ? (
           <a
             href={cpoProjectDeepLink(sku.id)}
             target="_blank"
             rel="noopener noreferrer"
-            className="mt-2 w-full flex items-center justify-between px-3 py-2 text-xs font-semibold rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors"
+            className="w-full flex items-center justify-between gap-1 px-2 py-1.5 text-[11px] font-semibold rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors"
           >
-            <span className="flex items-center gap-1.5">
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-              기획 보러가기
-            </span>
+            기획 보러가기
             <span aria-hidden="true">↗</span>
           </a>
         ) : (
           <>
             <button
               onClick={() => setBriefOpen(true)}
-              className={`mt-2 w-full flex items-center justify-between px-3 py-2 text-xs font-semibold rounded-lg border transition-colors ${
+              className={`w-full flex items-center justify-between gap-1 px-2 py-1.5 text-[11px] font-semibold rounded-lg border transition-colors ${
                 sku.marketingBrief
                   ? 'border-indigo-300 bg-indigo-50 text-indigo-700 hover:bg-indigo-100'
                   : 'border-gray-200 bg-white text-gray-500 hover:bg-gray-50 hover:text-gray-700'
               }`}
             >
-              <span className="flex items-center gap-1.5">
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                Marketing Brief
-              </span>
+              Marketing Brief
               {sku.marketingBrief && (
                 <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-indigo-200 text-indigo-700 font-bold">●</span>
               )}
@@ -631,191 +669,172 @@ function BasicInfoColumn({ sku, readOnly }: { sku: SkuData; readOnly?: boolean }
         )}
       </div>
 
-      <div className="grid grid-cols-2 gap-2">
-        <div>
-          <label className="block text-xs text-gray-500 mb-1">카테고리</label>
-          <select
-            value={sku.category}
-            onChange={(e) => handleChange({ category: e.target.value as SkuData['category'] })}
-            onBlur={handleBlur}
-            disabled={readOnly}
-            className={selectCls}
-          >
-            {(['식품', '용품', '잡화', '의류', '장난감'] as const).map((c) => (
-              <option key={c} value={c}>{c}</option>
-            ))}
-          </select>
+      {/* 기본 정보 */}
+      <div className="min-w-0 space-y-2">
+        <div className="flex flex-wrap items-center gap-2 min-h-[20px]">
+          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">기본 정보</h3>
+          {/* CPO 진행상태 · 기획 담당자 — 읽기전용, CPO 대시보드가 원본 */}
+          {cpoProject && (
+            <>
+              <span
+                className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold border whitespace-nowrap ${cpoStatusStyle?.bg ?? 'bg-gray-100'} ${cpoStatusStyle?.text ?? 'text-gray-600'} ${cpoStatusStyle?.border ?? 'border-gray-200'}`}
+              >
+                {cpoProject.status}
+              </span>
+              <span className="text-[11px] text-gray-500">
+                기획 담당자: {managerNames.length > 0 ? managerNames.join(', ') : '–'}
+              </span>
+            </>
+          )}
         </div>
-        <div>
-          <label className="block text-xs text-gray-500 mb-1">SKU 구분</label>
-          <select
-            value={sku.skuType}
-            onChange={(e) => handleChange({ skuType: e.target.value as SkuData['skuType'] })}
-            onBlur={handleBlur}
-            disabled={readOnly}
-            className={selectCls}
-          >
-            {(['시즈널', '스테디', '미해당'] as const).map((t) => (
-              <option key={t} value={t}>{t}</option>
-            ))}
-          </select>
-        </div>
-      </div>
 
-      <div>
-        <label className="block text-xs text-gray-500 mb-1">브랜드</label>
-        <select
-          value={sku.brand}
-          onChange={(e) => handleChange({ brand: e.target.value as SkuData['brand'] })}
-          onBlur={handleBlur}
-          disabled={readOnly}
-          className={`w-full px-2 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-400 bg-white disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed`}
-        >
-          {BRANDS.map((b) => (
-            <option key={b} value={b}>{b}</option>
-          ))}
-        </select>
-      </div>
-
-      <div>
-        <label className="block text-xs text-gray-500 mb-1">출시일</label>
-        <DateField
-          value={sku.releaseDate}
-          onChange={(v) => handleChange({ releaseDate: v })}
-          onBlur={handleBlur}
-          disabled={readOnly}
-        />
-      </div>
-
-      <div className="grid grid-cols-2 gap-2">
-        <div>
-          <label className="block text-xs text-gray-500 mb-1">입고예정일</label>
-          <DateField
-            value={sku.arrivalDate ?? ''}
-            onChange={(v) => handleChange({ arrivalDate: v })}
-            onBlur={handleBlur}
-            disabled={readOnly || !!cpoProject}
-          />
-        </div>
-        <div>
-          <label className="block text-xs text-gray-500 mb-1">촬영예정일</label>
-          <DateField
-            value={sku.shootingDate ?? ''}
-            onChange={(v) => handleChange({ shootingDate: v })}
-            onBlur={handleBlur}
-            disabled={readOnly || !!cpoProject}
-          />
-        </div>
-      </div>
-
-      {/* ── 프라이싱 구분 ── */}
-      <div className="flex items-center gap-2 pt-1">
-        <span className="text-[11px] font-semibold text-gray-400 tracking-wide uppercase whitespace-nowrap">프라이싱</span>
-        <div className="flex-1 h-px bg-gray-200" />
-        {sku.isPriceConfirmed && (
-          <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100 border border-amber-300 text-amber-700 text-[10px] font-bold whitespace-nowrap">
-            🔒 가격 확정됨
-          </span>
-        )}
-      </div>
-
-      <p className="text-[11px] text-gray-400">프라이싱 시나리오 · 가격 확정 → 프로젝션 › 프라이싱</p>
-
-      {priceLockedByCpo ? (
-        <>
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">판매가 (₩)</label>
-              <div className="w-full px-3 py-2 text-sm border border-gray-100 rounded-lg bg-gray-50 text-gray-700 tabular-nums">
-                {cpoScenario ? `₩${sku.price.toLocaleString()}` : <span className="text-gray-300">CPO 미확정</span>}
-              </div>
-            </div>
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">원가 (₩)</label>
-              <div className="w-full px-3 py-2 text-sm border border-gray-100 rounded-lg bg-gray-50 text-gray-700 tabular-nums">
-                {cpoCost !== null ? `₩${sku.cost.toLocaleString()}` : <span className="text-gray-300">CPO 미입력</span>}
-              </div>
-            </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+          <div className="col-span-2 min-w-0">
+            <label className={labelCls}>SKU명</label>
+            <input
+              type="text"
+              value={sku.skuName}
+              onChange={(e) => handleChange({ skuName: e.target.value })}
+              onBlur={handleBlur}
+              disabled={readOnly || !!cpoProject}
+              placeholder="SKU명 입력"
+              className={inputCls}
+            />
+          </div>
+          <div className="min-w-0">
+            <label className={labelCls}>카테고리</label>
+            <select
+              value={sku.category}
+              onChange={(e) => handleChange({ category: e.target.value as SkuData['category'] })}
+              onBlur={handleBlur}
+              disabled={readOnly}
+              className={selectCls}
+            >
+              {(['식품', '용품', '잡화', '의류', '장난감'] as const).map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+          </div>
+          <div className="min-w-0">
+            <label className={labelCls}>SKU 구분</label>
+            <select
+              value={sku.skuType}
+              onChange={(e) => handleChange({ skuType: e.target.value as SkuData['skuType'] })}
+              onBlur={handleBlur}
+              disabled={readOnly}
+              className={selectCls}
+            >
+              {(['시즈널', '스테디', '미해당'] as const).map((t) => (
+                <option key={t} value={t}>{t}</option>
+              ))}
+            </select>
           </div>
 
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">정가 (₩)</label>
-              <div className="w-full px-3 py-2 text-sm border border-gray-100 rounded-lg bg-gray-50 text-gray-700 tabular-nums">
-                {cpoScenario ? `₩${sku.regularPrice.toLocaleString()}` : <span className="text-gray-300">CPO 미확정</span>}
-              </div>
-            </div>
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">상시할인율</label>
-              <div className="w-full px-3 py-2 text-sm border border-gray-100 rounded-lg bg-gray-50 text-gray-700 tabular-nums">
-                {sku.regularPrice > 0 && sku.price > 0
-                  ? `${Math.round((1 - sku.price / sku.regularPrice) * 100)}%`
-                  : <span className="text-gray-300">—</span>}
-              </div>
-            </div>
+          <div className="min-w-0">
+            <label className={labelCls}>브랜드</label>
+            <select
+              value={sku.brand}
+              onChange={(e) => handleChange({ brand: e.target.value as SkuData['brand'] })}
+              onBlur={handleBlur}
+              disabled={readOnly}
+              className={selectCls}
+            >
+              {BRANDS.map((b) => (
+                <option key={b} value={b}>{b}</option>
+              ))}
+            </select>
+          </div>
+          <div className="min-w-0">
+            <label className={labelCls}>출시일</label>
+            <DateField
+              value={sku.releaseDate}
+              onChange={(v) => handleChange({ releaseDate: v })}
+              onBlur={handleBlur}
+              disabled={readOnly}
+            />
+          </div>
+          <div className="min-w-0">
+            <label className={labelCls}>입고예정일</label>
+            <DateField
+              value={sku.arrivalDate ?? ''}
+              onChange={(v) => handleChange({ arrivalDate: v })}
+              onBlur={handleBlur}
+              disabled={readOnly || !!cpoProject}
+            />
+          </div>
+          <div className="min-w-0">
+            <label className={labelCls}>촬영예정일</label>
+            <DateField
+              value={sku.shootingDate ?? ''}
+              onChange={(v) => handleChange({ shootingDate: v })}
+              onBlur={handleBlur}
+              disabled={readOnly || !!cpoProject}
+            />
           </div>
 
-          <a
-            href={cpoPricingDeepLink(sku.id)}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors"
-          >
-            기획 대시보드에서 수정 가능 <span aria-hidden="true">↗</span>
-          </a>
-        </>
-      ) : (
-        <>
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">판매가 (₩)</label>
-              <NumericInput
-                value={sku.price}
-                onChange={(v) => handleChange({ price: v })}
-                onBlur={handleBlur}
-                disabled={readOnly}
-                placeholder="0"
-                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed"
-              />
-            </div>
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">원가 (₩)</label>
-              <NumericInput
-                value={sku.cost}
-                onChange={(v) => handleChange({ cost: v })}
-                onBlur={handleBlur}
-                disabled={readOnly}
-                placeholder="0"
-                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed"
-              />
-            </div>
+          {/* ── 프라이싱 구분 ── */}
+          <div className="col-span-full flex items-center gap-2">
+            <span className="text-[11px] font-semibold text-gray-400 tracking-wide uppercase whitespace-nowrap">프라이싱</span>
+            <div className="flex-1 h-px bg-gray-200" />
+            {sku.isPriceConfirmed && (
+              <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100 border border-amber-300 text-amber-700 text-[10px] font-bold whitespace-nowrap">
+                🔒 가격 확정됨
+              </span>
+            )}
           </div>
 
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">정가 (₩)</label>
-              <NumericInput
-                value={sku.regularPrice}
-                onChange={(v) => handleChange({ regularPrice: v })}
-                onBlur={handleBlur}
-                disabled={readOnly}
-                placeholder="0"
-                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed"
-              />
-            </div>
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">상시할인율</label>
-              <div className="w-full px-3 py-2 text-sm border border-gray-100 rounded-lg bg-gray-50 text-gray-700 tabular-nums">
-                {sku.regularPrice > 0 && sku.price > 0
-                  ? `${Math.round((1 - sku.price / sku.regularPrice) * 100)}%`
-                  : <span className="text-gray-300">—</span>}
+          {priceLockedByCpo ? (
+            <>
+              <div className="min-w-0">
+                <label className={labelCls}>판매가 (₩)</label>
+                <div className={staticCls}>{cpoScenario ? `₩${sku.price.toLocaleString()}` : <span className="text-gray-300">CPO 미확정</span>}</div>
               </div>
-            </div>
+              <div className="min-w-0">
+                <label className={labelCls}>원가 (₩)</label>
+                <div className={staticCls}>{cpoCost !== null ? `₩${sku.cost.toLocaleString()}` : <span className="text-gray-300">CPO 미입력</span>}</div>
+              </div>
+              <div className="min-w-0">
+                <label className={labelCls}>정가 (₩)</label>
+                <div className={staticCls}>{cpoScenario ? `₩${sku.regularPrice.toLocaleString()}` : <span className="text-gray-300">CPO 미확정</span>}</div>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="min-w-0">
+                <label className={labelCls}>판매가 (₩)</label>
+                <NumericInput value={sku.price} onChange={(v) => handleChange({ price: v })} onBlur={handleBlur} disabled={readOnly} placeholder="0" className={inputCls} />
+              </div>
+              <div className="min-w-0">
+                <label className={labelCls}>원가 (₩)</label>
+                <NumericInput value={sku.cost} onChange={(v) => handleChange({ cost: v })} onBlur={handleBlur} disabled={readOnly} placeholder="0" className={inputCls} />
+              </div>
+              <div className="min-w-0">
+                <label className={labelCls}>정가 (₩)</label>
+                <NumericInput value={sku.regularPrice} onChange={(v) => handleChange({ regularPrice: v })} onBlur={handleBlur} disabled={readOnly} placeholder="0" className={inputCls} />
+              </div>
+            </>
+          )}
+          <div className="min-w-0">
+            <label className={labelCls}>상시할인율</label>
+            <div className={staticCls}>{discount}</div>
           </div>
-        </>
-      )}
+        </div>
 
-    </div>
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+          <p className="text-[11px] text-gray-400">프라이싱 시나리오 · 가격 확정 → 프로젝션 › 프라이싱</p>
+          {priceLockedByCpo && (
+            <a
+              href={cpoPricingDeepLink(sku.id)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[11px] font-semibold text-indigo-700 hover:underline whitespace-nowrap"
+            >
+              기획 대시보드에서 수정 가능 <span aria-hidden="true">↗</span>
+            </a>
+          )}
+        </div>
+      </div>
+    </>
   );
 }
 
@@ -1844,6 +1863,22 @@ function ChannelMonthTable({ sku, monthlySplit: _monthlySplit, skuMonths, releas
               {grandTotal > 0 ? grandTotal.toLocaleString() : <span className="text-indigo-300">–</span>}
             </td>
           </tr>
+          {grandTotal > 0 && (
+            <tr className="bg-gray-50 border-t border-gray-200 text-gray-500">
+              <td colSpan={2} className="px-3 py-1.5 font-medium whitespace-nowrap text-[11px]">월 출고 비중</td>
+              {skuMonths.map((m) => {
+                const total = monthTotal(m);
+                return (
+                  <td key={m} className={`px-1 py-1.5 text-center tabular-nums whitespace-nowrap text-[11px] ${yearBorder(m)}`}>
+                    {total > 0 ? `${Math.round((total / grandTotal) * 100)}%` : <span className="text-gray-300">–</span>}
+                  </td>
+                );
+              })}
+              <td className="px-2 py-1.5 text-center tabular-nums whitespace-nowrap text-[11px]">{Math.round((grandYear1Total / grandTotal) * 100)}%</td>
+              {hasYear2 && <td className="px-2 py-1.5 text-center tabular-nums whitespace-nowrap text-[11px]">{Math.round((grandYear2Total / grandTotal) * 100)}%</td>}
+              <td className="px-2 py-1.5 text-center tabular-nums whitespace-nowrap text-[11px]">100%</td>
+            </tr>
+          )}
         </tfoot>
       </table>
     </div>
