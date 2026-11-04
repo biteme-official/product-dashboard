@@ -76,7 +76,7 @@ export function ManualReviewChapter({ period, mix }: { period: ReactNode; mix: R
     <h4>🪜 처음이라면 이 순서로</h4>
     <div className="steps flow">
       <div className="step"><div className="no">1</div><div><h5>범위 좁히고 상태 칩 확인</h5><p>필터로 SKU를 추리고 요약의 오류 · 경고 칩 확인 · 오류 SKU는 공헌이익 합계에서 빠지고 확정도 막힘</p></div></div>
-      <div className="step"><div className="no">2</div><div><h5>대응SKU 확인</h5><p>[변경]으로 대응SKU · 기간 확인 · 월별 목표량이 비었으면 [대응SKU 실적으로 채우기]</p></div></div>
+      <div className="step"><div className="no">2</div><div><h5>대응SKU 확인</h5><p>[변경]으로 대응SKU · 기간 확인 · 월별 목표량이 비었으면 [대응SKU 동일수량 반영]</p></div></div>
       <div className="step"><div className="no">3</div><div><h5>1안 발주량 정하기</h5><p>발주량을 입력하면 소진월 · 판정 · 금액이 바로 바뀜 · 판매 목표도 기존 비중대로 함께 변경</p></div></div>
       <div className="step"><div className="no">4</div><div><h5>월별 목표량 · 채널 다듬기</h5><p>달별 · 채널별 수량 수정 · 발주량은 그대로라 리오더 · 잔여가 어떻게 달라지는지 확인</p></div></div>
       <div className="step"><div className="no">5</div><div><h5>옵션 · 판매가 확인</h5><p>사이즈 비중 100% 확인 · 필요하면 [최종 수량 수정] · 판매가 탭에서 수익 확인</p></div></div>
@@ -101,7 +101,7 @@ export function ManualReviewChapter({ period, mix }: { period: ReactNode; mix: R
       <tr><td className="k">컬러 수량</td><td><span className="chip c-blue">합계로 바뀜</span></td><td><span className="chip c-blue">같은 비율로 바뀜</span></td><td className="e">컬러 합계 = 발주량 · 옵션 수기값은 해제됨</td></tr>
       <tr><td className="k">사이즈 비중</td><td><span className="chip">그대로</span></td><td><span className="chip">그대로</span></td><td className="e">옵션별 배분만 바뀜 · 옵션 수기값은 해제됨 · 합계가 100%가 아니면 “100% 미달!” 또는 “100% 초과!”</td></tr>
       <tr><td className="k">판매가</td><td><span className="chip">그대로</span></td><td><span className="chip">그대로</span></td><td className="e">순매출 · 공헌이익만 바뀜 · 월별로 다른 가격은 채널별 목표량 펼침에서</td></tr>
-      <tr><td className="k">대응SKU</td><td><span className="chip">그대로</span></td><td><span className="chip">그대로</span></td><td className="e">“대응SKU 변경됨 · 월 계획 유지” 표시 · 새 기준을 쓰려면 [대응SKU 실적으로 채우기]</td></tr>
+      <tr><td className="k">대응SKU</td><td><span className="chip">그대로</span></td><td><span className="chip">그대로</span></td><td className="e">“대응SKU 변경됨 · 월 계획 유지” 표시 · 새 기준을 쓰려면 [대응SKU 동일수량 반영]</td></tr>
     </tbody></table></div>
   </div>
 
@@ -151,7 +151,8 @@ export function ManualReviewChapter({ period, mix }: { period: ReactNode; mix: R
     <h4>🌱 판매 목표를 처음 채우는 법 <span className="sub">자동으로 채워지지 않음 · 버튼을 눌러야 저장</span></h4>
     <div className="steps">
       <div className="step"><div className="no">1</div><div><h5>채널별 목표량 탭 [대응SKU 기준 채우기]</h5><p>총 발주량을 8개월 균등 → 대응SKU 채널 비중대로 나눔</p></div></div>
-      <div className="step"><div className="no">2</div><div><h5>또는 월별 목표량 [대응SKU 실적으로 채우기]</h5><p>대응SKU 월별 실적을 그대로 판매 목표로</p></div></div>
+      <div className="step"><div className="no">2</div><div><h5>또는 월별 목표량 [대응SKU 동일수량 반영]</h5><p>대응SKU 월별 실적 수량을 그대로 판매 목표로</p></div></div>
+      <div className="step"><div className="no">3</div><div><h5>또는 월별 목표량 [대응SKU 월별비중 반영]</h5><p>지금 고른 안의 발주량을 대응SKU 월별 실적 비중으로 나눔 · 판매 목표 합계 = 발주량 · 확정 채널 · 마케팅은 그대로</p></div></div>
     </div>
     <ul><li>대응SKU 채널 비중이 없으면 기본 채널비중 사용</li><li>쿠팡 비활성 SKU · 글로벌/일본 OFF SKU → 배분에서 빠지고 그 비중은 나머지 채널로</li><li>대응SKU 비중 · 증감도 같은 기준 — 비운영 채널 제외 · 글로벌/일본 한쪽만 OFF면 해외 실적 전부 남은 쪽으로</li></ul>
     {mix}
@@ -175,7 +176,7 @@ export function ManualReviewChapter({ period, mix }: { period: ReactNode; mix: R
     <div className="tw"><table style={{ minWidth: '680px' }}><thead><tr><th>방법</th><th>하는 법</th><th>결과</th><th className="nw">권한</th></tr></thead><tbody>
       <tr><td className="k">칸 직접 수정</td><td>채널 펼침 → 월별 수량 입력</td><td className="e">그 칸만 · 월 · 채널 비중 자동 재계산</td><td className="e nw">담당 채널</td></tr>
       <tr><td className="k">채널 비중 수정</td><td>[채널 비중 수정] → 여러 채널 % 입력 → [저장]</td><td className="e">월 합계 유지 · 안 고친 채널이 남은 % 나눠 가짐 · 수정+확정 합계 100% 초과 시 저장 불가</td><td className="e nw">MASTER · PM</td></tr>
-      <tr><td className="k">대응SKU 비중으로 다시 나누기</td><td>버튼 클릭</td><td className="e">월 합계 유지 · 대응SKU 비중으로 다시 · 손으로 고친 값도 재계산</td><td className="e nw">MASTER · PM</td></tr>
+      <tr><td className="k">대응SKU 채널비중 반영</td><td>버튼 클릭</td><td className="e">월 합계 유지 · 대응SKU 비중으로 다시 · 손으로 고친 값도 재계산</td><td className="e nw">MASTER · PM</td></tr>
       <tr><td className="k">되돌리기</td><td>조정 직후 버튼</td><td className="e">직전 상태로</td><td className="e nw">—</td></tr>
     </tbody></table></div>
     <div className="grid2">

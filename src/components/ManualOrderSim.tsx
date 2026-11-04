@@ -258,8 +258,16 @@ export function ManualOrderSim() {
             const next = alloc(COMPARE[i], CHANNELS.map((k) => p.ch[k][i]));
             CHANNELS.forEach((k, j) => { p.ch[k][i] = next[j]; });
           });
-          d.log = '대응SKU 실적으로 판매 목표 채움 · 발주량 그대로';
-        })}>대응SKU 실적으로 채우기</button>
+          d.log = '대응SKU 동일수량 반영 · 발주량 그대로';
+        })}>대응SKU 동일수량 반영</button>
+        <button type="button" disabled={locked} onClick={() => up((d, p) => {
+          const totals = alloc(p.qty, COMPARE);
+          MONTHS.forEach((_, i) => {
+            const next = alloc(totals[i], CHANNELS.map((k) => p.ch[k][i]));
+            CHANNELS.forEach((k, j) => { p.ch[k][i] = next[j]; });
+          });
+          d.log = `대응SKU 월별비중 반영 · 발주량 ${n(p.qty)}개를 실적 비중으로 나눔`;
+        })}>대응SKU 월별비중 반영</button>
         {s.season && m.diff !== 0 && (
           <button type="button" disabled={locked} onClick={() => up((d, p) => {
             const next = alloc(p.qty, CHANNELS.flatMap((c) => p.ch[c]));

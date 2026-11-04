@@ -3,7 +3,7 @@
  */
 import assert from 'node:assert/strict';
 import { cellMoney, cmOf, skuMoney, varCostOf, yearMonthKey, VAR_COST_DEFAULT, type VarCostResults } from '../src/utils/reviewSku.ts';
-import { planSnapshot, savePlanPatch, switchPlanPatch, withColorQty, withOptionQty, withOrderQty, withOrderQtyScaled, withSizeRatio } from '../src/utils/orderPlan.ts';
+import { monthTargetsByCompareShare, planSnapshot, savePlanPatch, switchPlanPatch, withColorQty, withOptionQty, withOrderQty, withOrderQtyScaled, withSizeRatio } from '../src/utils/orderPlan.ts';
 import { finalOrderForConfirm, finalOrderModel } from '../src/utils/finalOrder.ts';
 import { isKnownStep1Opt, step1Pricer } from '../src/utils/step1Price.ts';
 import { DEFAULT_PRICING_POLICY } from '../src/utils/pricingV2.ts';
@@ -205,5 +205,12 @@ test('사이즈 비중 수정: 발주량 · 판매 목표 유지, 수기값 해�
   assert.equal(p.channelMonthQty, undefined);
   assert.equal(p.sizes!.find((z) => z.label === 'S')!.ratio, 50);
   assert.deepEqual(p.finalOrderQty, {});
+});
+test('대응SKU 월별비중: 합계 = 발주량, 실적 없는 달 0', () => {
+  const comp: Record<number, number | null> = { 4: 100, 5: 300, 6: null, 7: 100 };
+  const t = monthTargetsByCompareShare(1000, [4, 5, 6, 7], (m) => comp[m])!;
+  assert.deepEqual([...t.values()], [200, 600, 0, 200]);
+  assert.equal(monthTargetsByCompareShare(0, [4], () => 10), null);
+  assert.equal(monthTargetsByCompareShare(100, [4], () => null), null);
 });
 console.log(`reviewSku: ${passed}개 통과`);
