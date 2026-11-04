@@ -86,9 +86,9 @@ export function CoverageChip({ sku, skuMonths, wrap }: { sku: SkuData; skuMonths
       text = `과재고 위험 · 시즌 후 잔여 약 ${n}개`;
   }
   return (
-    <span className={`inline-flex items-center gap-1 text-xs font-bold px-1.5 py-0.5 bg-pink-100 text-red-600 ${wrap ? '' : 'whitespace-nowrap'}`}>
+    <span className={`text-xs font-bold px-1.5 py-0.5 bg-pink-100 text-red-600 ${wrap ? 'inline-block' : 'inline-flex items-center gap-1 whitespace-nowrap'}`}>
       {seasonOnly && <span className="font-bold">시즌 한정 ·</span>}
-      {text}
+      {wrap && seasonOnly ? ' ' : ''}{text}
     </span>
   );
 }
@@ -637,7 +637,7 @@ function BasicInfoColumn({ sku, readOnly }: { sku: SkuData; readOnly?: boolean }
   return (
     <>
       {/* 썸네일 · 기획 바로가기 */}
-      <div className="min-w-0 grid grid-cols-[88px_minmax(0,1fr)] md:grid-cols-1 gap-2 items-start">
+      <div className="min-w-0 grid grid-cols-[88px_minmax(0,1fr)] md:grid-cols-1 gap-2 items-start content-start">
         <ThumbnailSection skuId={sku.id} imageUrl={sku.imageUrl} readOnly={readOnly} />
         {cpoProject ? (
           <a
