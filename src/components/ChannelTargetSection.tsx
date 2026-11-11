@@ -852,7 +852,9 @@ export function ChannelTargetSection({ skus, targetComparable, onNavigateToSku }
         </div>
       )}
       {req && <ReviewRequestBanner req={req} skus={skus} allSkuIds={allSkuIds} onExit={() => setReqId(null)}
-        onCopied={(ok) => setToast({ text: ok ? '링크 복사됨 · 공유할 곳에 붙여넣기' : '복사 안 됨 · 브라우저 권한 확인' })} />}
+        onCopied={(ok) => setToast({ text: ok ? '링크 복사됨 · 공유할 곳에 붙여넣기' : '복사 안 됨 · 브라우저 권한 확인' })}
+        onDeleted={(name) => { setReqId(null); setToast({ text: `${name} 삭제됨` }); }}
+        onError={(text) => setToast({ text })} />}
       {fixedTop}
       </div>
       {reqModal && (
