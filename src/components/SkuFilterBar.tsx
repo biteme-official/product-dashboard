@@ -127,10 +127,9 @@ export function SkuFilterBar({
   const hasFilter = catFilter.size > 0 || brandFilter.size > 0 || monthFilter.size > 0 || excludeOpenComplete;
 
   return (
-    <div className="flex-shrink-0 bg-white border border-gray-200 rounded-xl px-3 py-2.5">
+    <div className="flex-shrink-0 px-1">
       <div className="flex items-center gap-x-2 gap-y-1.5 flex-wrap">
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <span className="text-[11px] text-gray-400 font-semibold shrink-0 w-14">카테고리</span>
+        <div className="flex items-center gap-1.5 flex-wrap" role="group" aria-label="카테고리">
           {availableCategories.map((cat) => (
             <button
               key={cat}
@@ -146,8 +145,7 @@ export function SkuFilterBar({
           ))}
         </div>
         <div className="w-px h-4 bg-gray-200 shrink-0" />
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <span className="text-[11px] text-gray-400 font-semibold shrink-0 w-[30px]">브랜드</span>
+        <div className="flex items-center gap-1.5 flex-wrap" role="group" aria-label="브랜드">
           {availableBrands.map((brand) => (
             <button
               key={brand}
@@ -162,6 +160,7 @@ export function SkuFilterBar({
             </button>
           ))}
         </div>
+        <div className="w-px h-4 bg-gray-200 shrink-0" />
         <button
           onClick={() => onExcludeOpenCompleteChange(!excludeOpenComplete)}
           className={`px-2.5 py-0.5 rounded-full text-[11px] font-medium border transition-colors shrink-0 ${

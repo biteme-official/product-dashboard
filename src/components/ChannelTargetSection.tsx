@@ -96,7 +96,9 @@ export function ChannelTargetSection({ skus, targetComparable, onNavigateToSku }
   const persistSku = useStore((s) => s.persistSku);
   const setChannelConfirmed = useStore((s) => s.setChannelConfirmed);
 
-  const [view, setViewRaw] = useState<View>(() => readSession('ct:view', 'ws'));
+  const [viewState, setViewRaw] = useState<View>(() => readSession('ct:view', 'ws'));
+  // 월별 비중설정은 마스터 · PM만 (다른 역할은 수정 불가 · 탭 숨김) — 열어둔 세션이면 SKU별 결정으로
+  const view: View = viewState === 'plan' && !allRole ? 'ws' : viewState;
   const setView = (v: View) => { setViewRaw(v); writeSession('ct:view', v); setPicked(new Set()); setBulk(null); };
   const [onlyEmpty, setOnlyEmpty] = useState(false);
   const [onlyOpen, setOnlyOpen] = useState(false);
@@ -825,7 +827,7 @@ export function ChannelTargetSection({ skus, targetComparable, onNavigateToSku }
       <div className="shrink-0 flex flex-col gap-2">
       <div className="flex flex-wrap items-center gap-2">
         <div className="inline-flex rounded-lg border border-gray-300 overflow-hidden text-xs">
-          {([['ws', 'SKU별 결정'], ['ch', '채널별 설정'], ['plan', '월별 비중설정'], ['total', '전체 합계']] as const).map(([k, l]) => (
+          {([['ws', 'SKU별 결정'], ['ch', '채널별 설정'], ['plan', '월별 비중설정'], ['total', '전체 합계']] as const).filter(([k]) => k !== 'plan' || allRole).map(([k, l]) => (
             <button key={k} onClick={() => setView(k)} className={`px-3 py-1.5 ${view === k ? 'bg-gray-800 text-white font-semibold' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>{l}</button>
           ))}
         </div>

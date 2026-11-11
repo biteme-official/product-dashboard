@@ -236,7 +236,7 @@ export function SkuOrderSection({
   const gallerySelectedSku = gallerySkuId ? skus.find((s) => s.id === gallerySkuId) ?? null : null;
 
   return (
-    <section className="p-4 space-y-3">
+    <section className={isProjection ? 'px-4 pt-2.5 pb-4 space-y-3' : 'p-4 space-y-3'}>
       {/* 헤더 — SKU 리스트 모드에서만 표시 */}
       {!isProjection && (
         <div className="flex items-center justify-between gap-2 flex-wrap">
