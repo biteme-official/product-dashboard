@@ -95,7 +95,7 @@ export function ReviewRequestBanner({ req, skus, allSkuIds, onExit, onCopied }: 
 /** 목록 행 · 대상 그룹 확정 칩 (플 · 브 · 글) */
 export function GroupConfirmChips({ s, groups }: { s: SkuData; groups: ChannelConfirmField[] }) {
   return (
-    <>
+    <span className="inline-flex items-center gap-0.5 whitespace-nowrap">
       {groups.map((g) => {
         const ap = groupApplies(s, g);
         const on = !!s[g];
@@ -106,7 +106,7 @@ export function GroupConfirmChips({ s, groups }: { s: SkuData; groups: ChannelCo
           </span>
         );
       })}
-    </>
+    </span>
   );
 }
 
