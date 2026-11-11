@@ -31,6 +31,9 @@ import { finalOrderForConfirm, finalOrderModel } from '../utils/finalOrder';
 import { monthTargetsByCompareShare, savePlanPatch, switchPlanPatch, withColorQty, withOptionQty, withOrderQtyScaled, withSizeRatio } from '../utils/orderPlan';
 import { CellInput } from './CellInput';
 import { ChannelQtyPanel } from './SkuCard';
+import { GroupConfirmButtons, GroupConfirmChips } from './ReviewRequestParts';
+import type { ReviewRequest } from '../utils/reviewRequest';
+import type { ChannelConfirmField } from '../types';
 
 const fmt = (n: number) => Math.round(n).toLocaleString();
 const won = (n: number | null | undefined) => {
@@ -153,6 +156,17 @@ interface DetailEnv {
   setMonthPlan: (s: SkuData, r: SkuReview, totalsByMonth: Map<Month, number>, label: string, fromCompare?: boolean) => void;
   saveCompare: (s: SkuData, names: string[], mode: CompareMode, baseYears: Record<string, number> | undefined) => void;
   confirm: (s: SkuData, on: boolean) => Promise<void>;
+  confirmGroup: (s: SkuData, field: ChannelConfirmField, value: boolean) => void;
+}
+
+/** 검토 요청 묶음 — ChannelTargetSection이 관리 */
+export interface ReviewListProps {
+  req: ReviewRequest | null;
+  /** 고른 SKU id (고른 순서) · null이면 체크박스 숨김 (마스터 · PM · 요청 밖 · SKU별 결정에서만) */
+  picked: string[] | null;
+  onPick: (id: string) => void;
+  onClearPick: () => void;
+  onCreate: () => void;
 }
 
 function OptionPanel({ s, env, editable }: { s: SkuData; env: DetailEnv; editable: boolean }) {
@@ -257,7 +271,7 @@ function OptionPanel({ s, env, editable }: { s: SkuData; env: DetailEnv; editabl
 }
 
 function Detail({ s, r, env }: { s: SkuData; r: SkuReview; env: DetailEnv }) {
-    const { role, perm, tableau, global, writeBlocked, busy, basis, onNavigateToSku, save, setOrder, pickPlan, canSwitch, setMonthPlan, saveCompare, confirm } = env;
+    const { role, perm, tableau, global, writeBlocked, busy, basis, onNavigateToSku, save, setOrder, pickPlan, canSwitch, setMonthPlan, saveCompare, confirm, confirmGroup } = env;
     const m = r.money;
     const active = s.orderPlans?.active ?? 1;
     const months = getSkuMonths(s.releaseDate);
@@ -377,6 +391,7 @@ function Detail({ s, r, env }: { s: SkuData; r: SkuReview; env: DetailEnv }) {
           {stateChip(s)}
           <span className="text-[11px] text-gray-500 tabular-nums">{s.category} · {s.releaseDate ? `${s.releaseDate.slice(5).replace('-', '/')} 오픈` : '오픈일 미정'} · 판매가 {s.price ? fmt(s.price) : '없음'} · 원가 {s.cost ? fmt(s.cost) : '없음'} · MOQ {fmt(s.moq)}{isSeasonOnly(s) ? ' · 시즌 한정' : ''}</span>
           <span className="flex-1" />
+          <GroupConfirmButtons s={s} canStep2={perm.step2 && !writeBlocked} onToggle={(f, v) => confirmGroup(s, f, v)} />
           {onNavigateToSku && <button onClick={() => onNavigateToSku(s)} className="text-xs px-2 py-0.5 rounded border border-gray-300 bg-white text-gray-700 hover:bg-gray-50">SKU카드 →</button>}
         </div>
         {(r.issues.length > 0 || qtyChanged) && (
@@ -595,8 +610,9 @@ function Detail({ s, r, env }: { s: SkuData; r: SkuReview; env: DetailEnv }) {
     );
   }
 
-export function OrderReviewSection({ skus: filteredSkus, view, targetComparable: filterComparable, onNavigateToSku }: {
+export function OrderReviewSection({ skus: filteredSkus, view, targetComparable: filterComparable, onNavigateToSku, review }: {
   skus: SkuData[];
+  review?: ReviewListProps;
   view: 'decide' | 'total';
   /** 월 · 브랜드 · 검색 필터가 없을 때만 카테고리 목표와 비교 가능 */
   targetComparable: boolean;
@@ -609,6 +625,7 @@ export function OrderReviewSection({ skus: filteredSkus, view, targetComparable:
   const listenerError = useSkuSyncStatus((s) => s.error);
   const applySkuBatch = useStore((s) => s.applySkuBatch);
   const setFinalOrderConfirmed = useStore((s) => s.setFinalOrderConfirmed);
+  const setChannelConfirmed = useStore((s) => s.setChannelConfirmed);
 
   const skus = filteredSkus;
   type StatusFilter = 'all' | 'todo' | 'saved' | 'done';
@@ -722,7 +739,15 @@ export function OrderReviewSection({ skus: filteredSkus, view, targetComparable:
     return () => window.removeEventListener('keydown', onKey);
   });
 
-  const env: DetailEnv = { role, perm, tableau, global, writeBlocked, busy, basis, onNavigateToSku, save, setOrder, pickPlan, canSwitch, setMonthPlan, saveCompare, confirm };
+  function confirmGroup(s: SkuData, field: ChannelConfirmField, value: boolean) {
+    setMessage(null);
+    setChannelConfirmed(s.id, field, value).catch((err) => {
+      console.error('[발주량 검토] 그룹 확정 실패', err);
+      setMessage(`${s.skuName} 그룹 확정 실패 · 새로고침 후 다시 시도`);
+    });
+  }
+
+  const env: DetailEnv = { role, perm, tableau, global, writeBlocked, busy, basis, onNavigateToSku, save, setOrder, pickPlan, canSwitch, setMonthPlan, saveCompare, confirm, confirmGroup };
 
   const decided = skus.filter((s) => s.orderPlans?.decided || s.finalOrderConfirmedAt).length;
   const confirmed = skus.filter((s) => s.finalOrderConfirmedAt).length;
@@ -776,7 +801,9 @@ export function OrderReviewSection({ skus: filteredSkus, view, targetComparable:
   );
 
   // 왼쪽 목록은 오픈일로 묶음
-  const openGroups = (() => {
+  const req = review?.req ?? null;
+  const picked = review?.picked ?? null;
+  const openGroups = req ? [['__req', list] as [string, SkuData[]]] : (() => {
     const map = new Map<string, SkuData[]>();
     [...list].sort((a, b) => (a.releaseDate || '9999').localeCompare(b.releaseDate || '9999')).forEach((s) => { const k = openKey(s); if (!map.has(k)) map.set(k, []); map.get(k)!.push(s); });
     return [...map.entries()];
@@ -791,14 +818,17 @@ export function OrderReviewSection({ skus: filteredSkus, view, targetComparable:
         {openGroups.length === 0 && <p className="p-3 text-xs text-gray-500">조건에 맞는 SKU 없음</p>}
         {openGroups.map(([k, arr]) => (
           <div key={k}>
-            <div className="px-2.5 py-1 text-[11px] font-bold text-gray-500 bg-gray-50 border-b border-gray-200">{openLabel(k)}</div>
+            <div className={`px-2.5 py-1 text-[11px] font-bold border-b border-gray-200 ${req ? 'text-teal-700 bg-teal-50' : 'text-gray-500 bg-gray-50'}`}>{req ? `요청 순서 · 01부터 ${String(req.skuIds.length).padStart(2, '0')}까지` : openLabel(k)}</div>
             {arr.map((s) => {
               const r = reviewOf(s);
               const err = r.issues.filter((i) => i.level === 'error').length;
               const warn = r.issues.length - err;
               const v = verdict(s, r.money);
               return (
-                <button key={s.id} onClick={() => goTo(s.id)} className={`block w-full text-left px-2.5 py-1.5 border-b border-gray-100 border-l-[3px] hover:bg-gray-50 ${s.id === focusSku?.id ? 'bg-indigo-50 border-l-indigo-600' : 'border-l-transparent'}`}>
+                <div key={s.id} className={`flex items-start gap-1.5 border-b border-gray-100 border-l-[3px] hover:bg-gray-50 ${s.id === focusSku?.id ? 'bg-indigo-50 border-l-indigo-600' : 'border-l-transparent'}`}>
+                {picked && <input type="checkbox" className="mt-2 ml-1.5 accent-teal-600" aria-label={`${s.skuName} 검토 요청에 담기`} checked={picked.includes(s.id)} onChange={() => review!.onPick(s.id)} />}
+                {req && <span className="mt-1.5 ml-1.5 text-[11px] font-bold text-teal-700 tabular-nums">{String(req.skuIds.indexOf(s.id) + 1).padStart(2, '0')}</span>}
+                <button onClick={() => goTo(s.id)} className={`block min-w-0 flex-1 text-left py-1.5 pr-2.5 ${picked || req ? 'pl-0.5' : 'pl-2.5'}`}>
                   <span className="block text-xs font-bold text-gray-900 truncate">{s.skuName || '(SKU명 미입력)'}</span>
                   <span className="block text-[11px] text-gray-500 tabular-nums">{s.brand} · {s.category} · {s.orderPlans?.active ?? 1}안 {fmt(s.totalOrderQty)}개 · 소진 {coverOf(s.totalOrderQty, r.money)}</span>
                   <span className="mt-0.5 flex flex-wrap items-center gap-1">
@@ -806,12 +836,22 @@ export function OrderReviewSection({ skus: filteredSkus, view, targetComparable:
                     {stateChip(s)}
                     {err > 0 && <span className="px-1.5 rounded-full bg-red-100 text-red-700 text-[10px] font-semibold">오류 {err}</span>}
                     {warn > 0 && !s.finalOrderConfirmedAt && <span className="px-1.5 rounded-full bg-amber-100 text-amber-800 text-[10px] font-semibold">경고 {warn}</span>}
+                    {req && <GroupConfirmChips s={s} groups={req.groups} />}
                   </span>
                 </button>
+                </div>
               );
             })}
           </div>
         ))}
+        {picked && picked.length > 0 && (
+          <div className="sticky bottom-0 z-10 flex flex-wrap items-center gap-1.5 px-2 py-1.5 bg-teal-50 border-t border-teal-300 text-xs">
+            <b className="text-teal-800">{picked.length}개 선택</b>
+            <button onClick={review!.onClearPick} className="text-[11px] text-gray-500 hover:text-gray-700">선택 해제</button>
+            <span className="flex-1" />
+            <button onClick={review!.onCreate} className="px-2 py-1 rounded bg-teal-600 text-white font-semibold text-[11px]">검토 요청 만들기</button>
+          </div>
+        )}
       </aside>
       <div className="min-w-0 min-h-0 overflow-auto pr-1">
         {shown.map((id) => {

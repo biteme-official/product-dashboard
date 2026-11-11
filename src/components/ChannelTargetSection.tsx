@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   CHANNELS, CHANNEL_CONFIRM_GROUP, getDisabledChannels, getSkuMonths, isMarketingLocked,
   isSeasonOnly, type Channel, type ChannelConfirmField, type ChannelMonthQtyEntry, type Month, type SkuData,
@@ -21,6 +21,10 @@ import { cellMoney, varCostOf as varRatioOf } from '../utils/reviewSku';
 import { CoverageChip } from './SkuCard';
 import { OrderReviewSection } from './OrderReviewSection';
 import { CellInput } from './CellInput';
+import { ReviewRequestBanner, ReviewRequestModal, ReviewRequestSelect } from './ReviewRequestParts';
+import {
+  REVIEW_OPEN_EVENT, REVIEW_SESSION_KEY, canCreateReviewRequest, subscribeReviewRequests, type ReviewRequest,
+} from '../utils/reviewRequest';
 
 // ── 공용 ────────────────────────────────────────────────────────────────
 type View = 'ws' | 'ch' | 'plan' | 'total';
@@ -104,13 +108,32 @@ export function ChannelTargetSection({ skus, targetComparable, onNavigateToSku }
   const [undoStacks, setUndoStacks] = useState<Record<string, Snapshot[]>>({});
   const [busy, setBusy] = useState(false);
 
-  const list = useMemo(() => skus
+  // ── 검토 요청 묶음 ──
+  const allSkuIds = useStore((s) => s.skus).reduce((set, s) => set.add(s.id), new Set<string>());
+  const [requests, setRequests] = useState<ReviewRequest[]>([]);
+  const [reqId, setReqIdRaw] = useState<string | null>(() => readSession<string | null>(REVIEW_SESSION_KEY, null));
+  const setReqId = (id: string | null) => { setReqIdRaw(id); writeSession(REVIEW_SESSION_KEY, id); setReqPick([]); };
+  const [reqPick, setReqPick] = useState<string[]>([]);
+  const [reqModal, setReqModal] = useState(false);
+  const [reqLoaded, setReqLoaded] = useState(false);
+  useEffect(() => subscribeReviewRequests((items) => { setRequests(items); setReqLoaded(true); }), []);
+  useEffect(() => {
+    const onOpen = (e: Event) => { const id = (e as CustomEvent<string>).detail; setViewRaw('ws'); setReqId(id); };
+    window.addEventListener(REVIEW_OPEN_EVENT, onOpen);
+    return () => window.removeEventListener(REVIEW_OPEN_EVENT, onOpen);
+  }, []);
+  const req = requests.find((r) => r.id === reqId) ?? null;
+  // 요청 SKU를 고른 순서대로 · 필터(월 · 브랜드 · 검색)는 묶음 안에서 적용
+  const scoped = useMemo(() => (req ? req.skuIds.map((id) => skus.find((s) => s.id === id)).filter((s): s is SkuData => !!s) : skus), [req, skus]);
+  const canPickReq = canCreateReviewRequest(role) && !req && view === 'ws';
+
+  const list = useMemo(() => scoped
     .filter((s) => (!onlyEmpty || isEmptyGrid(s)) && (!onlyOpen || myGroups.some((f) => !s[f])))
     // 채널별 설정: 그 채널을 운영하지 않는 SKU(글로벌 · 일본 비운영, 쿠팡 미등록)는 목록에서 아예 뺀다
     .filter((s) => view !== 'ch' || !disabledCh(s, channel))
-    .slice().sort((a, b) => (a.releaseDate || '9999').localeCompare(b.releaseDate || '9999')),
+    .slice().sort((a, b) => (req ? 0 : (a.releaseDate || '9999').localeCompare(b.releaseDate || '9999'))),
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  [skus, onlyEmpty, onlyOpen, role, view, channel]);
+  [scoped, req, onlyEmpty, onlyOpen, role, view, channel]);
 
   // 오픈일로만 그룹화 — 카테고리 · 브랜드는 상단 필터 바에서 거른다
   const groups = useMemo(() => {
@@ -653,7 +676,14 @@ export function ChannelTargetSection({ skus, targetComparable, onNavigateToSku }
   if (list.length === 0) {
     body = <div className="p-8 text-center text-sm text-gray-400">조건에 맞는 SKU가 없습니다.</div>;
   } else if (view === 'ws' || view === 'total') {
-    body = <OrderReviewSection skus={list} view={view === 'ws' ? 'decide' : 'total'} targetComparable={targetComparable && !onlyEmpty && !onlyOpen} onNavigateToSku={onNavigateToSku} />;
+    body = <OrderReviewSection skus={list} view={view === 'ws' ? 'decide' : 'total'} targetComparable={targetComparable && !onlyEmpty && !onlyOpen && !req} onNavigateToSku={onNavigateToSku}
+      review={{
+        req,
+        picked: canPickReq ? reqPick : null,
+        onPick: (id) => setReqPick((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id])),
+        onClearPick: () => setReqPick([]),
+        onCreate: () => setReqModal(true),
+      }} />;
   } else if (view === 'ch') {
     fixedTop = (
       <div className="flex flex-col gap-2">
@@ -799,8 +829,9 @@ export function ChannelTargetSection({ skus, targetComparable, onNavigateToSku }
             <button key={k} onClick={() => setView(k)} className={`px-3 py-1.5 ${view === k ? 'bg-gray-800 text-white font-semibold' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>{l}</button>
           ))}
         </div>
+        <ReviewRequestSelect requests={requests} value={req ? req.id : null} skus={skus} onChange={setReqId} />
         <span className="flex-1" />
-        <span className="text-[11px] text-gray-500">그룹화 · 오픈일</span>
+        <span className="text-[11px] text-gray-500">{req ? '정렬 · 요청 순서' : '그룹화 · 오픈일'}</span>
         <label className="flex items-center gap-1 text-[11px] text-gray-500"><input type="checkbox" checked={onlyEmpty} onChange={(e) => setOnlyEmpty(e.target.checked)} />미입력만</label>
         {myGroups.length > 0 && <label className="flex items-center gap-1 text-[11px] text-gray-500"><input type="checkbox" checked={onlyOpen} onChange={(e) => setOnlyOpen(e.target.checked)} />내 그룹 미확정만</label>}
       </div>
@@ -814,8 +845,21 @@ export function ChannelTargetSection({ skus, targetComparable, onNavigateToSku }
           <button onClick={() => setToast(null)} className="text-emerald-700/70">닫기</button>
         </div>
       )}
+      {reqId && !req && reqLoaded && (
+        <div className="flex items-center gap-2 text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded px-2 py-1">
+          검토 요청 없음 · 링크가 잘못됐거나 삭제됨 · 전체 SKU 표시 중
+          <button onClick={() => setReqId(null)} className="underline">닫기</button>
+        </div>
+      )}
+      {req && <ReviewRequestBanner req={req} skus={skus} allSkuIds={allSkuIds} onExit={() => setReqId(null)}
+        onCopied={(ok) => setToast({ text: ok ? '링크 복사됨 · 공유할 곳에 붙여넣기' : '복사 안 됨 · 브라우저 권한 확인' })} />}
       {fixedTop}
       </div>
+      {reqModal && (
+        <ReviewRequestModal picked={reqPick.map((id) => skus.find((s) => s.id === id)).filter((s): s is SkuData => !!s)}
+          onCancel={() => setReqModal(false)}
+          onDone={(r, copied) => { setReqModal(false); setReqId(r.id); setToast({ text: `${r.name} 만듦 · ${copied ? '링크 복사됨' : '링크 복사 안 됨 · 배너의 [링크 복사] 사용'}` }); }} />
+      )}
       <div className={`flex-1 min-h-0 ${(view === 'ws' || view === 'total') && list.length > 0 ? '' : 'overflow-auto'}`}>{body}</div>
     </div>
   );
