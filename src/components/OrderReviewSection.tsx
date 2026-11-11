@@ -7,7 +7,7 @@ import {
   Bar, CartesianGrid, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts';
 import {
-  B2C_CHANNELS, CATEGORIES, CHANNEL_CONFIRM_GROUP, getConfirmedChannels, getSkuMonths, isSeasonOnly,
+  B2C_CHANNELS, CATEGORIES, CHANNELS, CHANNEL_CONFIRM_GROUP, getConfirmedChannels, getDisabledChannels, getSkuMonths, isSeasonOnly,
   type Channel, type Month, type SkuData,
 } from '../types';
 import { planScopeOf, SkuConflictError, useSkuSyncStatus, useStore } from '../store';
@@ -16,7 +16,7 @@ import { usePermission } from '../contexts/PermissionsContext';
 import { useReviewCtx } from '../hooks/useReviewCtx';
 import type { TableauBase } from '../hooks/useTableauBase';
 import { useOrderTargets } from '../hooks/useOrderTargets';
-import { isAllChannelRole, ownsChannel } from '../utils/channelOwnership';
+import { canConfirmGroup, isAllChannelRole, ownsChannel } from '../utils/channelOwnership';
 import type { Role } from '../utils/pin';
 import { searchSkus, type SkuShipmentInfo } from '../services/tableau';
 import {
@@ -32,7 +32,7 @@ import { monthTargetsByCompareShare, savePlanPatch, switchPlanPatch, withColorQt
 import { CellInput } from './CellInput';
 import { ChannelQtyPanel } from './SkuCard';
 import { GroupConfirmButtons, GroupConfirmChips } from './ReviewRequestParts';
-import type { ReviewRequest } from '../utils/reviewRequest';
+import { REVIEW_GROUPS, REVIEW_GROUP_LABEL, type ReviewRequest } from '../utils/reviewRequest';
 import type { ChannelConfirmField } from '../types';
 
 const fmt = (n: number) => Math.round(n).toLocaleString();
@@ -610,6 +610,82 @@ function Detail({ s, r, env }: { s: SkuData; r: SkuReview; env: DetailEnv }) {
     );
   }
 
+/**
+ * 검토 요청 · 채널별 요약 — 요청 SKU를 채널 단위로 합친 판매 수량 · 순매출 · 공헌이익 · CM% · 그룹 확정.
+ * 금액 기준(초도 발주량만 / 시즌 목표 포함)은 상단 요약과 같다. 발주금액은 SKU 단위라 채널로 나누지 않음.
+ * 첫 화면: 마스터 · PM · 뷰어는 전체, 채널 담당은 내 그룹.
+ */
+type SummaryCol = { key: string; label: string; group: ChannelConfirmField; qty: number; revenue: number; profit: number; profitNull: number; done: number; total: number };
+function ReviewChannelSummary({ req, rows, role }: { req: ReviewRequest; rows: { s: SkuData; r: SkuReview }[]; role: Role | null }) {
+  const own = isAllChannelRole(role) ? null : REVIEW_GROUPS.find((f) => canConfirmGroup(role, f)) ?? null;
+  const [pick, setPick] = useState<{ reqId: string; g: ChannelConfirmField | 'all' } | null>(null);
+  const g = pick && pick.reqId === req.id ? pick.g : (own ?? 'all');
+  const [open, setOpen] = useState(true);
+
+  const cols: SummaryCol[] = CHANNELS.map((ch) => ({ key: ch, label: ch, group: CHANNEL_CONFIRM_GROUP[ch].field, qty: 0, revenue: 0, profit: 0, profitNull: 0, done: 0, total: 0 }));
+  const mkt: SummaryCol = { key: '마케팅', label: '마케팅', group: 'step2PlatformConfirmed', qty: 0, revenue: 0, profit: 0, profitNull: 0, done: 0, total: 0 };
+  rows.forEach(({ s, r }) => {
+    const off = getDisabledChannels(s) as readonly string[];
+    cols.forEach((c) => {
+      if (off.includes(c.key)) return;
+      const m = r.money.channels.find((x) => x.channel === c.key);
+      if (!m) return;
+      c.qty += m.soldQty; c.revenue += m.revenue;
+      if (m.profit === null) c.profitNull += 1; else c.profit += m.profit;
+      if (m.planQty > 0) { c.total += 1; if (s[c.group]) c.done += 1; }
+    });
+    if (r.money.marketingCost > 0) { mkt.profit -= r.money.marketingCost; mkt.total += 1; if (s.step2PlatformConfirmed) mkt.done += 1; }
+  });
+  const all = [...cols, ...(mkt.total > 0 ? [mkt] : [])];
+  const shown = all.filter((c) => g === 'all' || c.group === g);
+  const qtyAll = cols.reduce((a, c) => a + c.qty, 0);
+  const sum = shown.reduce((a, c) => ({ qty: a.qty + c.qty, revenue: a.revenue + c.revenue, profit: a.profit + c.profit, profitNull: a.profitNull + c.profitNull }), { qty: 0, revenue: 0, profit: 0, profitNull: 0 });
+  const cmOf = (rev: number, pro: number) => (rev > 0 ? Math.round((pro / rev) * 1000) / 10 : null);
+  const profitCell = (c: { profit: number; profitNull: number; revenue: number }) => (c.profitNull > 0 && c.profit === 0 ? '–' : <>{won(c.profit)}{c.profitNull > 0 && <span className="text-[10px] text-red-500"> *</span>}</>);
+  const th = 'px-2 py-1 font-semibold text-right whitespace-nowrap';
+  const td = 'px-2 py-1 text-right whitespace-nowrap';
+
+  return (
+    <div className="bg-white border border-teal-300 rounded-lg px-3 py-1.5 space-y-1">
+      <div className="flex flex-wrap items-center gap-1.5 text-xs">
+        <b className="text-gray-800">채널별 요약</b>
+        <span className="text-[11px] text-gray-500">요청 SKU {rows.length}개 · 상단 금액 기준과 같음 · 발주금액은 위 합계에만</span>
+        <span className="flex-1" />
+        {(['all', ...REVIEW_GROUPS] as const).map((k) => (
+          <Chip key={k} on={g === k} onClick={() => setPick({ reqId: req.id, g: k })}>{k === 'all' ? '전체' : REVIEW_GROUP_LABEL[k]}</Chip>
+        ))}
+        <button onClick={() => setOpen((v) => !v)} className="text-[11px] underline text-indigo-700 ml-1">{open ? '접기' : '펼치기'}</button>
+      </div>
+      {open && (
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs tabular-nums">
+            <thead><tr className="border-b border-gray-200 text-gray-500">
+              <th className="px-2 py-1 font-semibold text-left whitespace-nowrap"></th>
+              {shown.map((c) => <th key={c.key} className={th}>{c.label}<span className="block text-[10px] font-normal text-gray-400">{REVIEW_GROUP_LABEL[c.group]}</span></th>)}
+              <th className={`${th} border-l border-gray-200`}>{g === 'all' ? '합계' : `${REVIEW_GROUP_LABEL[g]} 소계`}</th>
+            </tr></thead>
+            <tbody>
+              <tr className="border-b border-gray-100"><td className="px-2 py-1 text-gray-500 whitespace-nowrap">판매 수량 · 비중</td>
+                {shown.map((c) => <td key={c.key} className={td}>{c.key === '마케팅' ? '–' : <>{fmt(c.qty)} <span className="text-gray-400">{qtyAll ? Math.round((c.qty / qtyAll) * 100) : 0}%</span></>}</td>)}
+                <td className={`${td} border-l border-gray-200 font-semibold`}>{fmt(sum.qty)} <span className="text-gray-400 font-normal">{qtyAll ? Math.round((sum.qty / qtyAll) * 100) : 0}%</span></td></tr>
+              <tr className="border-b border-gray-100"><td className="px-2 py-1 text-gray-500">순매출</td>
+                {shown.map((c) => <td key={c.key} className={td}>{c.key === '마케팅' ? '–' : won(c.revenue)}</td>)}
+                <td className={`${td} border-l border-gray-200 font-semibold`}>{won(sum.revenue)}</td></tr>
+              <tr className="border-b border-gray-100"><td className="px-2 py-1 text-gray-500 whitespace-nowrap">공헌이익 · CM%</td>
+                {shown.map((c) => <td key={c.key} className={td}>{profitCell(c)}{c.key !== '마케팅' && <span className="text-gray-400"> {pct(cmOf(c.revenue, c.profit))}</span>}</td>)}
+                <td className={`${td} border-l border-gray-200 font-semibold`}>{profitCell(sum)} <span className="text-gray-400 font-normal">{pct(cmOf(sum.revenue, sum.profit))}</span></td></tr>
+              <tr><td className="px-2 py-1 text-gray-500">그룹 확정</td>
+                {shown.map((c) => <td key={c.key} className={td}>{c.total ? <span className={`px-1.5 rounded-full text-[10px] font-semibold ${c.done === c.total ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-800'}`}>{c.done}/{c.total}</span> : <span className="text-gray-300">운영 안 함</span>}</td>)}
+                <td className={`${td} border-l border-gray-200`}></td></tr>
+            </tbody>
+          </table>
+          {all.some((c) => c.profitNull > 0) && <p className="text-[10px] text-red-500 mt-0.5">* 변동비 없어 공헌이익에서 빠진 SKU 있음</p>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function OrderReviewSection({ skus: filteredSkus, view, targetComparable: filterComparable, onNavigateToSku, review }: {
   skus: SkuData[];
   review?: ReviewListProps;
@@ -782,7 +858,7 @@ export function OrderReviewSection({ skus: filteredSkus, view, targetComparable:
       <div className="grid grid-cols-[repeat(auto-fit,minmax(92px,1fr))] gap-x-3 gap-y-1">
         {metricCell('결정 · 확정', `${decided} · ${confirmed} / ${skus.length}`)}
         {kpiAll && metricCell('발주량', fmt(totals.order))}
-        {metricCell('발주금액', won(totals.orderAmount))}
+        {metricCell(review?.req ? '발주금액 · 총 발주량' : '발주금액', won(totals.orderAmount))}
         {kpiAll ? <>{metricCell('순매출', won(totals.revenue))}{metricCell('공헌이익', profitText)}{metricCell('CM%', pct(totalCm(totals)))}{metricCell('리오더 필요', fmt(totals.reorder))}{metricCell('시즌 후 잔여', won(totals.leftover))}</>
           : metricCell('순매출 · 공헌이익', `${won(totals.revenue)} · ${profitText}`)}
         {metricCell('위험 SKU', fmt(totals.risk))}
@@ -810,7 +886,7 @@ export function OrderReviewSection({ skus: filteredSkus, view, targetComparable:
   })();
   const counts = { all: skus.length, todo: skus.filter((s) => statusOf(s) === 'todo').length, saved: skus.filter((s) => statusOf(s) === 'saved').length, done: skus.filter((s) => statusOf(s) === 'done').length };
   const decideView = (
-    <div className="flex-1 min-h-0 grid gap-2.5 md:grid-cols-[250px_minmax(0,1fr)]">
+    <div className="flex-1 min-h-0 grid gap-2.5 md:grid-cols-[310px_minmax(0,1fr)]">
       <aside className="min-h-0 overflow-auto border border-gray-200 rounded-lg bg-white">
         <div className="sticky top-0 z-10 bg-gray-50 border-b border-gray-200 p-1.5 flex flex-wrap gap-1">
           {([['all', '전체'], ['todo', '검토 전'], ['saved', '저장'], ['done', '확정']] as const).map(([k, l]) => <Chip key={k} on={status === k} onClick={() => setStatus(k)}>{l} {counts[k]}</Chip>)}
@@ -922,6 +998,7 @@ export function OrderReviewSection({ skus: filteredSkus, view, targetComparable:
     <div className="h-full min-h-0 flex flex-col gap-2">
       <div className="shrink-0 space-y-2">
         {summary}
+        {review?.req && <ReviewChannelSummary req={review.req} rows={rows} role={role} />}
         {statusTable}
         {message && <div className="text-xs bg-red-50 border border-red-200 text-red-700 rounded px-3 py-1.5 flex justify-between gap-2"><span>{message}</span><button onClick={() => setMessage(null)} className="underline">닫기</button></div>}
       </div>
