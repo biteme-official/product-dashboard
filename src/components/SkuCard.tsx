@@ -1,5 +1,5 @@
 import type { SkuData } from '../types';
-import { BRANDS, CHANNELS, B2C_CHANNELS, B2B_CHANNELS, CHANNEL_CONFIRM_GROUP, STEP2_FORCE_RECALC_MARK, getDisabledChannels, getConfirmedChannels, isSeasonOnly, isMarketingLocked, DEFAULT_CHANNEL_COMMISSION, getSkuMonths, type Month, type Channel, type OptOutChannel } from '../types';
+import { BRANDS, CHANNELS, B2C_CHANNELS, B2B_CHANNELS, CHANNEL_CONFIRM_GROUP, STEP2_FORCE_RECALC_MARK, getDisabledChannels, getConfirmedChannels, isSeasonOnly, isMarketingLocked, DEFAULT_CHANNEL_COMMISSION, getSkuMonths, moqOf, type Month, type Channel, type OptOutChannel } from '../types';
 import type { ChannelPricing } from '../types';
 import { useStore, planScopeOf } from '../store';
 import { allocate, applyChannelShares, coverage, redistributeByWeights, resolveChannelShares } from '../utils/qtyPlan';
@@ -201,7 +201,7 @@ function OrderResultPanel({ sku, onOpenInReview }: { sku: SkuData; onOpenInRevie
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] gap-x-5 gap-y-3 items-start">
         <div className="grid grid-cols-2 gap-3 tabular-nums">
-          <div><div className="text-[11px] text-gray-500">{sku.orderPlans?.decided ? `${active}안 ` : ''}발주량 · MOQ {sku.moq.toLocaleString()}</div><b className="text-base font-extrabold">{qty.toLocaleString()}개</b></div>
+          <div><div className="text-[11px] text-gray-500">{sku.orderPlans?.decided ? `${active}안 ` : ''}발주량 · MOQ {moqOf(sku) ? moqOf(sku).toLocaleString() : '미입력'}</div><b className="text-base font-extrabold">{qty.toLocaleString()}개</b></div>
           <div><div className="text-[11px] text-gray-500">소진월 · 판정</div><div className="flex flex-wrap items-center gap-1.5"><b className="text-base font-extrabold">{coverIdx < 0 ? '미소진' : `${m.months[coverIdx].month}월`}</b><CoverageChip sku={sku} skuMonths={skuMonths} wrap /></div></div>
           <div><div className="text-[11px] text-gray-500">예상 순매출</div><b className="text-base font-extrabold">{formatWon(m.revenue)}</b></div>
           <div><div className="text-[11px] text-gray-500">예상 공헌이익{m.cm !== null ? ` · CM ${m.cm}%` : ''}</div><b className="text-base font-extrabold">{profitText}</b></div>

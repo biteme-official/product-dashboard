@@ -335,7 +335,7 @@ function buildEmptySku(category: Category): SkuData {
 
 /**
  * CPO 프로젝트가 새로 '기획/아이디어' 등 활성 상태가 됐을 때, Product에 없던 SKU 카드를
- * 자동으로 만들기 위한 초기값. category/brand/skuType/releaseDate/arrivalDate/shootingDate/moq/
+ * 자동으로 만들기 위한 초기값. category/brand/skuType/releaseDate/arrivalDate/shootingDate/
  * sizes/colors만 CPO 값으로 시딩하고, 나머지(채널비중·프라이싱 시나리오 등)는 buildEmptySku와 동일한
  * Product 기본값 — CPO엔 없는 Product 전용 데이터라 시딩할 원본 자체가 없음.
  */
@@ -364,7 +364,8 @@ function buildSkuFromCpo(cpo: CpoProject): SkuData {
     // Firestore는 필드값 undefined를 거부함(문서 전체 저장 실패) — 값 없으면 아예 키를 안 넣음
     ...(cpo.arrivalDate ? { arrivalDate: cpo.arrivalDate } : {}),
     ...(cpo.shootingDate ? { shootingDate: cpo.shootingDate } : {}),
-    moq: cpo.moq || 0,
+    // MOQ는 2026-11-11부터 Product에서만 입력 — CPO 값은 복사하지 않음
+    moq: 0,
     sizeCount,
     sizes,
     sizeLabelsFromCpo: true,

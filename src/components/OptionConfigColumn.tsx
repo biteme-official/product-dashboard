@@ -61,7 +61,7 @@ export function OptionConfigColumn({ sku, readOnly }: { sku: SkuData; readOnly?:
         </div>
         <div>
           <label className="block text-[11px] text-gray-500 mb-0.5">MOQ</label>
-          <NumericInput value={sku.moq} onChange={(v) => updateSku(sku.id, { moq: v })} onBlur={handleBlur} disabled={readOnly} placeholder="0"
+          <NumericInput value={sku.moq ?? 0} onChange={(v) => updateSku(sku.id, { moq: v })} onBlur={handleBlur} disabled={readOnly} placeholder="0"
             className="w-full h-[30px] px-2 text-xs border border-gray-200 rounded-md disabled:bg-gray-50 disabled:text-gray-500" />
         </div>
       </div>

@@ -46,7 +46,8 @@ export interface CpoProject {
   arrivalDate: string;
   shootingDate: string;
   sizes: string[];
-  moq: number;
+  /** @deprecated MOQ는 Product에서만 관리(2026-11-11) — 예전 CPO 문서에 남은 값, 읽지 않음 */
+  moq?: number;
   colors: CpoColorEntry[];
   pricing: CpoProjectPricing;
   status: CpoProjectStatus;

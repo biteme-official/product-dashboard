@@ -7,7 +7,7 @@ import {
   Bar, CartesianGrid, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts';
 import {
-  B2C_CHANNELS, CATEGORIES, CHANNELS, CHANNEL_CONFIRM_GROUP, getConfirmedChannels, getDisabledChannels, getSkuMonths, isSeasonOnly,
+  B2C_CHANNELS, CATEGORIES, CHANNELS, moqOf, CHANNEL_CONFIRM_GROUP, getConfirmedChannels, getDisabledChannels, getSkuMonths, isSeasonOnly,
   type Channel, type Month, type SkuData,
 } from '../types';
 import { planScopeOf, SkuConflictError, useSkuSyncStatus, useStore } from '../store';
@@ -53,7 +53,7 @@ const B2C_OPTS = STEP1_OPTIONS.filter((o) => !['b2bOpen', 'b2b', 'buy', 'glob', 
 const optLabel = (id: string) => (id ? STEP1_OPTIONS.find((o) => o.id === id)?.label ?? id : '판매가');
 
 interface Totals { order: number; orderAmount: number; revenue: number; profit: number; profitRevenue: number; reorder: number; leftover: number; risk: number; skipped: number }
-const isRisk = (s: SkuData, m: SkuMoney) => m.coverage.status === 'stockout' || m.coverage.status === 'overstock' || s.totalOrderQty < s.moq;
+const isRisk = (s: SkuData, m: SkuMoney) => m.coverage.status === 'stockout' || m.coverage.status === 'overstock' || (moqOf(s) > 0 && s.totalOrderQty < moqOf(s));
 function sumReviews(arr: { s: SkuData; r: SkuReview }[]): Totals {
   const t: Totals = { order: 0, orderAmount: 0, revenue: 0, profit: 0, profitRevenue: 0, reorder: 0, leftover: 0, risk: 0, skipped: 0 };
   arr.forEach(({ s, r }) => {
@@ -360,7 +360,7 @@ function Detail({ s, r, env }: { s: SkuData; r: SkuReview; env: DetailEnv }) {
             <b className="text-sm">{no}안</b>
             {isActive && <span className="px-1.5 rounded-full bg-indigo-50 text-indigo-800 text-[11px] font-semibold">지금 고른 안</span>}
             <span className={`px-1.5 rounded-full text-[11px] font-semibold ${vd.cls}`}>{vd.text}</span>
-            {qty < s.moq && <span className="px-1.5 rounded-full bg-red-100 text-red-700 text-[11px] font-semibold">MOQ 미달</span>}
+            {moqOf(s) > 0 && qty < moqOf(s) && <span className="px-1.5 rounded-full bg-red-100 text-red-700 text-[11px] font-semibold">MOQ 미달</span>}
             <span className="flex-1" />
             {!isActive && <button disabled={!canSwitch(s)} onClick={() => pickPlan(s, no)} className="text-xs px-2 py-0.5 rounded border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">이 안으로 전환</button>}
           </div>
@@ -389,7 +389,7 @@ function Detail({ s, r, env }: { s: SkuData; r: SkuReview; env: DetailEnv }) {
           <h3 className="text-base font-extrabold text-gray-900">{s.skuName || '(SKU명 미입력)'}</h3>
           <span className="px-1.5 rounded-full bg-indigo-50 text-indigo-800 text-[11px] font-semibold">{s.brand}</span>
           {stateChip(s)}
-          <span className="text-[11px] text-gray-500 tabular-nums">{s.category} · {s.releaseDate ? `${s.releaseDate.slice(5).replace('-', '/')} 오픈` : '오픈일 미정'} · 판매가 {s.price ? fmt(s.price) : '없음'} · 원가 {s.cost ? fmt(s.cost) : '없음'} · MOQ {fmt(s.moq)}{isSeasonOnly(s) ? ' · 시즌 한정' : ''}</span>
+          <span className="text-[11px] text-gray-500 tabular-nums">{s.category} · {s.releaseDate ? `${s.releaseDate.slice(5).replace('-', '/')} 오픈` : '오픈일 미정'} · 판매가 {s.price ? fmt(s.price) : '없음'} · 원가 {s.cost ? fmt(s.cost) : '없음'} · MOQ {moqOf(s) ? fmt(moqOf(s)) : '미입력'}{isSeasonOnly(s) ? ' · 시즌 한정' : ''}</span>
           <span className="flex-1" />
           <GroupConfirmButtons s={s} canStep2={perm.step2 && !writeBlocked} onToggle={(f, v) => confirmGroup(s, f, v)} />
           {onNavigateToSku && <button onClick={() => onNavigateToSku(s)} className="text-xs px-2 py-0.5 rounded border border-gray-300 bg-white text-gray-700 hover:bg-gray-50">SKU카드 →</button>}

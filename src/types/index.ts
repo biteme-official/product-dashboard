@@ -241,6 +241,7 @@ export interface SkuData {
   contributionMarginRate: number;
   totalOrderQty: number;
   sizeCount: number;
+  /** 최소 주문 수량 — Product에서만 입력 (CPO 연동 없음, 2026-11-11). 0 = 미입력 */
   moq: number;
   sizes: SizeRatio[];               // 길이 항상 8
   sizeLabelsFromCpo?: boolean;      // 사이즈 라벨이 CPO 선택값으로 맞춰졌는지 — 없으면 예전 프리셋(S부터 연속) 라벨이라 첫 동기화 때 칸 위치 기준으로 옮김(#44)
@@ -412,4 +413,10 @@ export function isSkuActiveForYearMonth(sku: SkuData, ym: YearMonth): boolean {
   if (!skuMonths.includes(ym.month)) return false;
   const expectedYear = isNextYearMonth(ym.month, sku.releaseDate) ? releaseYear + 1 : releaseYear;
   return expectedYear === ym.year;
+}
+
+/** MOQ 비교용 값 — 미입력(0 · 빈값 · 음수 · 숫자 아님)은 0으로 보고 MOQ 미달 판정에서 뺀다 */
+export function moqOf(sku: { moq?: number | null }): number {
+  const v = Number(sku.moq);
+  return Number.isFinite(v) && v > 0 ? v : 0;
 }
