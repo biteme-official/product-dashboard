@@ -615,33 +615,38 @@ function Detail({ s, r, env }: { s: SkuData; r: SkuReview; env: DetailEnv }) {
  * 금액 기준(초도 발주량만 / 시즌 목표 포함)은 상단 요약과 같다. 발주금액은 SKU 단위라 채널로 나누지 않음.
  * 첫 화면: 마스터 · PM · 뷰어는 전체, 채널 담당은 내 그룹.
  */
-type SummaryCol = { key: string; label: string; group: ChannelConfirmField; qty: number; revenue: number; profit: number; profitNull: number; done: number; total: number };
+type SummaryCol = { key: string; label: string; group: ChannelConfirmField; qty: number; revenue: number; profit: number; profitRevenue: number; profitNull: number; done: number; total: number; operated: number };
 function ReviewChannelSummary({ req, rows, role }: { req: ReviewRequest; rows: { s: SkuData; r: SkuReview }[]; role: Role | null }) {
   const own = isAllChannelRole(role) ? null : REVIEW_GROUPS.find((f) => canConfirmGroup(role, f)) ?? null;
   const [pick, setPick] = useState<{ reqId: string; g: ChannelConfirmField | 'all' } | null>(null);
   const g = pick && pick.reqId === req.id ? pick.g : (own ?? 'all');
-  const [open, setOpen] = useState(true);
+  const [open, setOpenRaw] = useState(() => { try { return sessionStorage.getItem('ct:chSumOpen') !== '0'; } catch { return true; } });
+  const setOpen = (f: (v: boolean) => boolean) => setOpenRaw((v) => { const n = f(v); try { sessionStorage.setItem('ct:chSumOpen', n ? '1' : '0'); } catch { /* 무시 */ } return n; });
 
-  const cols: SummaryCol[] = CHANNELS.map((ch) => ({ key: ch, label: ch, group: CHANNEL_CONFIRM_GROUP[ch].field, qty: 0, revenue: 0, profit: 0, profitNull: 0, done: 0, total: 0 }));
-  const mkt: SummaryCol = { key: '마케팅', label: '마케팅', group: 'step2PlatformConfirmed', qty: 0, revenue: 0, profit: 0, profitNull: 0, done: 0, total: 0 };
+  const cols: SummaryCol[] = CHANNELS.map((ch) => ({ key: ch, label: ch, group: CHANNEL_CONFIRM_GROUP[ch].field, qty: 0, revenue: 0, profit: 0, profitRevenue: 0, profitNull: 0, done: 0, total: 0, operated: 0 }));
+  const mkt: SummaryCol = { key: '마케팅', label: '마케팅', group: 'step2PlatformConfirmed', qty: 0, revenue: 0, profit: 0, profitRevenue: 0, profitNull: 0, done: 0, total: 0, operated: 0 };
   rows.forEach(({ s, r }) => {
     const off = getDisabledChannels(s) as readonly string[];
     cols.forEach((c) => {
       if (off.includes(c.key)) return;
       const m = r.money.channels.find((x) => x.channel === c.key);
       if (!m) return;
+      c.operated += 1;
       c.qty += m.soldQty; c.revenue += m.revenue;
-      if (m.profit === null) c.profitNull += 1; else c.profit += m.profit;
+      if (m.profit === null) c.profitNull += 1; else { c.profit += m.profit; c.profitRevenue += m.revenue; }
       if (m.planQty > 0) { c.total += 1; if (s[c.group]) c.done += 1; }
     });
-    if (r.money.marketingCost > 0) { mkt.profit -= r.money.marketingCost; mkt.total += 1; if (s.step2PlatformConfirmed) mkt.done += 1; }
+    if (r.money.marketingCost > 0) { mkt.operated += 1; mkt.total += 1; if (s.step2PlatformConfirmed) mkt.done += 1; if (r.money.profit === null) mkt.profitNull += 1; else mkt.profit -= r.money.marketingCost; }
   });
-  const all = [...cols, ...(mkt.total > 0 ? [mkt] : [])];
+  // 요청 SKU 중 아무도 운영하지 않는 채널(예: 쿠팡 미등록)은 열에서 뺀다
+  const all = [...cols.filter((c) => c.operated > 0), ...(mkt.total > 0 ? [mkt] : [])];
   const shown = all.filter((c) => g === 'all' || c.group === g);
   const qtyAll = cols.reduce((a, c) => a + c.qty, 0);
-  const sum = shown.reduce((a, c) => ({ qty: a.qty + c.qty, revenue: a.revenue + c.revenue, profit: a.profit + c.profit, profitNull: a.profitNull + c.profitNull }), { qty: 0, revenue: 0, profit: 0, profitNull: 0 });
-  const cmOf = (rev: number, pro: number) => (rev > 0 ? Math.round((pro / rev) * 1000) / 10 : null);
-  const profitCell = (c: { profit: number; profitNull: number; revenue: number }) => (c.profitNull > 0 && c.profit === 0 ? '–' : <>{won(c.profit)}{c.profitNull > 0 && <span className="text-[10px] text-red-500"> *</span>}</>);
+  const sum = shown.reduce((a, c) => ({ qty: a.qty + c.qty, revenue: a.revenue + c.revenue, profit: a.profit + c.profit, profitRevenue: a.profitRevenue + c.profitRevenue, profitNull: a.profitNull + c.profitNull }), { qty: 0, revenue: 0, profit: 0, profitRevenue: 0, profitNull: 0 });
+  // CM%는 공헌이익을 계산한 SKU의 순매출로만 나눈다 (상단 요약과 같은 방식)
+  const allNull = (c: { profitRevenue: number; profitNull: number; profit: number }) => c.profitNull > 0 && c.profitRevenue === 0 && c.profit === 0;
+  const cmText = (c: { profit: number; profitRevenue: number; profitNull: number }) => (allNull(c) || c.profitRevenue <= 0 ? '–' : pct(Math.round((c.profit / c.profitRevenue) * 1000) / 10));
+  const profitCell = (c: { profit: number; profitRevenue: number; profitNull: number }) => (allNull(c) ? '–' : <>{won(c.profit)}{c.profitNull > 0 && <span className="text-[10px] text-red-500"> *</span>}</>);
   const th = 'px-2 py-1 font-semibold text-right whitespace-nowrap';
   const td = 'px-2 py-1 text-right whitespace-nowrap';
 
@@ -661,7 +666,13 @@ function ReviewChannelSummary({ req, rows, role }: { req: ReviewRequest; rows: {
           <table className="w-full text-xs tabular-nums">
             <thead><tr className="border-b border-gray-200 text-gray-500">
               <th className="px-2 py-1 font-semibold text-left whitespace-nowrap"></th>
-              {shown.map((c) => <th key={c.key} className={th}>{c.label}<span className="block text-[10px] font-normal text-gray-400">{REVIEW_GROUP_LABEL[c.group]}</span></th>)}
+              {shown.map((c) => (
+                <th key={c.key} className={th}>{c.label}
+                  <span className="flex justify-end items-center gap-1 text-[10px] font-normal text-gray-400">{REVIEW_GROUP_LABEL[c.group]}
+                    <span title="그룹 확정 SKU / 이 채널 수량 있는 SKU" className={`px-1 rounded-full font-semibold ${c.total === 0 ? 'text-gray-300' : c.done === c.total ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-800'}`}>{c.done}/{c.total}</span>
+                  </span>
+                </th>
+              ))}
               <th className={`${th} border-l border-gray-200`}>{g === 'all' ? '합계' : `${REVIEW_GROUP_LABEL[g]} 소계`}</th>
             </tr></thead>
             <tbody>
@@ -671,12 +682,9 @@ function ReviewChannelSummary({ req, rows, role }: { req: ReviewRequest; rows: {
               <tr className="border-b border-gray-100"><td className="px-2 py-1 text-gray-500">순매출</td>
                 {shown.map((c) => <td key={c.key} className={td}>{c.key === '마케팅' ? '–' : won(c.revenue)}</td>)}
                 <td className={`${td} border-l border-gray-200 font-semibold`}>{won(sum.revenue)}</td></tr>
-              <tr className="border-b border-gray-100"><td className="px-2 py-1 text-gray-500 whitespace-nowrap">공헌이익 · CM%</td>
-                {shown.map((c) => <td key={c.key} className={td}>{profitCell(c)}{c.key !== '마케팅' && <span className="text-gray-400"> {pct(cmOf(c.revenue, c.profit))}</span>}</td>)}
-                <td className={`${td} border-l border-gray-200 font-semibold`}>{profitCell(sum)} <span className="text-gray-400 font-normal">{pct(cmOf(sum.revenue, sum.profit))}</span></td></tr>
-              <tr><td className="px-2 py-1 text-gray-500">그룹 확정</td>
-                {shown.map((c) => <td key={c.key} className={td}>{c.total ? <span className={`px-1.5 rounded-full text-[10px] font-semibold ${c.done === c.total ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-800'}`}>{c.done}/{c.total}</span> : <span className="text-gray-300">운영 안 함</span>}</td>)}
-                <td className={`${td} border-l border-gray-200`}></td></tr>
+              <tr><td className="px-2 py-1 text-gray-500 whitespace-nowrap">공헌이익 · CM%</td>
+                {shown.map((c) => <td key={c.key} className={td}>{profitCell(c)}{c.key !== '마케팅' && <span className="text-gray-400"> {cmText(c)}</span>}</td>)}
+                <td className={`${td} border-l border-gray-200 font-semibold`}>{profitCell(sum)} <span className="text-gray-400 font-normal">{cmText(sum)}</span></td></tr>
             </tbody>
           </table>
           {all.some((c) => c.profitNull > 0) && <p className="text-[10px] text-red-500 mt-0.5">* 변동비 없어 공헌이익에서 빠진 SKU 있음</p>}
