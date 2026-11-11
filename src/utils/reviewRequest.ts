@@ -1,7 +1,7 @@
 // 발주량 검토 · 검토 요청 묶음 — 마스터 · PM이 SKU를 골라 채널 담당에게 "여기서부터 여기까지" 검토를 요청한다.
 // 검토 완료는 별도 상태 없이 기존 채널 그룹 확정(step2*Confirmed)으로 판단한다.
 // 저장: config/reviewRequests 문서 한 개의 items 맵(id → 요청). 요청마다 필드 경로로 써서 동시 저장이 서로 덮어쓰지 않는다.
-import { doc, onSnapshot, setDoc, updateDoc } from 'firebase/firestore';
+import { deleteField, doc, onSnapshot, setDoc, updateDoc } from 'firebase/firestore';
 import { fsdb } from '../lib/firebase';
 import { CHANNELS, CHANNEL_CONFIRM_GROUP, getDisabledChannels, type ChannelConfirmField, type SkuData } from '../types';
 import type { Role } from './pin';
@@ -50,6 +50,12 @@ export async function createReviewRequest(input: Pick<ReviewRequest, 'name' | 's
 export async function closeReviewRequest(id: string, role: Role): Promise<void> {
   await updateDoc(REQ_DOC, { [`items.${id}.closedAt`]: new Date().toISOString(), [`items.${id}.closedBy`]: role });
 }
+
+/** 요청 묶음만 지움 · SKU · 그룹 확정값은 그대로 */
+export async function deleteReviewRequest(id: string): Promise<void> {
+  await updateDoc(REQ_DOC, { [`items.${id}`]: deleteField() });
+}
+export const canManageReviewRequest = (role: Role | null | undefined) => role === 'master';
 
 // ── 링크 ──
 export function buildReviewLink(id: string): string {

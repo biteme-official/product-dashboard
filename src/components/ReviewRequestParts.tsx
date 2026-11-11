@@ -3,7 +3,8 @@ import type { ChannelConfirmField, SkuData } from '../types';
 import { useAuth } from '../store/auth';
 import { canConfirmGroup } from '../utils/channelOwnership';
 import {
-  REVIEW_GROUPS, REVIEW_GROUP_LABEL, addDaysLocal, buildReviewLink, createReviewRequest, dDay, groupApplies, isOverdue,
+  REVIEW_GROUPS, REVIEW_GROUP_LABEL, addDaysLocal, buildReviewLink, canManageReviewRequest, closeReviewRequest, createReviewRequest,
+  dDay, deleteReviewRequest, groupApplies, isOverdue,
   reviewProgress, shortMD, todayLocal, type ReviewRequest,
 } from '../utils/reviewRequest';
 
@@ -43,7 +44,7 @@ export function ReviewRequestSelect({ requests, value, skus, onChange }: {
 }
 
 /** 요청을 열었을 때 위에 붙는 배너 · 요청 정보 · 그룹별 확정 진행률 */
-export function ReviewRequestBanner({ req, skus, allSkuIds, onExit, onCopied }: {
+export function ReviewRequestBanner({ req, skus, allSkuIds, onExit, onCopied, onDeleted, onError }: {
   req: ReviewRequest;
   /** 지금 화면 필터를 거친 SKU */
   skus: SkuData[];
@@ -51,9 +52,32 @@ export function ReviewRequestBanner({ req, skus, allSkuIds, onExit, onCopied }: 
   allSkuIds: Set<string>;
   onExit: () => void;
   onCopied: (ok: boolean) => void;
+  onDeleted: (name: string) => void;
+  onError: (text: string) => void;
 }) {
+  const { role } = useAuth();
+  const [ask, setAsk] = useState<'close' | 'delete' | null>(null);
+  const [busy, setBusy] = useState(false);
   const p = reviewProgress(req, skus);
   const over = isOverdue(req);
+  const manage = canManageReviewRequest(role);
+  // 닫기 · 마스터 · 기한 지남 또는 전부 확정일 때
+  const canClose = manage && !req.closedAt && (over || p.allDone);
+  const closeHint = !manage ? '닫기 · 삭제 · 마스터만' : req.closedAt ? '' : canClose ? '' : '기한 지남 또는 전부 확정 시 닫기 가능';
+  async function run(kind: 'close' | 'delete') {
+    if (!role) return;
+    setBusy(true);
+    try {
+      if (kind === 'close') await closeReviewRequest(req.id, role);
+      else { await deleteReviewRequest(req.id); onDeleted(req.name); }
+      setAsk(null);
+    } catch (e) {
+      console.error('[검토 요청] 처리 실패', e);
+      onError(`${kind === 'close' ? '닫기' : '삭제'} 실패 · 새로고침 후 다시 시도`);
+    } finally {
+      setBusy(false);
+    }
+  }
   const hidden = req.skuIds.filter((id) => !skus.some((s) => s.id === id));
   const gone = hidden.filter((id) => !allSkuIds.has(id)).length;
   return (
@@ -68,8 +92,26 @@ export function ReviewRequestBanner({ req, skus, allSkuIds, onExit, onCopied }: 
         </span>
         <span className="flex-1" />
         <button onClick={async () => onCopied(await copyText(buildReviewLink(req.id)))} className="text-[11px] px-2 py-0.5 rounded border border-teal-500 bg-white text-teal-700 font-semibold">링크 복사</button>
+        {manage && !req.closedAt && (
+          <button onClick={() => setAsk('close')} disabled={!canClose || busy} title={closeHint || undefined}
+            className="text-[11px] px-2 py-0.5 rounded border border-gray-400 bg-white text-gray-700 font-semibold disabled:opacity-40 disabled:cursor-not-allowed">요청 닫기</button>
+        )}
+        {manage && <button onClick={() => setAsk('delete')} disabled={busy} className="text-[11px] px-2 py-0.5 rounded border border-red-300 bg-white text-red-600 font-semibold disabled:opacity-40">삭제</button>}
         <button onClick={onExit} className="text-[11px] px-2 py-0.5 rounded border border-gray-300 bg-white text-gray-600">전체 SKU로 ×</button>
       </div>
+      {ask && (
+        <div className={`flex flex-wrap items-center gap-2 text-[11px] rounded px-2 py-1.5 border ${ask === 'delete' ? 'bg-red-50 border-red-200 text-red-800' : 'bg-white border-gray-300 text-gray-700'}`}>
+          <span>
+            {ask === 'close'
+              ? `닫기 · ${p.allDone ? '전부 확정' : `기한 지남 · 완료 SKU ${p.doneSkus}/${p.totalSkus}`} · 닫힘 목록으로 이동 · 링크는 계속 열림`
+              : `삭제 · "${req.name}" 요청 묶음 · 되돌릴 수 없음 · 링크 열리지 않음 · SKU · 그룹 확정값은 그대로`}
+          </span>
+          <span className="flex-1" />
+          <button onClick={() => setAsk(null)} disabled={busy} className="px-2 py-0.5 rounded text-gray-500 hover:bg-gray-100">취소</button>
+          <button onClick={() => void run(ask)} disabled={busy}
+            className={`px-2 py-0.5 rounded font-semibold text-white disabled:opacity-40 ${ask === 'delete' ? 'bg-red-600' : 'bg-gray-700'}`}>{ask === 'close' ? '닫기' : '삭제'}</button>
+        </div>
+      )}
       {req.memo && <p className="text-xs text-gray-700 bg-white/70 rounded px-2 py-1 whitespace-pre-wrap break-words">{req.memo}</p>}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px]">
         {p.groups.map((g) => (
@@ -80,6 +122,8 @@ export function ReviewRequestBanner({ req, skus, allSkuIds, onExit, onCopied }: 
           </span>
         ))}
         <span className="inline-flex items-center gap-1"><b className="text-gray-700">완료 SKU</b><span className="tabular-nums text-gray-600">{p.doneSkus}/{p.totalSkus}</span>{p.allDone && <span className="px-1.5 rounded-full bg-emerald-100 text-emerald-700 font-semibold">전부 확정</span>}</span>
+        {req.closedAt && <span className="text-gray-500">{shortMD(req.closedAt.slice(0, 10))} {roleLabel(req.closedBy)} 닫음</span>}
+        {!req.closedAt && manage && closeHint && <span className="text-gray-400">{closeHint}</span>}
         {hidden.length > 0 && (
           <span className="text-amber-700">
             {hidden.length - gone > 0 && `필터 · 숨김으로 안 보이는 SKU ${hidden.length - gone}개`}
