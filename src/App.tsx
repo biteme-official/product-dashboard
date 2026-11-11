@@ -177,6 +177,7 @@ function App() {
   const setExcludeOpenCompletePm = useStore((s) => s.setExcludeOpenCompletePm);
   const [skuLinkId, setSkuLinkId] = useState<string | null>(readSkuLinkId);
   const [pricingLinkPending, setPricingLinkPending] = useState(isPricingLink);
+  const [projFilterSlot, setProjFilterSlot] = useState<HTMLDivElement | null>(null);
   const [reviewLinkId, setReviewLinkId] = useState<string | null>(readReviewLinkId);
   const [skuLinkNotice, setSkuLinkNotice] = useState<string | null>(null);
   const [skuFocus, setSkuFocus] = useState<{ id: string; seq: number } | null>(null);
@@ -545,7 +546,7 @@ function App() {
       </header>
 
       {/* 탭 + 카테고리 탭 + 브랜드 필터 (sticky) */}
-      <div data-app-sticky className="sticky top-0 z-10 bg-white shadow-sm">
+      <div data-app-sticky className="sticky top-0 z-30 bg-white shadow-sm">
         {/* 최상단 탭 */}
         <div className="flex items-center gap-1 px-3 pt-1.5 pb-0 border-b border-gray-100">
           {/* 뒤로가기 버튼 */}
@@ -607,7 +608,8 @@ function App() {
 
         {/* 프로젝션 서브탭 */}
         {activeMainTab === 'projection' && (
-          <div className="flex gap-1 px-3 py-2 bg-white border-b border-gray-200 overflow-x-auto scrollbar-none">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-3 py-2 bg-white border-b border-gray-200">
+          <div className="flex gap-1 min-w-0 overflow-x-auto scrollbar-none">
             {[
               { key: 'list-view', label: 'LIST VIEW' },
               { key: 'channel-schedule', label: '채널별 오픈일정' },
@@ -628,6 +630,9 @@ function App() {
                 {key === 'list-view' && <span aria-hidden className="w-px self-stretch my-1 mx-1 bg-gray-300 flex-shrink-0" />}
               </Fragment>
             ))}
+          </div>
+          {/* 프로젝션 필터 바 자리 — SkuOrderSection이 포털로 채움 */}
+          <div ref={setProjFilterSlot} className="flex-1 min-w-0" />
           </div>
         )}
 
@@ -659,6 +664,7 @@ function App() {
           <SkuOrderSection
             mode="projection"
             subTab={projectionSubTab}
+            filterSlot={projFilterSlot}
             listCatFilter={listCatFilter}
             listBrandFilter={listBrandFilter}
             listMonthFilter={listMonthFilter}

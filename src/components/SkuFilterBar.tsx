@@ -43,6 +43,63 @@ function toggleFilterItem(set: Set<string>, val: string): Set<string> {
   return next;
 }
 
+/** 카테고리 · 브랜드 다중선택 드롭다운 — 고른 값은 버튼 글자로 ("카테고리 · 장난감 외 1") */
+function MultiDropdown({ label, options, selected, onToggle, onClear, optionCls }: {
+  label: string;
+  options: string[];
+  selected: Set<string>;
+  onToggle: (v: string) => void;
+  onClear: () => void;
+  optionCls?: (v: string) => string;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey); };
+  }, [open]);
+  const picked = options.filter((o) => selected.has(o));
+  const text = picked.length === 0 ? label : `${label} · ${picked[0]}${picked.length > 1 ? ` 외 ${picked.length - 1}` : ''}`;
+  return (
+    <div className="relative shrink-0" ref={ref}>
+      <button
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        className={`flex items-center gap-1 px-2.5 py-1 text-xs rounded-lg border transition-colors whitespace-nowrap ${
+          picked.length > 0 ? 'bg-indigo-50 border-indigo-300 text-indigo-700 font-medium' : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300'
+        }`}
+      >
+        {text}
+        <svg className={`w-3 h-3 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+      {open && (
+        <div className="absolute left-0 top-full mt-1.5 min-w-[150px] bg-white border border-gray-200 rounded-xl shadow-lg z-50 overflow-hidden">
+          <div className="px-2 py-1.5 border-b border-gray-100 flex items-center justify-between gap-3">
+            <span className="text-[11px] font-semibold text-gray-500">{label}</span>
+            {picked.length > 0 && <button onClick={onClear} className="text-[10px] text-gray-400 hover:text-rose-500">초기화</button>}
+          </div>
+          <div className="py-1 max-h-[320px] overflow-y-auto">
+            {options.map((o) => (
+              <label key={o} className="flex items-center gap-2 px-3 py-1.5 cursor-pointer hover:bg-gray-50">
+                <input type="checkbox" checked={selected.has(o)} onChange={() => onToggle(o)} className="w-3.5 h-3.5 accent-indigo-600 shrink-0" />
+                {optionCls
+                  ? <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${optionCls(o)}`}>{o}</span>
+                  : <span className={`text-[12px] ${selected.has(o) ? 'text-indigo-700 font-medium' : 'text-gray-600'}`}>{o}</span>}
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 interface SkuFilterBarProps {
   /** 필터 옵션(카테고리/브랜드/오픈월)을 계산할 기준이 되는 전체 SKU 목록 */
   skus: SkuData[];
@@ -127,40 +184,12 @@ export function SkuFilterBar({
   const hasFilter = catFilter.size > 0 || brandFilter.size > 0 || monthFilter.size > 0 || excludeOpenComplete;
 
   return (
-    <div className="flex-shrink-0 px-1">
-      <div className="flex items-center gap-x-2 gap-y-1.5 flex-wrap">
-        <div className="flex items-center gap-1.5 flex-wrap" role="group" aria-label="카테고리">
-          {availableCategories.map((cat) => (
-            <button
-              key={cat}
-              onClick={() => toggleCat(cat)}
-              className={`px-2.5 py-0.5 rounded-full text-[11px] font-medium border transition-colors ${
-                catFilter.has(cat)
-                  ? catCls(cat) + ' border-transparent'
-                  : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'
-              }`}
-            >
-              {cat}
-            </button>
-          ))}
-        </div>
-        <div className="w-px h-4 bg-gray-200 shrink-0" />
-        <div className="flex items-center gap-1.5 flex-wrap" role="group" aria-label="브랜드">
-          {availableBrands.map((brand) => (
-            <button
-              key={brand}
-              onClick={() => toggleBrand(brand)}
-              className={`px-2.5 py-0.5 rounded-full text-[11px] font-medium border transition-colors ${
-                brandFilter.has(brand)
-                  ? 'bg-gray-700 text-white border-gray-700'
-                  : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'
-              }`}
-            >
-              {brand}
-            </button>
-          ))}
-        </div>
-        <div className="w-px h-4 bg-gray-200 shrink-0" />
+    <div className="flex-shrink-0">
+      <div className="flex items-center gap-x-1.5 gap-y-1.5 flex-wrap">
+        <MultiDropdown label="카테고리" options={availableCategories} selected={catFilter} onToggle={toggleCat}
+          onClear={() => onCatFilterChange(new Set())} optionCls={(v) => catCls(v)} />
+        <MultiDropdown label="브랜드" options={availableBrands} selected={brandFilter} onToggle={toggleBrand}
+          onClear={() => onBrandFilterChange(new Set())} />
         <button
           onClick={() => onExcludeOpenCompleteChange(!excludeOpenComplete)}
           className={`px-2.5 py-0.5 rounded-full text-[11px] font-medium border transition-colors shrink-0 ${
@@ -171,7 +200,7 @@ export function SkuFilterBar({
         >
           오픈/완료 제외
         </button>
-        <div className="ml-auto flex items-center gap-2 shrink-0">
+        <div className="ml-auto pl-1 flex items-center gap-2 shrink-0">
           <span className="text-[11px] font-semibold tabular-nums text-gray-500 whitespace-nowrap">
             {resultCount}개
           </span>

@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { useStore } from '../store';
 import { useVisibleSkus } from '../hooks/useVisibleSkus';
 import { useAuth } from '../store/auth';
@@ -69,6 +70,7 @@ function sortForListView(a: SkuData, b: SkuData): number {
 export function SkuOrderSection({
   mode = 'sku',
   subTab = 'list-view',
+  filterSlot = null,
   listCatFilter = new Set<string>(),
   listBrandFilter = new Set<string>(),
   listMonthFilter = new Set<string>(),
@@ -86,6 +88,8 @@ export function SkuOrderSection({
 }: {
   mode?: 'sku' | 'projection';
   subTab?: string;
+  /** 프로젝션 필터 바를 넣을 서브탭 줄 자리 (App) — 없으면 콘텐츠 위에 그대로 */
+  filterSlot?: HTMLElement | null;
   listCatFilter?: Set<string>;
   listBrandFilter?: Set<string>;
   listMonthFilter?: Set<string>;
@@ -235,6 +239,23 @@ export function SkuOrderSection({
 
   const gallerySelectedSku = gallerySkuId ? skus.find((s) => s.id === gallerySkuId) ?? null : null;
 
+  const filterBar = (
+    <SkuFilterBar
+      skus={skus}
+      catFilter={listCatFilter}
+      onCatFilterChange={onListCatFilterChange}
+      brandFilter={listBrandFilter}
+      onBrandFilterChange={onListBrandFilterChange}
+      monthFilter={listMonthFilter}
+      onMonthFilterChange={onListMonthFilterChange}
+      excludeOpenComplete={excludeOpenComplete}
+      onExcludeOpenCompleteChange={onExcludeOpenCompleteChange}
+      searchQuery={searchQuery}
+      onSearchQueryChange={onSearchQueryChange}
+      resultCount={displaySkus.length}
+    />
+  );
+
   return (
     <section className={isProjection ? 'px-4 pt-2.5 pb-4 space-y-3' : 'p-4 space-y-3'}>
       {/* 헤더 — SKU 리스트 모드에서만 표시 */}
@@ -352,20 +373,7 @@ export function SkuOrderSection({
         /* ── 프로젝션 공통 컨테이너 (필터바 + 서브탭 콘텐츠) ── */
         <div ref={projRef} className="flex flex-col gap-2" style={{ height: `calc(100vh - ${projTop + 12}px)` }}>
           {/* 필터 바 (모든 서브탭 공유) */}
-          <SkuFilterBar
-            skus={skus}
-            catFilter={listCatFilter}
-            onCatFilterChange={onListCatFilterChange}
-            brandFilter={listBrandFilter}
-            onBrandFilterChange={onListBrandFilterChange}
-            monthFilter={listMonthFilter}
-            onMonthFilterChange={onListMonthFilterChange}
-            excludeOpenComplete={excludeOpenComplete}
-            onExcludeOpenCompleteChange={onExcludeOpenCompleteChange}
-            searchQuery={searchQuery}
-            onSearchQueryChange={onSearchQueryChange}
-            resultCount={displaySkus.length}
-          />
+          {filterSlot ? createPortal(filterBar, filterSlot) : filterBar}
 
           {/* 서브탭 콘텐츠 */}
           {displaySkus.length === 0 ? (
