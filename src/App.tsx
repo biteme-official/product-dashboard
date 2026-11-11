@@ -25,6 +25,7 @@ import { BulkImportModal } from './components/BulkImportModal';
 import { usePermission } from './contexts/PermissionsContext';
 import { getPortalToken, verifyPortalToken, cleanPortalToken } from './utils/portalAuth';
 import { readSkuLinkId, clearSkuLink, isPricingLink } from './utils/skuLink';
+import { readReviewLinkId, REVIEW_OPEN_EVENT, REVIEW_SESSION_KEY } from './utils/reviewRequest';
 
 type MainTab = 'pm' | 'projection' | 'md' | 'manual' | 'admin';
 
@@ -176,6 +177,7 @@ function App() {
   const setExcludeOpenCompletePm = useStore((s) => s.setExcludeOpenCompletePm);
   const [skuLinkId, setSkuLinkId] = useState<string | null>(readSkuLinkId);
   const [pricingLinkPending, setPricingLinkPending] = useState(isPricingLink);
+  const [reviewLinkId, setReviewLinkId] = useState<string | null>(readReviewLinkId);
   const [skuLinkNotice, setSkuLinkNotice] = useState<string | null>(null);
   const [skuFocus, setSkuFocus] = useState<{ id: string; seq: number } | null>(null);
 
@@ -184,6 +186,8 @@ function App() {
       const id = readSkuLinkId();
       if (id) setSkuLinkId(id);
       if (isPricingLink()) setPricingLinkPending(true);
+      const rid = readReviewLinkId();
+      if (rid) setReviewLinkId(rid);
     };
     window.addEventListener('hashchange', handleHashChange);
     return () => window.removeEventListener('hashchange', handleHashChange);
@@ -217,6 +221,28 @@ function App() {
     handleNavigateToSku(target);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [skuLinkId, role, allSkus.length]);
+
+  // 검토 요청 링크(#review/<id>) — 필터를 풀고 발주량 검토 › SKU별 결정에서 그 요청을 연다.
+  // 로그인 직후 List view 초기화 effect보다 뒤에 선언해야 이 이동이 이긴다.
+  useEffect(() => {
+    if (!reviewLinkId || !role) return;
+    setReviewLinkId(null);
+    clearSkuLink();
+    try {
+      sessionStorage.setItem('ct:view', JSON.stringify('ws'));
+      sessionStorage.setItem(REVIEW_SESSION_KEY, JSON.stringify(reviewLinkId));
+    } catch { /* 무시 */ }
+    setListCatFilter(new Set());
+    setListBrandFilter(new Set());
+    setListMonthFilter(new Set());
+    setCtExcludeOpenComplete(false);
+    setSearchQuery('');
+    setActiveMainTab('projection');
+    setProjectionSubTab('channel-target');
+    // 이미 발주량 검토가 열려 있으면 마운트가 다시 안 되므로 이벤트로 알린다
+    window.dispatchEvent(new CustomEvent(REVIEW_OPEN_EVENT, { detail: reviewLinkId }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reviewLinkId, role]);
 
   /** SKU 카드 › 발주량 검토에서 열기 — 필터를 풀고 그 SKU만 검색해 결정 화면으로 이동 */
   function handleOpenInReview(sku: SkuData) {
