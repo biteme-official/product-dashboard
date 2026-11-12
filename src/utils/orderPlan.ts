@@ -21,6 +21,7 @@ export const planSnapshot = (sku: SkuData): OrderPlanSnapshot => ({
   marketingMonthQty: sku.marketingMonthQty ?? {},
   pricingOpts: sku.pricingOpts ?? {},
   optionQty: optionEntries(sku),
+  moq: sku.moq ?? 0,
 });
 
 /** 옵션 수기 수량(메타 키 제외) */
@@ -125,7 +126,7 @@ export function savePlanPatch(sku: SkuData): Partial<SkuData> {
 
 /**
  * 다른 안으로 전환 — 현재 값을 보관하고 보관된 안을 불러온다. 보관된 안이 없으면 현재 값 복사로 시작.
- * 확정 채널 · 확정 그룹의 마케팅은 지금 값 유지, 비운영 채널은 0.
+ * 확정 채널 · 확정 그룹의 마케팅은 지금 값 유지, 비운영 채널은 0. MOQ도 안마다 따로 보관.
  */
 export function switchPlanPatch(sku: SkuData): Partial<SkuData> {
   const cur = sku.orderPlans?.active ?? 1;
@@ -146,6 +147,8 @@ export function switchPlanPatch(sku: SkuData): Partial<SkuData> {
     marketingMonthQty: isMarketingLocked(sku) ? saved.marketingMonthQty : target.marketingMonthQty,
     pricingOpts: { ...target.pricingOpts, ...Object.fromEntries(lockedOpts) },
     finalOrderQty: Object.fromEntries((target.optionQty ?? []).map((o) => [o.key, o.qty])),
+    // MOQ도 안마다 따로 — 예전에 만든 안(값 없음)은 지금 MOQ 그대로
+    moq: target.moq ?? sku.moq ?? 0,
     orderPlans: { active: cur === 1 ? 2 : 1, other: saved, decided: true },
   };
 }
