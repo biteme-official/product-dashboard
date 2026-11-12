@@ -2,12 +2,12 @@
  * 프로젝션 › 발주량 검토 › SKU별 결정 · 전체 합계 — SKU별로 1안 · 2안을 정하고, 고른 값의 월 · 카테고리 합계를 본다.
  * 화면을 여는 것만으로는 쓰기가 없다(채널 표는 autoInit 끔, ComparisonColumn 미마운트). 저장은 applySkuBatch, 확정은 setFinalOrderConfirmed.
  */
-import { useEffect, useState, type ReactNode } from 'react';
+import { Fragment, useEffect, useState, type ReactNode } from 'react';
 import {
   Bar, CartesianGrid, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts';
 import {
-  B2C_CHANNELS, CATEGORIES, CHANNELS, moqOf, CHANNEL_CONFIRM_GROUP, getConfirmedChannels, getDisabledChannels, getSkuMonths, isSeasonOnly,
+  B2C_CHANNELS, CATEGORIES, CHANNELS, moqOf, CHANNEL_CONFIRM_GROUP, getConfirmedChannels, getDisabledChannels, getSkuMonths, isMarketingLocked, isSeasonOnly,
   type Channel, type Month, type SkuData,
 } from '../types';
 import { planScopeOf, SkuConflictError, useSkuSyncStatus, useStore } from '../store';
@@ -25,14 +25,14 @@ import {
 import { scaleOpenChannelsTo, setMonthTotal } from '../utils/qtyPlan';
 import { exportSkuOrderXlsx } from '../utils/exportXlsx';
 import { STEP1_OPTIONS } from '../utils/step1Price';
-import { basePriceOf, skuMoney, type MoneyBasis, type SkuMoney } from '../utils/reviewSku';
+import { basePriceOf, cmOf, qtyOf, skuMoney, type MoneyBasis, type SkuMoney } from '../utils/reviewSku';
 import { cachedReview, globalIssues, type ReviewIssue, type SkuReview } from '../utils/skuReview';
 import { finalOrderForConfirm, finalOrderModel } from '../utils/finalOrder';
 import { monthTargetsByCompareShare, savePlanPatch, switchPlanPatch, withColorQty, withOptionQty, withOrderQtyScaled, withSizeRatio } from '../utils/orderPlan';
 import { CellInput } from './CellInput';
 import { ChannelQtyPanel } from './SkuCard';
-import { GroupConfirmButtons, GroupConfirmChips } from './ReviewRequestParts';
-import { REVIEW_GROUPS, REVIEW_GROUP_LABEL, type ReviewRequest } from '../utils/reviewRequest';
+import { GroupConfirmChips } from './ReviewRequestParts';
+import { REVIEW_GROUPS, REVIEW_GROUP_LABEL, groupApplies, type ReviewRequest } from '../utils/reviewRequest';
 import type { ChannelConfirmField } from '../types';
 
 const fmt = (n: number) => Math.round(n).toLocaleString();
@@ -128,18 +128,6 @@ const Hint = ({ strong, rest }: { strong: string; rest: string }) => (
 );
 
 /** 월별 소진 띠 — 초록: 발주량으로 판매 · 진한 초록: 소진월 · 주황: 리오더 · 품절 구간 */
-function CoverStrip({ months, cumulative, qty }: { months: Month[]; cumulative: number[]; qty: number }) {
-  const idx = qty > 0 ? cumulative.findIndex((c) => c >= qty) : -1;
-  return (
-    <div className="grid gap-0.5" style={{ gridTemplateColumns: `repeat(${months.length}, minmax(0, 1fr))` }}>
-      {months.map((mo, i) => {
-        const cls = qty <= 0 ? 'bg-gray-100 text-gray-400' : i === idx ? 'bg-emerald-700 text-white' : cumulative[i] < qty ? 'bg-emerald-100 text-emerald-800' : 'bg-orange-100 text-orange-800';
-        return <span key={mo} title={`${mo}월 누적 ${fmt(cumulative[i] ?? 0)}`} className={`h-5 rounded-sm text-[10px] font-semibold flex items-center justify-center tabular-nums ${cls}`}>{mo}</span>;
-      })}
-    </div>
-  );
-}
-
 interface DetailEnv {
   role: Role | null;
   perm: ReturnType<typeof usePermission>;
@@ -270,8 +258,267 @@ function OptionPanel({ s, env, editable }: { s: SkuData; env: DetailEnv; editabl
   );
 }
 
+// ── 통합 표 (개편 3단계) — ① 대응SKU 실적 · ② 월 계획 · ③ 채널 배분을 한 표로, 월 열을 위아래로 맞춤 ──
+const HATCH = { backgroundImage: 'repeating-linear-gradient(135deg, #ffedd5 0 4px, transparent 4px 9px)' };
+const GROUP_TONE: Record<ChannelConfirmField, string> = {
+  step2PlatformConfirmed: 'text-emerald-800', step2BrandConfirmed: 'text-amber-800', step2GlobalConfirmed: 'text-sky-800',
+};
+
+function Worksheet({ s, r, env, planEditable, canPrice, setOpts, monthComp, compTotal }: {
+  s: SkuData; r: SkuReview; env: DetailEnv;
+  planEditable: boolean;
+  canPrice: (ch: Channel) => boolean;
+  setOpts: (channels: readonly Channel[], opt: string) => void;
+  monthComp: (mo: Month) => number | null;
+  compTotal: number | null;
+}) {
+  const { role, perm, tableau, writeBlocked, save, setMonthPlan, confirmGroup } = env;
+  const m = r.money;
+  const months = getSkuMonths(s.releaseDate);
+  const finalized = !!s.finalOrderConfirmedAt;
+  const allRole = isAllChannelRole(role);
+  const qty = s.totalOrderQty;
+  const n = months.length;
+
+  // 소진 · 리오더 — 누적 판매 목표가 발주량에 닿는 달 ▼, 그 뒤는 빗금
+  const coverIdx = qty > 0 && m.planQty > 0 ? m.coverage.cumulative.findIndex((c) => c >= qty) : -1;
+  const isOver = (i: number) => coverIdx >= 0 && i > coverIdx;
+  const overLabel = isSeasonOnly(s) ? '품절' : '리오더';
+  const mCls = (i: number) => (i === 0 ? 'border-l border-gray-200' : '');
+  const hatch = (i: number) => (isOver(i) ? HATCH : undefined);
+
+  // 그룹 · 채널
+  const groups = REVIEW_GROUPS.filter((f) => groupApplies(s, f));
+  const rowsOf = (f: ChannelConfirmField) => m.channels.filter((c) => CHANNEL_CONFIRM_GROUP[c.channel].field === f);
+  const [open, setOpen] = useState<Set<ChannelConfirmField>>(() => new Set(allRole ? groups : groups.filter((f) => canConfirmGroup(role, f))));
+  const toggle = (f: ChannelConfirmField) => setOpen((prev) => { const nx = new Set(prev); if (nx.has(f)) nx.delete(f); else nx.add(f); return nx; });
+  const cellEditable = (ch: Channel) => perm.step2 && ownsChannel(role, ch) && !s[CHANNEL_CONFIRM_GROUP[ch].field] && !finalized && !writeBlocked;
+  const mktEditable = perm.step2 && ownsChannel(role, '마케팅') && !isMarketingLocked(s) && !finalized && !writeBlocked;
+  const mine = (ch: Channel | '마케팅') => !allRole && ownsChannel(role, ch);
+  const setCell = (ch: Channel, mo: Month, v: number) => {
+    const next = Math.max(0, Math.round(v));
+    const old = qtyOf(s, ch, mo);
+    void save(s, { channelMonthQty: s.channelMonthQty.map((e) => (e.channel === ch && e.month === mo ? { ...e, qty: next } : e)) }, `${ch} ${mo}월 ${fmt(old)} → ${fmt(next)}`);
+  };
+  const setMkt = (mo: Month, v: number) => {
+    const next = Math.max(0, Math.round(v));
+    void save(s, { marketingMonthQty: { ...(s.marketingMonthQty ?? {}), [mo]: next } }, `마케팅 ${mo}월 ${fmt(s.marketingMonthQty?.[mo] ?? 0)} → ${fmt(next)}`);
+  };
+
+  // 대응SKU 채널 비중 (%) — 비교 칸 "34% ▲4p"
+  const dist = r.compare.channelDist;
+  const distSum = dist ? m.channels.reduce((a, c) => a + (dist[c.channel] ?? 0), 0) : 0;
+  const cmpShare = (ch: Channel) => (dist && distSum > 0 ? ((dist[ch] ?? 0) / distSum) * 100 : null);
+  const delta = (cur: number, base: number | null, unit: '%' | 'p') => {
+    if (base === null || (unit === '%' && !base)) return null;
+    const d = unit === '%' ? Math.round(((cur - base) / base) * 100) : Math.round(cur - base);
+    if (d === 0) return <span className="ml-1 text-[10px] text-gray-400">±0{unit}</span>;
+    return <span className={`ml-1 text-[10px] ${d > 0 ? 'text-blue-600' : 'text-red-500'}`}>{d > 0 ? '▲' : '▼'}{Math.abs(d)}{unit}</span>;
+  };
+
+  const maxBar = Math.max(1, ...m.months.map((x) => x.plan), ...months.map((mo) => monthComp(mo) ?? 0));
+  const b2cRows = m.channels.filter((c) => (B2C_CHANNELS as readonly string[]).includes(c.channel));
+  const allOpt = b2cRows.length > 0 && b2cRows.every((c) => c.opt === b2cRows[0].opt) ? b2cRows[0].opt : null;
+  const mktTotal = months.reduce((a, mo) => a + (s.marketingMonthQty?.[mo] ?? 0), 0);
+  const showMkt = mktTotal > 0 || mktEditable;
+  const chMonthSum = (chs: Channel[], mo: Month) => chs.reduce((a, ch) => a + qtyOf(s, ch, mo), 0);
+
+  const th = 'px-1 py-1 font-semibold whitespace-nowrap';
+  const td = 'px-1 py-1 text-right whitespace-nowrap';
+  const c0 = 'sticky left-0 z-[1] text-left border-r border-gray-200';
+  const zm = 'bg-indigo-50/40';
+  const zsep = 'border-l-2 border-gray-400';
+  const blankMoney = <><td className={`${zm} ${zsep}`} /><td className={zm} /><td className={zm} /><td className={zm} /></>;
+  const band = (no: string, title: string, sub: ReactNode) => (
+    <tr className="bg-gray-100 border-t border-gray-200">
+      <td className={`${c0} bg-gray-100 px-2 py-1 whitespace-nowrap`}><b className="text-gray-800">{no} {title}</b></td>
+      <td colSpan={n + 6} className="px-2 py-1 text-left text-[11px] text-gray-600">{sub}</td>
+    </tr>
+  );
+  const money = (rev: number, pro: number | null, cm: number | null, extra?: ReactNode) => (
+    <><td className={`${td} ${zm}`}>{won(rev)}</td><td className={`${td} ${zm}`}>{won(pro)}{extra}</td><td className={`${td} ${zm}`}>{pct(cm)}</td></>
+  );
+
+  return (
+    <div className="bg-white rounded border border-gray-200 min-w-0">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 pt-2 pb-1.5">
+        <b className="text-sm text-gray-800">📊 {s.orderPlans?.active ?? 1}안 월 계획 · 채널 배분</b>
+        <span className="flex flex-wrap gap-x-3 text-[11px] text-gray-500">
+          <span className="inline-flex items-center gap-1"><i className="w-3 h-3 rounded-sm border border-gray-300 bg-white" />입력 칸</span>
+          <span className="inline-flex items-center gap-1"><b className="text-emerald-700">▼</b>소진월</span>
+          <span className="inline-flex items-center gap-1"><i className="w-3 h-3 rounded-sm border border-gray-200" style={HATCH} />{overLabel} 구간</span>
+          <span className="inline-flex items-center gap-1"><i className="w-2.5 h-2.5 rounded-sm bg-gray-300" />대응SKU 실적</span>
+          <span className="inline-flex items-center gap-1"><i className="w-2.5 h-2.5 rounded-sm bg-indigo-600" />판매 목표</span>
+          {!allRole && role && <span className="inline-flex items-center gap-1 text-teal-800"><i className="w-3 h-3 rounded-sm bg-teal-50 border-l-2 border-teal-500" />내 담당 채널</span>}
+        </span>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs tabular-nums min-w-[900px]">
+          <thead>
+            <tr className="text-[11px] text-gray-500">
+              <th className={`${c0} bg-white`} />
+              <th colSpan={n + 2} className={`${th} text-center border-l border-gray-200`}>월별 수량 (개)</th>
+              <th colSpan={4} className={`${th} text-center ${zsep} bg-indigo-50`}>판매가 · 수익 (원)</th>
+            </tr>
+            <tr className="border-b border-gray-200 text-gray-500">
+              <th className={`${c0} bg-white ${th}`}>발주 {fmt(qty)}</th>
+              {m.months.map((x, i) => (
+                <th key={x.month} className={`${th} text-right min-w-[54px] ${mCls(i)} ${i === coverIdx ? 'text-emerald-700' : ''}`} style={hatch(i)}>
+                  <span className={`block text-[10px] leading-3 font-bold ${i === coverIdx ? 'text-emerald-700' : 'text-orange-600'}`}>{i === coverIdx ? '▼ 소진' : i === coverIdx + 1 ? overLabel : ' '}</span>
+                  {x.ym.slice(2, 4)}.{x.month}월
+                </th>
+              ))}
+              <th className={`${th} text-right border-l border-gray-300`}>합계</th>
+              <th className={`${th} text-right`}>비중<span className="block text-[10px] font-normal">대응 대비</span></th>
+              <th className={`${th} text-left ${zsep} bg-indigo-50`}>판매가</th>
+              <th className={`${th} text-right bg-indigo-50`}>순매출</th>
+              <th className={`${th} text-right bg-indigo-50`}>공헌이익</th>
+              <th className={`${th} text-right bg-indigo-50`}>CM%</th>
+            </tr>
+            <tr>
+              <td className={`${c0} bg-white`} />
+              {m.months.map((x, i) => {
+                const c = monthComp(x.month) ?? 0;
+                return <td key={x.month} className={`px-1 pt-1 ${mCls(i)}`} style={hatch(i)} title={`대응 ${fmt(c)} · 목표 ${fmt(x.plan)} · 누적 ${fmt(m.coverage.cumulative[i] ?? 0)}`}>
+                  <div className="h-12 flex items-end justify-center gap-0.5"><i className="block w-2.5 rounded-t-sm bg-gray-300" style={{ height: `${(c / maxBar) * 100}%` }} /><i className="block w-2.5 rounded-t-sm bg-indigo-600" style={{ height: `${(x.plan / maxBar) * 100}%` }} /></div>
+                </td>;
+              })}
+              <td className="border-l border-gray-300" /><td />{blankMoney}
+            </tr>
+          </thead>
+          <tbody>
+            {band('①', '기준', <>대응SKU {compareNamesOf(s).join(' · ') || '없음'} · {r.compare.modeLabel} · 변경은 아래 🔎 대응SKU</>)}
+            <tr className="border-b border-gray-100 text-gray-500">
+              <td className={`${c0} bg-white px-2 py-1 pl-4 whitespace-nowrap`}>대응SKU 실적</td>
+              {compTotal === null
+                ? <td colSpan={n + 1} className="px-1.5 py-1 text-gray-400 border-l border-gray-200">{tableau.errors.shipments ? '실적 불러오기 실패' : tableau.loading ? '불러오는 중' : '대응SKU 없음'}</td>
+                : <>{months.map((mo, i) => <td key={mo} className={`${td} ${mCls(i)}`} style={hatch(i)}>{monthComp(mo) === null ? '–' : fmt(monthComp(mo)!)}</td>)}<td className={`${td} border-l border-gray-300`}>{fmt(compTotal)}</td></>}
+              <td />{blankMoney}
+            </tr>
+
+            {band('②', '월 계획', planEditable ? '판매 목표 칸 수정 · 월 합계를 채널 비중대로 나눔 · 일괄은 표 아래' : 'PM이 정한 월 흐름 · 보기만')}
+            <tr className="border-b border-gray-100">
+              <td className={`${c0} bg-white px-2 py-1 pl-4 whitespace-nowrap font-semibold`}>판매 목표</td>
+              {m.months.map((x, i) => (
+                <td key={x.month} className={`px-0.5 py-0.5 ${mCls(i)}`} style={hatch(i)} title={monthComp(x.month) ? `대응 대비 ${Math.round(((x.plan - monthComp(x.month)!) / monthComp(x.month)!) * 100)}%` : undefined}>
+                  <CellInput value={x.plan} disabled={!planEditable} onCommit={(v) => setMonthPlan(s, r, new Map([[x.month, v]]), `${x.month}월 판매 목표`)} />
+                </td>
+              ))}
+              <td className={`${td} border-l border-gray-300 font-bold`}>{fmt(m.planQty)}{delta(m.planQty, compTotal, '%')}</td>
+              <td />{blankMoney}
+            </tr>
+            <tr className="border-b border-gray-100 text-gray-500">
+              <td className={`${c0} bg-white px-2 py-1 pl-4 whitespace-nowrap`}>누적 vs 발주</td>
+              {m.coverage.cumulative.map((c, i) => <td key={i} className={`${td} ${mCls(i)} ${c > qty ? 'text-red-500 font-semibold' : ''}`} style={hatch(i)}>{fmt(c)}</td>)}
+              <td className={`${td} border-l border-gray-300`}>{fmt(qty)}</td><td />{blankMoney}
+            </tr>
+
+            {band('③', '채널 배분', <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
+              <span>채널 합계 = 판매 목표 · 그룹별 확정 · {allRole ? '전 채널 수정' : '내 담당 채널만 수정'}</span>
+              {B2C_CHANNELS.some(canPrice) && <span className="inline-flex flex-wrap items-center gap-1">· B2C 판매가 일괄{PCT_OPTS.map((o) => <Chip key={o} on={allOpt === o} onClick={() => setOpts(B2C_CHANNELS, o)}>{optLabel(o)} {fmt(r.pricer(o, s.price))}원</Chip>)}</span>}
+            </span>)}
+            {groups.map((f) => {
+              const rows = rowsOf(f);
+              const chs = rows.map((c) => c.channel);
+              const isOpen = open.has(f);
+              const gQty = rows.reduce((a, c) => a + c.planQty, 0);
+              const gRev = rows.reduce((a, c) => a + c.revenue, 0);
+              const gPro = rows.some((c) => c.profit === null) ? null : rows.reduce((a, c) => a + (c.profit as number), 0) - (f === 'step2PlatformConfirmed' ? m.marketingCost : 0);
+              const gShare = rows.reduce((a, c) => a + c.share, 0);
+              const on = !!s[f];
+              const can = perm.step2 && !writeBlocked && canConfirmGroup(role, f);
+              const myGroup = !allRole && canConfirmGroup(role, f);
+              return (
+                <Fragment key={f}>
+                  <tr className={`border-t border-gray-200 ${myGroup ? 'bg-teal-50' : 'bg-white'}`}>
+                    <td className={`${c0} ${myGroup ? 'bg-teal-50' : 'bg-white'} px-2 py-1 whitespace-nowrap`}>
+                      <button onClick={() => toggle(f)} className={`font-bold ${GROUP_TONE[f]}`} aria-expanded={isOpen}>
+                        <span className="inline-block w-3 text-gray-400">{isOpen ? '▾' : '▸'}</span>{REVIEW_GROUP_LABEL[f]} <span className="font-normal text-gray-500">{chs.length}개</span>
+                      </button>
+                    </td>
+                    {months.map((mo, i) => <td key={mo} className={`${td} ${mCls(i)} ${isOpen ? 'text-gray-400' : 'text-gray-700'}`} style={hatch(i)}>{fmt(chMonthSum(chs, mo) + (f === 'step2PlatformConfirmed' ? (s.marketingMonthQty?.[mo] ?? 0) : 0))}</td>)}
+                    <td className={`${td} border-l border-gray-300 font-semibold`}>{fmt(gQty + (f === 'step2PlatformConfirmed' ? mktTotal : 0))}</td>
+                    <td className={`${td} text-gray-500`}>{Math.round(gShare)}%</td>
+                    <td className={`px-1.5 py-1 ${zsep} ${zm}`}>
+                      {on
+                        ? <button disabled={!can} onClick={() => confirmGroup(s, f, false)} title={can ? '눌러서 확정 해제' : '담당 그룹만 해제 가능'} className="px-1.5 rounded-full bg-emerald-100 text-emerald-700 text-[11px] font-semibold disabled:cursor-default">확정 ✓</button>
+                        : <button disabled={!can} onClick={() => confirmGroup(s, f, true)} title={can ? undefined : '담당 그룹만 확정 가능'} className="px-2 rounded border border-gray-400 bg-white text-gray-700 text-[11px] font-semibold hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">{REVIEW_GROUP_LABEL[f]} 확정</button>}
+                    </td>
+                    {money(gRev, gPro, cmOf(gRev, gPro))}
+                  </tr>
+                  {isOpen && rows.map((c) => {
+                    const ed = cellEditable(c.channel);
+                    const my = mine(c.channel);
+                    const isB2c = (B2C_CHANNELS as readonly string[]).includes(c.channel);
+                    const chBase = basePriceOf(s, c.channel);
+                    const bg = my ? 'bg-teal-50' : 'bg-white';
+                    const varNote = c.varRatio === null ? '변동비 없음' : `변동비 ${(c.varRatio * 100).toFixed(1)}%${c.varSource === 'default' ? ' · 25% 대체' : c.varSource === 'period' ? ' · 기간 대체' : ''}`;
+                    return (
+                      <tr key={c.channel} className={`border-b border-gray-100 ${bg}`}>
+                        <td className={`${c0} ${bg} px-2 py-0.5 pl-6 whitespace-nowrap ${my ? 'border-l-2 border-l-teal-500' : ''}`}>
+                          {c.channel}{my && <span className="ml-1 text-[9px] px-1 rounded bg-teal-600 text-white font-semibold">내 채널</span>}
+                          {s[CHANNEL_CONFIRM_GROUP[c.channel].field] && <span className="ml-1 text-[9px] text-emerald-600">잠김</span>}
+                        </td>
+                        {months.map((mo, i) => (
+                          <td key={mo} className={`px-0.5 py-0.5 ${mCls(i)}`} style={hatch(i)}>
+                            <CellInput value={qtyOf(s, c.channel, mo)} disabled={!ed} onCommit={(v) => setCell(c.channel, mo, v)} />
+                          </td>
+                        ))}
+                        <td className={`${td} border-l border-gray-300 font-semibold`}>{fmt(c.planQty)}</td>
+                        <td className={td}>{Math.round(c.share)}%{delta(c.share, cmpShare(c.channel), 'p')}</td>
+                        <td className={`px-1.5 py-0.5 ${zsep} ${zm}`}>
+                          {isB2c ? (
+                            <select value={c.opt ?? '__mixed'} disabled={!canPrice(c.channel)} onChange={(e) => e.target.value !== '__mixed' && setOpts([c.channel], e.target.value)} aria-label={`${c.channel} 판매가`}
+                              className="max-w-[128px] text-[11px] border border-gray-300 rounded px-1 py-0.5 bg-white disabled:bg-transparent disabled:border-transparent disabled:text-gray-600 disabled:appearance-none">
+                              {c.opt === null && <option value="__mixed">월별 다름 · 평균 {fmt(c.netPrice)}</option>}
+                              <option value="">판매가 · {fmt(chBase)}</option>
+                              {B2C_OPTS.filter((o) => !o.coreOnly || s.coreSku).map((o) => <option key={o.id} value={o.id}>{o.label} · {fmt(r.pricer(o.id, chBase))}</option>)}
+                            </select>
+                          ) : <span className="text-[11px]"><span className="text-gray-400">공급가</span> {fmt(c.netPrice)}</span>}
+                        </td>
+                        {money(c.revenue, c.profit, c.cm, <>
+                          {c.varSource === 'default' && <span className="ml-1 px-1 rounded-full bg-amber-100 text-amber-800 text-[9px] font-semibold" title={varNote}>25% 대체</span>}
+                          {c.varSource === 'period' && <span className="ml-1 px-1 rounded-full bg-amber-100 text-amber-800 text-[9px] font-semibold" title={varNote}>기간 대체</span>}
+                          {c.varSource === 'none' && !tableau.loading && <span className="ml-1 px-1 rounded-full bg-red-100 text-red-700 text-[9px] font-semibold" title="변동비 데이터 로드 실패 · 공헌이익 계산 안 함">로드 실패</span>}
+                        </>)}
+                      </tr>
+                    );
+                  })}
+                  {isOpen && f === 'step2PlatformConfirmed' && showMkt && (
+                    <tr className={`border-b border-gray-100 ${mine('마케팅') ? 'bg-teal-50' : 'bg-white'}`}>
+                      <td className={`${c0} ${mine('마케팅') ? 'bg-teal-50 border-l-2 border-l-teal-500' : 'bg-white'} px-2 py-0.5 pl-6 whitespace-nowrap`}>마케팅{mine('마케팅') && <span className="ml-1 text-[9px] px-1 rounded bg-teal-600 text-white font-semibold">내 채널</span>}</td>
+                      {months.map((mo, i) => (
+                        <td key={mo} className={`px-0.5 py-0.5 ${mCls(i)}`} style={hatch(i)}>
+                          <CellInput value={s.marketingMonthQty?.[mo] ?? 0} disabled={!mktEditable} onCommit={(v) => setMkt(mo, v)} />
+                        </td>
+                      ))}
+                      <td className={`${td} border-l border-gray-300 font-semibold`}>{fmt(mktTotal)}</td>
+                      <td className={`${td} text-gray-400`}>–</td>
+                      <td className={`px-1.5 py-0.5 ${zsep} ${zm} text-[11px] text-gray-400`}>원가만 차감</td>
+                      <td className={`${td} ${zm} text-gray-400`}>–</td><td className={`${td} ${zm}`}>{won(-m.marketingCost)}</td><td className={zm} />
+                    </tr>
+                  )}
+                </Fragment>
+              );
+            })}
+            <tr className="border-t-2 border-gray-500 font-bold">
+              <td className={`${c0} bg-white px-2 py-1`}>합계</td>
+              {m.months.map((x, i) => <td key={x.month} className={`${td} ${mCls(i)}`} style={hatch(i)}>{fmt(x.plan)}</td>)}
+              <td className={`${td} border-l border-gray-300`}>{fmt(m.planQty)}</td>
+              <td className={td}>100%</td>
+              <td className={`${zsep} ${zm}`} />
+              {money(m.revenue, m.profit, m.cm)}
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p className="px-3 py-1.5 text-[11px] text-gray-500">할인가 = 판매가 × (1 − 할인율), 10원 올림 · 판매가는 채널별 하나 · 예전에 월마다 다르게 넣은 채널은 “월별 다름”, 하나를 고르면 모든 달에 적용{s.isPriceConfirmed ? ' · 가격 확정 SKU라 판매가 잠김(프라이싱에서 해제)' : ''} · 순매출 · 공헌이익은 {env.basis === 'order' ? '이번 발주량까지만 판매' : '판매 목표 전체(리오더 포함)'} 기준</p>
+    </div>
+  );
+}
+
 function Detail({ s, r, env }: { s: SkuData; r: SkuReview; env: DetailEnv }) {
-    const { role, perm, tableau, global, writeBlocked, busy, basis, onNavigateToSku, save, setOrder, pickPlan, canSwitch, setMonthPlan, saveCompare, confirm, confirmGroup } = env;
+    const { role, perm, tableau, global, writeBlocked, busy, basis, onNavigateToSku, save, setOrder, pickPlan, canSwitch, setMonthPlan, saveCompare, confirm } = env;
     const m = r.money;
     const active = s.orderPlans?.active ?? 1;
     const months = getSkuMonths(s.releaseDate);
@@ -296,7 +543,7 @@ function Detail({ s, r, env }: { s: SkuData; r: SkuReview; env: DetailEnv }) {
       const v = Math.round(((x - c) / c) * 100);
       return <span className={v >= 0 ? 'text-blue-600' : 'text-red-500'}>{v >= 0 ? '+' : '−'}{Math.abs(v)}%</span>;
     };
-    const [tab, setTab] = useState<'channel' | 'option' | 'price'>('channel');
+    const [tab, setTab] = useState<'channel' | 'option'>('channel');
     const [cmpOpen, setCmpOpen] = useState(false);
 
     // 대응SKU
@@ -320,12 +567,6 @@ function Detail({ s, r, env }: { s: SkuData; r: SkuReview; env: DetailEnv }) {
       channels.filter(canPrice).forEach((ch) => months.forEach((mo) => { nextOpts[`${ch}-${mo}`] = opt; }));
       void save(s, { pricingOpts: nextOpts }, `판매가 ${optLabel(opt)}`);
     };
-    const b2cRows = m.channels.filter((c) => (B2C_CHANNELS as readonly string[]).includes(c.channel));
-    const allOpt = b2cRows.length > 0 && b2cRows.every((c) => c.opt === b2cRows[0].opt) ? b2cRows[0].opt : null;
-    const base = s.price;
-    const shown = m.channels.filter((c) => c.planQty > 0 || (B2C_CHANNELS as readonly string[]).includes(c.channel));
-
-    const maxBar = Math.max(1, ...m.months.map((x) => x.plan), ...months.map((mo) => monthComp(mo) ?? 0));
     const seasonFit = isSeasonOnly(s) && isAllChannelRole(role) && m.planQty > 0 && s.totalOrderQty > 0 && m.planQty !== s.totalOrderQty;
     const fitToOrder = () => {
       const scope = planScopeOf(s);
@@ -375,7 +616,6 @@ function Detail({ s, r, env }: { s: SkuData; r: SkuReview; env: DetailEnv }) {
           {planSwitch}
           <span className="text-[11px] text-gray-500 tabular-nums">{s.category} · {s.releaseDate ? `${s.releaseDate.slice(5).replace('-', '/')} 오픈` : '오픈일 미정'} · 판매가 {s.price ? fmt(s.price) : '없음'} · 원가 {s.cost ? fmt(s.cost) : '없음'}{isSeasonOnly(s) ? ' · 시즌 한정' : ''}</span>
           <span className="flex-1" />
-          <GroupConfirmButtons s={s} canStep2={perm.step2 && !writeBlocked} onToggle={(f, v) => confirmGroup(s, f, v)} />
           {onNavigateToSku && <button onClick={() => onNavigateToSku(s)} className="text-xs px-2 py-0.5 rounded border border-gray-300 bg-white text-gray-700 hover:bg-gray-50">SKU카드 →</button>}
         </div>
         {(r.issues.length > 0 || qtyChanged) && (
@@ -417,14 +657,6 @@ function Detail({ s, r, env }: { s: SkuData; r: SkuReview; env: DetailEnv }) {
             </div>
           </section>
         </div>
-        <div className="space-y-1">
-          <CoverStrip months={months} cumulative={m.coverage.cumulative} qty={qty} />
-          <div className="flex flex-wrap gap-x-3 text-[11px] text-gray-500">
-            <span className="inline-flex items-center gap-1"><i className="w-2.5 h-2.5 rounded-sm bg-emerald-100" />발주량으로 판매</span>
-            <span className="inline-flex items-center gap-1"><i className="w-2.5 h-2.5 rounded-sm bg-emerald-700" />소진월</span>
-            <span className="inline-flex items-center gap-1"><i className="w-2.5 h-2.5 rounded-sm bg-orange-100" />리오더 · 품절 구간</span>
-          </div>
-        </div>
         {stored && other && (
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs tabular-nums">
             <b className="text-gray-700">{otherNo}안 · 보관</b>
@@ -433,32 +665,9 @@ function Detail({ s, r, env }: { s: SkuData; r: SkuReview; env: DetailEnv }) {
           </div>
         )}
 
-        <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_250px] gap-2.5 items-start">
-          <Box title={`📈 ${active}안 월별 목표량`} right={
-            <div className="flex gap-3 text-[11px] text-gray-500"><span className="inline-flex items-center gap-1"><i className="w-2.5 h-2.5 rounded-sm bg-gray-300" />대응SKU 실적</span><span className="inline-flex items-center gap-1"><i className="w-2.5 h-2.5 rounded-sm bg-indigo-600" />판매 목표</span></div>
-          }>
-            <div className="space-y-2">
-              <Hint strong="여기를 고쳐도 발주량은 그대로" rest="리오더 시점 · 수량 확인 · 잔여량 확인" />
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs min-w-[560px]">
-                  <thead><tr className="border-b border-gray-200 text-gray-500"><th className="text-left px-1.5 py-1 font-semibold"></th>{m.months.map((x) => <th key={x.month} className="text-right px-1.5 py-1 font-semibold whitespace-nowrap">{x.ym.slice(2, 4)}.{x.month}월</th>)}<th className="text-right px-1.5 py-1 font-semibold">합계</th></tr></thead>
-                  <tbody className="tabular-nums">
-                    <tr className="border-b border-gray-200"><td></td>{m.months.map((x) => {
-                      const c = monthComp(x.month) ?? 0;
-                      return <td key={x.month} className="px-1 pt-1" title={`대응 ${fmt(c)} · 목표 ${fmt(x.plan)}`}><div className="h-14 flex items-end justify-end gap-0.5"><i className="block w-2.5 rounded-t-sm bg-gray-300" style={{ height: `${(c / maxBar) * 100}%` }} /><i className="block w-2.5 rounded-t-sm bg-indigo-600" style={{ height: `${(x.plan / maxBar) * 100}%` }} /></div></td>;
-                    })}<td></td></tr>
-                    <tr className="border-b border-gray-100"><td className="px-1.5 py-1 whitespace-nowrap text-gray-500">대응SKU 실적</td>{compTotal === null
-                      ? <td colSpan={m.months.length + 1} className="px-1.5 py-1 text-gray-400">{tableau.errors.shipments ? '실적 불러오기 실패' : tableau.loading ? '불러오는 중' : '대응SKU 없음'}</td>
-                      : <>{months.map((mo) => <td key={mo} className="px-1.5 py-1 text-right text-gray-500">{monthComp(mo) === null ? '–' : fmt(monthComp(mo)!)}</td>)}<td className="px-1.5 py-1 text-right text-gray-500">{fmt(compTotal)}</td></>}</tr>
-                    <tr className="border-b border-gray-100"><td className="px-1.5 py-1 whitespace-nowrap font-semibold">판매 목표</td>{m.months.map((x) => (
-                      <td key={x.month} className="px-0.5 py-1 min-w-[56px]"><CellInput value={x.plan} disabled={!planEditable} onCommit={(n) => setMonthPlan(s, r, new Map([[x.month, n]]), `${x.month}월 판매 목표`)} /></td>
-                    ))}<td className="px-1.5 py-1 text-right font-bold">{fmt(m.planQty)}</td></tr>
-                    {compTotal !== null && <tr className="border-b border-gray-100"><td className="px-1.5 py-1 whitespace-nowrap text-gray-500">증감</td>{m.months.map((x) => <td key={x.month} className="px-1.5 py-1 text-right">{growth(x.plan, monthComp(x.month))}</td>)}<td className="px-1.5 py-1 text-right">{growth(m.planQty, compTotal)}</td></tr>}
-                    <tr><td className="px-1.5 py-1 whitespace-nowrap text-gray-500">누적 vs 발주 {fmt(s.totalOrderQty)}</td>{m.coverage.cumulative.map((c, i) => <td key={i} className={`px-1.5 py-1 text-right ${c > s.totalOrderQty ? 'text-red-500 font-semibold' : ''}`}>{fmt(c)}</td>)}<td></td></tr>
-                  </tbody>
-                </table>
-              </div>
-              <div className="flex flex-wrap items-center gap-2 text-xs text-gray-600">
+        <Worksheet s={s} r={r} env={env} planEditable={planEditable} canPrice={canPrice} setOpts={setOpts} monthComp={monthComp} compTotal={compTotal} />
+              {planEditable && <div className="flex flex-wrap items-center gap-2 text-xs text-gray-600 px-1">
+                <span className="text-[11px] font-bold text-gray-500">② 월 계획 일괄</span>
                 <label className="flex items-center gap-1.5">판매 목표 일괄
                   <select value="" disabled={!canPlan || m.planQty === 0} onChange={(e) => {
                     if (!e.target.value) return;
@@ -485,11 +694,9 @@ function Detail({ s, r, env }: { s: SkuData; r: SkuReview; env: DetailEnv }) {
                   </>
                 )}
                 {seasonFit && <button disabled={!canPlan} onClick={fitToOrder} className="px-2 py-0.5 rounded border border-violet-300 bg-violet-50 text-violet-700 hover:bg-violet-100 disabled:opacity-50">판매 목표를 발주량에 맞추기</button>}
-              </div>
-            </div>
-          </Box>
+              </div>}
 
-          <div className="space-y-2.5 min-w-0">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5 items-start">
             <Box title="🔎 대응SKU" right={<button onClick={() => setCmpOpen((v) => !v)} className="text-xs underline text-indigo-700">{cmpOpen ? '닫기' : '변경'}</button>}>
               <div className="space-y-1.5">
                 <div className="flex flex-wrap items-center gap-1">
@@ -553,68 +760,19 @@ function Detail({ s, r, env }: { s: SkuData; r: SkuReview; env: DetailEnv }) {
               </div>
             </Box>
           </div>
-        </div>
 
         <div className="bg-white rounded border border-gray-200 p-3 space-y-2.5 min-w-0">
           <div className="flex gap-1 border-b border-gray-200 overflow-x-auto" role="tablist">
-            {([['channel', '📦 채널별 목표량'], ['option', '🧩 옵션별 검토'], ['price', '💰 판매가 · 수익']] as const).map(([k, l]) => (
+            {([['channel', '🧰 채널 상세 · 도구'], ['option', '🧩 옵션별 검토']] as const).map(([k, l]) => (
               <button key={k} role="tab" aria-selected={tab === k} onClick={() => setTab(k)} className={`px-3 py-1.5 text-xs font-bold whitespace-nowrap border-b-2 ${tab === k ? 'border-indigo-600 text-indigo-800' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>{l}</button>
             ))}
           </div>
           {/* 채널 표는 펼침 · 되돌리기 기록이 사라지지 않도록 탭을 바꿔도 유지 */}
           <div hidden={tab !== 'channel'} className="space-y-2">
-            <Hint strong="여기를 고쳐도 발주량은 그대로" rest="월별 목표량에 바로 반영" />
+            <Hint strong="위 표와 같은 수량" rest="채널별 월 상세(대응SKU · 기준값 차이 · 실 판매가 · 옵션 수량) · 채널 비중 수정 · 대응SKU 채널비중 반영 · 되돌리기 · 시뮬레이션 엑셀" />
             <ChannelQtyPanel sku={s} compare={r.compare} />
           </div>
           {tab === 'option' && <OptionPanel s={s} env={env} editable={orderEditable} />}
-          {tab === 'price' && (
-            <div className="space-y-2">
-              <div className="flex flex-wrap items-center gap-1">
-                <span className="text-[11px] text-gray-500 mr-0.5">B2C 일괄</span>
-                {PCT_OPTS.map((o) => <Chip key={o} on={allOpt === o} disabled={!B2C_CHANNELS.some(canPrice)} onClick={() => setOpts(B2C_CHANNELS, o)}>{optLabel(o)} {fmt(r.pricer(o, base))}원</Chip>)}
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs">
-                  <thead><tr className="border-b border-gray-200 text-gray-500">{['채널', '비중', '수량', '판매가 · 공급가', '순매출', '공헌이익', '변동비율', 'CM%'].map((h, i) => <th key={h} className={`px-2 py-1 font-semibold whitespace-nowrap ${i === 0 || i === 3 ? 'text-left' : 'text-right'}`}>{h}</th>)}</tr></thead>
-                  <tbody className="tabular-nums">
-                    {shown.map((c) => {
-                      const isB2c = (B2C_CHANNELS as readonly string[]).includes(c.channel);
-                      const chBase = basePriceOf(s, c.channel);
-                      return (
-                        <tr key={c.channel} className="border-b border-gray-100">
-                          <td className="px-2 py-1 whitespace-nowrap">{c.channel}</td>
-                          <td className="px-2 py-1 text-right">{Math.round(c.share)}%</td>
-                          <td className="px-2 py-1 text-right">{fmt(c.soldQty)}</td>
-                          <td className="px-2 py-1">
-                            {isB2c ? (
-                              <select value={c.opt ?? '__mixed'} disabled={!canPrice(c.channel)} onChange={(e) => e.target.value !== '__mixed' && setOpts([c.channel], e.target.value)} aria-label={`${c.channel} 판매가`}
-                                className="text-xs border border-gray-300 rounded px-1 py-0.5 bg-white disabled:bg-gray-50 disabled:text-gray-500">
-                                {c.opt === null && <option value="__mixed">월별 다름 · 평균 {fmt(c.netPrice)}원</option>}
-                                <option value="">판매가 · {fmt(chBase)}원</option>
-                                {B2C_OPTS.filter((o) => !o.coreOnly || s.coreSku).map((o) => <option key={o.id} value={o.id}>{o.label} · {fmt(r.pricer(o.id, chBase))}원</option>)}
-                              </select>
-                            ) : <span><span className="text-gray-400">공급가</span> {fmt(c.netPrice)}원</span>}
-                          </td>
-                          <td className="px-2 py-1 text-right">{won(c.revenue)}</td>
-                          <td className="px-2 py-1 text-right">{won(c.profit)}</td>
-                          <td className="px-2 py-1 text-right whitespace-nowrap">
-                            {c.varRatio === null ? '–' : `${(c.varRatio * 100).toFixed(1)}%`}
-                            {c.varSource === 'default' && <span className="ml-1 px-1 rounded-full bg-amber-100 text-amber-800 text-[10px] font-semibold">25% 대체</span>}
-                            {c.varSource === 'period' && <span className="ml-1 px-1 rounded-full bg-amber-100 text-amber-800 text-[10px] font-semibold">기간 대체</span>}
-                            {c.varSource === 'none' && !tableau.loading && <span className="ml-1 px-1 rounded-full bg-red-100 text-red-700 text-[10px] font-semibold">로드 실패</span>}
-                          </td>
-                          <td className="px-2 py-1 text-right">{pct(c.cm)}</td>
-                        </tr>
-                      );
-                    })}
-                    {m.marketingCost > 0 && <tr className="border-b border-gray-100"><td className="px-2 py-1 whitespace-nowrap">마케팅 원가</td><td colSpan={4}></td><td className="px-2 py-1 text-right">{won(-m.marketingCost)}</td><td colSpan={2}></td></tr>}
-                    <tr className="font-semibold"><td className="px-2 py-1">합계</td><td></td><td className="px-2 py-1 text-right">{fmt(m.soldQty)}</td><td></td><td className="px-2 py-1 text-right">{won(m.revenue)}</td><td className="px-2 py-1 text-right">{won(m.profit)}</td><td></td><td className="px-2 py-1 text-right">{pct(m.cm)}</td></tr>
-                  </tbody>
-                </table>
-              </div>
-              <p className="text-[11px] text-gray-500">할인가 = 판매가 × (1 − 할인율), 10원 올림 · 판매가는 채널별 하나 · 예전에 월마다 다르게 넣은 채널은 “월별 다름”으로 표시, 하나를 고르면 모든 달에 적용{s.isPriceConfirmed ? ' · 가격 확정 SKU라 잠김(프라이싱에서 해제)' : ''}</p>
-            </div>
-          )}
         </div>
 
         <div className="sticky bottom-0 z-10 flex flex-wrap items-center gap-2 rounded-lg border border-gray-300 bg-white/95 px-3 py-2 shadow-md">
