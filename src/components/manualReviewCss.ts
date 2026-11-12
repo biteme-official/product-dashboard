@@ -182,4 +182,31 @@ export const MANUAL_REVIEW_CSS = `
 @media (max-width:1040px){.pman .rv-split{grid-template-columns:minmax(0,1fr)}}
 .pman .hero-inner,.pman .nav-inner{max-width:1200px}
 
+/* 발주량 검토 › 필터 드롭다운 · 검토 요청 그림 */
+.pman .rq-dd{font-size:11px;border:1px solid var(--border);border-radius:6px;padding:1px 8px;background:var(--surface);color:var(--muted);white-space:nowrap}
+.pman .rq-dd.teal{border-color:#14b8a6;background:#ccfbf1;color:#0f766e;font-weight:700}
+.pman .rq-ck{flex-direction:row;gap:5px;align-items:flex-start}
+.pman .rq-ck i{font-style:normal;color:#0f766e;line-height:1.3}
+.pman .rq-ck span{display:flex;flex-direction:column}
+.pman .rq-pick{font-size:10.5px;font-weight:700;color:#0f766e;background:#ccfbf1;border-radius:6px;padding:4px 6px;text-align:center}
+.pman .rq-btn{font-size:10.5px;font-weight:700;border-radius:5px;padding:1px 7px;white-space:nowrap;border:1px solid}
+.pman .rq-btn.pl{border-color:#34d399;color:#047857;background:#ecfdf5}.pman .rq-btn.pl.on{background:#059669;border-color:#059669;color:#fff}
+.pman .rq-btn.br{border-color:#fbbf24;color:#b45309;background:#fffbeb}.pman .rq-btn.br.on{background:#f59e0b;border-color:#f59e0b;color:#fff}
+.pman .rq-btn.gl{border-color:#38bdf8;color:#0369a1;background:#f0f9ff}
+.pman .rq-banner{border:1px solid #5eead4;background:#f0fdfa;border-radius:8px;padding:7px 9px;display:flex;flex-direction:column;gap:5px}
+.pman .rq-badge{font-size:10.5px;font-weight:700;background:#0d9488;color:#fff;border-radius:999px;padding:1px 8px;white-space:nowrap}
+.pman .rq-memo{font-size:11px;background:var(--surface);border-radius:5px;padding:3px 7px}
+.pman .rq-del{color:#b91c1c;border-color:#fca5a5}
+.pman .rq-bar{width:56px;height:6px;border-radius:3px;background:var(--surface);border:1px solid var(--border);overflow:hidden;display:inline-block}
+.pman .rq-bar i{display:block;height:100%;background:#10b981}
+.pman .rq-sumtbl{gap:5px;border-color:#5eead4}
+.pman .rq-sumtbl .chip{font-size:10.5px;padding:1px 8px}
+.pman .rq-ord{flex-direction:row;justify-content:space-between;align-items:center;gap:4px}
+.pman .rq-ord i{font-style:normal;font-family:var(--mono);color:#0f766e;margin-right:4px}
+.pman .rq-gc{display:inline-flex;gap:2px}
+.pman .rq-gc em{font-style:normal;font-size:9.5px;border:1px solid var(--border);border-radius:3px;padding:0 3px;color:var(--muted)}
+.pman .rq-gc em.ok{background:var(--ok-soft);color:#047857;border-color:transparent}
+.pman .rs-main.rq-main{grid-template-columns:168px minmax(0,1fr)}
+.pman .rq-who{display:block;font-size:11px;font-weight:800;color:var(--violet)}
+
 `;

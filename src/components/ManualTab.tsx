@@ -106,12 +106,12 @@ export function ManualTab() {
           <div className="role-grid" aria-label="역할별 바로가기">
             <div className="role-card">
               <div><span className="rb pm">PM · CPO</span></div>
-              <ul><li>SKU 기본 정보 · 발주량 · 월별 목표량</li><li>전 채널 목표량 · 비중 조정</li><li>프라이싱 수정 · 확정</li><li>최종 발주 확정</li></ul>
+              <ul><li>SKU 기본 정보 · 발주량 · 월별 목표량</li><li>전 채널 목표량 · 비중 조정 · 검토 요청 보내기</li><li>프라이싱 수정 · 확정</li><li>최종 발주 확정</li></ul>
               <div className="go"><Jump to="review">발주량 검토</Jump><Jump to="pricing">프라이싱</Jump><Jump to="admin">발주 확정</Jump></div>
             </div>
             <div className="role-card">
               <div className="rbs"><span className="rb pmd">플랫폼MD</span><span className="rb bmd">브랜드MD</span><span className="rb gl">글로벌</span></div>
-              <ul><li>담당 채널 목표량 입력 · 확정</li><li>채널별 오픈일정 입력 · 확정</li><li>프라이싱 수정 · 확정 (글로벌 제외)</li></ul>
+              <ul><li>담당 채널 목표량 입력 · 확정</li><li>검토 요청 링크 받으면 담당 그룹 확정</li><li>채널별 오픈일정 입력 · 확정</li><li>프라이싱 수정 · 확정 (글로벌 제외)</li></ul>
               <div className="go"><Jump to="review">발주량 검토</Jump><Jump to="projection">오픈일정</Jump><Jump to="pricing">프라이싱</Jump></div>
             </div>
             <div className="role-card">
@@ -189,6 +189,9 @@ export function ManualTab() {
                     ['안 전환 · 저장', 'y', 'y', '', '', '', ''],
                     ['채널별 목표량', '전체', '전체', '자사몰 · 마케팅', '스스 · 위탁 · 팝업/페어 · B2B · 쿠팡 · 사입', '글로벌 · 일본', ''],
                     ['채널 확정 · 오픈일정 확정', '전체', '전체', '플랫폼 그룹', '브랜드 그룹', '글로벌 그룹', ''],
+                    ['발주량 검토 › 월별 비중설정 보기', 'y', 'y', '', '', '', ''],
+                    ['검토 요청 만들기', 'y', 'y', '', '', '', ''],
+                    ['검토 요청 닫기 · 삭제', 'y', '', '', '', '', ''],
                     ['프라이싱 수정 · 확정', 'y', 'y', 'y', 'y', '', ''],
                     ['최종 발주 확정', 'y', 'y', '', '', '', ''],
                     ['여러 채널 한꺼번에 바꾸기', 'y', 'y', '', '', '', ''],
@@ -248,7 +251,8 @@ export function ManualTab() {
               ['판매가 · 원가 · 정가', <Pill c="amber">🔒 CPO 전용</Pill>, '회색 읽기전용 · 미확정이면 “CPO 미확정”'],
               ['입고 · 촬영예정일', <Pill c="amber">🔒 CPO 전용</Pill>, '날짜칸 잠금'],
               ['컬러 · 사이즈 옵션 · 썸네일', <Pill c="amber">🔒 CPO 전용</Pill>, 'CPO 등록 내용 그대로'],
-              ['그 외 (발주량 · MOQ · 월별 목표량 · 채널별 목표량 · 옵션별 검토 · 프라이싱)', <Pill c="ok">✏️ 여기서 수정</Pill>, 'CPO와 무관'],
+              ['MOQ', <Pill c="ok">✏️ 여기서만</Pill>, 'SKU 카드 › 옵션 구성 · CPO에는 입력칸 없음 · 새 카드는 0(미입력)으로 시작'],
+              ['그 외 (발주량 · 월별 목표량 · 채널별 목표량 · 옵션별 검토 · 프라이싱)', <Pill c="ok">✏️ 여기서 수정</Pill>, 'CPO와 무관'],
             ]} />
             <p className="sub">* 카드 상단에 CPO 진행상태 배지 + 기획 담당자 이름 (읽기 전용) · CPO 미연동(예전) SKU는 잠금 없이 전부 직접 입력</p>
           </Card>
@@ -268,7 +272,7 @@ export function ManualTab() {
         <ManualReviewChapter period={<PeriodTimeline />} mix={<DefaultMix />} />
 
         {/* ═════════ 프로젝션 ═════════ */}
-        <Section id="projection" eyebrow="Many SKUs at once" color="var(--sky)" title="📋 프로젝션 화면" lede="여러 SKU를 한 번에 보는 서브탭 4개 · 위 필터(카테고리 · 브랜드 · 오픈월 · 오픈/완료 제외 · 검색)는 공통.">
+        <Section id="projection" eyebrow="Many SKUs at once" color="var(--sky)" title="📋 프로젝션 화면" lede="여러 SKU를 한 번에 보는 서브탭 4개 · 서브탭 줄 오른쪽 필터(카테고리 ▾ · 브랜드 ▾ · 오픈/완료 제외 · 오픈월 ▾ · 검색)는 공통 · 채널별 요약 탭도 같은 모양.">
           <Card title="📄 LIST VIEW">
             <p className="sub">정렬: 오픈일 → 브랜드 → 카테고리(식품 → 장난감 → 용품 → 잡화 → 의류) → SKU명</p>
             <Tbl minW={520} cols={['k', '']} head={['열', '내용']} rows={[
@@ -287,7 +291,7 @@ export function ManualTab() {
               <li>편집: 채널별 목표량 권한 · 확정: 오픈일정 확정 권한 · 확정 후 전원 잠금</li>
             </ul>
           </Card>
-          <Card title={<>⚖️ 발주량 검토 <span className="sub">SKU별 결정 · 채널별 설정 · 월별 비중설정 · 전체 합계 → 앞 장에서 자세히</span></>}>
+          <Card title={<>⚖️ 발주량 검토 <span className="sub">SKU별 결정 · 채널별 설정 · 월별 비중설정(MASTER · PM) · 전체 합계 · 검토 요청 → 앞 장에서 자세히</span></>}>
             <div><Jump to="review">발주량 검토 보러가기 →</Jump></div>
           </Card>
           <Card title={<>💰 프라이싱 <span className="sub">→ 다음 장에서 자세히</span></>}>
