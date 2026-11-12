@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { deleteField, doc, getFirestore, setDoc } from 'firebase/firestore';
+import { deleteField, doc, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, setDoc } from 'firebase/firestore';
 import type { ChannelOpenScheduleEntry } from '../types';
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 
@@ -17,7 +17,13 @@ const cpoFirebaseConfig = {
 };
 
 const cpoApp = initializeApp(cpoFirebaseConfig, 'cpo');
-export const cpoFsdb = getFirestore(cpoApp);
+// 브라우저(IndexedDB) 캐시 — CPO 프로젝트의 무료 한도(하루 읽기 5만) 절약용.
+// 전에는 Product를 열 때마다 CPO projects·users 전체(약 200건)를 서버에서 다시 읽었는데,
+// 캐시가 있으면 끊긴 지 30분 안에 다시 열 때 바뀐 문서만 읽기로 과금된다.
+// ⚠️ 캐시 값으로 SKU 자동 저장이 돌지 않도록 cpoSync의 projects 구독은 서버 확인 스냅샷만 반영한다.
+export const cpoFsdb = initializeFirestore(cpoApp, {
+  localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
+});
 const cpoAuth = getAuth(cpoApp);
 
 /** CPO 쪽 Firestore 규칙(request.auth != null)을 만족시키기 위한 별도 익명 로그인 */
