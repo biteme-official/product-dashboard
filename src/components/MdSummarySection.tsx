@@ -127,7 +127,7 @@ export function MdSummarySection({
   const [searchQuery, setSearchQuery] = useState('');
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // pm/프로젝션 탭과 동일하게 CPO 상태가 Cancel/Holding이거나 오픈일 미정인 SKU는 제외
+  // pm/프로젝션 탭과 동일하게 CPO 상태가 Cancel/Holding이거나 카테고리가 비매품이거나 오픈일 미정인 SKU는 제외
   // (기존에는 useStore().skus를 그대로 써서 이 SKU들까지 매출/공헌이익 합계에 포함되던 버그)
   const skus = useVisibleSkus();
   const cpoProjects = useCpoSync((s) => s.cpoProjects);
