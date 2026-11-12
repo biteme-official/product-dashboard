@@ -2,7 +2,7 @@
  * 프로젝션 › 발주량 검토 › SKU별 결정 · 전체 합계 — SKU별로 1안 · 2안을 정하고, 고른 값의 월 · 카테고리 합계를 본다.
  * 화면을 여는 것만으로는 쓰기가 없다(채널 표는 autoInit 끔, ComparisonColumn 미마운트). 저장은 applySkuBatch, 확정은 setFinalOrderConfirmed.
  */
-import { Fragment, useEffect, useState, type ReactNode } from 'react';
+import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   Bar, CartesianGrid, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts';
@@ -258,19 +258,35 @@ function OptionPanel({ s, env, editable }: { s: SkuData; env: DetailEnv; editabl
   );
 }
 
+/** 표 아래 접는 구역 (개편 4단계) — 닫아도 내용은 그대로 둠(채널 상세의 되돌리기 기록 유지) */
+function Fold({ open, onToggle, title, summary, children }: { open: boolean; onToggle: () => void; title: string; summary: ReactNode; children: ReactNode }) {
+  return (
+    <div className="bg-white rounded border border-gray-200 min-w-0">
+      <button type="button" onClick={onToggle} aria-expanded={open} className="w-full flex flex-wrap items-baseline gap-x-2 gap-y-0.5 px-3 py-2 text-left hover:bg-gray-50">
+        <span className="w-3 text-gray-400">{open ? '▾' : '▸'}</span>
+        <b className="text-sm text-gray-800">{title}</b>
+        <span className="text-[11px] text-gray-500">{summary}</span>
+      </button>
+      <div hidden={!open} className="px-3 pb-3 pt-2 border-t border-gray-100 space-y-2 min-w-0">{children}</div>
+    </div>
+  );
+}
+
 // ── 통합 표 (개편 3단계) — ① 대응SKU 실적 · ② 월 계획 · ③ 채널 배분을 한 표로, 월 열을 위아래로 맞춤 ──
 const HATCH = { backgroundImage: 'repeating-linear-gradient(135deg, #ffedd5 0 4px, transparent 4px 9px)' };
 const GROUP_TONE: Record<ChannelConfirmField, string> = {
   step2PlatformConfirmed: 'text-emerald-800', step2BrandConfirmed: 'text-amber-800', step2GlobalConfirmed: 'text-sky-800',
 };
 
-function Worksheet({ s, r, env, planEditable, canPrice, setOpts, monthComp, compTotal }: {
+function Worksheet({ s, r, env, planEditable, canPrice, setOpts, monthComp, compTotal, onEditCompare }: {
   s: SkuData; r: SkuReview; env: DetailEnv;
   planEditable: boolean;
   canPrice: (ch: Channel) => boolean;
   setOpts: (channels: readonly Channel[], opt: string) => void;
   monthComp: (mo: Month) => number | null;
   compTotal: number | null;
+  /** ① 기준 띠 [변경] — 표 아래 근거 구역을 펼침 */
+  onEditCompare: () => void;
 }) {
   const { role, perm, tableau, writeBlocked, save, setMonthPlan, confirmGroup } = env;
   const m = r.money;
@@ -387,7 +403,7 @@ function Worksheet({ s, r, env, planEditable, canPrice, setOpts, monthComp, comp
             </tr>
           </thead>
           <tbody>
-            {band('①', '기준', <>대응SKU {compareNamesOf(s).join(' · ') || '없음'} · {r.compare.modeLabel} · 변경은 아래 🔎 대응SKU</>)}
+            {band('①', '기준', <>대응SKU {compareNamesOf(s).join(' · ') || '없음'} · {r.compare.modeLabel} <button type="button" onClick={onEditCompare} className="ml-1 px-1.5 rounded border border-gray-300 bg-white text-gray-700 hover:bg-gray-50">{perm.skuBasic ? '변경 · 근거' : '근거 보기'}</button></>)}
             <tr className="border-b border-gray-100 text-gray-500">
               <td className={`${c0} bg-white px-2 py-1 pl-4 whitespace-nowrap`}>대응SKU 실적</td>
               {compTotal === null
@@ -543,7 +559,9 @@ function Detail({ s, r, env }: { s: SkuData; r: SkuReview; env: DetailEnv }) {
       const v = Math.round(((x - c) / c) * 100);
       return <span className={v >= 0 ? 'text-blue-600' : 'text-red-500'}>{v >= 0 ? '+' : '−'}{Math.abs(v)}%</span>;
     };
-    const [tab, setTab] = useState<'channel' | 'option'>('channel');
+    const [fold, setFold] = useState({ cmp: false, opt: false, tool: false });
+    const flip = (k: 'cmp' | 'opt' | 'tool') => setFold((f) => ({ ...f, [k]: !f[k] }));
+    const cmpRef = useRef<HTMLDivElement>(null);
     const [cmpOpen, setCmpOpen] = useState(false);
 
     // 대응SKU
@@ -665,7 +683,7 @@ function Detail({ s, r, env }: { s: SkuData; r: SkuReview; env: DetailEnv }) {
           </div>
         )}
 
-        <Worksheet s={s} r={r} env={env} planEditable={planEditable} canPrice={canPrice} setOpts={setOpts} monthComp={monthComp} compTotal={compTotal} />
+        <Worksheet s={s} r={r} env={env} planEditable={planEditable} canPrice={canPrice} setOpts={setOpts} monthComp={monthComp} compTotal={compTotal} onEditCompare={() => { setFold((f) => ({ ...f, cmp: true })); if (perm.skuBasic) setCmpOpen(true); setTimeout(() => cmpRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' }), 60); }} />
               {planEditable && <div className="flex flex-wrap items-center gap-2 text-xs text-gray-600 px-1">
                 <span className="text-[11px] font-bold text-gray-500">② 월 계획 일괄</span>
                 <label className="flex items-center gap-1.5">판매 목표 일괄
@@ -697,8 +715,10 @@ function Detail({ s, r, env }: { s: SkuData; r: SkuReview; env: DetailEnv }) {
               </div>}
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5 items-start">
-            <Box title="🔎 대응SKU" right={<button onClick={() => setCmpOpen((v) => !v)} className="text-xs underline text-indigo-700">{cmpOpen ? '닫기' : '변경'}</button>}>
+          <div ref={cmpRef} className="min-w-0"><Fold open={fold.cmp} onToggle={() => flip('cmp')} title="근거 · 대응SKU"
+            summary={<>{names.length ? names.join(' · ') : '대응SKU 없음'} · {r.compare.modeLabel} · 8개월 실적 {compTotal === null ? '–' : fmt(compTotal)} · 목표 대비 {compTotal === null ? '–' : growth(m.planQty, compTotal)}</>}>
               <div className="space-y-1.5">
+                <div className="flex justify-end"><button onClick={() => setCmpOpen((v) => !v)} className="text-xs underline text-indigo-700">{cmpOpen ? '설정 닫기' : '대응SKU · 기간 · 기준연도 변경'}</button></div>
                 <div className="flex flex-wrap items-center gap-1">
                   {names.length === 0 && <span className="text-xs text-gray-500">대응SKU 없음</span>}
                   {names.map((n) => {
@@ -749,31 +769,22 @@ function Detail({ s, r, env }: { s: SkuData; r: SkuReview; env: DetailEnv }) {
                   <div className="flex justify-between gap-2"><span>8개월 실적</span><b className="text-gray-800">{compTotal === null ? '–' : fmt(compTotal)}</b></div>
                   <div className="flex justify-between gap-2"><span>목표 대비</span><b>{compTotal === null ? '–' : growth(m.planQty, compTotal)}</b></div>
                 </div>
-                {compShare.length > 0 && <div className="space-y-0.5"><span className="text-[11px] text-gray-500">대응SKU 채널 비중 · 비운영 제외</span><ShareBar items={compShare} /></div>}
+                {compShare.length > 0 && <div className="space-y-0.5"><span className="text-[11px] text-gray-500">채널 비중 · 대응SKU 실적 · 비운영 제외</span><ShareBar items={compShare} /></div>}
+                {m.planQty > 0 && <div className="space-y-0.5"><span className="text-[11px] text-gray-500">채널 비중 · {active}안 판매 목표</span><ShareBar items={m.channels.filter((c) => c.planQty > 0).map((c) => ({ label: c.channel as string, value: c.planQty }))} /></div>}
                 <p className="text-[11px] text-gray-400">변동비는 카테고리×채널 팀카테 기준, 대응SKU는 기간만 결정</p>
               </div>
-            </Box>
-            <Box title="🎨 옵션 비중" right={<button onClick={() => setTab('option')} className="text-xs underline text-indigo-700">수정</button>}>
-              <div className="space-y-1.5">
-                {s.hasColors && <div className="space-y-0.5"><span className="text-[11px] text-gray-500">컬러</span><ShareBar items={s.colors.filter((c) => !c.archived).map((c) => ({ label: c.name || '이름 없음', value: c.quantity }))} /></div>}
-                <div className="space-y-0.5"><span className="text-[11px] text-gray-500">사이즈</span><ShareBar items={s.sizes.filter((z) => z.isActive).map((z) => ({ label: z.label, value: z.ratio }))} /></div>
-              </div>
-            </Box>
+            </Fold></div>
+            <Fold open={fold.opt} onToggle={() => flip('opt')} title="옵션 · 컬러 × 사이즈"
+              summary={<>{s.hasColors ? `컬러 ${s.colors.filter((c) => !c.archived).length}개 · ` : ''}사이즈 {s.sizes.filter((z) => z.isActive).length}개 · 최종 수량 {orderEditable ? '수정' : '보기만'}</>}>
+              <OptionPanel s={s} env={env} editable={orderEditable} />
+            </Fold>
           </div>
-
-        <div className="bg-white rounded border border-gray-200 p-3 space-y-2.5 min-w-0">
-          <div className="flex gap-1 border-b border-gray-200 overflow-x-auto" role="tablist">
-            {([['channel', '🧰 채널 상세 · 도구'], ['option', '🧩 옵션별 검토']] as const).map(([k, l]) => (
-              <button key={k} role="tab" aria-selected={tab === k} onClick={() => setTab(k)} className={`px-3 py-1.5 text-xs font-bold whitespace-nowrap border-b-2 ${tab === k ? 'border-indigo-600 text-indigo-800' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>{l}</button>
-            ))}
-          </div>
-          {/* 채널 표는 펼침 · 되돌리기 기록이 사라지지 않도록 탭을 바꿔도 유지 */}
-          <div hidden={tab !== 'channel'} className="space-y-2">
-            <Hint strong="위 표와 같은 수량" rest="채널별 월 상세(대응SKU · 기준값 차이 · 실 판매가 · 옵션 수량) · 채널 비중 수정 · 대응SKU 채널비중 반영 · 되돌리기 · 시뮬레이션 엑셀" />
-            <ChannelQtyPanel sku={s} compare={r.compare} />
-          </div>
-          {tab === 'option' && <OptionPanel s={s} env={env} editable={orderEditable} />}
-        </div>
+            {/* 채널 상세는 닫아도 마운트 유지 — 펼친 채널 · 되돌리기 기록 보존 */}
+            <Fold open={fold.tool} onToggle={() => flip('tool')} title="채널 상세 · 도구"
+              summary="위 표와 같은 수량 · 채널 비중 수정 · 대응SKU 채널비중 반영 · 되돌리기 · 시뮬레이션 엑셀 · 채널별 월 상세">
+              <Hint strong="위 표와 같은 수량" rest="채널별 월 상세(대응SKU · 기준값 차이 · 실 판매가 · 옵션 수량) · 채널 비중 수정 · 대응SKU 채널비중 반영 · 되돌리기 · 시뮬레이션 엑셀" />
+              <ChannelQtyPanel sku={s} compare={r.compare} />
+            </Fold>
 
         <div className="sticky bottom-0 z-10 flex flex-wrap items-center gap-2 rounded-lg border border-gray-300 bg-white/95 px-3 py-2 shadow-md">
           {stateChip(s)}
