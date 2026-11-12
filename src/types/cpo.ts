@@ -19,6 +19,14 @@ export const CPO_VISIBLE_STATUSES: CpoMainStatus[] = [
   '기획/아이디어', '시안/샘플링', '제작 시작', '상세 작성', '사진 촬영', '상세 작업중', '상세 완료', '오픈/완료',
 ];
 
+/** Product에 카드를 띄우지 않는 CPO 카테고리 — Holding처럼 숨김(데이터는 그대로, 카테고리를 바꾸면 다시 보임) */
+export const CPO_HIDDEN_CATEGORIES: string[] = ['비매품'];
+
+/** CPO 프로젝트가 Product에 카드로 노출되어야 하는지 — 상태(Cancel/Holding 제외)와 카테고리(비매품 제외) 둘 다 확인 */
+export function isCpoProjectShownInProduct(p: Pick<CpoProject, 'status' | 'category'>): boolean {
+  return (CPO_VISIBLE_STATUSES as string[]).includes(p.status) && !CPO_HIDDEN_CATEGORIES.includes(p.category);
+}
+
 export interface CpoColorEntry {
   id: string;
   name: string;

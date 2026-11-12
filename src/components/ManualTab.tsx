@@ -239,8 +239,8 @@ export function ManualTab() {
             </div>
           </Card>
           <div className="grid2">
-            <Mini title="🆕 자동 생성">CPO 기획이 8단계 중 하나 · 여기 카드 없음 → 카드 자동 생성</Mini>
-            <Mini title="🙈 목록에서 숨김">Holding · Cancel · 오픈일 없음 → LIST VIEW 등에서 숨김 · 데이터는 그대로 · 조건 풀리면 다시 보임</Mini>
+            <Mini title="🆕 자동 생성">CPO 기획이 8단계 중 하나 · 비매품 아님 · 여기 카드 없음 → 카드 자동 생성</Mini>
+            <Mini title="🙈 목록에서 숨김">Holding · Cancel · 카테고리 비매품 · 오픈일 없음 → LIST VIEW 등에서 숨김 · 데이터는 그대로 · 조건 풀리면 다시 보임</Mini>
             <Mini title="🗑️ 자동 휴지통">CPO 기획이 사라지면 휴지통으로 (15일 뒤 영구삭제) · 직접 휴지통 보낸 카드는 안 살아남</Mini>
             <Mini title="🛠️ 관리 탭은 예외">숨김 규칙 상관없이 전체 SKU 표시 · 숨은 데이터 점검용</Mini>
           </div>

@@ -3,11 +3,11 @@ import { collection, getDocs, query, where } from 'firebase/firestore';
 import { fsdb } from '../lib/firebase';
 import { useStore, TRASH_COL } from '../store';
 import { useCpoSync } from '../store/cpoSync';
-import { CPO_VISIBLE_STATUSES } from '../types/cpo';
+import { isCpoProjectShownInProduct } from '../types/cpo';
 
 /**
  * CPO 기획이 새로 활성 상태(기획/아이디어 등)가 됐는데 Product에 대응 SKU 카드가 없으면
- * 자동으로 만들어주는 훅. App.tsx에서 한 번 호출하면 됨(반환값 없음, 내부에서 자체 구독).
+ * 자동으로 만들어주는 훅. 비매품 카테고리는 만들지 않음. App.tsx에서 한 번 호출하면 됨(반환값 없음, 내부에서 자체 구독).
  *
  * 안전장치: 사용자가 Product에서 일부러 삭제(휴지통 이동)한 SKU는 CPO가 아직 활성 상태여도
  * 되살리지 않음 — trash 컬렉션의 skuId를 먼저 확인한 뒤에만 생성.
@@ -25,7 +25,7 @@ export function useCpoCardSync(): void {
     const existingIds = new Set(skus.map((s) => s.id));
     const candidates = Object.values(cpoProjects).filter(
       (p) =>
-        (CPO_VISIBLE_STATUSES as string[]).includes(p.status) &&
+        isCpoProjectShownInProduct(p) &&
         !existingIds.has(p.id) &&
         !inFlight.current.has(p.id),
     );
