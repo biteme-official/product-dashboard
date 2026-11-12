@@ -1133,6 +1133,7 @@ function ChannelQtyTable({
           <div className="flex items-baseline gap-2 mt-4 mb-1">
             <span className="text-[11px] font-bold text-gray-600">채널별 목표량</span>
             <span className="text-[11px] text-gray-400">채널을 펼치면 월별 수량 입력 · 판매가는 판매가 · 수익 탭</span>
+            {!allChannelRole && role && <span className="inline-flex items-center gap-1 text-[11px] text-teal-800"><i className="w-2.5 h-2.5 rounded-sm bg-teal-100 border-l-2 border-teal-500" />내 담당 채널</span>}
           </div>
         <PricingChannelTable
           sku={sku}
@@ -1154,6 +1155,7 @@ function ChannelQtyTable({
           sharePreview={shareResolution?.ok ? shareResolution.shares : null}
           onShareEdit={(ch, v) => setShareEdit((prev) => ({ ...(prev ?? {}), [ch]: v }))}
           canEditChannel={canEditChannel}
+          isMine={allChannelRole ? undefined : (ch) => ownsChannel(role, ch)}
         />
     </div>
   );
@@ -1509,6 +1511,7 @@ function PricingChannelTable({
   sharePreview = null,
   onShareEdit,
   canEditChannel = () => !readOnly,
+  isMine,
 }: {
   sku: SkuData;
   readOnly: boolean;
@@ -1533,6 +1536,8 @@ function PricingChannelTable({
   onShareEdit?: (channel: Channel, value: number) => void;
   /** 담당 채널만 수정 — 목표 수량 · 판매가 시나리오 · 비중 입력 · 마케팅 */
   canEditChannel?: (channel: QtyChannel) => boolean;
+  /** 내 담당 채널 강조 (플랫폼 · 브랜드 · 글로벌 MD) · 없으면 강조 없음 */
+  isMine?: (channel: QtyChannel) => boolean;
 }) {
   const releaseMonthStep2 = skuMonths[0];
   const isNextYrStep2 = (m: Month): boolean => m < releaseMonthStep2;
@@ -1682,9 +1687,10 @@ function PricingChannelTable({
           ? skuMonths.reduce((s, m) => s + (step2Baseline.find((e) => e.channel === channel && e.month === m)?.qty ?? 0), 0)
           : null;
         const channelDiff = baselineChannelTotal !== null ? displayQty - baselineChannelTotal : null;
+        const mine = !!isMine?.(channel);
         return (
           <>
-            <tr key={channel} className={`border-b border-gray-100 transition-colors ${isExpanded ? 'bg-indigo-50/60 border-l-2 border-l-indigo-400' : 'hover:bg-gray-50/40'}`}>
+            <tr key={channel} className={`border-b border-gray-100 transition-colors ${isExpanded ? 'bg-indigo-50/60 border-l-2 border-l-indigo-400' : mine ? 'bg-teal-50 border-l-2 border-l-teal-500 hover:bg-teal-100/60' : 'hover:bg-gray-50/40'}`}>
               {/* 채널명 + 토글 */}
               <td className="px-2 py-1.5">
                 <button
@@ -1697,6 +1703,7 @@ function PricingChannelTable({
                   {(sku.disabledChannels ?? []).includes(channel as OptOutChannel) && (
                     <span className="text-[9px] px-1 rounded bg-gray-100 text-gray-400 flex-shrink-0">비운영</span>
                   )}
+                  {mine && <span className="text-[9px] px-1 rounded bg-teal-600 text-white font-semibold flex-shrink-0">내 채널</span>}
                 </button>
               </td>
               {/* 채널 비중 — [채널 비중 수정] 중에는 미확정·운영 채널만 입력 */}
