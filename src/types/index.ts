@@ -210,6 +210,8 @@ export interface OrderPlanSnapshot {
   pricingOpts: Record<string, string>;
   /** 이 안의 옵션 수기 수량 — 저장 시 병합으로 옛 키가 남지 않도록 맵 대신 배열로 보관 */
   optionQty?: { key: string; qty: number }[];
+  /** 이 안의 MOQ (2026-11-12~ 안마다 따로) — 없으면 지금 MOQ와 같다고 봄 */
+  moq?: number;
 }
 
 export interface OrderPlans {
@@ -241,7 +243,7 @@ export interface SkuData {
   contributionMarginRate: number;
   totalOrderQty: number;
   sizeCount: number;
-  /** 최소 주문 수량 — Product에서만 입력 (CPO 연동 없음, 2026-11-11). 0 = 미입력 */
+  /** 최소 주문 수량 — 지금 고른 안의 값 · 발주량 검토 안 카드에서 MASTER · PM만 입력(2026-11-12) · 0 = 미입력 */
   moq: number;
   sizes: SizeRatio[];               // 길이 항상 8
   sizeLabelsFromCpo?: boolean;      // 사이즈 라벨이 CPO 선택값으로 맞춰졌는지 — 없으면 예전 프리셋(S부터 연속) 라벨이라 첫 동기화 때 칸 위치 기준으로 옮김(#44)

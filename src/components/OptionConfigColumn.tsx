@@ -2,9 +2,8 @@ import { v4 as uuidv4 } from 'uuid';
 import { useStore } from '../store';
 import { useCpoSync } from '../store/cpoSync';
 import type { SkuData } from '../types';
-import { MAX_SIZES } from '../types';
+import { MAX_SIZES, moqOf } from '../types';
 import { buildSizesFromCount } from '../utils/calc';
-import { NumericInput } from './NumericInput';
 
 function CpoSyncedBadge() {
   return (
@@ -60,9 +59,10 @@ export function OptionConfigColumn({ sku, readOnly }: { sku: SkuData; readOnly?:
           {cpoSizeTotal > MAX_SIZES && <p className="mt-1 text-[10px] text-amber-600">CPO 사이즈 {cpoSizeTotal}개 · 앞 {MAX_SIZES}개만 반영</p>}
         </div>
         <div>
-          <label className="block text-[11px] text-gray-500 mb-0.5">MOQ</label>
-          <NumericInput value={sku.moq ?? 0} onChange={(v) => updateSku(sku.id, { moq: v })} onBlur={handleBlur} disabled={readOnly} placeholder="0"
-            className="w-full h-[30px] px-2 text-xs border border-gray-200 rounded-md disabled:bg-gray-50 disabled:text-gray-500" />
+          <label className="block text-[11px] text-gray-500 mb-0.5">MOQ <span className="text-gray-400">· 발주량 검토에서 입력</span></label>
+          <div className="w-full h-[30px] px-2 text-xs border border-gray-200 rounded-md bg-gray-50 text-gray-600 flex items-center tabular-nums" title="발주량 검토 안 카드에서 MASTER · PM이 입력 · 지금 고른 안의 값">
+            {moqOf(sku) ? moqOf(sku).toLocaleString() : '미입력'}
+          </div>
         </div>
       </div>
 

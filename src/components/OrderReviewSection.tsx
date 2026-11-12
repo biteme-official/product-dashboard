@@ -278,6 +278,8 @@ function Detail({ s, r, env }: { s: SkuData; r: SkuReview; env: DetailEnv }) {
     const finalized = !!s.finalOrderConfirmedAt;
     // 칸 입력은 저장 중에도 유지 — busy로 잠그면 칸이 다시 그려져 다음 칸 클릭이 사라짐
     const orderEditable = perm.skuBasic && !finalized && !writeBlocked;
+    // MOQ는 MASTER · PM만 · 안마다 따로 (SKU 카드는 지금 고른 안 값을 보기만)
+    const moqEditable = isAllChannelRole(role) && !finalized && !writeBlocked;
     const lockedChannels = getConfirmedChannels(s);
     const allLocked = m.channels.every((c) => lockedChannels.includes(c.channel));
     const planEditable = perm.step1 && !finalized && !allLocked && !writeBlocked;
@@ -336,15 +338,16 @@ function Detail({ s, r, env }: { s: SkuData; r: SkuReview; env: DetailEnv }) {
       const isActive = active === no;
       if (!isActive && !stored) {
         return (
-          <div className="rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 min-h-[176px] flex flex-col items-center justify-center gap-1.5 text-center p-3">
+          <div className="rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 min-h-[96px] flex flex-col items-center justify-center gap-1.5 text-center p-3">
             <b className="text-sm text-gray-600">{no}안 없음</b>
-            <span className="text-[11px] text-gray-500">현재 값 복사 후 수량 · 판매가만 바꿔 비교</span>
+            <span className="text-[11px] text-gray-500">현재 값 복사 후 수량 · MOQ · 판매가만 바꿔 비교</span>
             <button disabled={!canSwitch(s)} onClick={() => pickPlan(s, no)} className="text-xs px-2.5 py-1 rounded border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">{no}안 만들기</button>
           </div>
         );
       }
       const x = isActive ? m : other!;
       const qty = isActive ? s.totalOrderQty : stored!.totalOrderQty;
+      const planMoq = moqOf(isActive ? s : { moq: stored!.moq ?? s.moq });
       const vd = verdict({ ...s, totalOrderQty: qty }, x);
       const a = active === 1 ? m : other;
       const qa = active === 1 ? s.totalOrderQty : stored?.totalOrderQty ?? 0;
@@ -360,7 +363,7 @@ function Detail({ s, r, env }: { s: SkuData; r: SkuReview; env: DetailEnv }) {
             <b className="text-sm">{no}안</b>
             {isActive && <span className="px-1.5 rounded-full bg-indigo-50 text-indigo-800 text-[11px] font-semibold">지금 고른 안</span>}
             <span className={`px-1.5 rounded-full text-[11px] font-semibold ${vd.cls}`}>{vd.text}</span>
-            {moqOf(s) > 0 && qty < moqOf(s) && <span className="px-1.5 rounded-full bg-red-100 text-red-700 text-[11px] font-semibold">MOQ 미달</span>}
+            {planMoq > 0 && qty < planMoq && <span className="px-1.5 rounded-full bg-red-100 text-red-700 text-[11px] font-semibold">MOQ 미달</span>}
             <span className="flex-1" />
             {!isActive && <button disabled={!canSwitch(s)} onClick={() => pickPlan(s, no)} className="text-xs px-2 py-0.5 rounded border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">이 안으로 전환</button>}
           </div>
@@ -370,10 +373,15 @@ function Detail({ s, r, env }: { s: SkuData; r: SkuReview; env: DetailEnv }) {
               ? <span className="w-24 text-lg font-extrabold text-gray-900"><CellInput value={qty} disabled={!orderEditable} onCommit={(n) => setOrder(s, n)} /></span>
               : <b className="text-lg font-extrabold text-gray-900 tabular-nums">{fmt(qty)}</b>}
             개 · 소진 <b className="text-sm text-gray-900">{coverOf(qty, x)}</b>
+            <span className="text-gray-300">|</span>
+            MOQ
+            {isActive && moqEditable
+              ? <span className="w-20 text-sm font-bold text-gray-900"><CellInput value={s.moq ?? 0} disabled={!moqEditable} onCommit={(n) => void save(s, { moq: Math.max(0, Math.round(n)) }, `MOQ ${fmt(s.moq ?? 0)} → ${fmt(n)}`)} /></span>
+              : <b className="text-sm text-gray-900 tabular-nums">{planMoq ? fmt(planMoq) : '미입력'}</b>}
           </div>
           {isActive && orderEditable && <p className="text-[11px] text-gray-600 bg-indigo-50 rounded px-2 py-0.5"><b className="text-indigo-800">발주량을 바꾸면</b> 월별 판매 목표도 기존 비중대로 함께 변경</p>}
           <CoverStrip months={months} cumulative={x.coverage.cumulative} qty={qty} />
-          <div className="grid grid-cols-3 gap-x-3 gap-y-1.5 tabular-nums">
+          <div className={`grid grid-cols-3 gap-x-3 gap-y-1.5 tabular-nums ${stored ? '' : 'lg:grid-cols-6'}`}>
             {[['순매출', won(x.revenue), true], ['공헌이익', won(x.profit), true], ['CM%', pct(x.cm), true], ['발주금액', won(x.orderAmount), false], ['리오더', `${fmt(x.reorderQty)}개`, false], ['시즌 후 잔여', won(x.leftoverAmount), false]].map(([l, v, big]) => (
               <div key={String(l)} className="flex flex-col min-w-0"><small className="text-[11px] text-gray-500">{l}</small><b className={big ? 'text-[15px] font-extrabold whitespace-nowrap' : 'text-xs font-bold whitespace-nowrap'}>{v}</b></div>
             ))}
@@ -389,7 +397,7 @@ function Detail({ s, r, env }: { s: SkuData; r: SkuReview; env: DetailEnv }) {
           <h3 className="text-base font-extrabold text-gray-900">{s.skuName || '(SKU명 미입력)'}</h3>
           <span className="px-1.5 rounded-full bg-indigo-50 text-indigo-800 text-[11px] font-semibold">{s.brand}</span>
           {stateChip(s)}
-          <span className="text-[11px] text-gray-500 tabular-nums">{s.category} · {s.releaseDate ? `${s.releaseDate.slice(5).replace('-', '/')} 오픈` : '오픈일 미정'} · 판매가 {s.price ? fmt(s.price) : '없음'} · 원가 {s.cost ? fmt(s.cost) : '없음'} · MOQ {moqOf(s) ? fmt(moqOf(s)) : '미입력'}{isSeasonOnly(s) ? ' · 시즌 한정' : ''}</span>
+          <span className="text-[11px] text-gray-500 tabular-nums">{s.category} · {s.releaseDate ? `${s.releaseDate.slice(5).replace('-', '/')} 오픈` : '오픈일 미정'} · 판매가 {s.price ? fmt(s.price) : '없음'} · 원가 {s.cost ? fmt(s.cost) : '없음'}{isSeasonOnly(s) ? ' · 시즌 한정' : ''}</span>
           <span className="flex-1" />
           <GroupConfirmButtons s={s} canStep2={perm.step2 && !writeBlocked} onToggle={(f, v) => confirmGroup(s, f, v)} />
           {onNavigateToSku && <button onClick={() => onNavigateToSku(s)} className="text-xs px-2 py-0.5 rounded border border-gray-300 bg-white text-gray-700 hover:bg-gray-50">SKU카드 →</button>}
@@ -401,7 +409,8 @@ function Detail({ s, r, env }: { s: SkuData; r: SkuReview; env: DetailEnv }) {
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5 items-stretch">{planCard(1)}{planCard(2)}</div>
+        {/* 2안이 없으면 1안을 넓게 · 2안 만들기는 옆 좁은 칸 */}
+        <div className={`grid grid-cols-1 gap-2.5 items-stretch ${stored ? 'lg:grid-cols-2' : 'lg:grid-cols-[minmax(0,1fr)_180px]'}`}>{planCard(1)}{planCard(2)}</div>
         <div className="flex flex-wrap gap-x-3 text-[11px] text-gray-500">
           <span className="inline-flex items-center gap-1"><i className="w-2.5 h-2.5 rounded-sm bg-emerald-100" />발주량으로 판매</span>
           <span className="inline-flex items-center gap-1"><i className="w-2.5 h-2.5 rounded-sm bg-emerald-700" />소진월</span>
@@ -539,7 +548,6 @@ function Detail({ s, r, env }: { s: SkuData; r: SkuReview; env: DetailEnv }) {
           {/* 채널 표는 펼침 · 되돌리기 기록이 사라지지 않도록 탭을 바꿔도 유지 */}
           <div hidden={tab !== 'channel'} className="space-y-2">
             <Hint strong="여기를 고쳐도 발주량은 그대로" rest="월별 목표량에 바로 반영" />
-            <ShareBar items={m.channels.filter((c) => c.planQty > 0).map((c) => ({ label: c.channel, value: c.planQty }))} />
             <ChannelQtyPanel sku={s} compare={r.compare} />
           </div>
           {tab === 'option' && <OptionPanel s={s} env={env} editable={orderEditable} />}
