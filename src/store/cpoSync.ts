@@ -101,7 +101,12 @@ export const useCpoSync = create<CpoSyncState & CpoSyncActions>((set) => ({
         if (cancelled) return;
         unsubProjects = onSnapshot(
           collection(cpoFsdb, 'projects'),
+          // 브라우저 캐시(cpoFirebase.ts)에서 먼저 오는 스냅샷은 예전 값일 수 있음 — useCpoField/Option/
+          // ThumbnailSync가 이 값으로 SKU를 자동 저장하므로 서버 확인(fromCache=false) 스냅샷만 반영.
+          // 캐시와 서버 값이 같으면 메타데이터만 바뀌므로 includeMetadataChanges로 그 이벤트도 받는다.
+          { includeMetadataChanges: true },
           (snapshot) => {
+            if (snapshot.metadata.fromCache) return;
             const map: Record<string, CpoProject> = {};
             snapshot.docs.forEach((d) => {
               map[d.id] = { ...(d.data() as Omit<CpoProject, 'id'>), id: d.id };
