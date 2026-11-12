@@ -714,9 +714,10 @@ function Detail({ s, r, env }: { s: SkuData; r: SkuReview; env: DetailEnv }) {
                 {seasonFit && <button disabled={!canPlan} onClick={fitToOrder} className="px-2 py-0.5 rounded border border-violet-300 bg-violet-50 text-violet-700 hover:bg-violet-100 disabled:opacity-50">판매 목표를 발주량에 맞추기</button>}
               </div>}
 
-          <div ref={cmpRef}><Fold open={fold.cmp} onToggle={() => flip('cmp')} title="🔎 근거 · 대응SKU"
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5 items-start">
+          <div ref={cmpRef} className="min-w-0"><Fold open={fold.cmp} onToggle={() => flip('cmp')} title="근거 · 대응SKU"
             summary={<>{names.length ? names.join(' · ') : '대응SKU 없음'} · {r.compare.modeLabel} · 8개월 실적 {compTotal === null ? '–' : fmt(compTotal)} · 목표 대비 {compTotal === null ? '–' : growth(m.planQty, compTotal)}</>}>
-              <div className="space-y-1.5 max-w-3xl">
+              <div className="space-y-1.5">
                 <div className="flex justify-end"><button onClick={() => setCmpOpen((v) => !v)} className="text-xs underline text-indigo-700">{cmpOpen ? '설정 닫기' : '대응SKU · 기간 · 기준연도 변경'}</button></div>
                 <div className="flex flex-wrap items-center gap-1">
                   {names.length === 0 && <span className="text-xs text-gray-500">대응SKU 없음</span>}
@@ -773,12 +774,13 @@ function Detail({ s, r, env }: { s: SkuData; r: SkuReview; env: DetailEnv }) {
                 <p className="text-[11px] text-gray-400">변동비는 카테고리×채널 팀카테 기준, 대응SKU는 기간만 결정</p>
               </div>
             </Fold></div>
-            <Fold open={fold.opt} onToggle={() => flip('opt')} title="🧩 옵션 · 컬러 × 사이즈"
+            <Fold open={fold.opt} onToggle={() => flip('opt')} title="옵션 · 컬러 × 사이즈"
               summary={<>{s.hasColors ? `컬러 ${s.colors.filter((c) => !c.archived).length}개 · ` : ''}사이즈 {s.sizes.filter((z) => z.isActive).length}개 · 최종 수량 {orderEditable ? '수정' : '보기만'}</>}>
               <OptionPanel s={s} env={env} editable={orderEditable} />
             </Fold>
+          </div>
             {/* 채널 상세는 닫아도 마운트 유지 — 펼친 채널 · 되돌리기 기록 보존 */}
-            <Fold open={fold.tool} onToggle={() => flip('tool')} title="🧰 채널 상세 · 도구"
+            <Fold open={fold.tool} onToggle={() => flip('tool')} title="채널 상세 · 도구"
               summary="위 표와 같은 수량 · 채널 비중 수정 · 대응SKU 채널비중 반영 · 되돌리기 · 시뮬레이션 엑셀 · 채널별 월 상세">
               <Hint strong="위 표와 같은 수량" rest="채널별 월 상세(대응SKU · 기준값 차이 · 실 판매가 · 옵션 수량) · 채널 비중 수정 · 대응SKU 채널비중 반영 · 되돌리기 · 시뮬레이션 엑셀" />
               <ChannelQtyPanel sku={s} compare={r.compare} />
