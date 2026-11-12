@@ -32,7 +32,7 @@ import { monthTargetsByCompareShare, savePlanPatch, switchPlanPatch, withColorQt
 import { CellInput } from './CellInput';
 import { ChannelQtyPanel } from './SkuCard';
 import { GroupConfirmButtons, GroupConfirmChips } from './ReviewRequestParts';
-import { REVIEW_GROUPS, REVIEW_GROUP_LABEL, type ReviewRequest } from '../utils/reviewRequest';
+import { REVIEW_GROUPS, REVIEW_GROUP_LABEL, dDay, groupApplies, isOverdue, type ReviewRequest } from '../utils/reviewRequest';
 import type { ChannelConfirmField } from '../types';
 
 const fmt = (n: number) => Math.round(n).toLocaleString();
@@ -157,6 +157,8 @@ interface DetailEnv {
   saveCompare: (s: SkuData, names: string[], mode: CompareMode, baseYears: Record<string, number> | undefined) => void;
   confirm: (s: SkuData, on: boolean) => Promise<void>;
   confirmGroup: (s: SkuData, field: ChannelConfirmField, value: boolean) => void;
+  /** 지금 열어둔 검토 요청 — MD 할 일 줄에 기한 표시 */
+  reviewReq: ReviewRequest | null;
 }
 
 /** 검토 요청 묶음 — ChannelTargetSection이 관리 */
@@ -271,7 +273,7 @@ function OptionPanel({ s, env, editable }: { s: SkuData; env: DetailEnv; editabl
 }
 
 function Detail({ s, r, env }: { s: SkuData; r: SkuReview; env: DetailEnv }) {
-    const { role, perm, tableau, global, writeBlocked, busy, basis, onNavigateToSku, save, setOrder, pickPlan, canSwitch, setMonthPlan, saveCompare, confirm, confirmGroup } = env;
+    const { role, perm, tableau, global, writeBlocked, busy, basis, onNavigateToSku, save, setOrder, pickPlan, canSwitch, setMonthPlan, saveCompare, confirm, confirmGroup, reviewReq } = env;
     const m = r.money;
     const active = s.orderPlans?.active ?? 1;
     const months = getSkuMonths(s.releaseDate);
@@ -334,62 +336,42 @@ function Detail({ s, r, env }: { s: SkuData; r: SkuReview; env: DetailEnv }) {
     };
     const qtyChanged = finalized && s.finalOrderConfirmedOrderQty !== undefined && s.finalOrderConfirmedOrderQty !== s.totalOrderQty;
 
-    const planCard = (no: 1 | 2) => {
-      const isActive = active === no;
-      if (!isActive && !stored) {
-        return (
-          <div className="rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 min-h-[96px] flex flex-col items-center justify-center gap-1.5 text-center p-3">
-            <b className="text-sm text-gray-600">{no}안 없음</b>
-            <span className="text-[11px] text-gray-500">현재 값 복사 후 수량 · MOQ · 판매가만 바꿔 비교</span>
-            <button disabled={!canSwitch(s)} onClick={() => pickPlan(s, no)} className="text-xs px-2.5 py-1 rounded border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">{no}안 만들기</button>
-          </div>
-        );
-      }
-      const x = isActive ? m : other!;
-      const qty = isActive ? s.totalOrderQty : stored!.totalOrderQty;
-      const planMoq = moqOf(isActive ? s : { moq: stored!.moq ?? s.moq });
-      const vd = verdict({ ...s, totalOrderQty: qty }, x);
-      const a = active === 1 ? m : other;
-      const qa = active === 1 ? s.totalOrderQty : stored?.totalOrderQty ?? 0;
-      const delta = no === 2 && stored && a && (active === 2 ? other : m) ? (() => {
-        const sign = (n: number, f: (v: number) => string) => `${n >= 0 ? '+' : '−'}${f(Math.abs(n))}`;
-        const profitDiff = x.profit !== null && a.profit !== null ? sign(x.profit - a.profit, won) : '–';
-        const amountDiff = x.orderAmount !== null && a.orderAmount !== null ? sign(x.orderAmount - a.orderAmount, won) : '–';
-        return `1안 대비 발주 ${sign(qty - qa, fmt)}개 · 공헌이익 ${profitDiff} · 발주금액 ${amountDiff}`;
-      })() : null;
-      return (
-        <div className={`rounded-lg border-2 p-3 flex flex-col gap-2 min-w-0 bg-white ${isActive ? 'border-indigo-500 shadow-[0_0_0_3px_#eef2ff]' : 'border-gray-200'}`}>
-          <div className="flex flex-wrap items-center gap-1.5">
-            <b className="text-sm">{no}안</b>
-            {isActive && <span className="px-1.5 rounded-full bg-indigo-50 text-indigo-800 text-[11px] font-semibold">지금 고른 안</span>}
-            <span className={`px-1.5 rounded-full text-[11px] font-semibold ${vd.cls}`}>{vd.text}</span>
-            {planMoq > 0 && qty < planMoq && <span className="px-1.5 rounded-full bg-red-100 text-red-700 text-[11px] font-semibold">MOQ 미달</span>}
-            <span className="flex-1" />
-            {!isActive && <button disabled={!canSwitch(s)} onClick={() => pickPlan(s, no)} className="text-xs px-2 py-0.5 rounded border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">이 안으로 전환</button>}
-          </div>
-          <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
-            발주량
-            {isActive
-              ? <span className="w-24 text-lg font-extrabold text-gray-900"><CellInput value={qty} disabled={!orderEditable} onCommit={(n) => setOrder(s, n)} /></span>
-              : <b className="text-lg font-extrabold text-gray-900 tabular-nums">{fmt(qty)}</b>}
-            개 · 소진 <b className="text-sm text-gray-900">{coverOf(qty, x)}</b>
-            <span className="text-gray-300">|</span>
-            MOQ
-            {isActive && moqEditable
-              ? <span className="w-20 text-sm font-bold text-gray-900"><CellInput value={s.moq ?? 0} disabled={!moqEditable} onCommit={(n) => void save(s, { moq: Math.max(0, Math.round(n)) }, `MOQ ${fmt(s.moq ?? 0)} → ${fmt(n)}`)} /></span>
-              : <b className="text-sm text-gray-900 tabular-nums">{planMoq ? fmt(planMoq) : '미입력'}</b>}
-          </div>
-          {isActive && orderEditable && <p className="text-[11px] text-gray-600 bg-indigo-50 rounded px-2 py-0.5"><b className="text-indigo-800">발주량을 바꾸면</b> 월별 판매 목표도 기존 비중대로 함께 변경</p>}
-          <CoverStrip months={months} cumulative={x.coverage.cumulative} qty={qty} />
-          <div className={`grid grid-cols-3 gap-x-3 gap-y-1.5 tabular-nums ${stored ? '' : 'lg:grid-cols-6'}`}>
-            {[['순매출', won(x.revenue), true], ['공헌이익', won(x.profit), true], ['CM%', pct(x.cm), true], ['발주금액', won(x.orderAmount), false], ['리오더', `${fmt(x.reorderQty)}개`, false], ['시즌 후 잔여', won(x.leftoverAmount), false]].map(([l, v, big]) => (
-              <div key={String(l)} className="flex flex-col min-w-0"><small className="text-[11px] text-gray-500">{l}</small><b className={big ? 'text-[15px] font-extrabold whitespace-nowrap' : 'text-xs font-bold whitespace-nowrap'}>{v}</b></div>
-            ))}
-          </div>
-          {delta && <span className="self-start text-[11px] font-semibold text-indigo-800 bg-indigo-50 rounded px-2 py-0.5 tabular-nums">{delta}</span>}
-        </div>
-      );
-    };
+    // ── 결정 패널 (개편 2단계) — 결정 · 결과 · 수익 3묶음 · 다른 안은 한 줄 비교 ──
+    const qty = s.totalOrderQty;
+    const moqNow = moqOf(s);
+    const vd = verdict(s, m);
+    const otherNo: 1 | 2 = active === 1 ? 2 : 1;
+    const otherQty = stored?.totalOrderQty ?? 0;
+    const otherMoq = stored ? moqOf({ moq: stored.moq ?? s.moq }) : 0;
+    const sign = (n: number, f: (v: number) => string) => `${n >= 0 ? '+' : '−'}${f(Math.abs(n))}`;
+    const diffLine = stored && other ? `지금 안 대비 발주 ${sign(otherQty - qty, fmt)}개 · 공헌이익 ${other.profit !== null && m.profit !== null ? sign(other.profit - m.profit, won) : '–'} · 발주금액 ${other.orderAmount !== null && m.orderAmount !== null ? sign(other.orderAmount - m.orderAmount, won) : '–'}` : null;
+    const kv = (label: string, value: ReactNode, big = false) => (
+      <div className="flex flex-col min-w-0"><small className="text-[11px] text-gray-500">{label}</small><b className={`tabular-nums whitespace-nowrap ${big ? 'text-[17px] font-extrabold' : 'text-sm font-bold'}`}>{value}</b></div>
+    );
+    const moqChip = moqNow <= 0
+      ? <span className="px-1.5 rounded-full bg-gray-100 text-gray-500 text-[11px] font-semibold">MOQ 미입력</span>
+      : qty < moqNow
+        ? <span className="px-1.5 rounded-full bg-red-100 text-red-700 text-[11px] font-semibold">MOQ 미달</span>
+        : <span className="px-1.5 rounded-full bg-emerald-100 text-emerald-700 text-[11px] font-semibold">MOQ 충족</span>;
+    const planSwitch = (
+      <span className="inline-flex rounded-md border border-gray-300 overflow-hidden text-xs" role="group" aria-label="안 전환">
+        {([1, 2] as const).map((no) => {
+          const on = no === active;
+          const exists = on || !!stored;
+          const edge = no === 2 ? 'border-l border-gray-300' : '';
+          if (!exists) {
+            return <button key={no} disabled={!canSwitch(s)} onClick={() => pickPlan(s, no)} title="현재 값 복사 후 수량 · MOQ · 판매가만 바꿔 비교"
+              className={`px-2 py-0.5 bg-white text-gray-500 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed ${edge}`}>+ {no}안 만들기</button>;
+          }
+          return <button key={no} aria-pressed={on} disabled={on || !canSwitch(s)} onClick={() => pickPlan(s, no)} title={on ? '지금 고른 안' : '이 안으로 전환'}
+            className={`px-2.5 py-0.5 font-semibold ${edge} ${on ? 'bg-indigo-600 text-white cursor-default' : 'bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed'}`}>{no}안{on ? ' · 지금' : ''}</button>;
+        })}
+      </span>
+    );
+    // MD 할 일 — 내 확정 그룹 (MASTER · PM은 없음)
+    const myGroup = isAllChannelRole(role) ? null : REVIEW_GROUPS.find((f) => canConfirmGroup(role, f) && groupApplies(s, f)) ?? null;
+    const myChannels = myGroup ? CHANNELS.filter((ch) => CHANNEL_CONFIRM_GROUP[ch].field === myGroup && !(getDisabledChannels(s) as readonly string[]).includes(ch)) : [];
+    const inReq = !!(myGroup && reviewReq && !reviewReq.closedAt && reviewReq.skuIds.includes(s.id) && reviewReq.groups.includes(myGroup));
 
     return (
       <div className="space-y-2.5 min-w-0">
@@ -397,6 +379,7 @@ function Detail({ s, r, env }: { s: SkuData; r: SkuReview; env: DetailEnv }) {
           <h3 className="text-base font-extrabold text-gray-900">{s.skuName || '(SKU명 미입력)'}</h3>
           <span className="px-1.5 rounded-full bg-indigo-50 text-indigo-800 text-[11px] font-semibold">{s.brand}</span>
           {stateChip(s)}
+          {planSwitch}
           <span className="text-[11px] text-gray-500 tabular-nums">{s.category} · {s.releaseDate ? `${s.releaseDate.slice(5).replace('-', '/')} 오픈` : '오픈일 미정'} · 판매가 {s.price ? fmt(s.price) : '없음'} · 원가 {s.cost ? fmt(s.cost) : '없음'}{isSeasonOnly(s) ? ' · 시즌 한정' : ''}</span>
           <span className="flex-1" />
           <GroupConfirmButtons s={s} canStep2={perm.step2 && !writeBlocked} onToggle={(f, v) => confirmGroup(s, f, v)} />
@@ -409,13 +392,67 @@ function Detail({ s, r, env }: { s: SkuData; r: SkuReview; env: DetailEnv }) {
           </div>
         )}
 
-        {/* 2안이 없으면 1안을 넓게 · 2안 만들기는 옆 좁은 칸 */}
-        <div className={`grid grid-cols-1 gap-2.5 items-stretch ${stored ? 'lg:grid-cols-2' : 'lg:grid-cols-[minmax(0,1fr)_180px]'}`}>{planCard(1)}{planCard(2)}</div>
-        <div className="flex flex-wrap gap-x-3 text-[11px] text-gray-500">
-          <span className="inline-flex items-center gap-1"><i className="w-2.5 h-2.5 rounded-sm bg-emerald-100" />발주량으로 판매</span>
-          <span className="inline-flex items-center gap-1"><i className="w-2.5 h-2.5 rounded-sm bg-emerald-700" />소진월</span>
-          <span className="inline-flex items-center gap-1"><i className="w-2.5 h-2.5 rounded-sm bg-orange-100" />리오더 · 품절 구간</span>
+        {myGroup && (
+          <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 rounded-lg border border-teal-500 bg-teal-50 px-3 py-1.5 text-xs">
+            <b className="text-teal-800">내 할 일</b>
+            <span className="text-gray-700">{REVIEW_GROUP_LABEL[myGroup]} 채널 {myChannels.length}개({myChannels.join(' · ')}) · 수량 · 판매가 확인 → 확정</span>
+            {inReq && <span className={`px-1.5 rounded-full text-[11px] font-semibold ${isOverdue(reviewReq!) ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-800'}`}>검토 요청 · {reviewReq!.name} · {dDay(reviewReq!.dueOn)}</span>}
+            <span className="flex-1" />
+            {s[myGroup]
+              ? <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-[11px] font-semibold">{REVIEW_GROUP_LABEL[myGroup]} 확정됨</span>
+              : <button disabled={!perm.step2 || writeBlocked} onClick={() => confirmGroup(s, myGroup, true)} className="px-2.5 py-0.5 rounded border border-teal-600 bg-white text-teal-800 font-semibold hover:bg-teal-100 disabled:opacity-50 disabled:cursor-not-allowed">{REVIEW_GROUP_LABEL[myGroup]} 확정</button>}
+          </div>
+        )}
+
+        {/* 결정 패널 — 왼쪽부터 내가 정하는 것 → 그 결과 → 돈 */}
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)_minmax(0,1.25fr)] rounded-lg border-2 border-indigo-500 bg-white shadow-[0_0_0_3px_#eef2ff] divide-y lg:divide-y-0 lg:divide-x divide-gray-200">
+          <section className="p-3 flex flex-col gap-1.5 min-w-0">
+            <h4 className="flex items-center gap-1.5 text-[11px] font-bold text-gray-500">결정 · {active}안{!orderEditable && !finalized && <span className="px-1.5 rounded-full bg-gray-100 text-gray-500 font-semibold">보기만</span>}</h4>
+            <div className="flex flex-wrap items-start gap-x-4 gap-y-1.5">
+              <div className="flex flex-col"><small className="text-[11px] text-gray-500">발주량</small>
+                {orderEditable
+                  ? <span className="w-28 text-lg font-extrabold text-gray-900"><CellInput value={qty} disabled={!orderEditable} onCommit={(n) => setOrder(s, n)} /></span>
+                  : <b className="text-lg font-extrabold text-gray-900 tabular-nums">{fmt(qty)}</b>}
+              </div>
+              <div className="flex flex-col"><small className="text-[11px] text-gray-500">MOQ</small>
+                {moqEditable
+                  ? <span className="w-24 text-sm font-bold text-gray-900"><CellInput value={s.moq ?? 0} disabled={!moqEditable} onCommit={(n) => void save(s, { moq: Math.max(0, Math.round(n)) }, `MOQ ${fmt(s.moq ?? 0)} → ${fmt(n)}`)} /></span>
+                  : <b className="text-sm font-bold text-gray-900 tabular-nums leading-7">{moqNow ? fmt(moqNow) : '미입력'}</b>}
+              </div>
+              <div className="flex flex-col gap-1"><small className="text-[11px] text-gray-500">MOQ 판정</small>{moqChip}</div>
+            </div>
+            {orderEditable && <p className="text-[11px] text-gray-500"><b className="text-indigo-800">발주량을 바꾸면</b> 월별 판매 목표도 기존 비중대로 함께 변경</p>}
+          </section>
+          <section className="p-3 flex flex-col gap-1.5 min-w-0">
+            <h4 className="flex items-center gap-1.5 text-[11px] font-bold text-gray-500">결과 <span className={`px-1.5 rounded-full font-semibold ${vd.cls}`}>{vd.text}</span></h4>
+            <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+              {kv('소진', coverOf(qty, m))}{kv('판매 목표', `${fmt(m.planQty)}개`)}{kv('리오더', `${fmt(m.reorderQty)}개`)}{kv('시즌 후 잔여', won(m.leftoverAmount))}
+            </div>
+          </section>
+          <section className="p-3 flex flex-col gap-1.5 min-w-0">
+            <h4 className="text-[11px] font-bold text-gray-500">수익 · {active}안 전체</h4>
+            <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+              {kv('순매출', won(m.revenue), true)}{kv('공헌이익', won(m.profit), true)}{kv('CM%', pct(m.cm), true)}{kv('발주금액', won(m.orderAmount))}
+            </div>
+          </section>
         </div>
+        <div className="space-y-1">
+          <CoverStrip months={months} cumulative={m.coverage.cumulative} qty={qty} />
+          <div className="flex flex-wrap gap-x-3 text-[11px] text-gray-500">
+            <span className="inline-flex items-center gap-1"><i className="w-2.5 h-2.5 rounded-sm bg-emerald-100" />발주량으로 판매</span>
+            <span className="inline-flex items-center gap-1"><i className="w-2.5 h-2.5 rounded-sm bg-emerald-700" />소진월</span>
+            <span className="inline-flex items-center gap-1"><i className="w-2.5 h-2.5 rounded-sm bg-orange-100" />리오더 · 품절 구간</span>
+          </div>
+        </div>
+        {stored && other && (
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs tabular-nums">
+            <b className="text-gray-700">{otherNo}안 · 보관</b>
+            <span className="text-gray-600">발주 <b className="text-gray-900">{fmt(otherQty)}</b> · MOQ {otherMoq ? fmt(otherMoq) : '미입력'}{otherMoq > 0 && otherQty < otherMoq ? ' (미달)' : ''} · 소진 {coverOf(otherQty, other)} · 순매출 {won(other.revenue)} · 공헌이익 {won(other.profit)} · CM% {pct(other.cm)} · 발주금액 {won(other.orderAmount)}</span>
+            {diffLine && <span className="font-semibold text-indigo-800 bg-indigo-50 rounded px-1.5">{diffLine}</span>}
+            <span className="flex-1" />
+            <button disabled={!canSwitch(s)} onClick={() => pickPlan(s, otherNo)} className="px-2 py-0.5 rounded border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">이 안으로 전환</button>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_250px] gap-2.5 items-start">
           <Box title={`📈 ${active}안 월별 목표량`} right={
@@ -839,7 +876,7 @@ export function OrderReviewSection({ skus: filteredSkus, view, targetComparable:
     });
   }
 
-  const env: DetailEnv = { role, perm, tableau, global, writeBlocked, busy, basis, onNavigateToSku, save, setOrder, pickPlan, canSwitch, setMonthPlan, saveCompare, confirm, confirmGroup };
+  const env: DetailEnv = { role, perm, tableau, global, writeBlocked, busy, basis, onNavigateToSku, save, setOrder, pickPlan, canSwitch, setMonthPlan, saveCompare, confirm, confirmGroup, reviewReq: review?.req ?? null };
 
   const decided = skus.filter((s) => s.orderPlans?.decided || s.finalOrderConfirmedAt).length;
   const confirmed = skus.filter((s) => s.finalOrderConfirmedAt).length;
