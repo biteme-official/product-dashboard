@@ -63,9 +63,9 @@ const fmtDate = (d: string) => {
 // ── 메인 ────────────────────────────────────────────────────────────────
 type Snapshot = { id: string; patch: Partial<SkuData> };
 type BulkType = 'comp' | 'copy' | 'pct' | 'scn' | 'fill' | 'pcomp' | 'pcopy';
-interface BulkState { type: BulkType; pct: number; src: string | null; mode: 'ratio' | 'same'; scn: string; scope: 'all' | 'first' }
+interface BulkState { type: BulkType; pct: number; src: string | null; mode: 'ratio' | 'same'; scn: string; scope: 'all' }
 const BULK_LABEL: Record<BulkType, string> = {
-  comp: '대응SKU 대비 %로 채우기', copy: '다른 SKU 월별 수량 복사', pct: '일괄 증감 %', scn: '판매가 시나리오 일괄반영',
+  comp: '대응SKU 대비 %로 채우기', copy: '다른 SKU 월별 수량 복사', pct: '일괄 증감 %', scn: '판매가 일괄반영',
   fill: '대응SKU 기준 채우기', pcomp: '대응SKU 실적 대비 %로 월 계획', pcopy: '다른 SKU 월 비중 복사',
 };
 
@@ -97,7 +97,7 @@ export function ChannelTargetSection({ skus, targetComparable, onNavigateToSku }
   const setChannelConfirmed = useStore((s) => s.setChannelConfirmed);
 
   const [viewState, setViewRaw] = useState<View>(() => readSession('ct:view', 'ws'));
-  // 월별 비중설정은 마스터 · PM만 (다른 역할은 수정 불가 · 탭 숨김) — 열어둔 세션이면 SKU별 결정으로
+  // 월 계획 일괄(구 월별 비중설정)은 마스터 · PM만 (다른 역할은 수정 불가 · 탭 숨김) — 열어둔 세션이면 SKU별 결정으로
   const view: View = viewState === 'plan' && !allRole ? 'ws' : viewState;
   const setView = (v: View) => { setViewRaw(v); writeSession('ct:view', v); setPicked(new Set()); setBulk(null); };
   const [onlyEmpty, setOnlyEmpty] = useState(false);
@@ -131,7 +131,7 @@ export function ChannelTargetSection({ skus, targetComparable, onNavigateToSku }
 
   const list = useMemo(() => scoped
     .filter((s) => (!onlyEmpty || isEmptyGrid(s)) && (!onlyOpen || myGroups.some((f) => !s[f])))
-    // 채널별 설정: 그 채널을 운영하지 않는 SKU(글로벌 · 일본 비운영, 쿠팡 미등록)는 목록에서 아예 뺀다
+    // 채널 일괄(구 채널별 설정): 그 채널을 운영하지 않는 SKU(글로벌 · 일본 비운영, 쿠팡 미등록)는 목록에서 아예 뺀다
     .filter((s) => view !== 'ch' || !disabledCh(s, channel))
     .slice().sort((a, b) => (req ? 0 : (a.releaseDate || '9999').localeCompare(b.releaseDate || '9999'))),
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -246,10 +246,11 @@ export function ChannelTargetSection({ skus, targetComparable, onNavigateToSku }
     if (!canEditCh(ch)) return { skip: '권한 없음' };
     if (lockedCh(s, ch)) return { skip: `${CHANNEL_CONFIRM_GROUP[ch].label} 확정` };
     if (b.type === 'scn') {
-      if (!b.scn) return { skip: '시나리오 선택 필요' };
+      if (!b.scn) return { skip: '판매가 선택 필요' };
       const next = { ...(s.pricingOpts ?? {}) };
-      months.forEach((m, i) => { if (b.scope === 'all' || i === 0) next[`${ch}-${m}`] = b.scn; });
-      return { patch: { pricingOpts: next }, note: `${b.scope === 'first' ? '1개월차' : '전 월'} → ${b.scn}` };
+      // 판매가는 채널별 하나 — 항상 모든 달 (월별 다른 판매가 입력 제거 · 2026-11-12)
+      months.forEach((m) => { next[`${ch}-${m}`] = b.scn; });
+      return { patch: { pricingOpts: next }, note: `전 월 → ${b.scn}` };
     }
     const setCh = (fn: (m: Month, i: number, cur: number) => number | null) =>
       s.channelMonthQty.map((e) => {
@@ -615,14 +616,10 @@ export function ChannelTargetSection({ skus, targetComparable, onNavigateToSku }
               {bulk.type === 'scn' && (
                 <>
                   <select value={bulk.scn} onChange={(e) => setBulk({ ...bulk, scn: e.target.value })} className="rounded border border-gray-300 px-1 py-0.5 bg-white">
-                    <option value="">시나리오 선택</option>
+                    <option value="">판매가 선택</option>
                     {STEP1_OPTIONS.map((o) => <option key={o.id} value={o.id}>{o.coreOnly ? `${o.label} (주력 · 일반은 라이브)` : o.label}</option>)}
                   </select>
-                  <span className="inline-flex rounded border border-gray-300 overflow-hidden">
-                    {(['all', 'first'] as const).map((m) => (
-                      <button key={m} onClick={() => setBulk({ ...bulk, scope: m })} className={`px-2 py-0.5 ${bulk.scope === m ? 'bg-gray-800 text-white' : 'bg-white'}`}>{m === 'all' ? '전 월' : '1개월차만'}</button>
-                    ))}
-                  </span>
+                  <span>모든 달에 같은 판매가 · 월별 다른 판매가는 쓰지 않음</span>
                 </>
               )}
               {bulk.type === 'fill' && <span>비어 있는 SKU만 · 대응SKU 채널 비중 × 발주량 8개월 균등 (카드 첫 진입 때와 같은 계산)</span>}
@@ -804,7 +801,7 @@ export function ChannelTargetSection({ skus, targetComparable, onNavigateToSku }
                   {confirmDots(s)}
                 </div>
                 {isEmptyGrid(s) ? (
-                  <div className="px-3 py-2 text-[11px] text-gray-500">STEP 1 미입력 · 채널별 설정 또는 SKU카드별에서 [대응SKU 기준 채우기]</div>
+                  <div className="px-3 py-2 text-[11px] text-gray-500">STEP 1 미입력 · 채널 일괄 또는 SKU카드별에서 [대응SKU 기준 채우기]</div>
                 ) : (
                   <div className="overflow-x-auto">
                     <table className="w-full table-fixed text-xs min-w-[1000px]">
@@ -827,7 +824,7 @@ export function ChannelTargetSection({ skus, targetComparable, onNavigateToSku }
       <div className="shrink-0 flex flex-col gap-2">
       <div className="flex flex-wrap items-center gap-2">
         <div className="inline-flex rounded-lg border border-gray-300 overflow-hidden text-xs">
-          {([['ws', 'SKU별 결정'], ['ch', '채널별 설정'], ['plan', '월별 비중설정'], ['total', '전체 합계']] as const).filter(([k]) => k !== 'plan' || allRole).map(([k, l]) => (
+          {([['ws', 'SKU별 결정'], ['ch', '채널 일괄'], ['plan', '월 계획 일괄'], ['total', '전체 합계']] as const).filter(([k]) => k !== 'plan' || allRole).map(([k, l]) => (
             <button key={k} onClick={() => setView(k)} className={`px-3 py-1.5 ${view === k ? 'bg-gray-800 text-white font-semibold' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>{l}</button>
           ))}
         </div>

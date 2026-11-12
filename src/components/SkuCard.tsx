@@ -24,7 +24,7 @@ import { calcVarCostResults, compMonthlyActive, fallbackWeightsOf, getCompQtyAdj
 import { MarketingBriefModal } from './MarketingBriefModal';
 import { exportSimulationXlsx } from '../utils/exportXlsx';
 import { PRICING_SCENARIOS, PRICING_DEFAULT_OPT } from '../utils/pricingScenarios';
-import { STEP1_OPTIONS, normalizeStep1Opt, step1Pricer } from '../utils/step1Price';
+import { normalizeStep1Opt, step1Pricer } from '../utils/step1Price';
 import { cellMoney, cmOf, varCostOf } from '../utils/reviewSku';
 import { finalOrderModel } from '../utils/finalOrder';
 import { usePricingPolicy } from '../hooks/usePricingPolicy';
@@ -1132,7 +1132,7 @@ function ChannelQtyTable({
           {/* 채널별 목표량 (MD) */}
           <div className="flex items-baseline gap-2 mt-4 mb-1">
             <span className="text-[11px] font-bold text-gray-600">채널별 목표량</span>
-            <span className="text-[11px] text-gray-400">채널을 펼치면 월별 수량 · 판매가 시나리오 입력</span>
+            <span className="text-[11px] text-gray-400">채널을 펼치면 월별 수량 입력 · 판매가는 판매가 · 수익 탭</span>
           </div>
         <PricingChannelTable
           sku={sku}
@@ -1493,7 +1493,7 @@ function ChannelMonthTable({ sku, skuMonths, releaseYear }: {
 // ── STEP 2 채널별 목표량 테이블 ──────────────────────────────────────────
 function PricingChannelTable({
   sku, readOnly,
-  pricingOpts, setPricingOpts,
+  pricingOpts,
   onTotalsChange,
   onBeforeEdit,
   varCostReady = false,
@@ -1513,7 +1513,8 @@ function PricingChannelTable({
   sku: SkuData;
   readOnly: boolean;
   pricingOpts: Record<string, string>;
-  setPricingOpts: Dispatch<SetStateAction<Record<string, string>>>;
+  /** 월별 판매가 입력 제거(2026-11-12) 뒤로 안 씀 · 부르는 쪽 호환용 */
+  setPricingOpts?: Dispatch<SetStateAction<Record<string, string>>>;
   onTotalsChange?: (totals: { revenue: number; profit: number | null }) => void;
   onBeforeEdit?: () => void;
   teamCateError?: TableauErrorReason | null;
@@ -1551,7 +1552,6 @@ function PricingChannelTable({
   const [expandedChannels, setExpandedChannels] = useState<Set<Channel>>(new Set());
   const [marketingExpanded, setMarketingExpanded] = useState(false);
   // 채널별 일괄반영 선택값 (UI-only, 로컬)
-  const [channelBulkOpt, setChannelBulkOpt] = useState<Partial<Record<Channel, string>>>({});
   const { usdKrw, jpyKrw, isLive } = useExchangeRates();
   const { policy } = usePricingPolicy();
 
@@ -1581,9 +1581,6 @@ function PricingChannelTable({
   const getPricingOpt = (channel: Channel, month: Month) =>
     normalizeStep1Opt(pricingOpts[`${channel}-${month}`] ?? PRICING_DEFAULT_OPT[channel] ?? '', !!sku.coreSku);
 
-  const setPricingOpt = (channel: Channel, month: Month, optId: string) =>
-    setPricingOpts((prev) => ({ ...prev, [`${channel}-${month}`]: optId }));
-
   // 대응SKU 채널×월 비교 수량
   // - 동기간: 출시월 기준 정확한 연도 매핑으로 해당 월 실적을 그대로 표시 (시즈널 비교용)
   // - 직전 12개월: 컬럼별로 연도가 뒤섞이는 걸 방지하기 위해, 채널별 직전 실적 월평균을
@@ -1594,8 +1591,6 @@ function PricingChannelTable({
 
   /** basePrice 기준 선택지 가격 — 프라이싱 탭과 같은 가격 (할인 정책 · 확정 가격, 선택지 없으면 base 그대로) */
   const calcScenarioPrice = step1Pricer(sku, policy, { usd: usdKrw, jpy: jpyKrw });
-  const step1Opts = STEP1_OPTIONS.filter((o) => !o.coreOnly || sku.coreSku);
-  const optSuffix = (id: string, base: number) => (base > 0 ? `${Math.round((1 - calcScenarioPrice(id, base) / base) * 100)}%` : '');
 
   const getPricing = (channel: Channel): ChannelPricing => {
     const found = sku.channelPricing?.find((cp) => cp.channel === channel);
@@ -1799,36 +1794,8 @@ function PricingChannelTable({
               return (
                 <tr key={`${channel}-monthly`} className="border-b border-gray-200 bg-gray-50/60">
                   <td colSpan={8} className="px-4 py-3">
-                    {/* 일괄 적용 툴바 */}
-                    <div className="flex items-center gap-2 mb-2.5">
-                      <span className="text-[11px] font-semibold text-gray-500 whitespace-nowrap">판매가 일괄 설정</span>
-                      <select
-                        value={channelBulkOpt[channel] ?? ''}
-                        disabled={!canEditChannel(channel) || isChannelLockedLive(channel)}
-                        onChange={(e) => setChannelBulkOpt((prev) => ({ ...prev, [channel]: e.target.value }))}
-                        className="text-[11px] rounded border border-gray-300 px-1.5 py-0.5 bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-gray-400"
-                      >
-                        <option value="">-- 전략 선택 --</option>
-                        {step1Opts.map((o) => (
-                          <option key={o.id} value={o.id}>{o.label} ({optSuffix(o.id, cp.price > 0 ? cp.price : sku.price)})</option>
-                        ))}
-                      </select>
-                      <button
-                        onClick={() => {
-                          onBeforeEdit?.();
-                          const opt = channelBulkOpt[channel] ?? '';
-                          setPricingOpts((prev) => {
-                            const next = { ...prev };
-                            skuMonths.forEach((m) => { next[`${channel}-${m}`] = opt; });
-                            return next;
-                          });
-                        }}
-                        disabled={!channelBulkOpt[channel] || !canEditChannel(channel) || isChannelLockedLive(channel)}
-                        className="text-[11px] px-2.5 py-0.5 rounded-md bg-gray-700 text-white font-semibold hover:bg-gray-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
-                      >
-                        일괄반영
-                      </button>
-                    </div>
+                    {/* 판매가는 판매가 · 수익 탭에서 채널별 하나로 고름 — 월별 입력 없음 (2026-11-12) */}
+                    <p className="text-[10px] text-gray-400 mb-1.5">월별 수량만 입력 · 판매가는 판매가 · 수익 탭에서 채널별 하나 · 아래 실 판매가는 보기만</p>
 
                     {/* 테이블 */}
                     <div className="rounded-xl border border-gray-200 overflow-hidden shadow-sm">
@@ -1939,33 +1906,6 @@ function PricingChannelTable({
                                   {(() => { const t = FY27.reduce((s, m) => s + getMonthQty(channel, m), 0); return t > 0 ? t.toLocaleString() : <span className="text-gray-300">–</span>; })()}
                                 </td>
                               )}
-                            </tr>
-                            {/* 판매가 설정 행 */}
-                            <tr className="border-b border-gray-100 bg-gray-50/50">
-                              <td className={labelCell}>
-                                <span className="text-[11px] font-bold text-gray-600">판매가 설정</span>
-                              </td>
-                              {skuMonths.map((m) => {
-                                const optId = getPricingOpt(channel, m);
-                                const basePrice = cp.price > 0 ? cp.price : sku.price;
-                                return (
-                                  <td key={m} className={`px-1.5 py-1.5 ${yearBorderInner(m)} ${isNextYrStep2(m) ? 'bg-gray-50/60' : ''}`}>
-                                    <select
-                                      value={optId}
-                                      disabled={!canEditChannel(channel) || isChannelLockedLive(channel)}
-                                      onChange={(e) => { onBeforeEdit?.(); setPricingOpt(channel, m, e.target.value); }}
-                                      className="w-full text-[10px] rounded border border-gray-200 px-1 py-0.5 bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-gray-400 hover:border-gray-400"
-                                    >
-                                      <option value="">채널가</option>
-                                      {step1Opts.map((o) => (
-                                        <option key={o.id} value={o.id}>{o.label} ({optSuffix(o.id, basePrice)})</option>
-                                      ))}
-                                    </select>
-                                  </td>
-                                );
-                              })}
-                              <td className="border-l-2 border-gray-300 bg-gray-100" />
-                              {hasYear2Step2 && <td className="border-l border-gray-200 bg-gray-100" />}
                             </tr>
                             {/* 실 판매가 행 */}
                             <tr className="border-b-2 border-gray-200 bg-white">

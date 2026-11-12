@@ -596,7 +596,7 @@ function Detail({ s, r, env }: { s: SkuData; r: SkuReview; env: DetailEnv }) {
                   </tbody>
                 </table>
               </div>
-              <p className="text-[11px] text-gray-500">할인가 = 판매가 × (1 − 할인율), 10원 올림 · 월별로 다른 가격은 채널별 목표량 펼침에서 설정{s.isPriceConfirmed ? ' · 가격 확정 SKU라 잠김(프라이싱에서 해제)' : ''}</p>
+              <p className="text-[11px] text-gray-500">할인가 = 판매가 × (1 − 할인율), 10원 올림 · 판매가는 채널별 하나 · 예전에 월마다 다르게 넣은 채널은 “월별 다름”으로 표시, 하나를 고르면 모든 달에 적용{s.isPriceConfirmed ? ' · 가격 확정 SKU라 잠김(프라이싱에서 해제)' : ''}</p>
             </div>
           )}
         </div>

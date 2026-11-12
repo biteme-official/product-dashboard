@@ -49,8 +49,8 @@ export function ManualReviewChapter({ period, mix }: { period: ReactNode; mix: R
     <h4>🪟 보기 4개</h4>
     <div className="tw"><table style={{ minWidth: '600px' }}><thead><tr><th>보기</th><th>이럴 때</th><th>내용</th></tr></thead><tbody>
       <tr><td className="k">SKU별 결정</td><td className="e">한 SKU씩 정할 때</td><td>왼쪽 목록(오픈일로 묶음 · 상태 필터 · ↑↓ 이동) + 안 카드 · 월별 목표량 · 대응SKU · 옵션 비중 · 채널 / 옵션 / 판매가 탭 · 상세 위 그룹 확정 버튼</td></tr>
-      <tr><td className="k">채널별 설정</td><td className="e">한 채널을 SKU마다 비교</td><td>채널 하나 골라 수량 · 비중 · 대응SKU · 증감 · 판매가 · 순매출 · 공헌이익을 쌓아 보기 · 담당 채널만 수정</td></tr>
-      <tr><td className="k">월별 비중설정</td><td className="e">월 계획을 SKU마다</td><td>대응SKU 실적 · 수량 · 발주량 대비 비중 · 증감률을 쌓아 보기 · <b>MASTER · PM에게만 보임</b></td></tr>
+      <tr><td className="k">채널 일괄</td><td className="e">한 채널을 SKU마다 비교</td><td>채널 하나 골라 수량 · 비중 · 대응SKU · 증감 · 판매가 · 순매출 · 공헌이익을 쌓아 보기 · 담당 채널만 수정</td></tr>
+      <tr><td className="k">월 계획 일괄</td><td className="e">월 계획을 SKU마다</td><td>대응SKU 실적 · 수량 · 발주량 대비 비중 · 증감률을 쌓아 보기 · <b>MASTER · PM에게만 보임</b></td></tr>
       <tr><td className="k">전체 합계</td><td className="e">결정 후 전체 확인</td><td>오픈월 × 카테고리 표 · 판매월별 순매출 · 공헌이익 차트 · 월 목표 비교 (관리 › SKU 관리 › 월 목표)</td></tr>
     </tbody></table></div>
     <p className="sub">* 공통 필터는 서브탭 줄 오른쪽: 카테고리 ▾ · 브랜드 ▾ · 오픈/완료 제외 · 오픈월 ▾ · 검색 · 검토 요청을 열면 요청 SKU 안에서만 적용</p>
@@ -60,7 +60,7 @@ export function ManualReviewChapter({ period, mix }: { period: ReactNode; mix: R
     <h4>👀 SKU별 결정 한눈에 <span className="sample">예시</span></h4>
     <div className="rv-split"><div className="viz rv-shot-wrap"><div className="rv-shot">
       <div className="rv-bar"><span className="chip">LIST VIEW</span><span className="chip">채널별 오픈일정</span><span className="chip on">발주량 검토</span><span className="chip">프라이싱</span><span className="rv-div"></span><span className="rv-pin">1</span><span className="rq-dd">카테고리 ▾</span><span className="rq-dd">브랜드 ▾</span><span className="chip">오픈/완료 제외</span><span className="rv-grow"></span><span className="rq-dd">오픈월 ▾</span></div>
-      <div className="rv-bar"><span className="chip on">SKU별 결정</span><span className="chip">채널별 설정</span><span className="chip">월별 비중설정</span><span className="chip">전체 합계</span><span className="rv-pin">2</span><span className="rq-dd teal">검토 요청 · 진행 1 ▾</span></div>
+      <div className="rv-bar"><span className="chip on">SKU별 결정</span><span className="chip">채널 일괄</span><span className="chip">월 계획 일괄</span><span className="chip">전체 합계</span><span className="rv-pin">2</span><span className="rq-dd teal">검토 요청 · 진행 1 ▾</span></div>
       <div className="rs-sum"><span className="rv-pin">3</span><div><small>결정 · 확정</small><b>12 · 3 / 26</b></div><div><small>발주금액</small><b>4.2억</b></div><div><small>순매출 · 공헌이익</small><b>12억 · 4.1억</b></div><div><small>위험 SKU</small><b>2</b></div><span className="rv-grow"></span><span className="chip on">초도 발주량만</span><span className="chip">시즌 목표 · 리오더 포함</span><span className="chip c-amber">오류 0 · 경고 2 ▾</span></div>
       <div className="rs-main rq-main">
         <div className="rs-list"><span className="rv-pin">4</span><small>전체 · 검토 전 · 저장 · 확정</small><div className="rs-it on rq-ck"><i>☑</i><span>예시 메쉬백<small>1안 저장</small></span></div><div className="rs-it rq-ck"><i>☑</i><span>예시 니트 토이<small>검토 전</small></span></div><div className="rs-it rq-ck"><i>☐</i><span>예시 간식<small>발주 확정</small></span></div><div className="rq-pick">2개 선택 · 검토 요청 만들기</div></div>
@@ -145,7 +145,7 @@ export function ManualReviewChapter({ period, mix }: { period: ReactNode; mix: R
       <tr><td className="k">옵션 최종 수량</td><td><span className="chip c-blue">합계로 바뀜</span></td><td><span className="chip c-blue">같은 비율로 바뀜</span></td><td className="e">옵션 합계 = 발주량 · 수기 수정 칩 표시 · [비율대로 되돌리기]로 비중 계산값으로 복귀</td></tr>
       <tr><td className="k">컬러 수량</td><td><span className="chip c-blue">합계로 바뀜</span></td><td><span className="chip c-blue">같은 비율로 바뀜</span></td><td className="e">컬러 합계 = 발주량 · 옵션 수기값은 해제됨</td></tr>
       <tr><td className="k">사이즈 비중</td><td><span className="chip">그대로</span></td><td><span className="chip">그대로</span></td><td className="e">옵션별 배분만 바뀜 · 옵션 수기값은 해제됨 · 합계가 100%가 아니면 “100% 미달!” 또는 “100% 초과!”</td></tr>
-      <tr><td className="k">판매가</td><td><span className="chip">그대로</span></td><td><span className="chip">그대로</span></td><td className="e">순매출 · 공헌이익만 바뀜 · 월별로 다른 가격은 채널별 목표량 펼침에서</td></tr>
+      <tr><td className="k">판매가</td><td><span className="chip">그대로</span></td><td><span className="chip">그대로</span></td><td className="e">순매출 · 공헌이익만 바뀜 · 판매가는 채널별 하나(판매가 · 수익 탭)</td></tr>
       <tr><td className="k">대응SKU</td><td><span className="chip">그대로</span></td><td><span className="chip">그대로</span></td><td className="e">“대응SKU 변경됨 · 월 계획 유지” 표시 · 새 기준을 쓰려면 [대응SKU 동일수량 반영]</td></tr>
     </tbody></table></div>
   </div>
@@ -226,7 +226,7 @@ export function ManualReviewChapter({ period, mix }: { period: ReactNode; mix: R
     </tbody></table></div>
     <div className="grid2">
       <div className="mini"><b>접힌 상태 (채널 요약)</b><div className="mini-body"><ul><li>비중 · 총수량 · 실매출단가</li><li>순매출 · 공헌이익 · 변동비율(~ = 근사값)</li><li>CM% — <span className="cr-g">≥40%</span> · <span className="cr-y">≥30%</span> · <span className="cr-r">&lt;30%</span></li></ul></div></div>
-      <div className="mini"><b>펼친 상태 (채널 상세)</b><div className="mini-body"><ul><li>대응SKU 비교(회색) · 목표 수량 · 증감율</li><li>월별 판매가 시나리오 · [일괄반영]</li><li>실 판매가 · 글로벌 · 일본은 외화 함께</li><li>예상 순매출 · 공헌이익 · 연도별 합계</li></ul></div></div>
+      <div className="mini"><b>펼친 상태 (채널 상세)</b><div className="mini-body"><ul><li>대응SKU 비교(회색) · 목표 수량 · 증감율</li><li>실 판매가(보기만) · 글로벌 · 일본은 외화 함께</li><li>예상 순매출 · 공헌이익 · 연도별 합계</li></ul></div></div>
     </div>
     <p className="sub">* 변동비율 데이터 없으면 25% · 채널 수수료율 입력값은 참고용(계산 미반영)</p>
   </div>
@@ -249,7 +249,7 @@ export function ManualReviewChapter({ period, mix }: { period: ReactNode; mix: R
       <tr><td><span className="rb gl">글로벌 확정</span></td><td>글로벌 · 일본</td><td className="e">글로벌 · MASTER · PM</td></tr>
     </tbody></table></div>
     <p className="sub">* 확정 = 그 그룹 수량 잠금 · 발주량 · 월 · 채널 비중 변경에서 빠지고 나머지만 조정 · 안을 바꿔도 지금 값 유지 · 전부 확정되면 월별 목표량 입력 잠김</p>
-    <p className="sub">* 누르는 곳: SKU 카드 · 채널별 설정 · SKU별 결정 상세 위 · 검토 요청에서는 이 확정이 검토 완료</p>
+    <p className="sub">* 누르는 곳: SKU 카드 · 채널 일괄 · SKU별 결정 상세 위 · 검토 요청에서는 이 확정이 검토 완료</p>
   </div>
 
   </div>
@@ -260,9 +260,9 @@ export function ManualReviewChapter({ period, mix }: { period: ReactNode; mix: R
   </div>
 
   <div className="card">
-    <h4>⚡ 여러 SKU 한꺼번에 <span className="sub">채널별 설정 · 월별 비중설정</span></h4>
+    <h4>⚡ 여러 SKU 한꺼번에 <span className="sub">채널 일괄 · 월 계획 일괄</span></h4>
     <div className="grid2">
-      <div className="mini"><b>일괄 작업</b><div className="mini-body"><span>SKU 체크 → 대응SKU 대비 % · 다른 SKU 월별 수량 복사 · 일괄 증감 % · 판매가 시나리오 일괄반영 · 대응SKU 기준 채우기 · 월 비중 복사 · 그룹 확정</span><span>미리보기 → 적용 → 되돌리기 · 확정 · 비운영 · 권한 없는 채널 자동 제외</span></div></div>
+      <div className="mini"><b>일괄 작업</b><div className="mini-body"><span>SKU 체크 → 대응SKU 대비 % · 다른 SKU 월별 수량 복사 · 일괄 증감 % · 판매가 일괄반영(전 월 같은 값) · 대응SKU 기준 채우기 · 월 비중 복사 · 그룹 확정</span><span>미리보기 → 적용 → 되돌리기 · 확정 · 비운영 · 권한 없는 채널 자동 제외</span></div></div>
       <div className="mini"><b>👥 동시 수정</b><div className="mini-body"><span>채널 칸 — 내가 바꾼 칸만 저장 · 같은 칸은 나중 저장 우선</span><span>발주량 · 옵션 · 안 저장 — 다른 사람이 먼저 고쳤으면 내 변경 취소 → 최신값 확인 후 다시 입력</span></div></div>
     </div>
   </div>
@@ -273,7 +273,7 @@ export function ManualReviewChapter({ period, mix }: { period: ReactNode; mix: R
     <div className="tw"><table style={{ minWidth: '520px' }}><thead><tr><th>할 일</th><th>필요한 권한</th><th>기본값</th></tr></thead><tbody>
       <tr><td className="k">안 전환 · 저장</td><td>역할 고정</td><td className="e">MASTER · PM</td></tr>
       <tr><td className="k">발주량 · 대응SKU · 옵션별 검토</td><td>SKU 기본정보</td><td className="e">MASTER · PM</td></tr>
-      <tr><td className="k">월별 목표량</td><td>월 계획</td><td className="e">MASTER · PM · 월별 비중설정 탭도 이 둘만 보임</td></tr>
+      <tr><td className="k">월별 목표량</td><td>월 계획</td><td className="e">MASTER · PM · 월 계획 일괄 탭도 이 둘만 보임</td></tr>
       <tr><td className="k">채널별 목표량 · 판매가</td><td>채널별 목표량 + 담당 채널</td><td className="e">담당 채널 MD · 글로벌 · MASTER · PM</td></tr>
       <tr><td className="k">발주 확정 · 해제</td><td>발주 확정</td><td className="e">MASTER · PM</td></tr>
       <tr><td className="k">검토 요청 만들기</td><td>역할 고정</td><td className="e">MASTER · PM</td></tr>
