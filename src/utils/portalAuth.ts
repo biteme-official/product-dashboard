@@ -15,7 +15,9 @@ interface VerifyResult {
 }
 
 export async function verifyPortalToken(token: string): Promise<Role | null> {
-  const baseUrl = PORTAL_URL || window.location.ancestorOrigins?.[0] || DEFAULT_PORTAL;
+  // iframe 부모 주소(ancestorOrigins)는 쓰지 않음 — 아무 사이트나 Product를 iframe으로 띄우고
+  // 가짜 verify-token 응답으로 원하는 권한(master 등)으로 로그인시킬 수 있기 때문. 고정 주소만 사용.
+  const baseUrl = PORTAL_URL || DEFAULT_PORTAL;
 
   try {
     const res = await fetch(`${baseUrl}/api/auth/verify-token`, {
