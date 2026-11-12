@@ -32,7 +32,7 @@ import { monthTargetsByCompareShare, savePlanPatch, switchPlanPatch, withColorQt
 import { CellInput } from './CellInput';
 import { ChannelQtyPanel } from './SkuCard';
 import { GroupConfirmButtons, GroupConfirmChips } from './ReviewRequestParts';
-import { REVIEW_GROUPS, REVIEW_GROUP_LABEL, dDay, groupApplies, isOverdue, type ReviewRequest } from '../utils/reviewRequest';
+import { REVIEW_GROUPS, REVIEW_GROUP_LABEL, type ReviewRequest } from '../utils/reviewRequest';
 import type { ChannelConfirmField } from '../types';
 
 const fmt = (n: number) => Math.round(n).toLocaleString();
@@ -157,8 +157,6 @@ interface DetailEnv {
   saveCompare: (s: SkuData, names: string[], mode: CompareMode, baseYears: Record<string, number> | undefined) => void;
   confirm: (s: SkuData, on: boolean) => Promise<void>;
   confirmGroup: (s: SkuData, field: ChannelConfirmField, value: boolean) => void;
-  /** 지금 열어둔 검토 요청 — MD 할 일 줄에 기한 표시 */
-  reviewReq: ReviewRequest | null;
 }
 
 /** 검토 요청 묶음 — ChannelTargetSection이 관리 */
@@ -273,7 +271,7 @@ function OptionPanel({ s, env, editable }: { s: SkuData; env: DetailEnv; editabl
 }
 
 function Detail({ s, r, env }: { s: SkuData; r: SkuReview; env: DetailEnv }) {
-    const { role, perm, tableau, global, writeBlocked, busy, basis, onNavigateToSku, save, setOrder, pickPlan, canSwitch, setMonthPlan, saveCompare, confirm, confirmGroup, reviewReq } = env;
+    const { role, perm, tableau, global, writeBlocked, busy, basis, onNavigateToSku, save, setOrder, pickPlan, canSwitch, setMonthPlan, saveCompare, confirm, confirmGroup } = env;
     const m = r.money;
     const active = s.orderPlans?.active ?? 1;
     const months = getSkuMonths(s.releaseDate);
@@ -368,11 +366,6 @@ function Detail({ s, r, env }: { s: SkuData; r: SkuReview; env: DetailEnv }) {
         })}
       </span>
     );
-    // MD 할 일 — 내 확정 그룹 (MASTER · PM은 없음)
-    const myGroup = isAllChannelRole(role) ? null : REVIEW_GROUPS.find((f) => canConfirmGroup(role, f) && groupApplies(s, f)) ?? null;
-    const myChannels = myGroup ? CHANNELS.filter((ch) => CHANNEL_CONFIRM_GROUP[ch].field === myGroup && !(getDisabledChannels(s) as readonly string[]).includes(ch)) : [];
-    const inReq = !!(myGroup && reviewReq && !reviewReq.closedAt && reviewReq.skuIds.includes(s.id) && reviewReq.groups.includes(myGroup));
-
     return (
       <div className="space-y-2.5 min-w-0">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -389,18 +382,6 @@ function Detail({ s, r, env }: { s: SkuData; r: SkuReview; env: DetailEnv }) {
           <div className="flex flex-wrap gap-1.5">
             {qtyChanged && <span className="text-[11px] px-2 py-0.5 rounded-full font-semibold bg-amber-100 text-amber-800">발주량 변경됨 · 확정 {fmt(s.finalOrderConfirmedOrderQty!)}개 → 현재 {fmt(s.totalOrderQty)}개</span>}
             {r.issues.map((i, k) => <span key={k} className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${i.level === 'error' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-800'}`}>{i.what} · {i.effect}</span>)}
-          </div>
-        )}
-
-        {myGroup && (
-          <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 rounded-lg border border-teal-500 bg-teal-50 px-3 py-1.5 text-xs">
-            <b className="text-teal-800">내 할 일</b>
-            <span className="text-gray-700">{REVIEW_GROUP_LABEL[myGroup]} 채널 {myChannels.length}개({myChannels.join(' · ')}) · 수량 · 판매가 확인 → 확정</span>
-            {inReq && <span className={`px-1.5 rounded-full text-[11px] font-semibold ${isOverdue(reviewReq!) ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-800'}`}>검토 요청 · {reviewReq!.name} · {dDay(reviewReq!.dueOn)}</span>}
-            <span className="flex-1" />
-            {s[myGroup]
-              ? <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-[11px] font-semibold">{REVIEW_GROUP_LABEL[myGroup]} 확정됨</span>
-              : <button disabled={!perm.step2 || writeBlocked} onClick={() => confirmGroup(s, myGroup, true)} className="px-2.5 py-0.5 rounded border border-teal-600 bg-white text-teal-800 font-semibold hover:bg-teal-100 disabled:opacity-50 disabled:cursor-not-allowed">{REVIEW_GROUP_LABEL[myGroup]} 확정</button>}
           </div>
         )}
 
@@ -449,8 +430,6 @@ function Detail({ s, r, env }: { s: SkuData; r: SkuReview; env: DetailEnv }) {
             <b className="text-gray-700">{otherNo}안 · 보관</b>
             <span className="text-gray-600">발주 <b className="text-gray-900">{fmt(otherQty)}</b> · MOQ {otherMoq ? fmt(otherMoq) : '미입력'}{otherMoq > 0 && otherQty < otherMoq ? ' (미달)' : ''} · 소진 {coverOf(otherQty, other)} · 순매출 {won(other.revenue)} · 공헌이익 {won(other.profit)} · CM% {pct(other.cm)} · 발주금액 {won(other.orderAmount)}</span>
             {diffLine && <span className="font-semibold text-indigo-800 bg-indigo-50 rounded px-1.5">{diffLine}</span>}
-            <span className="flex-1" />
-            <button disabled={!canSwitch(s)} onClick={() => pickPlan(s, otherNo)} className="px-2 py-0.5 rounded border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">이 안으로 전환</button>
           </div>
         )}
 
@@ -876,7 +855,7 @@ export function OrderReviewSection({ skus: filteredSkus, view, targetComparable:
     });
   }
 
-  const env: DetailEnv = { role, perm, tableau, global, writeBlocked, busy, basis, onNavigateToSku, save, setOrder, pickPlan, canSwitch, setMonthPlan, saveCompare, confirm, confirmGroup, reviewReq: review?.req ?? null };
+  const env: DetailEnv = { role, perm, tableau, global, writeBlocked, busy, basis, onNavigateToSku, save, setOrder, pickPlan, canSwitch, setMonthPlan, saveCompare, confirm, confirmGroup };
 
   const decided = skus.filter((s) => s.orderPlans?.decided || s.finalOrderConfirmedAt).length;
   const confirmed = skus.filter((s) => s.finalOrderConfirmedAt).length;
