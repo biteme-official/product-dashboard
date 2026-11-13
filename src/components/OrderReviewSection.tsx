@@ -475,10 +475,12 @@ function Worksheet({ s, r, env, planEditable, canPrice, setOpts, monthComp, comp
   const zm = 'bg-indigo-50/40';
   const zsep = 'border-l-2 border-gray-400';
   const blankMoney = <><td className={`${zm} ${zsep}`} /><td className={zm} /><td className={zm} /><td className={zm} /></>;
-  const band = (no: string, title: string, sub: ReactNode) => (
+  // 단계 띠도 수량 | 판매가 · 수익 구역을 나눠 세로 경계선이 끊기지 않게 (2026-11-13)
+  const band = (no: string, title: string, sub: ReactNode, moneyCell?: ReactNode) => (
     <tr className="bg-gray-100 border-t border-gray-200">
       <td className={`${c0} bg-gray-100 px-2 py-1 whitespace-nowrap`}><b className="text-gray-800">{no} {title}</b></td>
-      <td colSpan={n + 6} className="px-2 py-1 text-left text-[11px] text-gray-600">{sub}</td>
+      <td colSpan={n + 2} className="px-2 py-1 text-left text-[11px] text-gray-600 border-l border-gray-200">{sub}</td>
+      <td colSpan={4} className={`px-1.5 py-1 text-left text-[11px] text-gray-600 ${zsep} bg-gray-100`}>{moneyCell}</td>
     </tr>
   );
   const money = (rev: number, pro: number | null, cm: number | null, extra?: ReactNode) => (
@@ -582,8 +584,16 @@ function Worksheet({ s, r, env, planEditable, canPrice, setOpts, monthComp, comp
                 </span>
               )}
               {undo.length > 0 && <button onClick={undoLast} disabled={writeBlocked} title="이 화면을 떠나면 기록이 사라짐" className="px-1.5 rounded border border-indigo-200 bg-indigo-50 text-indigo-700">↩ 되돌리기 ({undo.length})</button>}
-              {B2C_CHANNELS.some(canPrice) && <span className="inline-flex flex-wrap items-center gap-1">· B2C 판매가 일괄{PCT_OPTS.map((o) => <Chip key={o} on={allOpt === o} onClick={() => setOpts(B2C_CHANNELS, o)}>{optLabel(o)} {fmt(r.pricer(o, s.price))}원</Chip>)}</span>}
-            </span>)}
+            </span>, B2C_CHANNELS.some(canPrice) && !shareEdit ? (
+              <label className="inline-flex items-center gap-1.5 whitespace-nowrap">
+                <span className="font-semibold text-gray-700">B2C 판매가 일괄</span>
+                <select value={allOpt ?? '__mixed'} onChange={(e) => e.target.value !== '__mixed' && setOpts(B2C_CHANNELS, e.target.value)} aria-label="B2C 판매가 일괄"
+                  className="text-[11px] border border-gray-300 rounded px-1 py-0.5 bg-white max-w-[170px]">
+                  {allOpt === null && <option value="__mixed">채널마다 다름 · 골라서 일괄</option>}
+                  {PCT_OPTS.map((o) => <option key={o} value={o}>{optLabel(o)} · {fmt(r.pricer(o, s.price))}원</option>)}
+                </select>
+              </label>
+            ) : undefined)}
             {groups.map((f) => {
               const rows = rowsOf(f);
               const chs = rows.map((c) => c.channel);
