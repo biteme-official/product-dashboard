@@ -58,6 +58,8 @@ export function ReviewRequestBanner({ req, skus, allSkuIds, onExit, onCopied, on
   const { role } = useAuth();
   const [ask, setAsk] = useState<'close' | 'delete' | null>(null);
   const [busy, setBusy] = useState(false);
+  const [memoOpen, setMemoOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
   const p = reviewProgress(req, skus);
   const over = isOverdue(req);
   const manage = canManageReviewRequest(role);
@@ -80,25 +82,44 @@ export function ReviewRequestBanner({ req, skus, allSkuIds, onExit, onCopied, on
   }
   const hidden = req.skuIds.filter((id) => !skus.some((s) => s.id === id));
   const gone = hidden.filter((id) => !allSkuIds.has(id)).length;
+  // 첫 화면을 가볍게 — 한 줄 (상태 · 이름 · 기한 · 그룹 진행률 · 버튼) · 메모와 닫기 · 삭제는 눌러서 (2026-11-13)
   return (
-    <div className="rounded-lg border border-teal-300 bg-teal-50/60 px-3 py-2 space-y-1.5">
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-        <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold whitespace-nowrap ${req.closedAt ? 'bg-gray-200 text-gray-600' : over ? 'bg-red-100 text-red-700' : 'bg-teal-600 text-white'}`}>
+    <div className="rounded-lg border border-teal-300 bg-teal-50/60 px-3 py-1 space-y-1">
+      <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px]">
+        <span className={`px-2 py-0.5 rounded-full font-semibold whitespace-nowrap ${req.closedAt ? 'bg-gray-200 text-gray-600' : over ? 'bg-red-100 text-red-700' : 'bg-teal-600 text-white'}`}>
           {req.closedAt ? '닫힘' : over ? `기한 지남 ${dDay(req.dueOn)}` : `검토 요청 ${dDay(req.dueOn)}`}
         </span>
-        <b className="text-sm text-gray-900">{req.name}</b>
-        <span className="text-[11px] text-gray-600">
-          {roleLabel(req.createdBy)} 요청 · {shortMD(req.createdAt.slice(0, 10))} · 기한 {shortMD(req.dueOn)} · 대상 {req.groups.map((g) => REVIEW_GROUP_LABEL[g]).join(' · ')} · SKU {req.skuIds.length}개
-        </span>
-        <span className="flex-1" />
-        <button onClick={async () => onCopied(await copyText(buildReviewLink(req.id)))} className="text-[11px] px-2 py-0.5 rounded border border-teal-500 bg-white text-teal-700 font-semibold">링크 복사</button>
-        {manage && !req.closedAt && (
-          <button onClick={() => setAsk('close')} disabled={!canClose || busy} title={closeHint || undefined}
-            className="text-[11px] px-2 py-0.5 rounded border border-gray-400 bg-white text-gray-700 font-semibold disabled:opacity-40 disabled:cursor-not-allowed">요청 닫기</button>
+        <b className="text-sm text-gray-900" title={`${roleLabel(req.createdBy)} 요청 · ${shortMD(req.createdAt.slice(0, 10))} · 대상 ${req.groups.map((g) => REVIEW_GROUP_LABEL[g]).join(' · ')}`}>{req.name}</b>
+        <span className="text-gray-600 whitespace-nowrap">기한 {shortMD(req.dueOn)} · SKU {req.skuIds.length}</span>
+        {p.groups.map((g) => (
+          <span key={g.field} className="inline-flex items-center gap-1 whitespace-nowrap">
+            <b className="text-gray-700">{REVIEW_GROUP_LABEL[g.field]}</b>
+            <span className="w-14 h-1.5 rounded-full bg-white border border-gray-200 overflow-hidden"><i className="block h-full bg-emerald-500" style={{ width: `${g.total ? (g.done / g.total) * 100 : 0}%` }} /></span>
+            <span className="tabular-nums text-gray-600">{g.done}/{g.total}</span>
+          </span>
+        ))}
+        {p.allDone ? <span className="px-1.5 rounded-full bg-emerald-100 text-emerald-700 font-semibold">전부 확정</span> : <span className="text-gray-600 whitespace-nowrap">완료 SKU <span className="tabular-nums">{p.doneSkus}/{p.totalSkus}</span></span>}
+        {req.closedAt && <span className="text-gray-500">{shortMD(req.closedAt.slice(0, 10))} {roleLabel(req.closedBy)} 닫음</span>}
+        {hidden.length > 0 && (
+          <span className="text-amber-700">
+            {hidden.length - gone > 0 && `숨은 SKU ${hidden.length - gone}`}
+            {hidden.length - gone > 0 && gone > 0 && ' · '}
+            {gone > 0 && `삭제된 SKU ${gone}`}
+          </span>
         )}
-        {manage && <button onClick={() => setAsk('delete')} disabled={busy} className="text-[11px] px-2 py-0.5 rounded border border-red-300 bg-white text-red-600 font-semibold disabled:opacity-40">삭제</button>}
-        <button onClick={onExit} className="text-[11px] px-2 py-0.5 rounded border border-gray-300 bg-white text-gray-600">전체 SKU로 ×</button>
+        <span className="flex-1" />
+        {req.memo && <button onClick={() => setMemoOpen((v) => !v)} aria-expanded={memoOpen} title={req.memo} className={`max-w-[260px] truncate px-2 py-0.5 rounded border ${memoOpen ? 'border-teal-500 bg-white text-teal-800' : 'border-teal-300 bg-white text-teal-700'}`}><b>메모</b> {memoOpen ? '▴' : req.memo.split('\n')[0]}</button>}
+        <button onClick={async () => onCopied(await copyText(buildReviewLink(req.id)))} className="px-2 py-0.5 rounded border border-teal-500 bg-white text-teal-700 font-semibold">링크 복사</button>
+        {manage && <button onClick={() => setMoreOpen((v) => !v)} aria-expanded={moreOpen} aria-label="요청 닫기 · 삭제" className="px-2 py-0.5 rounded border border-gray-300 bg-white text-gray-700">⋯</button>}
+        <button onClick={onExit} className="px-2 py-0.5 rounded border border-gray-300 bg-white text-gray-600">전체 SKU로 ×</button>
       </div>
+      {manage && moreOpen && !ask && (
+        <div className="flex flex-wrap items-center gap-2 text-[11px] rounded px-2 py-1 border bg-white border-gray-200">
+          {!req.closedAt && <button onClick={() => setAsk('close')} disabled={!canClose || busy} title={closeHint || undefined} className="px-2 py-0.5 rounded border border-gray-400 bg-white text-gray-700 font-semibold disabled:opacity-40 disabled:cursor-not-allowed">요청 닫기</button>}
+          <button onClick={() => setAsk('delete')} disabled={busy} className="px-2 py-0.5 rounded border border-red-300 bg-white text-red-600 font-semibold disabled:opacity-40">삭제</button>
+          {!req.closedAt && closeHint && <span className="text-gray-400">{closeHint}</span>}
+        </div>
+      )}
       {ask && (
         <div className={`flex flex-wrap items-center gap-2 text-[11px] rounded px-2 py-1.5 border ${ask === 'delete' ? 'bg-red-50 border-red-200 text-red-800' : 'bg-white border-gray-300 text-gray-700'}`}>
           <span>
@@ -112,26 +133,7 @@ export function ReviewRequestBanner({ req, skus, allSkuIds, onExit, onCopied, on
             className={`px-2 py-0.5 rounded font-semibold text-white disabled:opacity-40 ${ask === 'delete' ? 'bg-red-600' : 'bg-gray-700'}`}>{ask === 'close' ? '닫기' : '삭제'}</button>
         </div>
       )}
-      {req.memo && <p className="text-xs text-gray-700 bg-white/70 rounded px-2 py-1 whitespace-pre-wrap break-words">{req.memo}</p>}
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px]">
-        {p.groups.map((g) => (
-          <span key={g.field} className="inline-flex items-center gap-1.5">
-            <b className="text-gray-700">{REVIEW_GROUP_LABEL[g.field]}</b>
-            <span className="w-20 h-1.5 rounded-full bg-white border border-gray-200 overflow-hidden"><i className="block h-full bg-emerald-500" style={{ width: `${g.total ? (g.done / g.total) * 100 : 0}%` }} /></span>
-            <span className="tabular-nums text-gray-600">{g.done}/{g.total}</span>
-          </span>
-        ))}
-        <span className="inline-flex items-center gap-1"><b className="text-gray-700">완료 SKU</b><span className="tabular-nums text-gray-600">{p.doneSkus}/{p.totalSkus}</span>{p.allDone && <span className="px-1.5 rounded-full bg-emerald-100 text-emerald-700 font-semibold">전부 확정</span>}</span>
-        {req.closedAt && <span className="text-gray-500">{shortMD(req.closedAt.slice(0, 10))} {roleLabel(req.closedBy)} 닫음</span>}
-        {!req.closedAt && manage && closeHint && <span className="text-gray-400">{closeHint}</span>}
-        {hidden.length > 0 && (
-          <span className="text-amber-700">
-            {hidden.length - gone > 0 && `필터 · 숨김으로 안 보이는 SKU ${hidden.length - gone}개`}
-            {hidden.length - gone > 0 && gone > 0 && ' · '}
-            {gone > 0 && `삭제된 SKU ${gone}개`}
-          </span>
-        )}
-      </div>
+      {req.memo && memoOpen && <p className="text-xs text-gray-700 bg-white/70 rounded px-2 py-1 whitespace-pre-wrap break-words">{req.memo}</p>}
     </div>
   );
 }

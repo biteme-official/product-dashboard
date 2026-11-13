@@ -291,7 +291,7 @@ export function ManualTab() {
               <li>편집: 채널별 목표량 권한 · 확정: 오픈일정 확정 권한 · 확정 후 전원 잠금</li>
             </ul>
           </Card>
-          <Card title={<>⚖️ 발주량 검토 <span className="sub">SKU별 결정 · 채널 일괄 · 월 계획 일괄(MASTER · PM) · 전체 합계 · 검토 요청 → 앞 장에서 자세히</span></>}>
+          <Card title={<>⚖️ 발주량 검토 <span className="sub">SKU별 결정 · 월 계획 일괄(MASTER · PM) · 전체 합계 · 검토 요청 → 앞 장에서 자세히</span></>}>
             <div><Jump to="review">발주량 검토 보러가기 →</Jump></div>
           </Card>
           <Card title={<>💰 프라이싱 <span className="sub">→ 다음 장에서 자세히</span></>}>
