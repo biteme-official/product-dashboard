@@ -29,6 +29,7 @@ import { basePriceOf, cmOf, qtyOf, skuMoney, type MoneyBasis, type SkuMoney } fr
 import { cachedReview, globalIssues, type ReviewIssue, type SkuReview } from '../utils/skuReview';
 import { finalOrderForConfirm, finalOrderModel } from '../utils/finalOrder';
 import { monthTargetsByCompareShare, savePlanPatch, switchPlanPatch, withColorQty, withOptionQty, withOrderQtyScaled, withSizeRatio } from '../utils/orderPlan';
+import { HATCH } from '../utils/reviewTable';
 import { CellInput } from './CellInput';
 import { ChannelQtyPanel } from './SkuCard';
 import { GroupConfirmChips } from './ReviewRequestParts';
@@ -273,7 +274,6 @@ function Fold({ open, onToggle, title, summary, children }: { open: boolean; onT
 }
 
 // ── 통합 표 (개편 3단계) — ① 대응SKU 실적 · ② 월 계획 · ③ 채널 배분을 한 표로, 월 열을 위아래로 맞춤 ──
-const HATCH = { backgroundImage: 'repeating-linear-gradient(135deg, #ffedd5 0 4px, transparent 4px 9px)' };
 const GROUP_TONE: Record<ChannelConfirmField, string> = {
   step2PlatformConfirmed: 'text-emerald-800', step2BrandConfirmed: 'text-amber-800', step2GlobalConfirmed: 'text-sky-800',
 };
