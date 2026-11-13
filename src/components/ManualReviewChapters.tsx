@@ -48,7 +48,7 @@ export function ManualReviewChapter({ period, mix }: { period: ReactNode; mix: R
   <div className="card">
     <h4>🪟 보기 3개</h4>
     <div className="tw"><table style={{ minWidth: '600px' }}><thead><tr><th>보기</th><th>이럴 때</th><th>내용</th></tr></thead><tbody>
-      <tr><td className="k">SKU별 결정</td><td className="e">한 SKU씩 정할 때</td><td>왼쪽 목록(오픈일로 묶음 · 상태 필터 · ↑↓ 이동) + 결정 패널(결정 · 결과 · 수익) · 통합 표(① 기준 → ② 월 계획 → ③ 채널 배분 · 그룹 띠마다 확정) · 아래 접는 구역(근거 · 옵션 · 채널 상세)</td></tr>
+      <tr><td className="k">SKU별 결정</td><td className="e">한 SKU씩 정할 때</td><td>왼쪽 목록(오픈일로 묶음 · 상태 필터 · ↑↓ 이동) + 결정 패널(결정 · 결과 · 수익) · 통합 표(① 기준 → ② 월 계획 → ③ 채널 배분 · 그룹 띠마다 확정) · 아래 접는 구역(근거 · 옵션) · 채널 이름 ▸ 펼치면 대응SKU · 증감 · 실 판매가</td></tr>
       <tr><td className="k">월 계획 일괄</td><td className="e">월 계획을 SKU마다</td><td>SKU별 결정 표의 ② 월 계획을 SKU마다 쌓아 보기 · 대응SKU 실적 · 판매 목표 · 비중(입력) · 누적 vs 발주 · 증감률 · <b>MASTER · PM에게만 보임</b></td></tr>
       <tr><td className="k">전체 합계</td><td className="e">결정 후 전체 확인</td><td>오픈월 × 카테고리 표 · 판매월별 순매출 · 공헌이익 차트 · 월 목표 비교 (관리 › SKU 관리 › 월 목표)</td></tr>
     </tbody></table></div>
@@ -73,11 +73,10 @@ export function ManualReviewChapter({ period, mix }: { period: ReactNode; mix: R
           </div>
           <div className="rs-box"><span className="rv-pin abs">7</span><b>1안 월 계획 · 채널 배분 (표 하나)</b><small>① 기준 대응SKU 실적 [변경 · 근거] → ② 월 계획 판매 목표 · 누적 vs 발주 → ③ 채널 배분 플랫폼 · 브랜드 · 글로벌 띠(합계 · 비중 · [확정]) · 채널 줄(월 수량 · 비중 ▲▼p · 판매가 · 순매출 · 공헌이익 · CM%) → 합계</small><div className="rs-strip"><i className="g"></i><i className="g"></i><i className="g"></i><i className="g"></i><i className="d"></i><i className="o"></i><i className="o"></i><i className="o"></i></div></div>
           <div className="rs-mid" style={{ gridTemplateColumns: '1fr 1fr' }}><div className="rs-box"><span className="rv-pin abs">8</span><b>▾ 근거 · 대응SKU</b><small>기간 · 8개월 실적 · 채널 비중(실적 ↔ 판매 목표)</small></div><div className="rs-box"><b>▾ 옵션 · 컬러 × 사이즈</b><small>컬러 수량 · 사이즈 비중 · 옵션별 최종 발주량</small></div></div>
-          <div className="rs-box"><b>▸ 채널 상세 · 도구</b><small>채널 비중 수정 · 대응SKU 채널비중 반영 · 채널 펼침 상세 · 처음엔 접힘</small></div>
           <div className="rs-foot"><span className="rv-pin">9</span><span className="chip c-green">1안 저장</span><small>저장해도 수정 가능 · 최종은 발주 확정</small><span className="rv-grow"></span><span className="rc-go light">1안으로 저장</span><span className="rc-go">발주 확정</span></div>
         </div>
       </div>
-    </div></div><div className="rv-lg"><div className="rv-li"><span className="rv-pin">1</span><div><b>필터</b><span>서브탭 줄 오른쪽 · 카테고리 · 브랜드는 드롭다운</span></div></div><div className="rv-li"><span className="rv-pin">2</span><div><b>검토 요청 고르기</b><span>진행 중 · 닫힘 요청 · 고르면 그 SKU만 보임</span></div></div><div className="rv-li"><span className="rv-pin">3</span><div><b>요약 · 금액 기준</b><span>전체 합계 · 초도 ↔ 리오더 포함 · 오류 · 경고 칩</span></div></div><div className="rv-li"><span className="rv-pin">4</span><div><b>왼쪽 목록</b><span>SKU 고르기 · 상태 필터 · ↑↓ 이동 · 체크박스(MASTER · PM)로 검토 요청</span></div></div><div className="rv-li"><span className="rv-pin">5</span><div><b>[1안 | 2안] 전환</b><span>SKU명 옆 · 없는 안은 [+ 2안 만들기](현재 값 복사) · MASTER · PM</span></div></div><div className="rv-li"><span className="rv-pin">6</span><div><b>결정 패널</b><span>결정(발주량 · MOQ) → 결과(소진 · 판정 · 리오더) → 수익 · 2안이 있으면 아래 보관안 한 줄 + 차이</span></div></div><div className="rv-li"><span className="rv-pin">7</span><div><b>통합 표</b><span>월 열 위아래 맞춤 · ▼ 소진 · 빗금 = 리오더 구간 · 그룹 띠 [확정] · MD는 내 그룹만 펼침 · 내 채널 청록</span></div></div><div className="rv-li"><span className="rv-pin">8</span><div><b>접는 구역</b><span>근거 · 옵션은 좌우 2분할 · 채널 상세 · 도구는 아래 · 표 ① [변경 · 근거]로 근거 열기</span></div></div><div className="rv-li"><span className="rv-pin">9</span><div><b>아래 고정 줄</b><span>저장 · 발주 확정 · 안 되는 이유 표시</span></div></div></div></div>
+    </div></div><div className="rv-lg"><div className="rv-li"><span className="rv-pin">1</span><div><b>필터</b><span>서브탭 줄 오른쪽 · 카테고리 · 브랜드는 드롭다운</span></div></div><div className="rv-li"><span className="rv-pin">2</span><div><b>검토 요청 고르기</b><span>진행 중 · 닫힘 요청 · 고르면 그 SKU만 보임</span></div></div><div className="rv-li"><span className="rv-pin">3</span><div><b>요약 · 금액 기준</b><span>전체 합계 · 초도 ↔ 리오더 포함 · 오류 · 경고 칩</span></div></div><div className="rv-li"><span className="rv-pin">4</span><div><b>왼쪽 목록</b><span>SKU 고르기 · 상태 필터 · ↑↓ 이동 · 체크박스(MASTER · PM)로 검토 요청</span></div></div><div className="rv-li"><span className="rv-pin">5</span><div><b>[1안 | 2안] 전환</b><span>SKU명 옆 · 없는 안은 [+ 2안 만들기](현재 값 복사) · MASTER · PM</span></div></div><div className="rv-li"><span className="rv-pin">6</span><div><b>결정 패널</b><span>결정(발주량 · MOQ) → 결과(소진 · 판정 · 리오더) → 수익 · 2안이 있으면 아래 보관안 한 줄 + 차이</span></div></div><div className="rv-li"><span className="rv-pin">7</span><div><b>통합 표</b><span>월 열 위아래 맞춤 · ▼ 소진 · 빗금 = 리오더 구간 · 그룹 띠 [확정] · MD는 내 그룹만 펼침 · 내 채널 청록</span></div></div><div className="rv-li"><span className="rv-pin">8</span><div><b>접는 구역</b><span>근거 · 옵션 좌우 2분할 · 표 ① [변경 · 근거]로 근거 열기 · 채널 도구는 표 ③ 띠로 합침</span></div></div><div className="rv-li"><span className="rv-pin">9</span><div><b>아래 고정 줄</b><span>저장 · 발주 확정 · 안 되는 이유 표시</span></div></div></div></div>
   </div>
 
   <div className="card" id="review-request">
@@ -199,7 +198,7 @@ export function ManualReviewChapter({ period, mix }: { period: ReactNode; mix: R
   <div className="card">
     <h4>🌱 판매 목표를 처음 채우는 법 <span className="sub">자동으로 채워지지 않음 · 버튼을 눌러야 저장</span></h4>
     <div className="steps">
-      <div className="step"><div className="no">1</div><div><h5>채널 상세 · 도구 [대응SKU 기준 채우기]</h5><p>총 발주량을 8개월 균등 → 대응SKU 채널 비중대로 나눔</p></div></div>
+      <div className="step"><div className="no">1</div><div><h5>표 ③ 띠 [대응SKU 기준 채우기]</h5><p>총 발주량을 8개월 균등 → 대응SKU 채널 비중대로 나눔</p></div></div>
       <div className="step"><div className="no">2</div><div><h5>또는 표 아래 [대응SKU 동일수량 반영]</h5><p>대응SKU 월별 실적 수량을 그대로 판매 목표로</p></div></div>
       <div className="step"><div className="no">3</div><div><h5>또는 표 아래 [대응SKU 월별비중 반영]</h5><p>지금 고른 안의 발주량을 대응SKU 월별 실적 비중으로 나눔 · 판매 목표 합계 = 발주량 · 확정 채널 · 마케팅은 그대로</p></div></div>
     </div>
@@ -221,16 +220,16 @@ export function ManualReviewChapter({ period, mix }: { period: ReactNode; mix: R
   </div>
 
   <div className="card">
-    <h4>🎛️ 채널별 목표량 조정 방법 <span className="sub">표 ③ 채널 배분 · 채널 상세 · 도구 구역</span></h4>
+    <h4>🎛️ 채널별 목표량 조정 방법 <span className="sub">표 ③ 채널 배분 띠 버튼 · 예전 채널 상세 구역은 표로 합침(2026-11-13)</span></h4>
     <div className="tw"><table style={{ minWidth: '680px' }}><thead><tr><th>방법</th><th>하는 법</th><th>결과</th><th className="nw">권한</th></tr></thead><tbody>
-      <tr><td className="k">칸 직접 수정</td><td>표 ③ 채널 줄 월 칸 입력 (채널 상세 펼침에서도 가능)</td><td className="e">그 칸만 · 월 · 채널 비중 자동 재계산</td><td className="e nw">담당 채널</td></tr>
-      <tr><td className="k">채널 비중 수정</td><td>[채널 비중 수정] → 여러 채널 % 입력 → [저장]</td><td className="e">월 합계 유지 · 안 고친 채널이 남은 % 나눠 가짐 · 수정+확정 합계 100% 초과 시 저장 불가</td><td className="e nw">MASTER · PM</td></tr>
-      <tr><td className="k">대응SKU 채널비중 반영</td><td>버튼 클릭</td><td className="e">월 합계 유지 · 대응SKU 비중으로 다시 · 손으로 고친 값도 재계산</td><td className="e nw">MASTER · PM</td></tr>
-      <tr><td className="k">되돌리기</td><td>조정 직후 버튼</td><td className="e">직전 상태로</td><td className="e nw">—</td></tr>
+      <tr><td className="k">칸 직접 수정</td><td>표 ③ 채널 줄 월 칸 입력</td><td className="e">그 칸만 · 월 · 채널 비중 자동 재계산</td><td className="e nw">담당 채널</td></tr>
+      <tr><td className="k">채널 비중 수정</td><td>③ 띠 [채널 비중 수정] → 비중 열이 입력칸 · 여러 채널 % 입력 → [저장]</td><td className="e">월 합계 유지 · 안 고친 채널이 남은 % 나눠 가짐 · 수정+확정 합계 100% 초과 시 저장 불가</td><td className="e nw">MASTER · PM</td></tr>
+      <tr><td className="k">대응SKU 채널비중 반영</td><td>③ 띠 버튼 · 대응SKU가 바뀌면 주황</td><td className="e">월 합계 유지 · 대응SKU 비중으로 다시 · 손으로 고친 값도 재계산</td><td className="e nw">MASTER · PM</td></tr>
+      <tr><td className="k">되돌리기</td><td>③ 띠 [↩ 되돌리기 (n)] · 칸 수정 · 비중 수정 · 반영 후</td><td className="e">직전 상태로 · 이 SKU 화면에서만 기록</td><td className="e nw">—</td></tr>
     </tbody></table></div>
     <div className="grid2">
-      <div className="mini"><b>접힌 상태 (채널 요약)</b><div className="mini-body"><ul><li>비중 · 총수량 · 실매출단가</li><li>순매출 · 공헌이익 · 변동비율(~ = 근사값)</li><li>CM% — <span className="cr-g">≥40%</span> · <span className="cr-y">≥30%</span> · <span className="cr-r">&lt;30%</span></li></ul></div></div>
-      <div className="mini"><b>펼친 상태 (채널 상세)</b><div className="mini-body"><ul><li>대응SKU 비교(회색) · 목표 수량 · 증감율</li><li>실 판매가(보기만) · 글로벌 · 일본은 외화 함께</li><li>예상 순매출 · 공헌이익 · 연도별 합계</li></ul></div></div>
+      <div className="mini"><b>채널 줄</b><div className="mini-body"><ul><li>월 수량 · 합계 · 비중(대응 대비 ▲▼p) · 판매가</li><li>순매출 · 공헌이익 · 25% 대체 · 기간 대체 칩</li><li>CM% — <span className="cr-g">≥40%</span> · <span className="cr-y">≥30%</span> · <span className="cr-r">&lt;30%</span></li></ul></div></div>
+      <div className="mini"><b>채널 이름 ▸ 펼침</b><div className="mini-body"><ul><li>대응SKU(월별) · 증감 · 기존 세팅값 대비 · 변동비율</li><li>실 판매가(보기만) · 글로벌 · 일본은 외화 · 환율 함께</li><li>옵션별 채널 수량은 옵션 구역 [채널 ▾] · 시뮬레이션 엑셀은 표 제목 줄 오른쪽</li></ul></div></div>
     </div>
     <p className="sub">* 변동비율 데이터 없으면 25% · 채널 수수료율 입력값은 참고용(계산 미반영)</p>
   </div>

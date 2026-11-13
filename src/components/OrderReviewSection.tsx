@@ -7,10 +7,11 @@ import {
   Bar, CartesianGrid, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts';
 import {
-  B2C_CHANNELS, CATEGORIES, CHANNELS, moqOf, CHANNEL_CONFIRM_GROUP, getConfirmedChannels, getDisabledChannels, getSkuMonths, isMarketingLocked, isSeasonOnly,
+  B2C_CHANNELS, CATEGORIES, CHANNELS, STEP2_FORCE_RECALC_MARK, moqOf, CHANNEL_CONFIRM_GROUP, getConfirmedChannels, getDisabledChannels, getSkuMonths, isMarketingLocked, isSeasonOnly,
   type Channel, type Month, type SkuData,
 } from '../types';
 import { planScopeOf, SkuConflictError, useSkuSyncStatus, useStore } from '../store';
+import { useExchangeRates } from '../utils/useExchangeRates';
 import { useAuth } from '../store/auth';
 import { usePermission } from '../contexts/PermissionsContext';
 import { useReviewCtx } from '../hooks/useReviewCtx';
@@ -20,10 +21,11 @@ import { canConfirmGroup, isAllChannelRole, ownsChannel } from '../utils/channel
 import type { Role } from '../utils/pin';
 import { searchSkus, type SkuShipmentInfo } from '../services/tableau';
 import {
-  comparisonSkuOf, compareNamesOf, fallbackWeightsOf, resolveBaseYear, seasonYearsWithData, type CompareMode,
+  comparisonSkuOf, compareNamesOf, fallbackWeightsOf, getCompQtyAdj, resolveBaseYear, seasonYearsWithData, type CompareMode,
 } from '../utils/compareData';
-import { scaleOpenChannelsTo, setMonthTotal } from '../utils/qtyPlan';
-import { exportSkuOrderXlsx } from '../utils/exportXlsx';
+import { allocate, applyChannelShares, redistributeByWeights, resolveChannelShares, scaleOpenChannelsTo, setMonthTotal } from '../utils/qtyPlan';
+import { PRICING_DEFAULT_OPT, PRICING_SCENARIOS } from '../utils/pricingScenarios';
+import { exportSimulationXlsx, exportSkuOrderXlsx } from '../utils/exportXlsx';
 import { STEP1_OPTIONS } from '../utils/step1Price';
 import { basePriceOf, cmOf, qtyOf, skuMoney, type MoneyBasis, type SkuMoney } from '../utils/reviewSku';
 import { cachedReview, globalIssues, type ReviewIssue, type SkuReview } from '../utils/skuReview';
@@ -31,7 +33,6 @@ import { finalOrderForConfirm, finalOrderModel } from '../utils/finalOrder';
 import { monthTargetsByCompareShare, savePlanPatch, switchPlanPatch, withColorQty, withOptionQty, withOrderQtyScaled, withSizeRatio } from '../utils/orderPlan';
 import { HATCH } from '../utils/reviewTable';
 import { CellInput } from './CellInput';
-import { ChannelQtyPanel } from './SkuCard';
 import { GroupConfirmChips } from './ReviewRequestParts';
 import { REVIEW_GROUPS, REVIEW_GROUP_LABEL, groupApplies, type ReviewRequest } from '../utils/reviewRequest';
 import type { ChannelConfirmField } from '../types';
@@ -158,6 +159,52 @@ export interface ReviewListProps {
   onCreate: () => void;
 }
 
+/** 채널별 옵션 수량 — 채널 월 수량 × 컬러 비중 × 사이즈 비중 (예전 채널 펼침 상세 "최종 옵션 수량" · 2026-11-13 옵션 구역으로) */
+function ChannelOptionQty({ s }: { s: SkuData }) {
+  const months = getSkuMonths(s.releaseDate);
+  const off = getDisabledChannels(s) as readonly string[];
+  const chs = CHANNELS.filter((c) => !off.includes(c) && months.some((mo) => qtyOf(s, c, mo) > 0));
+  const [ch, setCh] = useState<Channel | null>(null);
+  const cur = ch && chs.includes(ch) ? ch : chs[0] ?? null;
+  const sizes = s.sizes.filter((z) => z.isActive && z.ratio > 0);
+  const colors = s.hasColors ? s.colors.filter((c) => !c.archived && c.quantity > 0) : [];
+  const cTot = colors.reduce((a, c) => a + c.quantity, 0);
+  const multiS = sizes.length > 1;
+  const multiC = colors.length > 1 && cTot > 0;
+  const opts: { label: string; ratio: number }[] = multiC && multiS
+    ? colors.flatMap((c) => sizes.map((z) => ({ label: `${c.name} ${z.label}`, ratio: (c.quantity / cTot) * (z.ratio / 100) })))
+    : multiC ? colors.map((c) => ({ label: c.name, ratio: c.quantity / cTot }))
+      : multiS ? sizes.map((z) => ({ label: z.label, ratio: z.ratio / 100 })) : [];
+  if (opts.length === 0 || !cur) return null;
+  const ry = s.releaseDate ? parseInt(s.releaseDate.split('-')[0], 10) : 2026;
+  return (
+    <div className="space-y-1 min-w-0">
+      <div className="flex flex-wrap items-center gap-2 text-xs">
+        <b>채널별 옵션 수량</b>
+        <select value={cur} onChange={(e) => setCh(e.target.value as Channel)} aria-label="채널" className="text-xs border border-gray-300 rounded px-1 py-0.5 bg-white">
+          {chs.map((c) => <option key={c} value={c}>{c}</option>)}
+        </select>
+        <span className="text-[11px] text-gray-500">채널 월 수량 × 컬러 비중 × 사이즈 비중 · 보기만</span>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs tabular-nums">
+          <thead><tr className="border-b border-gray-200 text-gray-500">
+            <th className="text-left px-2 py-1 font-semibold">옵션</th>
+            {months.map((mo) => <th key={mo} className="text-right px-2 py-1 font-semibold whitespace-nowrap">{(mo < months[0] ? ry + 1 : ry) % 100}.{mo}월</th>)}
+            <th className="text-right px-2 py-1 font-semibold border-l border-gray-200">합계</th>
+          </tr></thead>
+          <tbody>
+            {opts.map((o) => {
+              const vals = months.map((mo) => Math.round(qtyOf(s, cur, mo) * o.ratio));
+              return <tr key={o.label} className="border-b border-gray-100"><td className="px-2 py-1 whitespace-nowrap">{o.label}</td>{vals.map((v, i) => <td key={i} className="px-2 py-1 text-right">{v ? fmt(v) : '–'}</td>)}<td className="px-2 py-1 text-right font-semibold border-l border-gray-200">{fmt(vals.reduce((a, b) => a + b, 0))}</td></tr>;
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 function OptionPanel({ s, env, editable }: { s: SkuData; env: DetailEnv; editable: boolean }) {
   const [manualOpen, setManualOpen] = useState(false);
   const [copied, setCopied] = useState<'idle' | 'ok' | 'err'>('idle');
@@ -255,6 +302,7 @@ function OptionPanel({ s, env, editable }: { s: SkuData; env: DetailEnv; editabl
           </div>
         </div>
       </div>
+      <ChannelOptionQty s={s} />
     </div>
   );
 }
@@ -314,12 +362,94 @@ function Worksheet({ s, r, env, planEditable, canPrice, setOpts, monthComp, comp
   const setCell = (ch: Channel, mo: Month, v: number) => {
     const next = Math.max(0, Math.round(v));
     const old = qtyOf(s, ch, mo);
+    if (next !== old) snap();
     void save(s, { channelMonthQty: s.channelMonthQty.map((e) => (e.channel === ch && e.month === mo ? { ...e, qty: next } : e)) }, `${ch} ${mo}월 ${fmt(old)} → ${fmt(next)}`);
   };
   const setMkt = (mo: Month, v: number) => {
     const next = Math.max(0, Math.round(v));
     void save(s, { marketingMonthQty: { ...(s.marketingMonthQty ?? {}), [mo]: next } }, `마케팅 ${mo}월 ${fmt(s.marketingMonthQty?.[mo] ?? 0)} → ${fmt(next)}`);
   };
+
+  // ── 채널 도구 — 예전 "채널 상세 · 도구" 구역을 이 표로 합침 (2026-11-13) ──
+  type Snap = { channelMonthQty: SkuData['channelMonthQty']; pricingOpts: Record<string, string> };
+  const latest = () => useStore.getState().skus.find((x) => x.id === s.id) ?? s;
+  const [undo, setUndo] = useState<Snap[]>([]);
+  const snap = () => { const cur = latest(); setUndo((u) => [...u, { channelMonthQty: cur.channelMonthQty, pricingOpts: { ...(cur.pricingOpts ?? {}) } }].slice(-20)); };
+  const undoLast = () => {
+    const last = undo[undo.length - 1];
+    if (!last) return;
+    setUndo((u) => u.slice(0, -1));
+    void save(s, { channelMonthQty: last.channelMonthQty, pricingOpts: last.pricingOpts }, '채널 되돌리기');
+  };
+  const fw = fallbackWeightsOf(s, r.compare.channelDist);
+  const gridEmpty = s.channelMonthQty.every((e) => e.qty === 0);
+  const compareNames = compareNamesOf(s);
+  const derivedFrom = s.channelQtyDerivedFromCompareSkus;
+  // 마지막으로 채널을 나눈 대응SKU와 지금 대응SKU가 다르면 버튼만 주황 (자동 덮어쓰기 없음)
+  const compareChanged = !gridEmpty && derivedFrom !== undefined && !derivedFrom.includes(STEP2_FORCE_RECALC_MARK)
+    && JSON.stringify([...derivedFrom].sort()) !== JSON.stringify([...compareNames].sort());
+  /** 수량이 전혀 없을 때 최초 세팅 — 총 발주량 8개월 균등 → 대응SKU 채널 비중 */
+  const initialEntries = (x: SkuData) => {
+    const scope = planScopeOf(x, fw);
+    return redistributeByWeights(x.channelMonthQty, scope, fw, allocate(x.totalOrderQty, scope.months.map(() => 1))) as SkuData['channelMonthQty'];
+  };
+  const reshare = (x: SkuData) => (x.channelMonthQty.every((e) => e.qty === 0) ? initialEntries(x) : redistributeByWeights(x.channelMonthQty, planScopeOf(x, fw), fw) as SkuData['channelMonthQty']);
+  const allConfirmed = CHANNELS.filter((c) => !(getDisabledChannels(s) as readonly string[]).includes(c)).every((c) => !!s[CHANNEL_CONFIRM_GROUP[c].field]);
+  const toolOk = allRole && perm.step2 && !finalized && !writeBlocked && !allConfirmed;
+  const redistribute = () => {
+    snap();
+    const entries = reshare(latest());
+    void save(s, { channelMonthQty: entries, step2InitBaselineQty: entries, channelQtyDerivedFromCompareSkus: compareNames }, gridEmpty ? '대응SKU 기준 채우기' : '대응SKU 채널비중 반영');
+  };
+  // 관리 탭 재계산 표식이 있으면 월 합계 유지한 채 대응SKU 비중으로 한 번 다시 나눔 (예전 채널 상세 구역과 같은 동작)
+  const recalcDone = useRef(false);
+  useEffect(() => {
+    if (recalcDone.current) return;
+    const cur = latest();
+    if (!(cur.channelQtyDerivedFromCompareSkus ?? []).includes(STEP2_FORCE_RECALC_MARK)) return;
+    const names = compareNamesOf(cur);
+    if (names.length > 0 && !r.compare.channelDist) return; // 대응SKU 비중 받기 전이면 기다림
+    const empty = cur.channelMonthQty.every((e) => e.qty === 0);
+    if (empty && cur.totalOrderQty === 0) return;
+    const entries = reshare(cur);
+    if (entries.every((e) => e.qty === 0)) return;
+    recalcDone.current = true;
+    void save(s, { channelMonthQty: entries, step2InitBaselineQty: entries, channelQtyDerivedFromCompareSkus: names }, '관리 탭 재계산 · 채널 다시 나눔');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [r.compare.channelDist]);
+  // [채널 비중 수정] — 비중 열이 입력칸으로 · 월 합계 유지 · 미수정 채널이 나머지 배분 · 확정 채널 제외
+  const [shareEdit, setShareEdit] = useState<Partial<Record<Channel, number>> | null>(null);
+  const shareRes = shareEdit ? resolveChannelShares(s.channelMonthQty, planScopeOf(s), shareEdit) : null;
+  const saveShares = () => {
+    const cur = latest();
+    const scope = planScopeOf(cur);
+    const res = resolveChannelShares(cur.channelMonthQty, scope, shareEdit ?? {});
+    if (!res.ok) return;
+    snap();
+    void save(s, { channelMonthQty: applyChannelShares(cur.channelMonthQty, scope, res.shares) as SkuData['channelMonthQty'] }, '채널 비중 수정');
+    setShareEdit(null);
+  };
+  const shareMsg = (() => {
+    const x = shareRes;
+    const p1 = (v: number) => `${Math.round(v * 10) / 10}%`;
+    if (!x || x.reason === 'noChange') return '여러 채널 % 입력 후 한 번에 저장';
+    if (x.reason === 'over100') return <span className="text-red-600 font-semibold">수정 · 확정 채널 합계 {p1(x.fixedSum)} · 100% 초과</span>;
+    if (x.reason === 'notHundred') return <span className="text-red-600 font-semibold">합계 {p1(x.fixedSum)} · 100%로 맞춰야 함</span>;
+    return x.absorbing.length > 0 ? `${x.edited.length}개 채널 수정 · 나머지 ${p1(x.rest)}는 미수정 ${x.absorbing.length}개 채널에 현재 비율대로` : `${x.edited.length}개 채널 수정 · 합계 100%`;
+  })();
+  // 채널 이름 ▸ 펼침 — 대응SKU · 증감 · 기존 세팅값 대비 · 실 판매가(외화)
+  const [expanded, setExpanded] = useState<Set<Channel>>(new Set());
+  const toggleCh = (ch: Channel) => setExpanded((prev) => { const nx = new Set(prev); if (nx.has(ch)) nx.delete(ch); else nx.add(ch); return nx; });
+  const ry = s.releaseDate ? parseInt(s.releaseDate.split('-')[0], 10) : 2026;
+  const compCh = (ch: Channel, mo: Month) => (r.compare.channelYM ? getCompQtyAdj(s, r.compare.channelYM, r.compare.mode, ch, mo, months, ry) : null);
+  const { usdKrw, jpyKrw } = useExchangeRates();
+  const priceAt = (ch: Channel, mo: Month) => {
+    const raw = s.pricingOpts?.[`${ch}-${mo}`] ?? PRICING_DEFAULT_OPT[ch] ?? '';
+    const bp = basePriceOf(s, ch);
+    const foreign = PRICING_SCENARIOS.find((x) => x.id === raw)?.foreignAmt?.(bp, usdKrw, jpyKrw) ?? null;
+    return { price: r.pricer(raw, bp), foreign };
+  };
+  const [notesOpen, setNotesOpen] = useState(false);
 
   // 대응SKU 채널 비중 (%) — 비교 칸 "34% ▲4p"
   const dist = r.compare.channelDist;
@@ -345,10 +475,12 @@ function Worksheet({ s, r, env, planEditable, canPrice, setOpts, monthComp, comp
   const zm = 'bg-indigo-50/40';
   const zsep = 'border-l-2 border-gray-400';
   const blankMoney = <><td className={`${zm} ${zsep}`} /><td className={zm} /><td className={zm} /><td className={zm} /></>;
-  const band = (no: string, title: string, sub: ReactNode) => (
+  // 단계 띠도 수량 | 판매가 · 수익 구역을 나눠 세로 경계선이 끊기지 않게 (2026-11-13)
+  const band = (no: string, title: string, sub: ReactNode, moneyCell?: ReactNode) => (
     <tr className="bg-gray-100 border-t border-gray-200">
       <td className={`${c0} bg-gray-100 px-2 py-1 whitespace-nowrap`}><b className="text-gray-800">{no} {title}</b></td>
-      <td colSpan={n + 6} className="px-2 py-1 text-left text-[11px] text-gray-600">{sub}</td>
+      <td colSpan={n + 2} className="px-2 py-1 text-left text-[11px] text-gray-600 border-l border-gray-200">{sub}</td>
+      <td colSpan={4} className={`px-1.5 py-1 text-left text-[11px] text-gray-600 ${zsep} bg-gray-100`}>{moneyCell}</td>
     </tr>
   );
   const money = (rev: number, pro: number | null, cm: number | null, extra?: ReactNode) => (
@@ -367,6 +499,13 @@ function Worksheet({ s, r, env, planEditable, canPrice, setOpts, monthComp, comp
           <span className="inline-flex items-center gap-1"><i className="w-2.5 h-2.5 rounded-sm bg-indigo-600" />판매 목표</span>
           {!allRole && role && <span className="inline-flex items-center gap-1 text-teal-800"><i className="w-3 h-3 rounded-sm bg-teal-50 border-l-2 border-teal-500" />내 담당 채널</span>}
         </span>
+        <span className="flex-1" />
+        <button disabled={!r.varCost} title={r.varCost ? undefined : '변동비 데이터를 불러온 뒤 내보낼 수 있어요'}
+          onClick={() => exportSimulationXlsx({
+            sku: s, pricingOpts: s.pricingOpts ?? {}, compMonthlyData: r.compare.monthly, compMonthlyActiveOnly: r.compare.monthlyActiveOnly, compChannelDist: r.compare.channelDist,
+            varCostByChannel: Object.fromEntries(Object.entries(r.varCost ?? {}).map(([k, v]) => [k, v.ratio])), usdKrw, jpyKrw,
+          })}
+          className="text-[11px] px-2 py-0.5 rounded border border-teal-300 bg-teal-50 text-teal-700 hover:bg-teal-100 disabled:opacity-40 disabled:cursor-not-allowed">↓ 시뮬레이션 엑셀</button>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-xs tabular-nums min-w-[900px]">
@@ -429,10 +568,32 @@ function Worksheet({ s, r, env, planEditable, canPrice, setOpts, monthComp, comp
               <td className={`${td} border-l border-gray-300`}>{fmt(qty)}</td><td />{blankMoney}
             </tr>
 
-            {band('③', '채널 배분', <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
-              <span>채널 합계 = 판매 목표 · 그룹별 확정 · {allRole ? '전 채널 수정' : '내 담당 채널만 수정'}</span>
-              {B2C_CHANNELS.some(canPrice) && <span className="inline-flex flex-wrap items-center gap-1">· B2C 판매가 일괄{PCT_OPTS.map((o) => <Chip key={o} on={allOpt === o} onClick={() => setOpts(B2C_CHANNELS, o)}>{optLabel(o)} {fmt(r.pricer(o, s.price))}원</Chip>)}</span>}
-            </span>)}
+            {band('③', '채널 배분', shareEdit ? (
+              <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1 text-indigo-800">
+                <b>채널 비중 수정 중</b><span>{shareMsg}</span>
+                <button onClick={() => setShareEdit(null)} className="px-2 rounded border border-gray-300 bg-white text-gray-600">취소</button>
+                <button onClick={saveShares} disabled={!shareRes?.ok} className="px-2 rounded bg-indigo-600 text-white font-semibold disabled:opacity-40">저장</button>
+              </span>
+            ) : <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
+              <span>채널 합계 = 판매 목표 · 그룹별 확정 · {allRole ? '전 채널 수정' : '내 담당 채널만 수정'} · 채널 이름 ▸ 상세</span>
+              {allRole && perm.step2 && (
+                <span className="inline-flex flex-wrap items-center gap-1">
+                  {!gridEmpty && <button disabled={!toolOk} onClick={() => setShareEdit({})} className="px-1.5 rounded border border-indigo-300 bg-white text-indigo-700 font-semibold disabled:opacity-40 disabled:cursor-not-allowed">채널 비중 수정</button>}
+                  <button disabled={!toolOk || (s.totalOrderQty === 0 && gridEmpty)} onClick={redistribute} title={compareChanged ? '대응SKU가 바뀜 · 누르면 수기 수정값도 새 비중으로 다시 나눔' : '월 합계 유지 · 대응SKU 채널 비중으로 다시 나눔 · 수기 수정값도 재계산'}
+                    className={`px-1.5 rounded border disabled:opacity-40 disabled:cursor-not-allowed ${compareChanged ? 'border-amber-400 bg-amber-50 text-amber-800 font-semibold' : 'border-gray-300 bg-white text-gray-700'}`}>{gridEmpty ? '대응SKU 기준 채우기' : `대응SKU 채널비중 반영${compareChanged ? ' · 대응SKU 바뀜' : ''}`}</button>
+                </span>
+              )}
+              {undo.length > 0 && <button onClick={undoLast} disabled={writeBlocked} title="이 화면을 떠나면 기록이 사라짐" className="px-1.5 rounded border border-indigo-200 bg-indigo-50 text-indigo-700">↩ 되돌리기 ({undo.length})</button>}
+            </span>, B2C_CHANNELS.some(canPrice) && !shareEdit ? (
+              <label className="inline-flex items-center gap-1.5 whitespace-nowrap">
+                <span className="font-semibold text-gray-700">B2C 판매가 일괄</span>
+                <select value={allOpt ?? '__mixed'} onChange={(e) => e.target.value !== '__mixed' && setOpts(B2C_CHANNELS, e.target.value)} aria-label="B2C 판매가 일괄"
+                  className="text-[11px] border border-gray-300 rounded px-1 py-0.5 bg-white max-w-[170px]">
+                  {allOpt === null && <option value="__mixed">채널마다 다름 · 골라서 일괄</option>}
+                  {PCT_OPTS.map((o) => <option key={o} value={o}>{optLabel(o)} · {fmt(r.pricer(o, s.price))}원</option>)}
+                </select>
+              </label>
+            ) : undefined)}
             {groups.map((f) => {
               const rows = rowsOf(f);
               const chs = rows.map((c) => c.channel);
@@ -469,10 +630,28 @@ function Worksheet({ s, r, env, planEditable, canPrice, setOpts, monthComp, comp
                     const chBase = basePriceOf(s, c.channel);
                     const bg = my ? 'bg-teal-50' : 'bg-white';
                     const varNote = c.varRatio === null ? '변동비 없음' : `변동비 ${(c.varRatio * 100).toFixed(1)}%${c.varSource === 'default' ? ' · 25% 대체' : c.varSource === 'period' ? ' · 기간 대체' : ''}`;
+                    const ex = expanded.has(c.channel);
+                    const shareEditable = !!shareEdit && !s[CHANNEL_CONFIRM_GROUP[c.channel].field];
+                    const shareShown = shareEdit?.[c.channel] ?? (shareRes?.ok ? shareRes.shares[c.channel] : c.share);
+                    const cmpTot = r.compare.channelYM ? months.reduce((a, mo) => a + (compCh(c.channel, mo) ?? 0), 0) : null;
+                    const baseQ = (mo: Month) => s.step2InitBaselineQty?.find((e) => e.channel === c.channel && e.month === mo)?.qty ?? null;
+                    const hasBase = (s.step2InitBaselineQty?.length ?? 0) > 0;
+                    const subTd = `${td} text-[10px] text-gray-500`;
+                    const subRow = (key: string, label: ReactNode, cell: (mo: Month, i: number) => ReactNode, total: ReactNode, share: ReactNode, moneyNote?: ReactNode) => (
+                      <tr key={key} className="border-b border-gray-100 bg-gray-50">
+                        <td className={`${c0} bg-gray-50 px-2 py-0.5 pl-9 whitespace-nowrap text-[10px] text-gray-500`}>{label}</td>
+                        {months.map((mo, i) => <td key={mo} className={`${subTd} ${mCls(i)}`} style={hatch(i)}>{cell(mo, i)}</td>)}
+                        <td className={`${subTd} border-l border-gray-300`}>{total}</td>
+                        <td className={subTd}>{share}</td>
+                        <td colSpan={4} className={`px-1.5 py-0.5 ${zsep} ${zm} text-[10px] text-gray-500`}>{moneyNote}</td>
+                      </tr>
+                    );
+                    const diffTxt = (d: number) => <span className={d > 0 ? 'text-emerald-600' : d < 0 ? 'text-red-500' : 'text-gray-300'}>{d > 0 ? '+' : ''}{fmt(d)}</span>;
                     return (
-                      <tr key={c.channel} className={`border-b border-gray-100 ${bg}`}>
+                      <Fragment key={c.channel}>
+                      <tr className={`border-b border-gray-100 ${bg}`}>
                         <td className={`${c0} ${bg} px-2 py-0.5 pl-6 whitespace-nowrap ${my ? 'border-l-2 border-l-teal-500' : ''}`}>
-                          {c.channel}{my && <span className="ml-1 text-[9px] px-1 rounded bg-teal-600 text-white font-semibold">내 채널</span>}
+                          <button type="button" onClick={() => toggleCh(c.channel)} aria-expanded={ex} className={`hover:text-indigo-700 ${ex ? 'font-semibold text-indigo-700' : ''}`}><span className="inline-block w-3 -ml-3 text-gray-400">{ex ? '▾' : '▸'}</span>{c.channel}</button>{my && <span className="ml-1 text-[9px] px-1 rounded bg-teal-600 text-white font-semibold">내 채널</span>}
                           {s[CHANNEL_CONFIRM_GROUP[c.channel].field] && <span className="ml-1 text-[9px] text-emerald-600">잠김</span>}
                         </td>
                         {months.map((mo, i) => (
@@ -481,7 +660,9 @@ function Worksheet({ s, r, env, planEditable, canPrice, setOpts, monthComp, comp
                           </td>
                         ))}
                         <td className={`${td} border-l border-gray-300 font-semibold`}>{fmt(c.planQty)}</td>
-                        <td className={td}>{Math.round(c.share)}%{delta(c.share, cmpShare(c.channel), 'p')}</td>
+                        {shareEditable
+                          ? <td className="px-0.5 py-0.5 w-16"><CellInput value={Math.round(shareShown * 10) / 10} suffix="%" onCommit={(v) => setShareEdit((prev) => ({ ...(prev ?? {}), [c.channel]: Math.max(0, v) }))} className={shareEdit?.[c.channel] !== undefined ? 'font-semibold text-indigo-700' : ''} /></td>
+                          : <td className={td}>{Math.round(shareEdit ? shareShown : c.share)}%{!shareEdit && delta(c.share, cmpShare(c.channel), 'p')}</td>}
                         <td className={`px-1.5 py-0.5 ${zsep} ${zm}`}>
                           {isB2c ? (
                             <select value={c.opt ?? '__mixed'} disabled={!canPrice(c.channel)} onChange={(e) => e.target.value !== '__mixed' && setOpts([c.channel], e.target.value)} aria-label={`${c.channel} 판매가`}
@@ -498,6 +679,15 @@ function Worksheet({ s, r, env, planEditable, canPrice, setOpts, monthComp, comp
                           {c.varSource === 'none' && !tableau.loading && <span className="ml-1 px-1 rounded-full bg-red-100 text-red-700 text-[9px] font-semibold" title="변동비 데이터 로드 실패 · 공헌이익 계산 안 함">로드 실패</span>}
                         </>)}
                       </tr>
+                      {ex && (
+                        <>
+                          {subRow('cmp', <>대응SKU <span className="text-gray-400">{r.compare.mode === 'samePeriod' ? '동기간' : '직전 12개월'}</span></>, (mo) => { const v = compCh(c.channel, mo); return v === null ? '–' : fmt(v); }, cmpTot === null ? '–' : fmt(cmpTot), cmpShare(c.channel) === null ? '' : `${Math.round(cmpShare(c.channel)!)}%`, varNote)}
+                          {subRow('rate', '증감 · 대응SKU 대비', (mo) => { const cc = compCh(c.channel, mo); const q = qtyOf(s, c.channel, mo); if (!cc) return '–'; const d = Math.round(((q - cc) / cc) * 100); return <span className={d > 0 ? 'text-blue-600' : d < 0 ? 'text-red-500' : ''}>{d > 0 ? '+' : ''}{d}%</span>; }, cmpTot ? delta(c.planQty, cmpTot, '%') : '–', '')}
+                          {hasBase && subRow('base', '기존 세팅값 대비', (mo) => diffTxt(qtyOf(s, c.channel, mo) - (baseQ(mo) ?? 0)), diffTxt(months.reduce((a, mo) => a + qtyOf(s, c.channel, mo) - (baseQ(mo) ?? 0), 0)), '')}
+                          {subRow('price', <>실 판매가{(c.channel === '글로벌' || c.channel === '일본') && <span className="text-gray-400"> ${fmt(usdKrw)} · ¥{jpyKrw.toFixed(1)}</span>}</>, (mo) => { const pr = priceAt(c.channel, mo); return <>{fmt(pr.price)}{pr.foreign && <span className="block text-[9px] text-indigo-400">{pr.foreign.symbol}{pr.foreign.amount.toFixed(pr.foreign.decimals)}</span>}</>; }, '', '', '보기만 · 판매가는 위 판매가 열에서')}
+                        </>
+                      )}
+                      </Fragment>
                     );
                   })}
                   {isOpen && f === 'step2PlatformConfirmed' && showMkt && (
@@ -528,7 +718,21 @@ function Worksheet({ s, r, env, planEditable, canPrice, setOpts, monthComp, comp
           </tbody>
         </table>
       </div>
-      <p className="px-3 py-1.5 text-[11px] text-gray-500">할인가 = 판매가 × (1 − 할인율), 10원 올림 · 판매가는 채널별 하나 · 예전에 월마다 다르게 넣은 채널은 “월별 다름”, 하나를 고르면 모든 달에 적용{s.isPriceConfirmed ? ' · 가격 확정 SKU · 확정 가격 기준 할인' : ''} · 순매출 · 공헌이익은 {env.basis === 'order' ? '이번 발주량까지만 판매' : '판매 목표 전체(리오더 포함)'} 기준</p>
+      <div className="px-3 pt-1.5 text-[11px] text-gray-500 space-y-0.5">
+        <button type="button" onClick={() => setNotesOpen((v) => !v)} className="underline text-indigo-700">계산 안내 {notesOpen ? '▴' : '▾'}</button>
+        {notesOpen && (
+          <ul className="list-disc pl-4 space-y-0.5">
+            <li>처음 채널 수량: 월 계획 × 대응SKU 채널 비중 · 칸을 직접 고치면 월 · 채널 비중 자동 재계산</li>
+            <li>[채널 비중 수정]: 여러 채널 % 입력 → 저장 · 월 합계 유지 · 안 고친 채널이 남은 비중을 나눠 가짐 · 확정 채널 제외</li>
+            <li>대응SKU를 바꿔도 표는 자동으로 안 바뀜 · [대응SKU 채널비중 반영]을 누르면 수기 수정값까지 다시 나눔</li>
+            <li>{s.coupangEnabled ? '쿠팡: 관리자 설정으로 활성화 · 대응SKU 실적 · 비중 포함' : '쿠팡: 신상 미등록 · 대응SKU 실적 · 비중 제외 · 관리 탭에서 SKU별 활성화'}</li>
+            {(s.disabledChannels ?? []).length > 0 && <li>{(s.disabledChannels ?? []).join(' · ')}: 비운영 · 목표량 0 고정 · 비중은 나머지 채널로 (관리 탭 › 채널 관리)</li>}
+            <li>{(() => { const off = s.disabledChannels ?? []; if (off.length === 1) return `태블로 해외 출고량 전부 ${off[0] === '글로벌' ? '일본' : '글로벌'}로 반영 (${off[0]} 비운영)`; if (off.length >= 2) return '태블로 해외 출고량 제외 (글로벌 · 일본 비운영)'; return '태블로 해외 출고량: 글로벌 40% · 인케어 60% 임의 분배'; })()}</li>
+            <li>되돌리기 기록은 이 SKU 화면에만 남음 · 다른 SKU로 오래 이동하면 사라짐</li>
+          </ul>
+        )}
+      </div>
+      <p className="px-3 pb-1.5 text-[11px] text-gray-500">할인가 = 판매가 × (1 − 할인율), 10원 올림 · 판매가는 채널별 하나 · 예전에 월마다 다르게 넣은 채널은 “월별 다름”, 하나를 고르면 모든 달에 적용{s.isPriceConfirmed ? ' · 가격 확정 SKU · 확정 가격 기준 할인' : ''} · 순매출 · 공헌이익은 {env.basis === 'order' ? '이번 발주량까지만 판매' : '판매 목표 전체(리오더 포함)'} 기준</p>
     </div>
   );
 }
@@ -559,8 +763,8 @@ function Detail({ s, r, env }: { s: SkuData; r: SkuReview; env: DetailEnv }) {
       const v = Math.round(((x - c) / c) * 100);
       return <span className={v >= 0 ? 'text-blue-600' : 'text-red-500'}>{v >= 0 ? '+' : '−'}{Math.abs(v)}%</span>;
     };
-    const [fold, setFold] = useState({ cmp: false, opt: false, tool: false });
-    const flip = (k: 'cmp' | 'opt' | 'tool') => setFold((f) => ({ ...f, [k]: !f[k] }));
+    const [fold, setFold] = useState({ cmp: false, opt: false });
+    const flip = (k: 'cmp' | 'opt') => setFold((f) => ({ ...f, [k]: !f[k] }));
     const cmpRef = useRef<HTMLDivElement>(null);
     const [cmpOpen, setCmpOpen] = useState(false);
 
@@ -779,12 +983,6 @@ function Detail({ s, r, env }: { s: SkuData; r: SkuReview; env: DetailEnv }) {
               <OptionPanel s={s} env={env} editable={orderEditable} />
             </Fold>
           </div>
-            {/* 채널 상세는 닫아도 마운트 유지 — 펼친 채널 · 되돌리기 기록 보존 */}
-            <Fold open={fold.tool} onToggle={() => flip('tool')} title="채널 상세 · 도구"
-              summary="위 표와 같은 수량 · 채널 비중 수정 · 대응SKU 채널비중 반영 · 되돌리기 · 시뮬레이션 엑셀 · 채널별 월 상세">
-              <Hint strong="위 표와 같은 수량" rest="채널별 월 상세(대응SKU · 기준값 차이 · 실 판매가 · 옵션 수량) · 채널 비중 수정 · 대응SKU 채널비중 반영 · 되돌리기 · 시뮬레이션 엑셀" />
-              <ChannelQtyPanel sku={s} compare={r.compare} />
-            </Fold>
 
         <div className="sticky bottom-0 z-10 flex flex-wrap items-center gap-2 rounded-lg border border-gray-300 bg-white/95 px-3 py-2 shadow-md">
           {stateChip(s)}
