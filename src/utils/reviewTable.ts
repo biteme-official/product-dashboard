@@ -1,10 +1,10 @@
 /**
- * 발주량 검토 표 공통 값 — SKU별 결정 통합 표 · 채널 일괄 · 월 계획 일괄 (개편 5단계)
+ * 발주량 검토 표 공통 값 — SKU별 결정 통합 표 · 월 계획 일괄 (개편 5단계)
  */
 import type { Month } from '../types';
 
-/** 소진월 이후(리오더 · 품절 구간) 빗금 */
-export const HATCH = { backgroundImage: 'repeating-linear-gradient(135deg, #ffedd5 0 4px, transparent 4px 9px)' };
+/** 소진월 이후(리오더 · 품절 구간) 빗금 — 1px 선 · 7px 간격 · 엷은 주황 (2026-11-13 엷게) */
+export const HATCH = { backgroundImage: 'repeating-linear-gradient(135deg, rgba(234, 88, 12, 0.16) 0 1px, transparent 1px 7px)' };
 
 /** 누적 판매 목표가 발주량에 처음 닿는 달 (없으면 -1) */
 export const coverIndexOf = (cumulative: number[], orderQty: number) =>

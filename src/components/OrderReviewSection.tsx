@@ -528,7 +528,7 @@ function Worksheet({ s, r, env, planEditable, canPrice, setOpts, monthComp, comp
           </tbody>
         </table>
       </div>
-      <p className="px-3 py-1.5 text-[11px] text-gray-500">할인가 = 판매가 × (1 − 할인율), 10원 올림 · 판매가는 채널별 하나 · 예전에 월마다 다르게 넣은 채널은 “월별 다름”, 하나를 고르면 모든 달에 적용{s.isPriceConfirmed ? ' · 가격 확정 SKU라 판매가 잠김(프라이싱에서 해제)' : ''} · 순매출 · 공헌이익은 {env.basis === 'order' ? '이번 발주량까지만 판매' : '판매 목표 전체(리오더 포함)'} 기준</p>
+      <p className="px-3 py-1.5 text-[11px] text-gray-500">할인가 = 판매가 × (1 − 할인율), 10원 올림 · 판매가는 채널별 하나 · 예전에 월마다 다르게 넣은 채널은 “월별 다름”, 하나를 고르면 모든 달에 적용{s.isPriceConfirmed ? ' · 가격 확정 SKU · 확정 가격 기준 할인' : ''} · 순매출 · 공헌이익은 {env.basis === 'order' ? '이번 발주량까지만 판매' : '판매 목표 전체(리오더 포함)'} 기준</p>
     </div>
   );
 }
@@ -579,7 +579,7 @@ function Detail({ s, r, env }: { s: SkuData; r: SkuReview; env: DetailEnv }) {
       : [];
 
     // 판매가
-    const canPrice = (ch: Channel) => perm.step2 && ownsChannel(role, ch) && !s[CHANNEL_CONFIRM_GROUP[ch].field] && !s.isPriceConfirmed && !finalized && !writeBlocked && !busy;
+    const canPrice = (ch: Channel) => perm.step2 && ownsChannel(role, ch) && !s[CHANNEL_CONFIRM_GROUP[ch].field] && !finalized && !writeBlocked && !busy;
     const setOpts = (channels: readonly Channel[], opt: string) => {
       const nextOpts = { ...(s.pricingOpts ?? {}) };
       channels.filter(canPrice).forEach((ch) => months.forEach((mo) => { nextOpts[`${ch}-${mo}`] = opt; }));
@@ -808,13 +808,26 @@ function Detail({ s, r, env }: { s: SkuData; r: SkuReview; env: DetailEnv }) {
  * 금액 기준(초도 발주량만 / 시즌 목표 포함)은 상단 요약과 같다. 발주금액은 SKU 단위라 채널로 나누지 않음.
  * 첫 화면: 마스터 · PM · 뷰어는 전체, 채널 담당은 내 그룹.
  */
+/** 요청 SKU의 한 그룹(플랫폼 · 브랜드 · 글로벌) 소계 — 채널별 요약 소계와 같은 계산 · 비운영 채널 제외 · 플랫폼은 마케팅 비용 차감 */
+function groupSubtotal(rows: { s: SkuData; r: SkuReview }[], f: ChannelConfirmField) {
+  const out = { revenue: 0, profit: 0, profitRevenue: 0, profitNull: 0, done: 0, total: 0 };
+  rows.forEach(({ s, r }) => {
+    const off = getDisabledChannels(s) as readonly string[];
+    const chs = r.money.channels.filter((c) => CHANNEL_CONFIRM_GROUP[c.channel].field === f && !off.includes(c.channel));
+    if (chs.length === 0) return;
+    const rev = chs.reduce((a, c) => a + c.revenue, 0);
+    const pro = chs.some((c) => c.profit === null) ? null : chs.reduce((a, c) => a + (c.profit as number), 0) - (f === 'step2PlatformConfirmed' ? r.money.marketingCost : 0);
+    out.revenue += rev;
+    if (pro === null) out.profitNull += 1; else { out.profit += pro; out.profitRevenue += rev; }
+    if (chs.some((c) => c.planQty > 0)) { out.total += 1; if (s[f]) out.done += 1; }
+  });
+  return out;
+}
 type SummaryCol = { key: string; label: string; group: ChannelConfirmField; qty: number; revenue: number; profit: number; profitRevenue: number; profitNull: number; done: number; total: number; operated: number };
-function ReviewChannelSummary({ req, rows, role }: { req: ReviewRequest; rows: { s: SkuData; r: SkuReview }[]; role: Role | null }) {
+function ReviewChannelSummary({ req, rows, role, onClose }: { req: ReviewRequest; rows: { s: SkuData; r: SkuReview }[]; role: Role | null; onClose: () => void }) {
   const own = isAllChannelRole(role) ? null : REVIEW_GROUPS.find((f) => canConfirmGroup(role, f)) ?? null;
   const [pick, setPick] = useState<{ reqId: string; g: ChannelConfirmField | 'all' } | null>(null);
   const g = pick && pick.reqId === req.id ? pick.g : (own ?? 'all');
-  const [open, setOpenRaw] = useState(() => { try { return sessionStorage.getItem('ct:chSumOpen') !== '0'; } catch { return true; } });
-  const setOpen = (f: (v: boolean) => boolean) => setOpenRaw((v) => { const n = f(v); try { sessionStorage.setItem('ct:chSumOpen', n ? '1' : '0'); } catch { /* 무시 */ } return n; });
 
   const cols: SummaryCol[] = CHANNELS.map((ch) => ({ key: ch, label: ch, group: CHANNEL_CONFIRM_GROUP[ch].field, qty: 0, revenue: 0, profit: 0, profitRevenue: 0, profitNull: 0, done: 0, total: 0, operated: 0 }));
   const mkt: SummaryCol = { key: '마케팅', label: '마케팅', group: 'step2PlatformConfirmed', qty: 0, revenue: 0, profit: 0, profitRevenue: 0, profitNull: 0, done: 0, total: 0, operated: 0 };
@@ -852,9 +865,9 @@ function ReviewChannelSummary({ req, rows, role }: { req: ReviewRequest; rows: {
         {(['all', ...REVIEW_GROUPS] as const).map((k) => (
           <Chip key={k} on={g === k} onClick={() => setPick({ reqId: req.id, g: k })}>{k === 'all' ? '전체' : REVIEW_GROUP_LABEL[k]}</Chip>
         ))}
-        <button onClick={() => setOpen((v) => !v)} className="text-[11px] underline text-indigo-700 ml-1">{open ? '접기' : '펼치기'}</button>
+        <button onClick={onClose} className="text-[11px] underline text-indigo-700 ml-1">접기</button>
       </div>
-      {open && (
+      {(
         <div className="overflow-x-auto">
           <table className="w-full text-xs tabular-nums">
             <thead><tr className="border-b border-gray-200 text-gray-500">
@@ -913,6 +926,9 @@ export function OrderReviewSection({ skus: filteredSkus, view, targetComparable:
   const [basis, setBasis] = useState<MoneyBasis>('order');
   const [statusOpen, setStatusOpen] = useState(false);
   const [kpiAll, setKpiAll] = useState(false);
+  // 검토 요청 채널별 요약 — 처음엔 접힘 (첫 화면에서 SKU 목록이 바로 보이게 · 2026-11-13) · 펼침 상태는 탭 세션 동안 기억
+  const [chSumOpen, setChSumOpenRaw] = useState(() => { try { return sessionStorage.getItem('ct:chSumOpen') === '1'; } catch { return false; } });
+  const setChSumOpen = (f: (v: boolean) => boolean) => setChSumOpenRaw((v) => { const n = f(v); try { sessionStorage.setItem('ct:chSumOpen', n ? '1' : '0'); } catch { /* 무시 */ } return n; });
   const [metric, setMetric] = useState<'rev' | 'pro'>('rev');
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -1054,25 +1070,35 @@ export function OrderReviewSection({ skus: filteredSkus, view, targetComparable:
   ) : null;
 
   const profitText = tableau.teamCate ? won(totals.profit) : '계산 중단';
+  // 검토 요청 · 채널 담당은 내 그룹 소계를 요약 줄 맨 앞에 (채널별 표는 [채널별 ▾]로 펼침)
+  const ownGroup = review?.req && !isAllChannelRole(role) ? REVIEW_GROUPS.find((f) => canConfirmGroup(role, f) && review.req!.groups.includes(f)) ?? null : null;
+  const own = ownGroup ? groupSubtotal(rows, ownGroup) : null;
   const summary = (
-    <div className="bg-white border border-gray-300 rounded-lg px-3 py-1.5 space-y-1">
-      <div className="grid grid-cols-[repeat(auto-fit,minmax(92px,1fr))] gap-x-3 gap-y-1">
-        {metricCell('결정 · 확정', `${decided} · ${confirmed} / ${skus.length}`)}
-        {kpiAll && metricCell('발주량', fmt(totals.order))}
-        {metricCell(review?.req ? '발주금액 · 총 발주량' : '발주금액', won(totals.orderAmount))}
-        {kpiAll ? <>{metricCell('순매출', won(totals.revenue))}{metricCell('공헌이익', profitText)}{metricCell('CM%', pct(totalCm(totals)))}{metricCell('리오더 필요', fmt(totals.reorder))}{metricCell('시즌 후 잔여', won(totals.leftover))}</>
-          : metricCell('순매출 · 공헌이익', `${won(totals.revenue)} · ${profitText}`)}
-        {metricCell('위험 SKU', fmt(totals.risk))}
-      </div>
-      <div className="text-[11px] text-gray-500 flex flex-wrap items-center gap-x-2 gap-y-1">
-        <span>금액 기준</span>
+    <div className="bg-white border border-gray-300 rounded-lg px-3 py-1.5 flex flex-wrap items-center gap-x-4 gap-y-1">
+      {own && ownGroup && (
+        <div className="flex items-center gap-3 rounded-md bg-teal-50 border border-teal-200 px-2 py-0.5">
+          <span className="px-1.5 rounded bg-teal-600 text-white text-[11px] font-semibold whitespace-nowrap">{REVIEW_GROUP_LABEL[ownGroup]} 소계</span>
+          {metricCell('순매출', won(own.revenue))}
+          {metricCell('공헌이익 · CM%', own.profitNull === rows.length && rows.length > 0 ? '–' : `${won(own.profit)} · ${pct(own.profitRevenue > 0 ? Math.round((own.profit / own.profitRevenue) * 1000) / 10 : null)}`)}
+          {metricCell('확정', `${own.done} / ${own.total}`)}
+        </div>
+      )}
+      {metricCell('결정 · 확정', `${decided} · ${confirmed} / ${skus.length}`)}
+      {kpiAll && metricCell('발주량', fmt(totals.order))}
+      {metricCell('발주금액', won(totals.orderAmount))}
+      {kpiAll ? <>{metricCell('순매출', won(totals.revenue))}{metricCell('공헌이익', profitText)}{metricCell('CM%', pct(totalCm(totals)))}{metricCell('리오더 필요', fmt(totals.reorder))}{metricCell('시즌 후 잔여', won(totals.leftover))}</>
+        : metricCell('순매출 · 공헌이익', `${won(totals.revenue)} · ${profitText}`)}
+      {metricCell('위험 SKU', fmt(totals.risk))}
+      <div className="text-[11px] text-gray-500 flex flex-wrap items-center gap-x-1.5 gap-y-1">
         <Chip on={basis === 'order'} onClick={() => setBasis('order')}>초도 발주량만</Chip>
         <Chip on={basis === 'season'} onClick={() => setBasis('season')}>시즌 목표 · 리오더 포함</Chip>
         {statusChip}
-        {(tableau.errors.teamCate || tableau.errors.shipments || tableau.errors.channel) && <button onClick={tableau.retry} className="underline">다시 시도</button>}
-        {totals.skipped > 0 && !tableau.loading && <span className="px-1.5 rounded-full bg-red-100 text-red-700 font-semibold">공헌이익 제외 {totals.skipped}개</span>}
-        <span className="flex-1" />
-        <button onClick={() => setKpiAll((v) => !v)} className="underline text-indigo-700">{kpiAll ? '접기' : '지표 9개 전부 보기'}</button>
+        {totals.skipped > 0 && !tableau.loading && <span className="px-1.5 rounded-full bg-red-100 text-red-700 font-semibold whitespace-nowrap">공헌이익 제외 {totals.skipped}개</span>}
+      </div>
+      <span className="flex-1" />
+      <div className="flex items-center gap-2 text-[11px]">
+        {review?.req && <button onClick={() => setChSumOpen((v) => !v)} aria-expanded={chSumOpen} className={`px-2 py-0.5 rounded border font-semibold ${chSumOpen ? 'border-teal-500 bg-teal-50 text-teal-800' : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'}`}>채널별 {chSumOpen ? '▴' : '▾'}</button>}
+        <button onClick={() => setKpiAll((v) => !v)} className="underline text-indigo-700 whitespace-nowrap">{kpiAll ? '지표 접기' : '지표 9개'}</button>
       </div>
     </div>
   );
@@ -1199,7 +1225,7 @@ export function OrderReviewSection({ skus: filteredSkus, view, targetComparable:
     <div className="h-full min-h-0 flex flex-col gap-2">
       <div className="shrink-0 space-y-2">
         {summary}
-        {review?.req && <ReviewChannelSummary req={review.req} rows={rows} role={role} />}
+        {review?.req && chSumOpen && <ReviewChannelSummary req={review.req} rows={rows} role={role} onClose={() => setChSumOpen(() => false)} />}
         {statusTable}
         {message && <div className="text-xs bg-red-50 border border-red-200 text-red-700 rounded px-3 py-1.5 flex justify-between gap-2"><span>{message}</span><button onClick={() => setMessage(null)} className="underline">닫기</button></div>}
       </div>

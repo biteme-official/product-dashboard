@@ -107,7 +107,7 @@ export const MANUAL_REVIEW_CSS = `
 .pman .rs-plan .chip{font-size:10.5px;padding:1px 7px}
 .pman .rs-strip,.pman .s-strip{display:grid;grid-template-columns:repeat(8,1fr);gap:2px;width:100%}
 .pman .rs-strip i{height:9px;border-radius:2px;display:block}
-.pman i.g,.pman .s-strip .g{background:#d1fae5;color:#065f46}.pman i.d,.pman .s-strip .d{background:#047857;color:#fff}.pman i.o,.pman .s-strip .o{background:#ffedd5;color:#9a3412}
+.pman i.g,.pman .s-strip .g{background:#d1fae5;color:#065f46}.pman i.d,.pman .s-strip .d{background:#047857;color:#fff}.pman i.o,.pman .s-strip .o{background:repeating-linear-gradient(135deg,rgba(234,88,12,.35) 0 1px,transparent 1px 5px);color:#9a3412}
 .pman .rs-mid{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:7px}
 .pman .rs-box{border:1px solid var(--border);border-radius:8px;padding:7px 9px;display:flex;flex-direction:column;position:relative;font-size:11.5px}
 .pman .rv-pin.abs{position:absolute;top:-6px;right:-5px;z-index:1}
