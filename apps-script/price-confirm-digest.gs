@@ -37,6 +37,13 @@ const BRAND_ORDER = ['바잇미', 'SSFW', '그외'];
 const CATEGORY_ORDER = ['식품', '장난감', '용품', '잡화', '의류'];
 // src/types/cpo.ts CPO_VISIBLE_STATUSES와 같게 유지
 const CPO_VISIBLE = ['기획/아이디어', '시안/샘플링', '제작 시작', '상세 작성', '사진 촬영', '상세 작업중', '상세 완료', '오픈/완료'];
+// src/types/cpo.ts CPO_HIDDEN_CATEGORIES와 같게 유지 — Product에 안 뜨는 카테고리
+const CPO_HIDDEN_CATEGORIES = ['비매품'];
+
+/** 앱에서 숨기는 SKU인지 — CPO 상태 Holding/Cancel · 카테고리 비매품 · CPO 오픈일 없음 */
+function isHiddenInApp_(p) {
+  return !!p && (CPO_VISIBLE.indexOf(p.status) < 0 || CPO_HIDDEN_CATEGORIES.indexOf(p.category) >= 0 || !p.releaseDate);
+}
 const DOW = '일월화수목금토';
 
 // ───────────────────────── 실행 함수 ─────────────────────────
@@ -99,11 +106,11 @@ function collectTargets_(today) {
     'skuName', 'brand', 'category', 'releaseDate', 'price', 'regularPrice', 'isPriceConfirmed', 'coreSku', 'coreMainChannel', 'coreMainChannelEtc',
   ]);
   const cpo = {};
-  listDocs_(CPO, 'projects', ['status', 'releaseDate']).forEach((p) => { cpo[p.id] = p; });
+  listDocs_(CPO, 'projects', ['status', 'category', 'releaseDate']).forEach((p) => { cpo[p.id] = p; });
 
   const targets = skus.filter((s) => {
     const p = cpo[s.id];
-    if (p && (CPO_VISIBLE.indexOf(p.status) < 0 || !p.releaseDate)) return false; // 앱에서 숨기는 SKU
+    if (isHiddenInApp_(p)) return false; // 앱에서 숨기는 SKU
     const d = s.releaseDate || '';
     return d >= from && d <= to && s.isPriceConfirmed !== true;
   });
