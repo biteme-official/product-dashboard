@@ -59,7 +59,9 @@ export function startIdleNetworkGuard(db: Firestore, label: string): void {
     if (Date.now() - lastActivity < idleMs()) return; // 기다리는 사이 다시 조작함
     await disableNetwork(db);
     offline = true;
-    console.info(`[idleNetwork:${label}] ${Math.round(idleMs() / 60000)}분 동안 조작이 없어 서버 연결을 끊음`);
+    const ms = idleMs();
+    const span = ms >= 60 * 1000 ? `${Math.round(ms / 60000)}분` : `${Math.round(ms / 1000)}초`;
+    console.info(`[idleNetwork:${label}] ${span} 동안 조작이 없어 서버 연결을 끊음`);
   });
 
   const goOnline = () => run(async () => {
