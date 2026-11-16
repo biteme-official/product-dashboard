@@ -69,11 +69,11 @@ function collectStockDiff_(today) {
   const stock = readStock_();
   const skus = listDocs_(PRODUCT, 'skus', ['skuName', 'brand', 'category', 'releaseDate', 'cost', 'price', 'regularPrice']);
   const cpo = {};
-  listDocs_(CPO, 'projects', ['status', 'releaseDate']).forEach((p) => { cpo[p.id] = p; });
+  listDocs_(CPO, 'projects', ['status', 'category', 'releaseDate']).forEach((p) => { cpo[p.id] = p; });
 
   const upcoming = skus.filter((s) => {
     const p = cpo[s.id];
-    if (p && (CPO_VISIBLE.indexOf(p.status) < 0 || !p.releaseDate)) return false;
+    if (isHiddenInApp_(p)) return false; // 앱에서 숨기는 SKU (price-confirm-digest.gs)
     return (s.releaseDate || '') > today;
   });
   let matched = 0;
