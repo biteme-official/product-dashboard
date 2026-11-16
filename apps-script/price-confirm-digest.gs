@@ -6,7 +6,7 @@
  *
  * 대상: Product 대시보드 skus 컬렉션 (휴지통 SKU는 이미 빠져 있음)
  *   - isPriceConfirmed가 true가 아닌 SKU (주력 SKU 포함 · 개편 전 확정도 확정으로 봄)
- *   - 앱에서 숨기는 SKU 제외: CPO 프로젝트가 Holding · Cancel 등 비활성 상태이거나 CPO 오픈일 없음
+ *   - 앱에서 숨기는 SKU 제외: CPO 프로젝트가 Holding · Cancel 등 비활성 상태이거나 카테고리 비매품이거나 CPO 오픈일 없음
  *   - 오픈일이 지난 SKU는 무시
  *
  * 스크립트 속성 (프로젝트 설정 › 스크립트 속성)
